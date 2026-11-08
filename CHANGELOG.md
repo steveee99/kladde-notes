@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.6.0] – 2026-11-08
+
 - Neu: Slash-Befehle im Editor: `/` am Zeilenanfang oder nach einem Leerzeichen öffnet ein Menü mit Überschriften, Liste, nummerierter Liste, Aufgabe, Tabelle, Zitat, Codeblock, Trennlinie, Abfragen, Galerie, Links, dem heutigen Datum und Datei-Upload. Weitertippen filtert (auch englische Namen wie `/table` oder `/todo`).
 
 ## [0.5.0] – 2026-11-08
