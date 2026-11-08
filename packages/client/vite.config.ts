@@ -7,6 +7,8 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Registered in lib/update.ts, which also forces updates
+      injectRegister: false,
       includeAssets: ['icons/*.png', 'icons/icon.svg', 'robots.txt'],
       manifest: {
         name: 'Kladde',

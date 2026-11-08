@@ -86,7 +86,20 @@ html,
 body {
   overflow: hidden;
 }
-/* iOS 26 short layout (lib/viewport.ts): the strip below it shows the canvas, so it takes the bottom bar's color */
+/*
+ * iOS 26 (WebKit 301108): a home-screen app installed with the translucent status bar gets a viewport
+ * that is short by the status bar's height for as long as the page is not taller than it, so the
+ * header sits under the status bar's dark gradient and the bottom bar ends above the screen edge.
+ * One top inset taller and iOS hands over the full screen, where this computes to 100%; min() caps it
+ * at the screen. With an opaque status bar the inset is 0 and nothing changes.
+ * https://bugs.webkit.org/show_bug.cgi?id=301108
+ */
+@media (display-mode: standalone) {
+  html {
+    height: min(100lvh, calc(100% + env(safe-area-inset-top)));
+  }
+}
+/* Fallback if iOS still keeps the short layout (lib/viewport.ts): the strip below it shows the canvas, so it takes the bottom bar's color */
 html.short-viewport {
   background: rgb(var(--surface));
 }

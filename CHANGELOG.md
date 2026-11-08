@@ -4,6 +4,9 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Behoben: In der iOS-Home-Bildschirm-App (iOS 26) liegt die Kopfzeile nicht mehr unter dem dunklen Verlauf der Statusleiste, und die untere Leiste reicht wieder bis zum Bildschirmrand. Die App bekommt jetzt von iOS die volle Bildschirmhöhe, auch bei älteren Installationen.
+- Updates kommen jetzt sofort an: Beim Start, beim Zurückkehren in die App und wenn die Verbindung wiederkommt, fragt die App die Server-Version ab und lädt eine neue Version zwangsweise (notfalls mit geleertem App-Cache). Notizen bleiben dabei erhalten.
+
 ## [0.3.2] – 2026-11-08
 
 - Behoben: In älteren iOS-Home-Bildschirm-Installationen (ab iOS 26.1) bleibt unter der unteren Leiste kein andersfarbiger Streifen mehr; die Leiste reicht optisch bis zum Rand.
