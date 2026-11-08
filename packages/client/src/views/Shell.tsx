@@ -312,7 +312,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-2 border-b border-line bg-bg/80 pb-2 backdrop-blur [--pad-top:0.5rem] [--pad-x:0.75rem] safe-top safe-x md:hidden">
+        <header className="flex items-center gap-2 border-b border-line bg-bg/80 pb-2 [--pad-top:0.5rem] [--pad-x:0.75rem] safe-top safe-x md:hidden">
           <button className="btn-icon" onClick={() => setDrawer(true)}>
             <Menu size={20} />
           </button>
@@ -323,7 +323,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <main className="vt-main min-h-0 flex-1 overflow-y-auto scrollbar-thin">{children}</main>
-        <nav className="grid grid-cols-4 border-t border-line bg-surface/90 backdrop-blur safe-bottom safe-x md:hidden">
+        <nav className="grid grid-cols-4 border-t border-line bg-surface/90 safe-bottom safe-x md:hidden">
           {[
             ['/', Home, 'Start'],
             ['/notes', FileText, 'Notizen'],

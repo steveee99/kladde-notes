@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Behoben: In der iOS-Home-Bildschirm-App ist die Kopfzeile (Menü, „Kladde“, Symbole) nicht mehr verschwommen.
+
 ## [0.4.1] – 2026-11-08
 
 - Diagnose: misst die Abstände oben und unten jetzt getrennt, zeigt die Lage von Kopfzeile und unterer Leiste und hat einen Test-Knopf „volle Höhe“.
