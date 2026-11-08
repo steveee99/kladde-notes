@@ -54,3 +54,48 @@ export function fitShortViewport() {
   window.addEventListener('resize', measure);
   window.addEventListener('orientationchange', () => setTimeout(measure, 300));
 }
+
+/** Snapshot of everything the iOS layout depends on, for the diagnostics in Settings */
+export function viewportReport(): Record<string, unknown> {
+  const probe = document.createElement('div');
+  probe.style.cssText =
+    'position:fixed;left:0;top:0;width:0;height:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);visibility:hidden;pointer-events:none';
+  document.body.append(probe);
+  const insetTop = probe.getBoundingClientRect().height;
+  const insetBottom = parseFloat(getComputedStyle(probe).paddingBottom);
+  probe.remove();
+  const root = document.documentElement;
+  const vv = window.visualViewport;
+  const meta = (name: string) => document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
+  return {
+    standalone: (navigator as Navigator & { standalone?: boolean }).standalone ?? null,
+    displayModeStandalone: matchMedia('(display-mode: standalone)').matches,
+    statusBarMeta: meta('apple-mobile-web-app-status-bar-style'),
+    viewportMeta: meta('viewport'),
+    insetTop,
+    insetBottom,
+    screen: [screen.width, screen.height],
+    inner: [window.innerWidth, window.innerHeight],
+    client: [root.clientWidth, root.clientHeight],
+    visualViewport: vv ? [vv.width, vv.height, vv.offsetTop, vv.scale] : null,
+    htmlRect: root.getBoundingClientRect().height,
+    htmlComputed: getComputedStyle(root).height,
+    bodyRect: document.body.getBoundingClientRect().height,
+    rootRect: document.getElementById('root')?.getBoundingClientRect().height ?? null,
+    scroll: [window.scrollX, window.scrollY],
+    vpGap: root.style.getPropertyValue('--vp-gap') || null,
+    shortClass: root.classList.contains('short-viewport'),
+    dpr: window.devicePixelRatio,
+    orientation: screen.orientation?.type ?? null,
+    serviceWorker: navigator.serviceWorker?.controller?.scriptURL ?? null,
+    userAgent: navigator.userAgent,
+  };
+}
+
+/** The report right after start: iOS may hand over a different viewport once the app has run a while */
+export let startupReport: Record<string, unknown> | null = null;
+export function recordStartupReport() {
+  const take = () => setTimeout(() => (startupReport = viewportReport()), 500);
+  if (document.readyState === 'complete') take();
+  else window.addEventListener('load', take, { once: true });
+}
