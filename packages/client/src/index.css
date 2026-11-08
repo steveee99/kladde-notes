@@ -210,6 +210,14 @@ body {
   view-transition-name: main;
 }
 
+/* Set for a moment after a reload for an update (lib/update.ts) */
+.no-anim *,
+.no-anim *::before,
+.no-anim *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   ::view-transition-old(main),

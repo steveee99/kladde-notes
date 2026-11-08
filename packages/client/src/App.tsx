@@ -59,7 +59,12 @@ Object.assign(editorHost, {
 
 export function App() {
   const path = usePath();
-  const [me, setMe] = useState<Me | null | undefined>(undefined);
+  // The account from the last visit shows the app at once (also after an update reload); /auth/me confirms it below
+  const [me, setMe] = useState<Me | null | undefined>(() => {
+    const cached = cachedMe();
+    if (cached) void vault.open(cached.id);
+    return cached ?? undefined;
+  });
 
   const signedIn = useCallback((user: Me) => {
     try {

@@ -6,7 +6,8 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // lib/update.ts decides when the waiting new version takes over (not while the user types)
+      registerType: 'prompt',
       // Registered in lib/update.ts, which also forces updates
       injectRegister: false,
       includeAssets: ['icons/*.png', 'icons/icon.svg', 'robots.txt'],

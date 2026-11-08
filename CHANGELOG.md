@@ -5,6 +5,7 @@ Alle nutzersichtbaren Änderungen an Kladde.
 ## [Unveröffentlicht]
 
 - Neu: Ordner teilen. Über das Teilen-Symbol neben einem Ordner in der Seitenleiste gibst du ihn für andere Benutzer frei, wahlweise zum Lesen oder Bearbeiten. Die Freigabe gilt für alle Notizen darin, auch in Unterordnern und für Notizen, die du später hinzufügst; verschiebst du eine Notiz heraus, ist sie nicht mehr geteilt. Benennst du den Ordner um oder verschiebst ihn, bleibt die Freigabe bestehen. Empfänger finden die Notizen unter „Mit mir geteilt“. Neue Notizen im geteilten Ordner kann nur der Besitzer anlegen.
+- Behoben: Ein App-Update lässt nicht mehr den ganzen Bildschirm blinken. Das Update wartet, bis du nicht gerade tippst (oder die App im Hintergrund ist); danach erscheint die App sofort mit deinem Konto und ohne Einblend-Animationen.
 
 ## [0.8.0] – 2026-11-08
 
