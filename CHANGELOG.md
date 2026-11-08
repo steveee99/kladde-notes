@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.7.0] – 2026-11-08
+
 - Neu: Vorlagen haben einen eigenen Bereich unter Einstellungen → Vorlagen. Dort legst du eigene Vorlagen (z. B. für Projekte oder Besprechungen) mit Name, Zielordner und Inhalt an, bearbeitest und löschst sie. Platzhalter: `{{title}}`, `{{date}}` und `{{zid}}` (Zettel-ID, kommt auch vor den Titel). Die Vorlagen werden verschlüsselt mit den Einstellungen synchronisiert.
 - Geändert: Es gibt keine eingebauten Vorlagen mehr, und Notizen im Ordner „Vorlagen“ gelten nicht mehr als Vorlagen. Die Notizen selbst bleiben erhalten; ihren Inhalt kannst du in eine neue Vorlage übernehmen.
 
