@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.4.2] – 2026-11-08
+
 - Behoben: In der iOS-Home-Bildschirm-App ist die Kopfzeile (Menü, „Kladde“, Symbole) nicht mehr verschwommen.
 
 ## [0.4.1] – 2026-11-08
