@@ -5,7 +5,7 @@ import { APP_VERSION, Me } from '@kladde/shared';
 import { api } from '../lib/api';
 import { getTheme, setTheme, ThemeChoice } from '../lib/theme';
 import { useVault, vault } from '../data/vault';
-import { startupReport, viewportReport } from '../lib/viewport';
+import { startupReport, toggleTallPageTest, viewportReport } from '../lib/viewport';
 
 export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) => void; onLogout: () => void }) {
   useVault();
@@ -125,6 +125,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
 function Diagnostics() {
   const [text, setText] = useState('');
   const [copied, setCopied] = useState(false);
+  const [tall, setTall] = useState(false);
   const measure = () => setText(JSON.stringify({ version: APP_VERSION, now: viewportReport(), atStart: startupReport }, null, 2));
   return (
     <details className="card p-5 anim-fade-up" onToggle={(e) => (e.currentTarget.open ? measure() : setText(''))}>
@@ -134,6 +135,15 @@ function Diagnostics() {
       <div className="mt-3 flex flex-wrap gap-2">
         <button className="btn-ghost border border-line" onClick={measure}>
           <Zap size={16} /> Neu messen
+        </button>
+        <button
+          className="btn-ghost border border-line"
+          onClick={() => {
+            setTall(toggleTallPageTest());
+            setTimeout(measure, 400);
+          }}
+        >
+          <Monitor size={16} /> {tall ? 'Test beenden' : 'Test: volle Höhe'}
         </button>
         <button
           className="btn-ghost border border-line"

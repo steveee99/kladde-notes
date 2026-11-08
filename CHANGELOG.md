@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Diagnose: misst die Abstände oben und unten jetzt getrennt, zeigt die Lage von Kopfzeile und unterer Leiste und hat einen Test-Knopf „volle Höhe“.
+
 ## [0.4.0] – 2026-11-08
 
 - Einstellungen: neuer Bereich „Diagnose“ zeigt Messwerte zur Bildschirmdarstellung (z. B. für Probleme in der iOS-Home-Bildschirm-App) und kopiert sie.

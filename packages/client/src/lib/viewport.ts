@@ -57,39 +57,70 @@ export function fitShortViewport() {
 
 /** Snapshot of everything the iOS layout depends on, for the diagnostics in Settings */
 export function viewportReport(): Record<string, unknown> {
-  const probe = document.createElement('div');
-  probe.style.cssText =
-    'position:fixed;left:0;top:0;width:0;height:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);visibility:hidden;pointer-events:none';
-  document.body.append(probe);
-  const insetTop = probe.getBoundingClientRect().height;
-  const insetBottom = parseFloat(getComputedStyle(probe).paddingBottom);
-  probe.remove();
+  const inset = (side: 'top' | 'bottom') => {
+    const probe = document.createElement('div');
+    probe.style.cssText = `position:fixed;left:0;top:0;width:0;height:env(safe-area-inset-${side});visibility:hidden;pointer-events:none`;
+    document.body.append(probe);
+    const h = probe.getBoundingClientRect().height;
+    probe.remove();
+    return h;
+  };
+  // Where a fixed box with bottom:0 actually ends: the bottom of the layout viewport as the page sees it
+  const edge = document.createElement('div');
+  edge.style.cssText = 'position:fixed;left:0;bottom:0;width:0;height:1px;visibility:hidden;pointer-events:none';
+  document.body.append(edge);
+  const fixedBottom = edge.getBoundingClientRect().bottom;
+  edge.remove();
   const root = document.documentElement;
   const vv = window.visualViewport;
   const meta = (name: string) => document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
+  const box = (sel: string) => {
+    const el = document.querySelector<HTMLElement>(sel);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    return { top: r.top, bottom: r.bottom, height: r.height, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom };
+  };
   return {
     standalone: (navigator as Navigator & { standalone?: boolean }).standalone ?? null,
     displayModeStandalone: matchMedia('(display-mode: standalone)').matches,
     statusBarMeta: meta('apple-mobile-web-app-status-bar-style'),
-    viewportMeta: meta('viewport'),
-    insetTop,
-    insetBottom,
-    screen: [screen.width, screen.height],
+    insetTop: inset('top'),
+    insetBottom: inset('bottom'),
+    screen: [screen.width, screen.height, screen.availHeight],
     inner: [window.innerWidth, window.innerHeight],
+    outer: [window.outerWidth, window.outerHeight],
     client: [root.clientWidth, root.clientHeight],
-    visualViewport: vv ? [vv.width, vv.height, vv.offsetTop, vv.scale] : null,
-    htmlRect: root.getBoundingClientRect().height,
-    htmlComputed: getComputedStyle(root).height,
-    bodyRect: document.body.getBoundingClientRect().height,
-    rootRect: document.getElementById('root')?.getBoundingClientRect().height ?? null,
+    visualViewport: vv ? [vv.width, vv.height, vv.offsetTop, vv.pageTop, vv.scale] : null,
+    fixedBottom,
+    html: box('html'),
+    body: box('body'),
+    root: box('#root'),
+    header: box('header'),
+    main: box('main'),
+    nav: box('nav'),
+    htmlStyleHeight: root.style.height || null,
     scroll: [window.scrollX, window.scrollY],
     vpGap: root.style.getPropertyValue('--vp-gap') || null,
     shortClass: root.classList.contains('short-viewport'),
-    dpr: window.devicePixelRatio,
     orientation: screen.orientation?.type ?? null,
-    serviceWorker: navigator.serviceWorker?.controller?.scriptURL ?? null,
     userAgent: navigator.userAgent,
   };
+}
+
+/**
+ * Diagnostics experiment: make the page as tall as the screen. If iOS then hands over the full
+ * viewport (WebKit 301108 behaves like that), innerHeight grows to screen height. Undone on reload.
+ */
+export function toggleTallPageTest(): boolean {
+  const root = document.documentElement;
+  if (root.style.height) {
+    root.style.height = '';
+    return false;
+  }
+  const portrait = window.innerHeight >= window.innerWidth;
+  root.style.height = `${portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)}px`;
+  return true;
 }
 
 /** The report right after start: iOS may hand over a different viewport once the app has run a while */
