@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Ordner teilen. Über das Teilen-Symbol neben einem Ordner in der Seitenleiste gibst du ihn für andere Benutzer frei, wahlweise zum Lesen oder Bearbeiten. Die Freigabe gilt für alle Notizen darin, auch in Unterordnern und für Notizen, die du später hinzufügst; verschiebst du eine Notiz heraus, ist sie nicht mehr geteilt. Benennst du den Ordner um oder verschiebst ihn, bleibt die Freigabe bestehen. Empfänger finden die Notizen unter „Mit mir geteilt“. Neue Notizen im geteilten Ordner kann nur der Besitzer anlegen.
+
 ## [0.8.0] – 2026-11-08
 
 - Neu: KI-Assistenten wie Claude sprechen per MCP (Model Context Protocol) mit deinen Notizen. Die Adresse ist `https://<deine-kladde>/mcp`; beim Verbinden meldest du dich in Kladde an und bestätigst den Zugriff (OAuth), auf Wunsch nur lesend. Der Assistent sieht ausschließlich deine eigenen Notizen – keine Freigaben anderer und keine Einstellungen. Er kann Notizen auflisten, durchsuchen, lesen, Abfragen ausführen und Aufgaben auflisten; mit Schreibrecht auch Notizen anlegen, ersetzen, ergänzen und Aufgaben abhaken (nicht löschen oder umbenennen). Verbindungen verwaltest und trennst du unter Einstellungen → KI-Assistenten; dort erstellst du auch Zugriffstokens für Programme ohne Anmeldefenster. Ein Passwort-Reset durch Admins trennt alle Verbindungen des Kontos.

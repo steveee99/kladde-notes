@@ -218,7 +218,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
         </div>
       </div>
       {!readOnly && <Toolbar view={view} />}
-      {sharing && <ShareDialog noteId={id} onClose={() => setSharing(false)} />}
+      {sharing && <ShareDialog target={{ note: id }} onClose={() => setSharing(false)} />}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { NoteAccess, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SyncedNote } from '@kladde/shared';
+import { FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SYSTEM_PREFIX, SyncedNote } from '@kladde/shared';
 import { DataCipher, randomToken } from './crypto.js';
 import { transaction } from './db.js';
 
@@ -21,6 +21,19 @@ interface NoteRow {
 interface Payload {
   path: string;
   content: string;
+}
+
+/** A folder share with the folder path decrypted */
+interface FolderShare {
+  id: string;
+  userId: string;
+  canWrite: boolean;
+  folder: string;
+}
+
+/** True when the note at `path` lies in `folder` or one of its subfolders (system notes are never shared) */
+export function inFolder(path: string, folder: string): boolean {
+  return !path.startsWith(SYSTEM_PREFIX) && path.startsWith(`${folder}/`);
 }
 
 /** Called after every accepted change: who should hear about it (live update, export) */
@@ -129,6 +142,9 @@ export class NoteStore {
 
   push(userId: string, changes: PushChange[]): PushResult[] {
     const events: NoteChangeEvent[] = [];
+    // Only needed when the caller creates or moves own notes; decrypted once per push
+    let cached: FolderShare[] | undefined;
+    const folderShares = () => (cached ??= this.folderSharesOf(userId));
     const results = transaction(this.db, () =>
       changes.map((change): PushResult => {
         if (typeof change?.id !== 'string' || !ID_PATTERN.test(change.id)) return { id: String(change?.id), status: 'forbidden' };
@@ -144,7 +160,8 @@ export class NoteStore {
           this.db
             .prepare('INSERT INTO notes (id, owner_id, version, seq, created_at, updated_at, deleted, payload) VALUES (?, ?, 1, ?, ?, ?, ?, ?)')
             .run(change.id, userId, seq, createdAt, updatedAt, change.deleted ? 1 : 0, this.cipher.encryptJson({ path, content }, `note:${change.id}`));
-          events.push({ noteId: change.id, ownerId: userId, audience: [userId], path, previousPath: null, content, deleted: !!change.deleted });
+          const added = change.deleted ? [] : this.applyFolderShares(userId, change.id, path, seq, folderShares());
+          events.push({ noteId: change.id, ownerId: userId, audience: [userId, ...added], path, previousPath: null, content, deleted: !!change.deleted });
           return { id: change.id, status: 'ok', version: 1 };
         }
         const access = this.accessOf(userId, row);
@@ -162,7 +179,8 @@ export class NoteStore {
           .run(seq, updatedAt, deleted ? 1 : 0, this.cipher.encryptJson({ path, content: deleted ? '' : content }, `note:${row.id}`), row.id);
         const audience = this.audience(row);
         if (deleted) this.dropShares(row.id, seq);
-        events.push({ noteId: row.id, ownerId: row.owner_id, audience, path, previousPath: old.path, content, deleted });
+        else if (access === 'owner' && path !== old.path) audience.push(...this.applyFolderShares(userId, row.id, path, seq, folderShares()));
+        events.push({ noteId: row.id, ownerId: row.owner_id, audience: [...new Set(audience)], path, previousPath: old.path, content, deleted });
         return { id: change.id, status: 'ok', version: row.version + 1 };
       })
     );
@@ -188,10 +206,19 @@ export class NoteStore {
   shares(userId: string, noteId: string): NoteShares {
     this.ownedRow(userId, noteId);
     const users = this.db
-      .prepare('SELECT users.username, shares.can_write FROM shares JOIN users ON users.id = shares.user_id WHERE note_id = ? ORDER BY users.username_lower')
-      .all(noteId) as { username: string; can_write: number }[];
+      .prepare(
+        'SELECT users.username, shares.can_write, shares.folder_share_id FROM shares JOIN users ON users.id = shares.user_id WHERE note_id = ? ORDER BY users.username_lower'
+      )
+      .all(noteId) as { username: string; can_write: number; folder_share_id: string | null }[];
+    const folders = new Map(this.folderSharesOf(userId).map((f) => [f.id, f.folder]));
     const link = this.db.prepare('SELECT token FROM public_links WHERE note_id = ?').get(noteId) as { token: string } | undefined;
-    return { users: users.map((u) => ({ username: u.username, canWrite: !!u.can_write })), publicToken: link?.token ?? null };
+    return {
+      users: users.map((u): NoteShare => {
+        const viaFolder = u.folder_share_id ? folders.get(u.folder_share_id) : undefined;
+        return { username: u.username, canWrite: !!u.can_write, ...(viaFolder ? { viaFolder } : {}) };
+      }),
+      publicToken: link?.token ?? null,
+    };
   }
 
   share(userId: string, noteId: string, targetUserId: string, canWrite: boolean): string[] {
@@ -199,17 +226,166 @@ export class NoteStore {
     if (targetUserId === userId) throw new Error('self');
     const seq = this.nextSeq();
     this.db
-      .prepare('INSERT INTO shares (note_id, user_id, can_write, seq) VALUES (?, ?, ?, ?) ON CONFLICT(note_id, user_id) DO UPDATE SET can_write = excluded.can_write, seq = excluded.seq')
+      .prepare(
+        'INSERT INTO shares (note_id, user_id, can_write, seq) VALUES (?, ?, ?, ?) ON CONFLICT(note_id, user_id) DO UPDATE SET can_write = excluded.can_write, seq = excluded.seq, folder_share_id = NULL'
+      )
       .run(noteId, targetUserId, canWrite ? 1 : 0, seq);
     return this.audience(row);
   }
 
+  /** Removes a direct share; a share through a shared folder stays (it is managed on the folder) */
   unshare(userId: string, noteId: string, targetUserId: string): void {
-    this.ownedRow(userId, noteId);
-    const seq = this.nextSeq();
-    if (this.db.prepare('DELETE FROM shares WHERE note_id = ? AND user_id = ?').run(noteId, targetUserId).changes > 0) {
-      this.db.prepare('INSERT INTO share_revocations (note_id, user_id, seq) VALUES (?, ?, ?)').run(noteId, targetUserId, seq);
+    const row = this.ownedRow(userId, noteId);
+    transaction(this.db, () => {
+      const seq = this.nextSeq();
+      if (this.db.prepare('DELETE FROM shares WHERE note_id = ? AND user_id = ? AND folder_share_id IS NULL').run(noteId, targetUserId).changes > 0) {
+        this.db.prepare('INSERT INTO share_revocations (note_id, user_id, seq) VALUES (?, ?, ?)').run(noteId, targetUserId, seq);
+        // The folder may still share it (the recipient pulls it again with this seq)
+        this.applyFolderShares(userId, noteId, this.payload(row).path, seq, this.folderSharesOf(userId));
+      }
+    });
+  }
+
+  // ------------------------------------------------------------------ folder shares
+
+  private folderSharesOf(ownerId: string): FolderShare[] {
+    const rows = this.db.prepare('SELECT id, user_id, can_write, payload FROM folder_shares WHERE owner_id = ?').all(ownerId) as {
+      id: string;
+      user_id: string;
+      can_write: number;
+      payload: Uint8Array;
+    }[];
+    return rows.map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      canWrite: !!r.can_write,
+      folder: this.cipher.decryptJson<{ folder: string }>(r.payload, `folder_share:${r.id}`).folder,
+    }));
+  }
+
+  /**
+   * Brings the folder-derived shares of one note in line with its path: it is shared with everybody a containing folder is
+   * shared with, and with nobody else through a folder. Direct shares stay untouched. Returns the users whose access changed.
+   */
+  private applyFolderShares(ownerId: string, noteId: string, path: string, seq: number, list: FolderShare[]): string[] {
+    const wanted = new Map<string, FolderShare>();
+    for (const f of list) {
+      if (f.userId === ownerId || !inFolder(path, f.folder)) continue;
+      const prev = wanted.get(f.userId);
+      if (!prev || (f.canWrite && !prev.canWrite)) wanted.set(f.userId, f);
     }
+    const current = this.db.prepare('SELECT user_id, can_write, folder_share_id FROM shares WHERE note_id = ?').all(noteId) as {
+      user_id: string;
+      can_write: number;
+      folder_share_id: string | null;
+    }[];
+    const changed: string[] = [];
+    for (const cur of current) {
+      if (!cur.folder_share_id || wanted.has(cur.user_id)) continue;
+      this.db.prepare('DELETE FROM shares WHERE note_id = ? AND user_id = ?').run(noteId, cur.user_id);
+      this.db.prepare('INSERT INTO share_revocations (note_id, user_id, seq) VALUES (?, ?, ?)').run(noteId, cur.user_id, seq);
+      changed.push(cur.user_id);
+    }
+    for (const [user, f] of wanted) {
+      const cur = current.find((c) => c.user_id === user);
+      if (!cur) {
+        this.db.prepare('INSERT INTO shares (note_id, user_id, can_write, seq, folder_share_id) VALUES (?, ?, ?, ?, ?)').run(noteId, user, f.canWrite ? 1 : 0, seq, f.id);
+        changed.push(user);
+      } else if (cur.folder_share_id && (cur.folder_share_id !== f.id || !!cur.can_write !== f.canWrite)) {
+        this.db.prepare('UPDATE shares SET can_write = ?, seq = ?, folder_share_id = ? WHERE note_id = ? AND user_id = ?').run(f.canWrite ? 1 : 0, seq, f.id, noteId, user);
+        changed.push(user);
+      }
+    }
+    return changed;
+  }
+
+  /** Re-applies all folder shares of the owner to all of their live notes; returns the users whose access changed */
+  private applyAllFolderShares(ownerId: string, seq: number): string[] {
+    const list = this.folderSharesOf(ownerId);
+    const rows = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND deleted = 0').all(ownerId) as unknown as NoteRow[];
+    const changed = new Set<string>();
+    for (const r of rows) for (const u of this.applyFolderShares(ownerId, r.id, this.payload(r).path, seq, list)) changed.add(u);
+    return [...changed];
+  }
+
+  /** Who the folder is shared with, and who sees it through a parent folder */
+  folderShares(ownerId: string, folder: string): FolderShares {
+    const clean = cleanPath(folder);
+    const names = new Map<string, string>();
+    const username = (id: string) => {
+      if (!names.has(id)) names.set(id, (this.db.prepare('SELECT username FROM users WHERE id = ?').get(id) as { username: string }).username);
+      return names.get(id)!;
+    };
+    const list = this.folderSharesOf(ownerId);
+    const sort = (a: NoteShare, b: NoteShare) => a.username.localeCompare(b.username, 'de');
+    return {
+      users: list
+        .filter((f) => f.folder === clean)
+        .map((f) => ({ username: username(f.userId), canWrite: f.canWrite }))
+        .sort(sort),
+      inherited: list
+        .filter((f) => clean.startsWith(`${f.folder}/`))
+        .map((f) => ({ username: username(f.userId), canWrite: f.canWrite, viaFolder: f.folder }))
+        .sort(sort),
+    };
+  }
+
+  /** Shares the folder (with subfolders, including notes added later) with another user; returns who should pull */
+  shareFolder(ownerId: string, folder: string, targetUserId: string, canWrite: boolean): string[] {
+    const clean = cleanPath(folder);
+    if (targetUserId === ownerId) throw new Error('self');
+    return transaction(this.db, () => {
+      const existing = this.folderSharesOf(ownerId).find((f) => f.folder === clean && f.userId === targetUserId);
+      if (existing) this.db.prepare('UPDATE folder_shares SET can_write = ? WHERE id = ?').run(canWrite ? 1 : 0, existing.id);
+      else {
+        const id = randomToken(12);
+        this.db
+          .prepare('INSERT INTO folder_shares (id, owner_id, user_id, can_write, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+          .run(id, ownerId, targetUserId, canWrite ? 1 : 0, this.cipher.encryptJson({ folder: clean }, `folder_share:${id}`), Date.now());
+      }
+      return [ownerId, targetUserId, ...this.applyAllFolderShares(ownerId, this.nextSeq())];
+    });
+  }
+
+  /** Stops sharing the folder with the user; notes shared directly or through another folder stay shared */
+  unshareFolder(ownerId: string, folder: string, targetUserId: string): string[] {
+    const clean = cleanPath(folder);
+    return transaction(this.db, () => {
+      const existing = this.folderSharesOf(ownerId).find((f) => f.folder === clean && f.userId === targetUserId);
+      if (!existing) return [];
+      const seq = this.nextSeq();
+      // Re-apply without the share first, so every note it covered gets a revocation (or moves to another folder share)
+      const rest = this.folderSharesOf(ownerId).filter((f) => f.id !== existing.id);
+      const rows = this.db
+        .prepare('SELECT notes.* FROM shares JOIN notes ON notes.id = shares.note_id WHERE shares.folder_share_id = ?')
+        .all(existing.id) as unknown as NoteRow[];
+      for (const r of rows) this.applyFolderShares(ownerId, r.id, this.payload(r).path, seq, rest);
+      this.db.prepare('DELETE FROM folder_shares WHERE id = ?').run(existing.id);
+      return [ownerId, targetUserId];
+    });
+  }
+
+  /** A folder was renamed or moved: its shares (and those of its subfolders) follow */
+  renameFolderShares(ownerId: string, from: string, to: string): string[] {
+    const source = cleanPath(from);
+    const target = cleanPath(to);
+    return transaction(this.db, () => {
+      let moved = false;
+      for (const f of this.folderSharesOf(ownerId)) {
+        if (f.folder !== source && !f.folder.startsWith(`${source}/`)) continue;
+        const folder = target + f.folder.slice(source.length);
+        this.db.prepare('UPDATE folder_shares SET payload = ? WHERE id = ?').run(this.cipher.encryptJson({ folder }, `folder_share:${f.id}`), f.id);
+        moved = true;
+      }
+      return moved ? [ownerId, ...this.applyAllFolderShares(ownerId, this.nextSeq())] : [];
+    });
+  }
+
+  /** The folder was deleted: forget its shares (and those of its subfolders) */
+  dropFolderShares(ownerId: string, folder: string): string[] {
+    const clean = cleanPath(folder);
+    const affected = this.folderSharesOf(ownerId).filter((f) => f.folder === clean || f.folder.startsWith(`${clean}/`));
+    return affected.flatMap((f) => this.unshareFolder(ownerId, f.folder, f.userId));
   }
 
   setPublic(userId: string, noteId: string, enabled: boolean): string | null {

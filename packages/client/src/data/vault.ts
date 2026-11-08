@@ -423,6 +423,8 @@ class Vault {
     }
     await this.setFolders([...this.storedFolders().map(swap), target]);
     this.schedule();
+    // Folder shares follow the folder (best effort: offline, the notes leave the share until it is set again)
+    void api('/folders/renamed', { method: 'POST', json: { from, to: target } }).catch(() => {});
   }
 
   isFolderEmpty(folder: string): boolean {
@@ -433,6 +435,7 @@ class Vault {
   async deleteFolder(folder: string): Promise<boolean> {
     if (!this.isFolderEmpty(folder) || isReadOnly()) return false;
     await this.setFolders(this.storedFolders().filter((f) => f !== folder && !f.startsWith(`${folder}/`)));
+    void api('/folders/deleted', { method: 'POST', json: { folder } }).catch(() => {});
     return true;
   }
 

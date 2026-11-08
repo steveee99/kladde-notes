@@ -9,6 +9,8 @@ import { navigate, usePath } from '../lib/router';
 import { QuickCapture } from './QuickCapture';
 import { dragSource, useDropTarget } from '../lib/dnd';
 import { isReadOnly, setReadOnly, useReadOnly } from '../lib/readOnly';
+import { createPortal } from 'react-dom';
+import { ShareDialog } from './ShareDialog';
 
 export function newNote(folder?: string) {
   openDialog({ kind: 'note', folder });
@@ -105,6 +107,7 @@ export function FolderNameInput({ initial = '', placeholder, onDone }: { initial
 function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNode; current: string; counts: Map<string, number>; depth: number; onNavigate?: () => void }) {
   const [open, setOpen] = useState(decodeURIComponent(current).startsWith(`/f/${node.path}`));
   const [mode, setMode] = useState<'idle' | 'new' | 'rename'>('idle');
+  const [sharing, setSharing] = useState(false);
   const drop = useDropTarget(node.path, () => setOpen(true));
   const active = current === `/f/${encodeURIComponent(node.path)}`;
   const empty = vault.isFolderEmpty(node.path);
@@ -158,6 +161,9 @@ function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNo
             <button className="rounded p-1 hover:bg-surface hover:text-ink" title="Umbenennen" onClick={() => setMode('rename')}>
               <Pencil size={13} />
             </button>
+            <button className="rounded p-1 hover:bg-surface hover:text-ink" title="Ordner teilen" onClick={() => setSharing(true)}>
+              <Share2 size={13} />
+            </button>
             {empty && (
               <button className="rounded p-1 hover:bg-surface hover:text-danger" title="Leeren Ordner löschen" onClick={() => void vault.deleteFolder(node.path)}>
                 <Trash2 size={13} />
@@ -167,6 +173,8 @@ function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNo
           <span className={`w-5 text-right text-xs text-faint ${locked ? '' : 'group-hover:hidden [@media(hover:none)]:hidden'}`}>{counts.get(node.path) || ''}</span>
         </div>
       )}
+      {/* Portal: the sidebar may be transformed (mobile drawer), which would trap a fixed overlay */}
+      {sharing && createPortal(<ShareDialog target={{ folder: node.path }} onClose={() => setSharing(false)} />, document.body)}
       {open && (node.children.length > 0 || mode === 'new') && (
         <ul className="anim-fade-in">
           {mode === 'new' && (

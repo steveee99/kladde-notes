@@ -142,6 +142,24 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 4,
+    description: 'Folder shares (the folder path is encrypted)',
+    up(db) {
+      db.exec(`
+        CREATE TABLE folder_shares (
+          id TEXT PRIMARY KEY,
+          owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          can_write INTEGER NOT NULL,
+          payload BLOB NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX folder_shares_owner ON folder_shares(owner_id);
+        ALTER TABLE shares ADD COLUMN folder_share_id TEXT REFERENCES folder_shares(id) ON DELETE CASCADE;
+      `);
+    },
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number[] {

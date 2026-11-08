@@ -120,6 +120,52 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     }
   });
 
+  // Folder paths contain slashes, so they travel in the query string or body
+  const folderOf = (value: unknown) => (typeof value === 'string' && value.trim() ? value : null);
+  const badFolder = (res: Response) => res.status(400).json({ error: 'Ungültiger Ordner.' });
+
+  router.get('/folders/shares', (req, res) => {
+    const folder = folderOf(req.query.folder);
+    if (!folder) return void badFolder(res);
+    res.json(notes.folderShares(req.user!.id, folder));
+  });
+
+  router.put('/folders/shares', (req, res) => {
+    const folder = folderOf(req.body?.folder);
+    if (!folder) return void badFolder(res);
+    const target = typeof req.body?.username === 'string' ? users.findByUsername(req.body.username) : null;
+    if (!target || target.id === req.user!.id) {
+      res.status(400).json({ error: 'Diesen Benutzer gibt es nicht.' });
+      return;
+    }
+    live.notify(notes.shareFolder(req.user!.id, folder, target.id, !!req.body.canWrite));
+    res.json(notes.folderShares(req.user!.id, folder));
+  });
+
+  router.delete('/folders/shares', (req, res) => {
+    const folder = folderOf(req.body?.folder);
+    if (!folder) return void badFolder(res);
+    const target = typeof req.body?.username === 'string' ? users.findByUsername(req.body.username) : null;
+    if (target) live.notify(notes.unshareFolder(req.user!.id, folder, target.id));
+    res.json(notes.folderShares(req.user!.id, folder));
+  });
+
+  // The client renamed/moved or deleted a folder: shares follow (sent along with the note changes)
+  router.post('/folders/renamed', (req, res) => {
+    const from = folderOf(req.body?.from);
+    const to = folderOf(req.body?.to);
+    if (!from || !to) return void badFolder(res);
+    live.notify(notes.renameFolderShares(req.user!.id, from, to));
+    res.json({ ok: true });
+  });
+
+  router.post('/folders/deleted', (req, res) => {
+    const folder = folderOf(req.body?.folder);
+    if (!folder) return void badFolder(res);
+    live.notify(notes.dropFolderShares(req.user!.id, folder));
+    res.json({ ok: true });
+  });
+
   router.put('/notes/:id/public', (req, res) => {
     try {
       notes.setPublic(req.user!.id, req.params.id, !!req.body?.enabled);

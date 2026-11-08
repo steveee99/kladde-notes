@@ -99,6 +99,15 @@ export interface AdminStatus {
 export interface NoteShare {
   username: string;
   canWrite: boolean;
+  /** Set when the access comes from a shared folder (managed there, not on the note) */
+  viaFolder?: string;
+}
+
+export interface FolderShares {
+  /** Users this folder is shared with (including its subfolders and notes added later) */
+  users: NoteShare[];
+  /** Users who see the folder because a parent folder is shared with them */
+  inherited: NoteShare[];
 }
 
 export interface NoteShares {

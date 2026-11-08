@@ -82,6 +82,92 @@ describe('NoteStore', () => {
   });
 });
 
+describe('Folder shares', () => {
+  const visible = (notes: NoteStore, userId: string) =>
+    Object.fromEntries(notes.pull(userId, 0).notes.map((n) => [n.id, n.access]));
+
+  it('shares existing and later notes in the folder and its subfolders', () => {
+    const { db, notes, anna, ben, events } = setup();
+    notes.push(anna.id, [
+      change('rezept-01', 'Pasta', 0, 'Rezepte/Pasta.md'),
+      change('rezept-02', 'Kuchen', 0, 'Rezepte/Backen/Kuchen.md'),
+      change('privat-01', 'Tagebuch', 0, 'Privat/Tagebuch.md'),
+      change('rezept-xx', 'Ähnlicher Name', 0, 'Rezepte alt/Suppe.md'),
+    ]);
+    expect(notes.shareFolder(anna.id, 'Rezepte', ben.id, false)).toEqual(expect.arrayContaining([anna.id, ben.id]));
+    expect(visible(notes, ben.id)).toEqual({ 'rezept-01': 'read', 'rezept-02': 'read' });
+    expect(notes.pull(ben.id, 0).notes[0].owner).toBe('anna');
+
+    // The folder path is stored encrypted
+    const raw = db.prepare('SELECT payload FROM folder_shares').get() as { payload: Uint8Array };
+    expect(Buffer.from(raw.payload).toString('utf8')).not.toContain('Rezepte');
+
+    const cursor = notes.pull(ben.id, 0).cursor;
+    events.length = 0;
+    notes.push(anna.id, [change('rezept-03', 'Neu', 0, 'Rezepte/Neu.md')]);
+    expect(events[0].audience).toEqual([anna.id, ben.id]);
+    expect(notes.pull(ben.id, cursor).notes.map((n) => n.id)).toEqual(['rezept-03']);
+
+    notes.shareFolder(anna.id, 'Rezepte', ben.id, true);
+    expect(visible(notes, ben.id)['rezept-01']).toBe('write');
+    expect(notes.push(ben.id, [change('rezept-01', 'Pasta von Ben', 1, 'Ben/Pasta.md')])[0].status).toBe('ok');
+    expect(notes.pull(anna.id, 0).notes.find((n) => n.id === 'rezept-01')).toMatchObject({ path: 'Rezepte/Pasta.md', content: 'Pasta von Ben' });
+    expect(notes.folderShares(anna.id, 'Rezepte').users).toEqual([{ username: 'ben', canWrite: true }]);
+    expect(notes.folderShares(anna.id, 'Rezepte/Backen').inherited).toEqual([{ username: 'ben', canWrite: true, viaFolder: 'Rezepte' }]);
+    expect(notes.shares(anna.id, 'rezept-01').users).toEqual([{ username: 'ben', canWrite: true, viaFolder: 'Rezepte' }]);
+  });
+
+  it('moving a note out of the folder or unsharing the folder revokes access', () => {
+    const { notes, anna, ben } = setup();
+    notes.push(anna.id, [change('rezept-01', 'Pasta', 0, 'Rezepte/Pasta.md'), change('rezept-02', 'Kuchen', 0, 'Rezepte/Kuchen.md')]);
+    notes.shareFolder(anna.id, 'Rezepte', ben.id, false);
+    let cursor = notes.pull(ben.id, 0).cursor;
+    notes.push(anna.id, [change('rezept-01', 'Pasta', 1, 'Privat/Pasta.md')]);
+    expect(notes.pull(ben.id, cursor).revoked).toEqual(['rezept-01']);
+
+    // A direct share outlives the folder share
+    notes.share(anna.id, 'rezept-02', ben.id, false);
+    notes.push(anna.id, [change('rezept-03', 'Suppe', 0, 'Rezepte/Suppe.md')]);
+    cursor = notes.pull(ben.id, 0).cursor;
+    notes.unshareFolder(anna.id, 'Rezepte', ben.id);
+    expect(notes.pull(ben.id, cursor).revoked).toEqual(['rezept-03']);
+    expect(visible(notes, ben.id)).toEqual({ 'rezept-02': 'read' });
+    expect(notes.folderShares(anna.id, 'Rezepte').users).toEqual([]);
+  });
+
+  it('removing a direct share keeps access through the folder', () => {
+    const { notes, anna, ben } = setup();
+    notes.push(anna.id, [change('rezept-01', 'Pasta', 0, 'Rezepte/Pasta.md')]);
+    notes.share(anna.id, 'rezept-01', ben.id, true);
+    notes.shareFolder(anna.id, 'Rezepte', ben.id, false);
+    expect(notes.shares(anna.id, 'rezept-01').users).toEqual([{ username: 'ben', canWrite: true }]);
+    notes.unshare(anna.id, 'rezept-01', ben.id);
+    expect(visible(notes, ben.id)).toEqual({ 'rezept-01': 'read' });
+    // A share through the folder is not removed on the note
+    notes.unshare(anna.id, 'rezept-01', ben.id);
+    expect(visible(notes, ben.id)).toEqual({ 'rezept-01': 'read' });
+  });
+
+  it('shares follow a renamed folder and are dropped with a deleted one', () => {
+    const { notes, anna, ben } = setup();
+    notes.push(anna.id, [change('rezept-01', 'Pasta', 0, 'Rezepte/Pasta.md')]);
+    notes.shareFolder(anna.id, 'Rezepte', ben.id, false);
+    notes.push(anna.id, [change('rezept-01', 'Pasta', 1, 'Kochen/Pasta.md')]);
+    notes.renameFolderShares(anna.id, 'Rezepte', 'Kochen');
+    expect(visible(notes, ben.id)).toEqual({ 'rezept-01': 'read' });
+    expect(notes.folderShares(anna.id, 'Kochen').users).toEqual([{ username: 'ben', canWrite: false }]);
+
+    notes.dropFolderShares(anna.id, 'Kochen');
+    expect(visible(notes, ben.id)).toEqual({});
+    expect(notes.folderShares(anna.id, 'Kochen').users).toEqual([]);
+  });
+
+  it('cannot share a folder with oneself', () => {
+    const { notes, anna } = setup();
+    expect(() => notes.shareFolder(anna.id, 'Rezepte', anna.id, false)).toThrow();
+  });
+});
+
 describe('UserStore', () => {
   it('invites work once', () => {
     const { users } = setup();
