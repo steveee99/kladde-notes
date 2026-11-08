@@ -4,6 +4,14 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Verwaltung für Admins (Seitenleiste bzw. Einstellungen → „Verwaltung“): alle Konten mit Passkeys, Notizen und letzter Aktivität; Passwort zurücksetzen (neues Zufallspasswort, das Konto wird überall abgemeldet), Gerätecode für einen neuen Passkey erzeugen, Admin-Rolle vergeben oder nehmen, Konten sperren und entsperren. Dazu Einladungen erstellen, Links kopieren und löschen sowie das Protokoll der Anmeldungen und Admin-Aktionen. Das älteste Konto ist automatisch Admin.
+- Neu: Anmeldung mit Benutzername und Passwort als Alternative zum Passkey, z. B. wenn Kladde im lokalen Netz ohne HTTPS läuft (dort gehen Passkeys nicht). Ohne HTTPS zeigt die Anmeldung direkt das Passwort-Formular; Einladungen lassen sich auch mit Passwort annehmen. Das Passwort legst du in den Einstellungen fest, änderst oder entfernst es dort.
+- Neu: Telegram-Befehle `/passwort BENUTZER` (neues Zufallspasswort) und `/admin BENUTZER [an|aus]`.
+- Geändert: In einem Ordner stehen die Unterordner jetzt als Liste (mit Anzahl der Notizen) statt als Pills.
+- Behoben: Auf dem iPad (Home-Bildschirm-App) ist der obere Rand nicht mehr verschwommen, wie zuvor schon auf dem iPhone.
+- Behoben: Lange Titel oder Links in „Zuletzt bearbeitet“ machen die Startseite auf dem Handy nicht mehr breiter als den Bildschirm.
+- Behoben: Fehler wie „Der letzte Passkey kann nicht gelöscht werden“ erscheinen wieder als Meldung statt als „Serverfehler“.
+
 ## [0.4.3] – 2026-11-08
 
 - Behoben: Die Kopfzeile in der iOS-Home-Bildschirm-App (iOS 26/27) ist jetzt wirklich scharf. Die Unschärfe kam von iOS selbst, das sie nur über einer undurchsichtigen, fixierten Kopfzeile weglässt.

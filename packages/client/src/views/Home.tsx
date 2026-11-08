@@ -162,9 +162,9 @@ export function HomeView() {
               + Projekt
             </button>
           </h2>
-          <div className="stagger grid gap-3 sm:grid-cols-2">
+          <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2">
             {projects.map((p) => (
-              <button key={p.id} onClick={() => navigate(`/n/${p.id}`)} className="card p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40">
+              <button key={p.id} onClick={() => navigate(`/n/${p.id}`)} className="card min-w-0 p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40">
                 <div className="flex items-center gap-2">
                   <Briefcase size={15} className="shrink-0 text-accent" />
                   <span className="truncate font-medium">{p.title}</span>
@@ -185,7 +185,7 @@ export function HomeView() {
       )}
 
       <h2 className="mt-10 mb-3 px-1 text-xs font-semibold uppercase tracking-wider text-faint">Zuletzt bearbeitet</h2>
-      <div className="stagger grid gap-3 sm:grid-cols-2">
+      <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2">
         {recent.map((n) => (
           <NoteCard key={n.id} note={n} />
         ))}

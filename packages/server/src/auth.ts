@@ -8,11 +8,14 @@ import {
   type AuthenticatorTransportFuture,
 } from '@simplewebauthn/server';
 import type { Me } from '@kladde/shared';
-import { AccountError, UserRecord, UserStore } from './UserStore.js';
+import { AccountError, UserRecord, UserStore, checkPassword, hashPassword } from './UserStore.js';
 import { AuditLog } from './security/AuditLog.js';
 import { SESSION_COOKIE, deviceName, handle, rateLimit, readCookie, requireUser, setSessionCookie } from './http.js';
 
 const FLOW_MAX_AGE_MS = 5 * 60 * 1000;
+/** Wrong passwords per account, from whatever IP: guessing from many addresses is braked too */
+const ACCOUNT_FAILS_MAX = 10;
+const ACCOUNT_FAILS_WINDOW_MS = 15 * 60 * 1000;
 const RP_NAME = 'Kladde';
 
 type Flow =
@@ -36,6 +39,19 @@ export function authRouter(opts: AuthOptions): express.Router {
   const router = express.Router();
   const flows = new Map<string, Flow>();
   const limit = rateLimit(40, 60_000);
+  const passwordLimit = rateLimit(10, 60_000);
+  const accountFails = new Map<string, { count: number; reset: number }>();
+  const accountLocked = (name: string) => {
+    const entry = accountFails.get(name);
+    return !!entry && entry.reset > Date.now() && entry.count >= ACCOUNT_FAILS_MAX;
+  };
+  const accountFailed = (name: string) => {
+    const now = Date.now();
+    const entry = accountFails.get(name);
+    if (!entry || entry.reset < now) accountFails.set(name, { count: 1, reset: now + ACCOUNT_FAILS_WINDOW_MS });
+    else entry.count++;
+    if (accountFails.size > 10_000) for (const [k, v] of accountFails) if (v.reset < now) accountFails.delete(k);
+  };
 
   const relyingParty = (req: Request) => {
     const origin = opts.publicUrl ? new URL(opts.publicUrl).origin : (req.headers.origin ?? `${req.protocol}://${req.headers.host}`);
@@ -94,18 +110,31 @@ export function authRouter(opts: AuthOptions): express.Router {
     };
   };
 
+  /**
+   * Secure cookies over HTTPS and for the public domain; a plain-HTTP request to another host
+   * (home network by IP, password login) would never get a Secure cookie back from the browser
+   */
+  const publicHost = opts.publicUrl ? new URL(opts.publicUrl).hostname.toLowerCase() : null;
+  const secureFor = (req: Request) => opts.secureCookies && (req.protocol === 'https' || req.hostname?.toLowerCase() === publicHost);
+
   const signIn = (req: Request, res: express.Response, user: UserRecord, event: 'login' | 'register') => {
-    setSessionCookie(res, users.createSession(user.id), opts.secureCookies);
+    setSessionCookie(res, users.createSession(user.id), secureFor(req));
     audit.record(event, { userId: user.id, username: user.username, ip: req.ip });
     res.json(me(user));
   };
 
-  const me = (user: UserRecord): Me => ({
-    id: user.id,
-    username: user.username,
-    createdAt: user.createdAt,
-    passkeys: users.credentialsOf(user.id).map((c) => ({ id: c.id, name: c.name, createdAt: c.createdAt, lastUsedAt: c.lastUsedAt })),
-  });
+  const me = (record: UserRecord): Me => {
+    // Read again: the request's record is from before a password or passkey change
+    const user = users.getUser(record.id) ?? record;
+    return {
+      id: user.id,
+      username: user.username,
+      createdAt: user.createdAt,
+      passkeys: users.credentialsOf(user.id).map((c) => ({ id: c.id, name: c.name, createdAt: c.createdAt, lastUsedAt: c.lastUsedAt })),
+      hasPassword: user.hasPassword,
+      isAdmin: user.isAdmin,
+    };
+  };
 
   // ---------------------------------------------------------------- register with an invite
 
@@ -185,6 +214,51 @@ export function authRouter(opts: AuthOptions): express.Router {
     })
   );
 
+  // ---------------------------------------------------------------- username + password (works without HTTPS)
+
+  router.post(
+    '/password/register',
+    passwordLimit,
+    handle(async (req, res) => {
+      const invite = users.checkInvite(req.body?.inviteCode);
+      const username = users.checkNewUsername(req.body?.username);
+      const hash = await hashPassword(checkPassword(req.body?.password));
+      // Checked again after the (slow) hash: no await from here on, so the invite cannot be used twice
+      users.checkInvite(invite);
+      users.checkNewUsername(username);
+      const user = users.createUser(username);
+      users.setPasswordHash(user.id, hash);
+      users.useInvite(invite, user.id);
+      const note = users.listInvites().find((i) => i.usedBy === user.username)?.note ?? '';
+      opts.onRegistered?.(user, note);
+      signIn(req, res, user, 'register');
+    })
+  );
+
+  router.post(
+    '/password/login',
+    passwordLimit,
+    handle(async (req, res) => {
+      const name = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase().slice(0, 64) : '';
+      if (accountLocked(name)) {
+        audit.record('login_blocked', { username: name, ip: req.ip, detail: 'too many wrong passwords' });
+        throw new AccountError('Zu viele falsche Passwörter – bitte in 15 Minuten noch einmal.', 429);
+      }
+      const user = await users.checkLogin(req.body?.username, req.body?.password);
+      if (!user) {
+        accountFailed(name);
+        audit.record('login_failed', { username: name, ip: req.ip, detail: 'password' });
+        throw new AccountError('Benutzername oder Passwort stimmt nicht.', 401);
+      }
+      if (user.bannedAt) {
+        audit.record('login_blocked', { userId: user.id, username: user.username, ip: req.ip });
+        throw new AccountError('Dieses Konto ist gesperrt.', 403);
+      }
+      accountFails.delete(name);
+      signIn(req, res, user, 'login');
+    })
+  );
+
   // ---------------------------------------------------------------- new device via one-time code
 
   router.post(
@@ -222,6 +296,34 @@ export function authRouter(opts: AuthOptions): express.Router {
     res.clearCookie(SESSION_COOKIE, { path: '/' });
     res.json({ ok: true });
   });
+
+  /** Sets or changes the password; changing needs the current one, other devices are signed out */
+  router.post(
+    '/password',
+    authed,
+    passwordLimit,
+    handle(async (req, res) => {
+      const user = req.user!;
+      if (user.hasPassword && !(await users.verifyUserPassword(user.id, req.body?.currentPassword))) {
+        audit.record('login_failed', { userId: user.id, username: user.username, ip: req.ip, detail: 'password change' });
+        throw new AccountError('Das aktuelle Passwort stimmt nicht.', 403);
+      }
+      await users.setPassword(user.id, req.body?.newPassword);
+      users.deleteSessionsOf(user.id, readCookie(req, SESSION_COOKIE));
+      audit.record('password_changed', { userId: user.id, username: user.username, ip: req.ip });
+      res.json(me(user));
+    })
+  );
+
+  router.delete(
+    '/password',
+    authed,
+    handle((req, res) => {
+      users.removePassword(req.user!.id);
+      audit.record('password_changed', { userId: req.user!.id, username: req.user!.username, ip: req.ip, detail: 'removed' });
+      res.json(me(req.user!));
+    })
+  );
 
   router.post('/device-link', authed, (req, res) => res.json(users.createDeviceLink(req.user!.id)));
 

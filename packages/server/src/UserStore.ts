@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import crypto from 'crypto';
-import { USERNAME_PATTERN } from '@kladde/shared';
+import { PASSWORD_MIN_LENGTH, USERNAME_PATTERN, type AdminUser } from '@kladde/shared';
 import { randomToken, sha256 } from './crypto.js';
 
 /** Sessions unused for this long stop working */
@@ -24,6 +24,8 @@ export interface UserRecord {
   username: string;
   createdAt: number;
   bannedAt: number | null;
+  isAdmin: boolean;
+  hasPassword: boolean;
 }
 
 export interface StoredCredential {
@@ -55,6 +57,43 @@ export function normalizeCode(code: unknown): string {
 
 export const formatCode = (code: string) => `${code.slice(0, 4)}-${code.slice(4)}`;
 
+/** Runs in the libuv thread pool, so a login does not block other requests */
+function scrypt(password: string, salt: Buffer, length: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => crypto.scrypt(password, salt, length, (err, key) => (err ? reject(err) : resolve(key))));
+}
+
+export async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.randomBytes(16);
+  return `scrypt$${salt.toString('hex')}$${(await scrypt(password, salt, 64)).toString('hex')}`;
+}
+
+export async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  const [scheme, saltHex, hashHex] = stored.split('$');
+  if (scheme !== 'scrypt' || !saltHex || !hashHex) return false;
+  const expected = Buffer.from(hashHex, 'hex');
+  const actual = await scrypt(password, Buffer.from(saltHex, 'hex'), expected.length);
+  return crypto.timingSafeEqual(actual, expected);
+}
+
+/** Checked against for unknown usernames, so the answer takes as long as for a wrong password */
+const DUMMY_HASH = `scrypt$${'00'.repeat(16)}$${'00'.repeat(64)}`;
+
+export function checkPassword(password: unknown): string {
+  if (typeof password !== 'string' || password.length < PASSWORD_MIN_LENGTH) {
+    throw new AccountError(`Das Passwort braucht mindestens ${PASSWORD_MIN_LENGTH} Zeichen.`);
+  }
+  if (password.length > 200) throw new AccountError('Das Passwort ist zu lang.');
+  return password;
+}
+
+/** Readable random password for admin resets (no 0/O/1/l mix-ups) */
+export function randomPassword(length = 12): string {
+  const alphabet = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let result = '';
+  for (let i = 0; i < length; i++) result += alphabet[crypto.randomInt(alphabet.length)];
+  return result;
+}
+
 function randomCode(): string {
   let code = '';
   for (let i = 0; i < 8; i++) code += CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)];
@@ -67,6 +106,8 @@ const toUser = (r: Row): UserRecord => ({
   username: r.username as string,
   createdAt: r.created_at as number,
   bannedAt: (r.banned_at as number | null) ?? null,
+  isAdmin: !!r.is_admin,
+  hasPassword: !!r.password_hash,
 });
 const toCredential = (r: Row): StoredCredential => ({
   id: r.id as string,
@@ -79,7 +120,7 @@ const toCredential = (r: Row): StoredCredential => ({
   lastUsedAt: (r.last_used_at as number | null) ?? null,
 });
 
-/** Accounts without passwords: a passkey (or several, one per device) is the only way in */
+/** Accounts: passkeys (one per device) and, optionally, a password for places where passkeys do not work (plain HTTP) */
 export class UserStore {
   constructor(private readonly db: DatabaseSync) {}
 
@@ -110,10 +151,78 @@ export class UserStore {
     return name;
   }
 
+  /** The very first account becomes admin: otherwise nobody could reach the admin area */
   createUser(username: string, now = Date.now()): UserRecord {
     const id = crypto.randomUUID();
-    this.db.prepare('INSERT INTO users (id, username, username_lower, created_at) VALUES (?, ?, ?, ?)').run(id, username, username.toLowerCase(), now);
+    const admin = this.countUsers() === 0 ? 1 : 0;
+    this.db
+      .prepare('INSERT INTO users (id, username, username_lower, created_at, is_admin) VALUES (?, ?, ?, ?, ?)')
+      .run(id, username, username.toLowerCase(), now, admin);
     return this.getUser(id)!;
+  }
+
+  /** Accounts with what the admin area shows about them */
+  listForAdmin(): AdminUser[] {
+    const rows = this.db
+      .prepare(
+        `SELECT users.*,
+           (SELECT COUNT(*) FROM credentials WHERE user_id = users.id) AS passkeys,
+           (SELECT COUNT(*) FROM notes WHERE owner_id = users.id AND deleted = 0) AS note_count,
+           (SELECT MAX(last_used_at) FROM sessions WHERE user_id = users.id) AS last_seen
+         FROM users ORDER BY username_lower`
+      )
+      .all() as Row[];
+    return rows.map((r) => ({ ...toUser(r), passkeys: Number(r.passkeys), notes: Number(r.note_count), lastSeenAt: (r.last_seen as number | null) ?? null }));
+  }
+
+  /** The last admin cannot lose the role, the admin area would be gone for good */
+  setAdmin(id: string, admin: boolean): boolean {
+    if (!admin && this.getUser(id)?.isAdmin) {
+      const admins = Number((this.db.prepare('SELECT COUNT(*) AS n FROM users WHERE is_admin = 1').get() as { n: number }).n);
+      if (admins <= 1) throw new AccountError('Das letzte Admin-Konto kann die Rolle nicht abgeben.', 409);
+    }
+    return this.db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(admin ? 1 : 0, id).changes > 0;
+  }
+
+  // ------------------------------------------------------------------ passwords
+
+  async setPassword(userId: string, password: unknown): Promise<void> {
+    this.setPasswordHash(userId, await hashPassword(checkPassword(password)));
+  }
+
+  setPasswordHash(userId: string, hash: string): void {
+    this.db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, userId);
+  }
+
+  /** Only while a passkey is left: the account must keep a way in */
+  removePassword(userId: string): void {
+    if (this.credentialsOf(userId).length === 0) throw new AccountError('Ohne Passkey kann das Passwort nicht entfernt werden.', 409);
+    this.db.prepare('UPDATE users SET password_hash = NULL WHERE id = ?').run(userId);
+  }
+
+  async verifyUserPassword(userId: string, password: unknown): Promise<boolean> {
+    const row = this.db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId) as { password_hash: string | null } | undefined;
+    if (!row?.password_hash || typeof password !== 'string' || password.length > 200) return false;
+    return verifyPassword(password, row.password_hash);
+  }
+
+  /** The account for a username and password, null if either is wrong (same time for unknown names) */
+  async checkLogin(username: unknown, password: unknown): Promise<UserRecord | null> {
+    const name = typeof username === 'string' ? username.trim().toLowerCase() : '';
+    const pw = typeof password === 'string' && password.length <= 200 ? password : '';
+    const row = name ? (this.db.prepare('SELECT id, password_hash FROM users WHERE username_lower = ?').get(name) as Row | undefined) : undefined;
+    const stored = (row?.password_hash as string | null) ?? null;
+    const ok = await verifyPassword(pw, stored ?? DUMMY_HASH);
+    return ok && stored && row ? this.getUser(row.id as string) : null;
+  }
+
+  /** Admin reset: a new random password, every session of the account ends */
+  async resetPassword(userId: string): Promise<string | null> {
+    if (!this.getUser(userId)) return null;
+    const password = randomPassword();
+    this.db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(await hashPassword(password), userId);
+    this.deleteSessionsOf(userId);
+    return password;
   }
 
   setBanned(id: string, banned: boolean): boolean {
@@ -147,9 +256,9 @@ export class UserStore {
     return this.db.prepare('UPDATE credentials SET name = ? WHERE id = ? AND user_id = ?').run(name.slice(0, 60), id, userId).changes > 0;
   }
 
-  /** The last passkey cannot be removed, the account would be locked for good */
+  /** The last passkey cannot be removed without a password, the account would be locked for good */
   deleteCredential(userId: string, id: string): boolean {
-    if (this.credentialsOf(userId).length <= 1) throw new AccountError('Der letzte Passkey kann nicht gelöscht werden.', 409);
+    if (this.credentialsOf(userId).length <= 1 && !this.getUser(userId)?.hasPassword) throw new AccountError('Der letzte Passkey kann nicht gelöscht werden.', 409);
     return this.db.prepare('DELETE FROM credentials WHERE id = ? AND user_id = ?').run(id, userId).changes > 0;
   }
 
@@ -182,6 +291,11 @@ export class UserStore {
 
   deleteSession(token: string): void {
     this.db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha256(token));
+  }
+
+  /** Signs the account out everywhere, except the session `keepToken` if given */
+  deleteSessionsOf(userId: string, keepToken?: string): void {
+    this.db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?').run(userId, keepToken ? sha256(keepToken) : '');
   }
 
   // ------------------------------------------------------------------ invites

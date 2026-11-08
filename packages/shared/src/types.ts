@@ -49,6 +49,51 @@ export interface Me {
   username: string;
   createdAt: number;
   passkeys: { id: string; name: string; createdAt: number; lastUsedAt: number | null }[];
+  /** Can also sign in with username and password (e.g. on a plain-HTTP home network, where passkeys do not work) */
+  hasPassword: boolean;
+  /** Sees the admin area (accounts, invites, password reset) */
+  isAdmin: boolean;
+}
+
+export const PASSWORD_MIN_LENGTH = 8;
+
+/** One account as the admin area lists it */
+export interface AdminUser {
+  id: string;
+  username: string;
+  createdAt: number;
+  bannedAt: number | null;
+  isAdmin: boolean;
+  hasPassword: boolean;
+  passkeys: number;
+  notes: number;
+  lastSeenAt: number | null;
+}
+
+export interface AdminInvite {
+  code: string;
+  note: string;
+  createdAt: number;
+  expiresAt: number;
+  usedBy: string | null;
+  usedAt: number | null;
+}
+
+export interface AdminAuditEntry {
+  at: number;
+  event: string;
+  username: string | null;
+  ip: string | null;
+  detail: string | null;
+}
+
+export interface AdminStatus {
+  version: string;
+  startedAt: number;
+  users: number;
+  notes: number;
+  shares: number;
+  connections: number;
 }
 
 export interface NoteShare {

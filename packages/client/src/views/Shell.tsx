@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronRight, Cloud, CloudOff, CalendarCheck, Inbox as InboxIcon, Network, Folder, FolderOpen, FolderPlus, Pencil, Trash2, Home, ChefHat, Lightbulb, Loader2, Menu, Plus, Search, Settings, Share2, AlertTriangle, X, FileText, Lock, LockOpen } from 'lucide-react';
+import { ChevronRight, Cloud, CloudOff, CalendarCheck, Inbox as InboxIcon, Network, Folder, FolderOpen, FolderPlus, Pencil, Trash2, Home, ChefHat, Lightbulb, Loader2, Menu, Plus, Search, Settings, Share2, ShieldCheck, AlertTriangle, X, FileText, Lock, LockOpen } from 'lucide-react';
 import { PARA, splitPath } from '@kladde/shared';
 import { openDialog } from '../lib/dialogs';
 import { Dialogs } from './Dialogs';
@@ -189,7 +189,7 @@ function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNo
   );
 }
 
-function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+function Sidebar({ onNavigate, isAdmin }: { onNavigate?: () => void; isAdmin?: boolean }) {
   useVault();
   const [newRoot, setNewRoot] = useState(false);
   const rootDrop = useDropTarget('');
@@ -268,6 +268,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <ChefHat size={16} /> Rezept importieren
         </button>
       </div>
+      {isAdmin && item('/admin', ShieldCheck, 'Verwaltung')}
       {item('/settings', Settings, 'Einstellungen')}
     </div>
   );
@@ -289,57 +290,64 @@ function useSearchShortcut() {
   }, []);
 }
 
-export function Shell({ children }: { children: React.ReactNode }) {
+export function Shell({ children, isAdmin }: { children: React.ReactNode; isAdmin?: boolean }) {
   const [drawer, setDrawer] = useState(false);
   const [capture, setCapture] = useState(false);
   const path = usePath();
   const isNote = path.startsWith('/n/');
   useSearchShortcut();
   return (
-    <div className="flex h-full">
-      <aside className="hidden w-64 shrink-0 border-r border-line bg-surface/60 md:block lg:w-72">
-        <Sidebar />
-      </aside>
-      {drawer && (
-        <div className="fixed inset-0 z-40 md:hidden">
-          <div className="absolute inset-0 bg-black/40 anim-fade-in" onClick={() => setDrawer(false)} />
-          <aside className="absolute inset-y-0 left-0 w-[82%] max-w-xs bg-surface shadow-soft safe-top safe-bottom" style={{ animation: 'slide-in 260ms var(--ease) both' }}>
-            <button className="btn-icon absolute right-2 top-[calc(0.5rem+env(safe-area-inset-top))]" onClick={() => setDrawer(false)}>
-              <X size={18} />
-            </button>
-            <Sidebar onNavigate={() => setDrawer(false)} />
-          </aside>
-        </div>
-      )}
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* Opaque and sticky at the top edge: iOS 26/27 home-screen apps only drop their status bar blur ("scroll pocket") over such a bar */}
-        <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-line bg-bg pb-2 [--pad-top:0.5rem] [--pad-x:0.75rem] safe-top safe-x md:hidden">
-          <button className="btn-icon" onClick={() => setDrawer(true)}>
-            <Menu size={20} />
-          </button>
-          <span className="font-semibold">Kladde</span>
-          <div className="ml-auto flex items-center gap-1.5">
-            <ReadOnlyToggle />
-            <SyncBadge />
-          </div>
-        </header>
-        <main className="vt-main min-h-0 flex-1 overflow-y-auto scrollbar-thin">{children}</main>
-        <nav className="grid grid-cols-4 border-t border-line bg-surface/90 safe-bottom safe-x md:hidden">
-          {[
-            ['/', Home, 'Start'],
-            ['/notes', FileText, 'Notizen'],
-            ['/search', Search, 'Suche'],
-            ['/settings', Settings, 'Mehr'],
-          ].map(([to, Icon, label]) => {
-            const I = Icon as typeof Home;
-            return (
-              <button key={to as string} onClick={() => navigate(to as string)} className={`flex flex-col items-center gap-0.5 py-2 text-[11px] transition-colors ${path === to ? 'text-accent' : 'text-muted'}`}>
-                <I size={20} />
-                {label as string}
+    <div className="flex h-full flex-col">
+      {/*
+        Tablet/desktop home-screen apps (iPad) get the same iOS 26/27 status bar blur as phones: there is no
+        header from md up, so an opaque sticky strip at the top edge takes its place (only in standalone mode).
+      */}
+      <div className="sticky top-0 z-20 hidden shrink-0 bg-bg [--pad-top:0.375rem] safe-top [@media(display-mode:standalone)]:md:block" />
+      <div className="flex min-h-0 flex-1">
+        <aside className="hidden w-64 shrink-0 border-r border-line bg-surface/60 md:block lg:w-72">
+          <Sidebar isAdmin={isAdmin} />
+        </aside>
+        {drawer && (
+          <div className="fixed inset-0 z-40 md:hidden">
+            <div className="absolute inset-0 bg-black/40 anim-fade-in" onClick={() => setDrawer(false)} />
+            <aside className="absolute inset-y-0 left-0 w-[82%] max-w-xs bg-surface shadow-soft safe-top safe-bottom" style={{ animation: 'slide-in 260ms var(--ease) both' }}>
+              <button className="btn-icon absolute right-2 top-[calc(0.5rem+env(safe-area-inset-top))]" onClick={() => setDrawer(false)}>
+                <X size={18} />
               </button>
-            );
-          })}
-        </nav>
+              <Sidebar isAdmin={isAdmin} onNavigate={() => setDrawer(false)} />
+            </aside>
+          </div>
+        )}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Opaque and sticky at the top edge: iOS 26/27 home-screen apps only drop their status bar blur ("scroll pocket") over such a bar */}
+          <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-line bg-bg pb-2 [--pad-top:0.5rem] [--pad-x:0.75rem] safe-top safe-x md:hidden">
+            <button className="btn-icon" onClick={() => setDrawer(true)}>
+              <Menu size={20} />
+            </button>
+            <span className="font-semibold">Kladde</span>
+            <div className="ml-auto flex items-center gap-1.5">
+              <ReadOnlyToggle />
+              <SyncBadge />
+            </div>
+          </header>
+          <main className="vt-main min-h-0 flex-1 overflow-y-auto scrollbar-thin">{children}</main>
+          <nav className="grid grid-cols-4 border-t border-line bg-surface/90 safe-bottom safe-x md:hidden">
+            {[
+              ['/', Home, 'Start'],
+              ['/notes', FileText, 'Notizen'],
+              ['/search', Search, 'Suche'],
+              ['/settings', Settings, 'Mehr'],
+            ].map(([to, Icon, label]) => {
+              const I = Icon as typeof Home;
+              return (
+                <button key={to as string} onClick={() => navigate(to as string)} className={`flex flex-col items-center gap-0.5 py-2 text-[11px] transition-colors ${path === to ? 'text-accent' : 'text-muted'}`}>
+                  <I size={20} />
+                  {label as string}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
       </div>
       {!isNote && (
         <button

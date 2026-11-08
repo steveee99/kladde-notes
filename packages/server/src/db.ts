@@ -104,6 +104,17 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 2,
+    description: 'Optional passwords and admin accounts',
+    up(db) {
+      db.exec(`
+        ALTER TABLE users ADD COLUMN password_hash TEXT;
+        ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0;
+        UPDATE users SET is_admin = 1 WHERE id = (SELECT id FROM users ORDER BY created_at, username_lower LIMIT 1);
+      `);
+    },
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number[] {

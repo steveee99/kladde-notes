@@ -37,10 +37,13 @@ export function requireUser(users: UserStore) {
 /** Express 4 does not catch rejected promises: wraps a handler and maps AccountErrors to their status */
 export const handle =
   (fn: (req: Request, res: Response) => unknown | Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
-    Promise.resolve(fn(req, res)).catch((err) => {
-      if (err instanceof AccountError) res.status(err.status).json({ error: err.message });
-      else next(err);
-    });
+    // Through then(): synchronous throws land in catch() too
+    Promise.resolve()
+      .then(() => fn(req, res))
+      .catch((err) => {
+        if (err instanceof AccountError) res.status(err.status).json({ error: err.message });
+        else next(err);
+      });
   };
 
 /** Simple fixed-window limit per IP and bucket (auth endpoints) */

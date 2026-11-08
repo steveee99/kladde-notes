@@ -15,6 +15,7 @@ import { SettingsView } from './views/Settings';
 import { InboxView } from './views/Inbox';
 import { GraphView } from './views/Graph';
 import { ReviewView } from './views/Review';
+import { AdminView } from './views/Admin';
 
 const ME_KEY = 'kladde_me';
 
@@ -108,6 +109,7 @@ export function App() {
   else if (path === '/notes') page = <NoteList mode="all" />;
   else if (path === '/shared') page = <NoteList mode="shared" />;
   else if (path === '/search') page = <SearchView />;
+  else if (path === '/admin') page = <AdminView me={me} />;
   else if (path === '/settings')
     page = (
       <SettingsView
@@ -122,5 +124,5 @@ export function App() {
     );
   else page = <HomeView />;
 
-  return <Shell>{page}</Shell>;
+  return <Shell isAdmin={me.isAdmin}>{page}</Shell>;
 }

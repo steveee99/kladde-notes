@@ -15,6 +15,7 @@ import { authRouter } from './auth.js';
 import { apiRouter, LiveUpdates } from './api.js';
 import { TelegramAdminBot } from './admin/TelegramBot.js';
 import { AdminActions, escapeHtml } from './admin/AdminCommands.js';
+import { adminRouter } from './admin/adminRouter.js';
 
 const env = process.env;
 const PORT = Number(env.PORT ?? 3002);
@@ -49,6 +50,14 @@ const actions: AdminActions = {
   setBanned: (username, banned) => {
     const u = users.findByUsername(username);
     return !!u && users.setBanned(u.id, banned);
+  },
+  resetPassword: async (username) => {
+    const u = users.findByUsername(username);
+    return u ? users.resetPassword(u.id) : null;
+  },
+  setAdmin: (username, admin) => {
+    const u = users.findByUsername(username);
+    return !!u && users.setAdmin(u.id, admin);
   },
   auditLog: () => audit.recent(25),
   status: () => ({ version: APP_VERSION, startedAt, users: users.countUsers(), ...notes.counts(), connections: live.connections }),
@@ -98,6 +107,7 @@ app.use('/api/auth', express.json({ limit: '64kb' }), authRouter({
   onRegistered: (user, note) => void bot?.notify(`🆕 Neues Konto: <b>${escapeHtml(user.username)}</b>${note ? ` (Einladung: ${escapeHtml(note)})` : ''}`),
 }));
 app.use('/api', (req, res, next) => (req.path === '/sync' || req.path === '/files' ? next() : express.json({ limit: '256kb' })(req, res, next)));
+app.use('/api/admin', adminRouter({ users, audit, status: actions.status }));
 app.use('/api', apiRouter(users, notes, files, live));
 
 const clientDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'client', 'dist');

@@ -7,6 +7,9 @@ export interface AdminActions {
   deleteInvite(code: string): boolean;
   listUsers(): UserRecord[];
   setBanned(username: string, banned: boolean): boolean;
+  /** New random password (null if the account does not exist); signs the account out everywhere */
+  resetPassword(username: string): Promise<string | null>;
+  setAdmin(username: string, admin: boolean): boolean;
   auditLog(): AuditEntry[];
   status(): { version: string; startedAt: number; users: number; notes: number; shares: number; connections: number };
 }
@@ -20,6 +23,8 @@ export const COMMANDS: { command: string; args?: string; description: string }[]
   { command: 'konten', description: 'Alle Konten' },
   { command: 'sperren', args: 'BENUTZER', description: 'Konto sperren und abmelden' },
   { command: 'entsperren', args: 'BENUTZER', description: 'Konto wieder freigeben' },
+  { command: 'passwort', args: 'BENUTZER', description: 'Neues Zufallspasswort setzen und abmelden' },
+  { command: 'admin', args: 'BENUTZER [an|aus]', description: 'Admin-Rolle geben oder nehmen' },
   { command: 'protokoll', description: 'Letzte Anmeldungen und Admin-Aktionen' },
   { command: 'hilfe', description: 'Alle Befehle' },
 ];
@@ -62,14 +67,14 @@ export class AdminCommands {
 
   async execute(ctx: { key: string; chatId: string; userId: string | null }, text: string, _now = Date.now()): Promise<{ html: string }> {
     this.options.onCommand?.({ chatId: ctx.chatId, userId: ctx.userId, text });
-    return { html: this.handleCommand(text) };
+    return { html: await this.handleCommand(text) };
   }
 
   inviteLink(code: string): string {
     return this.options.publicUrl ? `${this.options.publicUrl.replace(/\/$/, '')}/invite/${code}` : code;
   }
 
-  handleCommand(text: string): string {
+  async handleCommand(text: string): Promise<string> {
     const [rawCommand, ...rest] = text.trim().split(/\s+/);
     const command = rawCommand.replace(/^\//, '').replace(/@.*$/, '').toLowerCase();
     const arg = rest.join(' ').trim();
@@ -105,6 +110,23 @@ export class AdminCommands {
       case 'sperren':
       case 'entsperren':
         return a.setBanned(arg, command === 'sperren') ? `${escapeHtml(arg)} ${command === 'sperren' ? 'gesperrt' : 'entsperrt'}.` : 'Dieses Konto gibt es nicht.';
+      case 'passwort': {
+        if (!arg) return 'Bitte einen Benutzernamen angeben: /passwort BENUTZER';
+        const password = await a.resetPassword(arg);
+        return password
+          ? `Neues Passwort für <b>${escapeHtml(arg)}</b> (alle Geräte abgemeldet):\n<code>${escapeHtml(password)}</code>`
+          : 'Dieses Konto gibt es nicht.';
+      }
+      case 'admin': {
+        const [name, mode = 'an'] = arg.split(/\s+/);
+        if (!name) return 'Bitte einen Benutzernamen angeben: /admin BENUTZER [an|aus]';
+        const on = mode.toLowerCase() !== 'aus';
+        try {
+          return a.setAdmin(name, on) ? `${escapeHtml(name)} ist ${on ? 'jetzt Admin' : 'kein Admin mehr'}.` : 'Dieses Konto gibt es nicht.';
+        } catch (err) {
+          return escapeHtml((err as Error).message);
+        }
+      }
       case 'protokoll': {
         const entries = a.auditLog();
         return entries.length

@@ -1,6 +1,6 @@
 # Kladde
 
-**Kladde** ist eine selbst gehostete Notiz-App für den Browser: Markdown mit Live-Vorschau, Aufgaben mit Fälligkeit und Wiederholung, Abfragen über die eigenen Notizen – offline nutzbar auf Handy, iPad und Desktop, synchronisiert sobald wieder online. Zugang nur per Einladung, Anmeldung per **Passkey** (kein Passwort).
+**Kladde** ist eine selbst gehostete Notiz-App für den Browser: Markdown mit Live-Vorschau, Aufgaben mit Fälligkeit und Wiederholung, Abfragen über die eigenen Notizen – offline nutzbar auf Handy, iPad und Desktop, synchronisiert sobald wieder online. Zugang nur per Einladung, Anmeldung per **Passkey** – oder mit Benutzername und Passwort, wo Passkeys nicht gehen (lokales Netz ohne HTTPS).
 
 > Eine *Kladde* ist das Notizbuch, in das erst einmal alles hineinkommt, bevor es ins Reine geschrieben wird.
 
@@ -12,7 +12,8 @@
 
 | Bereich | Stand |
 | --- | --- |
-| **Zugang** | Einladungscode → Benutzername → Passkey. Weitere Geräte per Einmal-Code (15 min) oder zusätzlichem Passkey. Sessions als httpOnly-Cookie |
+| **Zugang** | Einladungscode → Benutzername → Passkey oder Passwort. Weitere Geräte per Einmal-Code (15 min) oder zusätzlichem Passkey. Sessions als httpOnly-Cookie |
+| **Verwaltung** | Für Admins in der App: Konten, Passwort-Reset, Gerätecodes, Admin-Rolle, Sperren, Einladungen, Protokoll. Das älteste Konto ist Admin |
 | **Spaces** | Jeder Benutzer hat seinen eigenen Bereich, kein Zugriff auf fremde Notizen |
 | **Teilen** | Pro Notiz mit Benutzern (lesen/bearbeiten) oder öffentlicher Nur-Lese-Link für Gäste (`/s/…`) |
 | **Editor** | CodeMirror 6 mit Live-Preview: Markdown-Syntax ist nur in der Cursor-Zeile sichtbar |
@@ -68,7 +69,7 @@ PUBLIC_URL=https://notes.example.org docker compose up --build -d
 docker logs kladde   # enthält die erste Einladung
 ```
 
-Die App läuft dann auf Port `13002`. **Passkeys brauchen HTTPS** (außer auf localhost) und sind an die Domain aus `PUBLIC_URL` gebunden – betreibe die App hinter einem Reverse-Proxy (Caddy, nginx, Traefik) und setze `TRUST_PROXY=1`.
+Die App läuft dann auf Port `13002`. **Passkeys brauchen HTTPS** (außer auf localhost) und sind an die Domain aus `PUBLIC_URL` gebunden – betreibe die App hinter einem Reverse-Proxy (Caddy, nginx, Traefik) und setze `TRUST_PROXY=1`. Ohne HTTPS (z. B. direkt über `http://192.168.1.10:13002` im Heimnetz) meldest du dich mit Benutzername und Passwort an.
 
 Einladungen ohne Telegram:
 
@@ -81,7 +82,7 @@ docker exec kladde node packages/server/dist/cli.js einladen Anna
 | `PUBLIC_URL` | Öffentliche Adresse; legt die Passkey-Domain fest und baut Einladungslinks |
 | `TRUST_PROXY` | `1` hinter einem Reverse-Proxy |
 | `DATA_KEY` | Schlüssel für die Verschlüsselung (`openssl rand -base64 32`). Leer = Schlüsseldatei `data/secret.key` im Volume |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ADMIN_USER_IDS` | Admin-Bot: `/einladen`, `/einladungen`, `/konten`, `/sperren`, `/status`, `/protokoll` |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ADMIN_USER_IDS` | Admin-Bot: `/einladen`, `/einladungen`, `/konten`, `/sperren`, `/passwort`, `/admin`, `/status`, `/protokoll` |
 | `BACKUP_KEEP` | Tägliche Datenbank-Backups in `data/backups` (Standard 7, `0` = aus) |
 | `EXPORT_DIR` | Klartext-Spiegel der Notizen (z. B. NAS), leer = aus |
 
