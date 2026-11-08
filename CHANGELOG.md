@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.4.0] – 2026-11-08
+
 - Einstellungen: neuer Bereich „Diagnose“ zeigt Messwerte zur Bildschirmdarstellung (z. B. für Probleme in der iOS-Home-Bildschirm-App) und kopiert sie.
 - Behoben: Der Rezept-Import funktioniert jetzt auch auf Servern in reinen IPv6-Netzen mit NAT64 (z. B. „Diese Adresse ist nicht erlaubt (picnic.app → 64:ff9b::…)“). Geprüft wird die darin enthaltene IPv4-Adresse; interne Adressen bleiben gesperrt.
 
