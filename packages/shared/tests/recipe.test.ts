@@ -47,6 +47,16 @@ describe('extractRecipe', () => {
     expect(r.steps).toEqual(['Hinweis: Heiß servieren.', 'Fertig.']);
   });
 
+  it('finds JSON-LD that Next.js only streams in its hydration data', () => {
+    const ld = JSON.stringify({ '@context': 'https://schema.org', '@type': 'Recipe', name: 'Pasta', image: { url: 'https://p.de/a.webp' }, recipeIngredient: ['500 g Nudeln'], recipeInstructions: [{ '@type': 'HowToStep', text: 'Kochen.', name: 'Schritt 1' }] });
+    const chunk = `1e:T${ld.length.toString(16)},${ld}\n5:["$","script",null,{"type":"application/ld+json","dangerouslySetInnerHTML":{"__html":"$1e"}}]`;
+    const html = `<html><body><script>self.__next_f.push([1,${JSON.stringify(chunk)}])</script></body></html>`;
+    const r = extractRecipe(html, 'https://picnic.app/de/rezepte/1')!;
+    expect(r.title).toBe('Pasta');
+    expect(r.ingredients).toEqual(['500 g Nudeln']);
+    expect(r.steps).toEqual(['Kochen.']);
+  });
+
   it('falls back to microdata', () => {
     const html = `<div itemscope itemtype="https://schema.org/Recipe"><h1 itemprop="name">Suppe</h1>
       <li itemprop="recipeIngredient">1 l Brühe</li><li itemprop="recipeIngredient">2 Karotten</li>
@@ -71,6 +81,8 @@ describe('parseIngredient', () => {
     ['3 Eier', { amount: '3', unit: '', name: 'Eier' }],
     ['Salz und Pfeffer', { amount: '', unit: '', name: 'Salz und Pfeffer' }],
     ['1/2 cup milk', { amount: '1/2', unit: 'cup', name: 'milk' }],
+    ['0.5 TL Muskat', { amount: '0,5', unit: 'TL', name: 'Muskat' }],
+    ['1 Stk. Zwiebeln', { amount: '1', unit: 'Stk.', name: 'Zwiebeln' }],
     ['1 Glas Gurken', { amount: '1', unit: 'Glas', name: 'Gurken' }],
     ['1 große Zwiebel', { amount: '1', unit: '', name: 'große Zwiebel' }],
     ['Gemüsebrühe', { amount: '', unit: '', name: 'Gemüsebrühe' }],

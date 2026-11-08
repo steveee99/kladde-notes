@@ -118,6 +118,54 @@ function parseJsonLd(html: string): Record<string, unknown> | null {
   return null;
 }
 
+/** End of the balanced {...} starting at `start` (string-aware), or -1 */
+function objectEnd(text: string, start: number): number {
+  let depth = 0;
+  let inString = false;
+  for (let i = start; i < text.length && i < start + 500_000; i++) {
+    const c = text[i];
+    if (inString) {
+      if (c === '\\') i++;
+      else if (c === '"') inString = false;
+    } else if (c === '"') inString = true;
+    else if (c === '{') depth++;
+    else if (c === '}' && --depth === 0) return i;
+  }
+  return -1;
+}
+
+/**
+ * Sites built with Next.js, Nuxt and the like often ship the JSON-LD only inside their hydration data
+ * (the <script> tag is added in the browser). Next's App Router streams it as escaped string chunks
+ * (self.__next_f.push), so those are decoded first; then the object around "@type":"Recipe" is cut out.
+ */
+function parseEmbeddedJson(html: string): Record<string, unknown> | null {
+  let text = html;
+  const flight = /self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)/g;
+  for (let m; (m = flight.exec(html)); ) {
+    try {
+      text += JSON.parse(m[1]) as string;
+    } catch {
+      /* skip a broken chunk */
+    }
+  }
+  const marker = /"@type"\s*:\s*\[?\s*"Recipe"/g;
+  for (let m; (m = marker.exec(text)); ) {
+    // Walk back to the "{" whose object contains the marker: the recipe itself
+    for (let start = text.lastIndexOf('{', m.index), tries = 0; start >= 0 && tries < 200; start = text.lastIndexOf('{', start - 1), tries++) {
+      const end = objectEnd(text, start);
+      if (end < m.index) continue;
+      try {
+        const found = findRecipeNode(JSON.parse(text.slice(start, end + 1)));
+        if (found) return found;
+      } catch {
+        /* not JSON (e.g. escaped inside a script string): keep walking */
+      }
+    }
+  }
+  return null;
+}
+
 function textOf(value: unknown): string {
   if (typeof value === 'string' || typeof value === 'number') return cleanText(value);
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -242,7 +290,7 @@ function fromMicrodata(html: string, url: string): Recipe | null {
 
 /** Finds the recipe in a page; null when the page has no recipe data */
 export function extractRecipe(html: string, url: string): Recipe | null {
-  const node = parseJsonLd(html);
+  const node = parseJsonLd(html) ?? parseEmbeddedJson(html);
   let recipe = node ? fromJsonLd(node, url) : null;
   if (!recipe || (!recipe.ingredients.length && !recipe.steps.length)) recipe = fromMicrodata(html, url) ?? recipe;
   if (!recipe || (!recipe.ingredients.length && !recipe.steps.length)) return null;
@@ -289,7 +337,8 @@ export function parseIngredient(line: string): Ingredient {
   const m = INGREDIENT_RE.exec(text);
   if (!m || (!m[1] && !m[2])) return { amount: '', unit: '', name: text };
   // "200g Mehl" has no space between amount and unit
-  return { amount: (m[1] ?? '').replace(/\s+/g, ' ').trim(), unit: m[2] ?? '', name: m[3].replace(/^[,\s]+/, '').trim() || text };
+  // "0.5" → "0,5": the notes are German
+  return { amount: (m[1] ?? '').replace(/\s+/g, ' ').replace(/(\d)\.(\d)/g, '$1,$2').trim(), unit: m[2] ?? '', name: m[3].replace(/^[,\s]+/, '').trim() || text };
 }
 
 // ------------------------------------------------------------------ Markdown

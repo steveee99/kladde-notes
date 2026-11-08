@@ -4,6 +4,7 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Rezept-Import: erkennt jetzt auch Rezepte, die die Seite erst beim Laden im Browser einbaut (z. B. Picnic und andere Next.js-Seiten); Mengen wie „0.5“ werden als „0,5“ geschrieben.
 - Behoben: In der iOS-Home-Bildschirm-App (ab iOS 26.1) liegt die Kopfzeile nicht mehr halb unter der Statusleiste, und unter der unteren Leiste bleibt kein leerer Streifen mehr. Die Statusleiste ist jetzt undurchsichtig. **Wichtig:** Die App einmal vom Home-Bildschirm löschen und über Safari neu hinzufügen, sonst behält iOS die alte Einstellung.
 
 ## [0.3.0] – 2026-11-08
