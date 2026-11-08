@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { CheckSquare, FileText, Send } from 'lucide-react';
+import { ChefHat, CheckSquare, FileText, Send } from 'lucide-react';
 import { vault } from '../data/vault';
-import { newNote } from './Shell';
+import { importRecipe, newNote } from './Shell';
 
 /** Bottom sheet for one-handed input on the phone: a thought or a task into the inbox, in two taps */
 export function QuickCapture({ onClose }: { onClose: () => void }) {
@@ -42,6 +42,16 @@ export function QuickCapture({ onClose }: { onClose: () => void }) {
             }}
           >
             <FileText size={16} /> Ganze Notiz
+          </button>
+          <button
+            className="btn-ghost"
+            title="Rezept über einen Link importieren"
+            onClick={() => {
+              onClose();
+              importRecipe(/^https?:\/\/\S+$/.test(text.trim()) ? text.trim() : undefined);
+            }}
+          >
+            <ChefHat size={16} /> Rezept
           </button>
           <button className="btn-primary ml-auto" onClick={save}>
             <Send size={16} /> Ablegen

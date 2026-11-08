@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { FileText, Lightbulb, X } from 'lucide-react';
-import { BUILTIN_TEMPLATES, PARA, Template, ZETTEL_TYPES, ZettelType } from '@kladde/shared';
+import { ChefHat, ClipboardPaste, FileText, Lightbulb, Loader2, X } from 'lucide-react';
+import { BUILTIN_TEMPLATES, PARA, Recipe, RECIPE_FOLDER, recipeNoteTitle, recipeToMarkdown, Template, ZETTEL_TYPES, ZettelType } from '@kladde/shared';
+import { api } from '../lib/api';
 import { vault } from '../data/vault';
 import { closeDialog, useDialog } from '../lib/dialogs';
 import { navigate } from '../lib/router';
@@ -104,9 +105,77 @@ function ZettelDialog() {
   );
 }
 
+/** A link in, a standard recipe note out: ingredient table, numbered steps, source at the bottom */
+function RecipeDialog({ initialUrl = '' }: { initialUrl?: string }) {
+  const [url, setUrl] = useState(initialUrl);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const link = url.trim();
+  const existing = link ? vault.list().find((n) => n.content.includes(`\nquelle: ${link}\n`)) : undefined;
+  const paste = async () => {
+    try {
+      const text = (await navigator.clipboard.readText()).trim();
+      const found = /https?:\/\/\S+/.exec(text)?.[0];
+      if (found) setUrl(found);
+      else setError('In der Zwischenablage ist kein Link.');
+    } catch {
+      setError('Die Zwischenablage ist nicht lesbar – bitte den Link einfügen.');
+    }
+  };
+  const run = async () => {
+    if (!link || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const recipe = await api<Recipe>('/import/recipe', { method: 'POST', json: { url: /^https?:\/\//i.test(link) ? link : `https://${link}` } });
+      const note = await vault.create(RECIPE_FOLDER, recipeNoteTitle(recipe), recipeToMarkdown(recipe));
+      closeDialog();
+      navigate(`/n/${note.id}`);
+    } catch (err) {
+      setError(navigator.onLine ? (err as Error).message : 'Der Import braucht eine Internetverbindung.');
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet title="Rezept importieren" onClose={closeDialog}>
+      <div className="mb-3 flex gap-2">
+        <input
+          autoFocus
+          type="url"
+          inputMode="url"
+          className="input"
+          placeholder="https://… Link zum Rezept"
+          value={url}
+          onChange={(e) => (setUrl(e.target.value), setError(''))}
+          onKeyDown={(e) => e.key === 'Enter' && run()}
+        />
+        <button className="btn-ghost shrink-0 border border-line" onClick={paste} title="Link aus der Zwischenablage einfügen">
+          <ClipboardPaste size={16} />
+        </button>
+      </div>
+      {error && <p className="mb-3 rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger anim-fade-in">{error}</p>}
+      {existing && !busy && (
+        <p className="mb-3 text-sm text-muted">
+          Dieses Rezept gibt es schon:{' '}
+          <button className="text-accent underline" onClick={() => (closeDialog(), navigate(`/n/${existing.id}`))}>
+            öffnen
+          </button>
+        </p>
+      )}
+      <button className="btn-primary w-full py-2.5" disabled={!link || busy} onClick={run}>
+        {busy ? <Loader2 size={16} className="animate-spin" /> : <ChefHat size={16} />} {busy ? 'Wird importiert …' : 'Importieren'}
+      </button>
+      <p className="mt-3 text-xs text-faint">
+        Funktioniert mit den meisten Rezeptseiten (Chefkoch, EatSmarter, BBC Good Food, Food-Blogs …). Das Rezept landet in „{RECIPE_FOLDER}“: Zutaten als Tabelle, die Schritte nummeriert, der Originallink als Quelle ganz unten.
+      </p>
+    </Sheet>
+  );
+}
+
 export function Dialogs() {
   const dialog = useDialog();
   if (dialog?.kind === 'note') return <NewNoteDialog folder={dialog.folder} />;
   if (dialog?.kind === 'zettel') return <ZettelDialog />;
+  if (dialog?.kind === 'recipe') return <RecipeDialog initialUrl={dialog.url} />;
   return null;
 }

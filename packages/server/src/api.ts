@@ -3,7 +3,8 @@ import type { PushChange } from '@kladde/shared';
 import { NoteStore } from './NoteStore.js';
 import { FileStore, MAX_FILE_BYTES } from './FileStore.js';
 import { UserStore } from './UserStore.js';
-import { handle, requireUser } from './http.js';
+import { handle, rateLimit, requireUser } from './http.js';
+import { ImportError, importRecipe } from './RecipeImport.js';
 
 /** Open event streams per user: a ping makes every device pull right away */
 export class LiveUpdates {
@@ -127,6 +128,21 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       notFound(res);
     }
   });
+
+  // The server fetches the page (the browser cannot read other sites); the client turns it into a note
+  router.post(
+    '/import/recipe',
+    rateLimit(30, 10 * 60_000),
+    handle(async (req, res) => {
+      const url = typeof req.body?.url === 'string' ? req.body.url.slice(0, 2000) : '';
+      try {
+        res.json(await importRecipe(url));
+      } catch (err) {
+        if (err instanceof ImportError) res.status(422).json({ error: err.message });
+        else throw err;
+      }
+    })
+  );
 
   router.post(
     '/files',

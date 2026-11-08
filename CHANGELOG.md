@@ -4,6 +4,7 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Rezepte per Link importieren (Seitenleiste „Rezept importieren“ oder „Rezept“ im Schnell-Erfassen). Kladde liest das Rezept von gängigen Seiten (schema.org-Rezeptdaten, z. B. Chefkoch, EatSmarter, BBC Good Food, viele Food-Blogs) und legt es einheitlich in „3 Ressourcen/Rezepte“ ab: Zutaten als Tabelle (Menge, Einheit, Zutat), Zubereitung als nummerierte Schritte, Originallink als Quelle ganz unten.
 - Behoben: In der iOS-Home-Bildschirm-App rutschen Kopfzeile und untere Leiste nicht mehr nach oben (z. B. nach dem Schließen der Tastatur); die Kopfzeile liegt nicht mehr halb unter der Statusleiste.
 
 ## [0.1.0] – 2026-11-08

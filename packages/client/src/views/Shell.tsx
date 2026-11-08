@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronRight, Cloud, CloudOff, CalendarCheck, Inbox as InboxIcon, Network, Folder, FolderOpen, FolderPlus, Pencil, Trash2, Home, Lightbulb, Loader2, Menu, Plus, Search, Settings, Share2, AlertTriangle, X, FileText, Lock, LockOpen } from 'lucide-react';
+import { ChevronRight, Cloud, CloudOff, CalendarCheck, Inbox as InboxIcon, Network, Folder, FolderOpen, FolderPlus, Pencil, Trash2, Home, ChefHat, Lightbulb, Loader2, Menu, Plus, Search, Settings, Share2, AlertTriangle, X, FileText, Lock, LockOpen } from 'lucide-react';
 import { PARA, splitPath } from '@kladde/shared';
 import { openDialog } from '../lib/dialogs';
 import { Dialogs } from './Dialogs';
@@ -12,6 +12,10 @@ import { isReadOnly, setReadOnly, useReadOnly } from '../lib/readOnly';
 
 export function newNote(folder?: string) {
   openDialog({ kind: 'note', folder });
+}
+
+export function importRecipe(url?: string) {
+  openDialog({ kind: 'recipe', url });
 }
 
 export function newZettel() {
@@ -259,6 +263,9 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </button>
         <button className="btn-ghost border border-line" onClick={() => (newZettel(), onNavigate?.())} title="Neuer Zettel (Zettelkasten)">
           <Lightbulb size={16} /> Zettel
+        </button>
+        <button className="btn-ghost col-span-2 border border-line" onClick={() => (importRecipe(), onNavigate?.())} title="Rezept über einen Link importieren">
+          <ChefHat size={16} /> Rezept importieren
         </button>
       </div>
       {item('/settings', Settings, 'Einstellungen')}

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
-/** App-wide dialogs (new note from template, new Zettel), opened from anywhere */
-export type DialogState = { kind: 'note'; folder?: string } | { kind: 'zettel' } | null;
+/** App-wide dialogs (new note from template, new Zettel, recipe import), opened from anywhere */
+export type DialogState = { kind: 'note'; folder?: string } | { kind: 'zettel' } | { kind: 'recipe'; url?: string } | null;
 
 let state: DialogState = null;
 const listeners = new Set<() => void>();
