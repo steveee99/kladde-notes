@@ -448,6 +448,27 @@ html[data-readonly] .edit-only {
   background: rgb(var(--accent)) !important;
   color: rgb(var(--on-accent)) !important;
 }
+.cm-tooltip-autocomplete > ul {
+  font-family: Inter, system-ui, -apple-system, sans-serif !important;
+  max-height: 18em !important;
+}
+.cm-tooltip-autocomplete > ul > li {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 4px 10px !important;
+}
+.cm-tooltip-autocomplete .cm-completionDetail {
+  margin-left: auto;
+  font-style: normal;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8em;
+  color: rgb(var(--faint));
+}
+.cm-tooltip-autocomplete li[aria-selected] .cm-completionDetail {
+  color: inherit;
+  opacity: 0.8;
+}
 
 /* ------------------------------------------------------------------ editor widgets */
 

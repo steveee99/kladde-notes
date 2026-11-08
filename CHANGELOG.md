@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Slash-Befehle im Editor: `/` am Zeilenanfang oder nach einem Leerzeichen öffnet ein Menü mit Überschriften, Liste, nummerierter Liste, Aufgabe, Tabelle, Zitat, Codeblock, Trennlinie, Abfragen, Galerie, Links, dem heutigen Datum und Datei-Upload. Weitertippen filtert (auch englische Namen wie `/table` oder `/todo`).
+
 ## [0.5.0] – 2026-11-08
 
 - Neu: Verwaltung für Admins (Seitenleiste bzw. Einstellungen → „Verwaltung“): alle Konten mit Passkeys, Notizen und letzter Aktivität; Passwort zurücksetzen (neues Zufallspasswort, das Konto wird überall abgemeldet), Gerätecode für einen neuen Passkey erzeugen, Admin-Rolle vergeben oder nehmen, Konten sperren und entsperren. Dazu Einladungen erstellen, Links kopieren und löschen sowie das Protokoll der Anmeldungen und Admin-Aktionen. Das älteste Konto ist automatisch Admin.

@@ -9,6 +9,7 @@ import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 import { tags as t } from '@lezer/highlight';
 import { livePreview, previewAll, refreshEffect } from './livePreview';
 import { editorHost } from './host';
+import { slashCompletion } from './slash';
 import { useReadOnly } from '../lib/readOnly';
 
 /** Read-only notes show everything rendered and accept no input */
@@ -43,17 +44,18 @@ function wikiCompletion(ctx: CompletionContext) {
 }
 
 /** Pasted or dropped images and PDFs are uploaded and linked */
+function insertFiles(view: EditorView, files: File[], pos: number) {
+  for (const file of files) {
+    const marker = `![Lade ${file.name} …]()`;
+    view.dispatch({ changes: { from: pos, insert: marker } });
+    editorHost
+      .upload(file)
+      .then((r) => replaceMarker(view, marker, `![${r.name}](${r.url})`))
+      .catch((err) => replaceMarker(view, marker, `<!-- Upload fehlgeschlagen: ${err.message} -->`));
+  }
+}
+
 function fileHandlers() {
-  const insertFiles = (view: EditorView, files: File[], pos: number) => {
-    for (const file of files) {
-      const marker = `![Lade ${file.name} …]()`;
-      view.dispatch({ changes: { from: pos, insert: marker } });
-      editorHost
-        .upload(file)
-        .then((r) => replaceMarker(view, marker, `![${r.name}](${r.url})`))
-        .catch((err) => replaceMarker(view, marker, `<!-- Upload fehlgeschlagen: ${err.message} -->`));
-    }
-  };
   return EditorView.domEventHandlers({
     paste(e, view) {
       const files = [...(e.clipboardData?.files ?? [])].filter((f) => /^(image\/|application\/pdf)/.test(f.type));
@@ -138,7 +140,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           lockConf.current.of(readOnlyExtensions(lockedRef.current)),
           EditorView.contentAttributes.of({ spellcheck: 'true', autocapitalize: 'sentences' }),
           cmPlaceholder(placeholder ?? 'Schreib los …'),
-          autocompletion({ override: [wikiCompletion], icons: false }),
+          autocompletion({ override: [wikiCompletion, slashCompletion(insertFiles)], icons: false }),
           fileHandlers(),
           EditorView.updateListener.of((u) => {
             if (!u.docChanged) return;
