@@ -21,7 +21,7 @@ services:
       # Key for the encryption at rest (base64, 32 bytes: `openssl rand -base64 32`).
       # Empty = a key file is generated in the data volume (protects backups and copies of the database only)
       - DATA_KEY=${DATA_KEY:-}
-      # Telegram admin bot for invites (like Project Gamma); without it the first invite code is printed to the log
+      # Telegram admin bot for invites; without it the first invite code is printed to the log
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
       - TELEGRAM_ADMIN_USER_IDS=${TELEGRAM_ADMIN_USER_IDS:-}

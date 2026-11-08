@@ -1,7 +1,7 @@
 # Guidelines for AI Agents Working on Kladde
 
 ## Project Overview
-Self-hosted, offline-first Markdown notes app (PWA). Infrastructure (npm workspaces, Docker hardening, invites, Telegram admin bot, release script) is carried over from the sibling project Project Gamma (`../project-gamma`).
+Self-hosted, offline-first Markdown notes app (PWA) with npm workspaces, a hardened Docker image, invites, a Telegram admin bot and a release script.
 
 ## Monorepo Architecture
 - `packages/shared`: Pure logic without browser or node dependencies: sync contracts (`types.ts`), Markdown metadata/frontmatter (`markdown.ts`), task parsing/recurrence (`tasks.ts`), the query language (`query.ts`), PARA roles and Zettel ids (`para.ts`), link resolution/backlinks/mentions/graph (`links.ts`), templates and the weekly review.
@@ -19,7 +19,7 @@ Self-hosted, offline-first Markdown notes app (PWA). Infrastructure (npm workspa
 8. **Versioning & Changelog:** one SemVer version for the monorepo; user-facing changes go (German) under `## [Unveröffentlicht]` in `CHANGELOG.md`; release with `npm run release -- patch|minor|major`.
 
 ## Git
-The project works on a single branch: **`main`** on GitHub (`origin`). There is no `develop` and no feature/release branches (the owner decided this on 2026-11-08; Git Flow from Project Gamma may come back later).
+The project works on a single branch: **`main`** on GitHub (`origin`). There is no `develop` and no feature/release branches (the owner decided this on 2026-11-08; Git Flow may come back later).
 
 Rules for agents:
 1. Commit finished, building work directly on `main` (`npm run build` and `npm run test` must pass first). Commit or push only when the user asks for it.

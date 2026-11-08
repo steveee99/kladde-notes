@@ -4,7 +4,7 @@
 
 > Eine *Kladde* ist das Notizbuch, in das erst einmal alles hineinkommt, bevor es ins Reine geschrieben wird.
 
-> Status: **Proof of Concept (0.1.0)**. Infrastruktur (Monorepo, Docker-Härtung, Einladungen, Telegram-Admin, Release-Skript) stammt aus *Project Gamma*.
+> Status: **Proof of Concept (0.1.0)**.
 
 ---
 
@@ -81,7 +81,7 @@ docker exec kladde node packages/server/dist/cli.js einladen Anna
 | `PUBLIC_URL` | Öffentliche Adresse; legt die Passkey-Domain fest und baut Einladungslinks |
 | `TRUST_PROXY` | `1` hinter einem Reverse-Proxy |
 | `DATA_KEY` | Schlüssel für die Verschlüsselung (`openssl rand -base64 32`). Leer = Schlüsseldatei `data/secret.key` im Volume |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ADMIN_USER_IDS` | Admin-Bot wie bei Project Gamma: `/einladen`, `/einladungen`, `/konten`, `/sperren`, `/status`, `/protokoll` |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ADMIN_USER_IDS` | Admin-Bot: `/einladen`, `/einladungen`, `/konten`, `/sperren`, `/status`, `/protokoll` |
 | `BACKUP_KEEP` | Tägliche Datenbank-Backups in `data/backups` (Standard 7, `0` = aus) |
 | `EXPORT_DIR` | Klartext-Spiegel der Notizen (z. B. NAS), leer = aus |
 
@@ -97,7 +97,7 @@ kladde/
 │   ├── shared/   # Typen, Markdown-Metadaten, Aufgaben-Parser (Fälligkeit/Wiederholung), Abfragesprache
 │   ├── server/   # Express + node:sqlite: Passkeys (SimpleWebAuthn), Sync, Freigaben, Dateien, Telegram-Admin
 │   └── client/   # React 18 + Vite + Tailwind + CodeMirror 6, IndexedDB-Sync, PWA
-├── scripts/      # release.mjs, docker-entrypoint.sh (aus Project Gamma)
+├── scripts/      # release.mjs, docker-entrypoint.sh
 ├── Dockerfile
 └── docker-compose.yml
 ```
