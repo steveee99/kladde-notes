@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Behoben: In der iOS-Home-Bildschirm-App (ab iOS 26.1) liegt die Kopfzeile nicht mehr halb unter der Statusleiste, und unter der unteren Leiste bleibt kein leerer Streifen mehr. Die Statusleiste ist jetzt undurchsichtig. **Wichtig:** Die App einmal vom Home-Bildschirm löschen und über Safari neu hinzufügen, sonst behält iOS die alte Einstellung.
+
 ## [0.3.0] – 2026-11-08
 
 - Neu: Rezepte per Link importieren (Seitenleiste „Rezept importieren“ oder „Rezept“ im Schnell-Erfassen). Kladde liest das Rezept von gängigen Seiten (schema.org-Rezeptdaten, z. B. Chefkoch, EatSmarter, BBC Good Food, viele Food-Blogs) und legt es einheitlich in „3 Ressourcen/Rezepte“ ab: Zutaten als Tabelle (Menge, Einheit, Zutat), Zubereitung als nummerierte Schritte, Originallink als Quelle ganz unten.
