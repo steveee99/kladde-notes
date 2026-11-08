@@ -4,7 +4,11 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+<<<<<<< Updated upstream
 ## [0.3.1] – 2026-11-08
+=======
+- Behoben: In älteren iOS-Home-Bildschirm-Installationen (ab iOS 26.1) bleibt unter der unteren Leiste kein andersfarbiger Streifen mehr; die Leiste reicht optisch bis zum Rand.
+>>>>>>> Stashed changes
 
 - Rezept-Import: erkennt jetzt auch Rezepte, die die Seite erst beim Laden im Browser einbaut (z. B. Picnic und andere Next.js-Seiten); Mengen wie „0.5“ werden als „0,5“ geschrieben.
 - Behoben: In der iOS-Home-Bildschirm-App (ab iOS 26.1) liegt die Kopfzeile nicht mehr halb unter der Statusleiste, und unter der unteren Leiste bleibt kein leerer Streifen mehr. Die Statusleiste ist jetzt undurchsichtig. **Wichtig:** Die App einmal vom Home-Bildschirm löschen und über Safari neu hinzufügen, sonst behält iOS die alte Einstellung.

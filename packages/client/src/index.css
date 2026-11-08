@@ -86,6 +86,10 @@ html,
 body {
   overflow: hidden;
 }
+/* iOS 26 short layout (lib/viewport.ts): the strip below it shows the canvas, so it takes the bottom bar's color */
+html.short-viewport {
+  background: rgb(var(--surface));
+}
 #root {
   overflow-y: auto;
   overscroll-behavior: none;
@@ -233,8 +237,9 @@ body {
    * Safe areas (notch, Dynamic Island, home indicator) are added on top of the element's own padding.
    * Set --pad-top / --pad-bottom for the padding the element would have without them.
    */
+  /* --vp-gap: see lib/viewport.ts; the strip below the short layout already keeps clear of the home indicator */
   .safe-bottom {
-    padding-bottom: calc(var(--pad-bottom, 0px) + env(safe-area-inset-bottom));
+    padding-bottom: calc(var(--pad-bottom, 0px) + max(0px, env(safe-area-inset-bottom) - var(--vp-gap, 0px)));
   }
   .safe-top {
     padding-top: calc(var(--pad-top, 0px) + env(safe-area-inset-top));

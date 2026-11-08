@@ -42,7 +42,9 @@ const safeLookup: net.LookupFunction = (hostname, options, callback) => {
     if (err) return callback(err, '', 4);
     const list = addresses as dns.LookupAddress[];
     const bad = list.find((a) => isPrivateAddress(a.address));
-    if (bad || !list.length) return callback(new ImportError('Diese Adresse ist nicht erlaubt.'), '', 4);
+    // Name the address: a home DNS (ad blocker, split DNS, NAT64) may answer with one that is blocked here
+    if (!list.length) return callback(new ImportError(`${hostname} ließ sich nicht auflösen.`), '', 4);
+    if (bad) return callback(new ImportError(`Diese Adresse ist nicht erlaubt (${hostname} → ${bad.address}).`), '', 4);
     if ((options as dns.LookupOptions).all) (callback as unknown as (e: null, a: dns.LookupAddress[]) => void)(null, list);
     else callback(null, list[0].address, list[0].family);
   });
