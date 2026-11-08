@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Search as SearchIcon } from 'lucide-react';
 import { useVault, vault } from '../data/vault';
-import { NoteCard } from './NoteList';
+import { NoteCollection, ViewSwitch } from './NoteList';
 
 export function SearchView() {
   useVault();
@@ -23,12 +23,11 @@ export function SearchView() {
         <SearchIcon size={18} className="text-faint" />
         <input autoFocus data-search-input className="w-full bg-transparent py-3 text-lg outline-none placeholder:text-faint" placeholder="Suchen … (auch #tag) – Strg/⌘+K" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
-      {terms.length > 0 && <p className="mb-3 text-sm text-faint">{results.length} Treffer</p>}
-      <div className="stagger grid gap-3 sm:grid-cols-2">
-        {results.map((n) => (
-          <NoteCard key={n.id} note={n} />
-        ))}
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-sm text-faint">{terms.length > 0 ? `${results.length} Treffer` : ''}</p>
+        <ViewSwitch />
       </div>
+      <NoteCollection notes={results} cols="sm:grid-cols-2" />
     </div>
   );
 }

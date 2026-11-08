@@ -1,5 +1,6 @@
 import { EditorView, WidgetType } from '@codemirror/view';
 import { formatValue, parseDate, toDateString, toggleTask } from '@kladde/shared';
+import type { QueryResult } from '@kladde/shared';
 import { dataTable, parseMarkdownTable, stripInline } from './datatable';
 import { editorHost } from './host';
 import { DiagramKind, drawDiagram, openDiagram } from './diagram';
@@ -73,6 +74,7 @@ export class QueryWidget extends BlockWidget {
       err.textContent = `Abfrage-Fehler: ${result.error}`;
       return this.frame(view, err);
     }
+    if (result.lanes) return this.frame(view, this.kanban(result, view));
     const isTasks = result.query.mode === 'tasks';
     const rows = result.rows.map((row) => {
       const cells: (string | Node)[] = result.columns.map((col, i) => {
@@ -87,6 +89,12 @@ export class QueryWidget extends BlockWidget {
             box.disabled = this.locked;
             box.addEventListener('change', () => editorHost.toggleTask(row.noteId, row.line!));
             wrap.append(box);
+            // Double click on a task opens the note it comes from, at its line
+            wrap.addEventListener('dblclick', (e) => {
+              if (e.target === box) return;
+              e.preventDefault();
+              editorHost.openTask(row.noteId, row.line!);
+            });
           }
           const a = document.createElement('a');
           a.className = 'cm-link';
@@ -104,6 +112,57 @@ export class QueryWidget extends BlockWidget {
     });
     const label = { title: 'Titel', updated: 'Geändert', created: 'Erstellt', folder: 'Ordner', tags: 'Tags', text: 'Aufgabe', due: 'Fällig', note: 'Notiz' } as Record<string, string>;
     return this.frame(view, dataTable(result.columns.map((c) => label[c] ?? c), rows, { caption: `⚡ ${result.query.mode.toUpperCase()}` }));
+  }
+
+  /** KANBAN: one lane per value of the status field; dragging a card to another lane rewrites the field */
+  private kanban(result: QueryResult, view: EditorView): HTMLElement {
+    const field = result.query.groupBy!;
+    const board = document.createElement('div');
+    board.className = 'cm-block-widget wz-kanban scrollbar-thin';
+    for (const lane of result.lanes!) {
+      const col = document.createElement('div');
+      col.className = 'wz-lane';
+      const head = document.createElement('div');
+      head.className = 'wz-lane-head';
+      head.textContent = lane.value || `Ohne ${field}`;
+      const n = document.createElement('span');
+      n.textContent = String(lane.rows.length);
+      head.append(n);
+      col.append(head);
+      for (const row of lane.rows) {
+        const card = document.createElement('div');
+        card.className = 'wz-card';
+        card.draggable = !this.locked;
+        card.textContent = formatValue(row.values.title) || '(ohne Titel)';
+        card.addEventListener('click', () => editorHost.openNote(row.noteId));
+        card.addEventListener('dragstart', (e) => {
+          e.dataTransfer?.setData('application/x-kladde-card', row.noteId);
+          card.classList.add('dragging');
+        });
+        card.addEventListener('dragend', () => card.classList.remove('dragging'));
+        col.append(card);
+      }
+      if (!this.locked) {
+        col.addEventListener('dragover', (e) => {
+          if (e.dataTransfer?.types.includes('application/x-kladde-card')) {
+            e.preventDefault();
+            col.classList.add('over');
+          }
+        });
+        col.addEventListener('dragleave', () => col.classList.remove('over'));
+        col.addEventListener('drop', (e) => {
+          col.classList.remove('over');
+          const id = e.dataTransfer?.getData('application/x-kladde-card');
+          if (!id) return;
+          e.preventDefault();
+          if (!lane.rows.some((r) => r.noteId === id)) editorHost.setFrontmatter(id, { [field]: lane.value || null });
+        });
+      }
+      board.append(col);
+    }
+    if (!result.lanes!.length) board.textContent = 'Keine Notizen.';
+    void view;
+    return board;
   }
 }
 
@@ -256,6 +315,52 @@ export class LinkWidget extends WidgetType {
   }
   ignoreEvent() {
     return true;
+  }
+}
+
+/** Footnote reference [^1] as a superscript number; hover shows the text, click jumps to the definition */
+export class FootnoteRefWidget extends WidgetType {
+  constructor(
+    readonly label: string,
+    readonly number: number,
+    readonly text: string,
+    readonly defPos: number | null
+  ) {
+    super();
+  }
+  eq(o: FootnoteRefWidget) {
+    return o.label === this.label && o.number === this.number && o.text === this.text && o.defPos === this.defPos;
+  }
+  toDOM(view: EditorView) {
+    const s = document.createElement('sup');
+    s.className = `cm-footnote-ref${this.defPos === null ? ' cm-missing' : ''}`;
+    s.textContent = String(this.number);
+    s.title = this.defPos === null ? `Fußnote „${this.label}“ ist nicht definiert` : this.text;
+    s.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      if (this.defPos === null) return;
+      view.dispatch({ effects: EditorView.scrollIntoView(this.defPos, { y: 'center' }) });
+    });
+    return s;
+  }
+  ignoreEvent() {
+    return true;
+  }
+}
+
+/** Label of a footnote definition line "[^1]:" shown as "1." */
+export class FootnoteDefWidget extends WidgetType {
+  constructor(readonly number: number) {
+    super();
+  }
+  eq(o: FootnoteDefWidget) {
+    return o.number === this.number;
+  }
+  toDOM() {
+    const s = document.createElement('span');
+    s.className = 'cm-footnote-def-label';
+    s.textContent = `${this.number}.`;
+    return s;
   }
 }
 

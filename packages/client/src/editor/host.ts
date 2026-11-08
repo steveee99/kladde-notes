@@ -7,6 +7,9 @@ export interface EditorHost {
   openNote(id: string): void;
   runQuery(src: string): QueryResult | { error: string };
   toggleTask(noteId: string, line: number): void;
+  /** Opens the note a task lives in, scrolled to the task's line */
+  openTask(noteId: string, line: number): void;
+  setFrontmatter(noteId: string, updates: Record<string, string | null>): void;
   noteTitles(): string[];
   upload(file: File): Promise<{ url: string; name: string; mime: string }>;
 }
@@ -17,6 +20,8 @@ export const editorHost: EditorHost = {
   openNote: () => {},
   runQuery: () => ({ error: 'nicht verfügbar' }),
   toggleTask: () => {},
+  openTask: () => {},
+  setFrontmatter: () => {},
   noteTitles: () => [],
   upload: () => Promise.reject(new Error('nicht verfügbar')),
 };

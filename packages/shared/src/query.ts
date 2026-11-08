@@ -7,7 +7,8 @@
  *   SORT updated DESC
  *   LIMIT 20
  *
- * Modes: TABLE <fields> | LIST | TASKS. All clauses are optional and case-insensitive.
+ * Modes: TABLE <fields> | LIST | TASKS | KANBAN BY <field> [VALUES "a", "b", …].
+ * KANBAN makes one column per value of the status field (default: the distinct values found). All clauses are optional and case-insensitive.
  * Fields: title, path, folder, created, updated, tags, links, due, done (tasks) and any frontmatter key.
  * Operators: = != < <= > >= contains ~ (substring, case-insensitive). AND binds tighter than OR.
  * Values: "text", numbers, YYYY-MM-DD, today, tomorrow, true/false.
@@ -16,7 +17,7 @@
 import { extractMeta } from './markdown.js';
 import { parseTasks, toDateString } from './tasks.js';
 
-export type QueryMode = 'table' | 'list' | 'tasks';
+export type QueryMode = 'table' | 'list' | 'tasks' | 'kanban';
 type Op = '=' | '!=' | '<' | '<=' | '>' | '>=' | 'contains' | '~';
 
 interface Condition {
@@ -28,6 +29,10 @@ interface Condition {
 export interface Query {
   mode: QueryMode;
   fields: string[];
+  /** KANBAN: frontmatter field that decides the column */
+  groupBy: string | null;
+  /** KANBAN: column values in display order (empty = the distinct values found) */
+  columnValues: string[];
   from: string | null;
   /** OR of AND groups */
   where: Condition[][];
@@ -55,6 +60,8 @@ export interface QueryResult {
   query: Query;
   columns: string[];
   rows: QueryRow[];
+  /** KANBAN: the lanes; rows without a matching value are left out unless the values were not given */
+  lanes?: { value: string; rows: QueryRow[] }[];
 }
 
 export class QueryError extends Error {}
@@ -71,16 +78,17 @@ function tokenize(src: string): string[] {
 
 const unquote = (t: string) => (/^["']/.test(t) ? t.slice(1, -1).replace(/\\(.)/g, '$1') : t);
 const KEYWORDS = new Set(['from', 'where', 'sort', 'limit']);
+const KANBAN_END = new Set([...KEYWORDS, 'values']);
 
 export function parseQuery(src: string): Query {
   const tokens = tokenize(src.replace(/\n/g, ' '));
   let i = 0;
   const peek = () => tokens[i]?.toLowerCase();
   const next = () => tokens[i++];
-  const q: Query = { mode: 'list', fields: [], from: null, where: [], sort: null, limit: null };
+  const q: Query = { mode: 'list', fields: [], groupBy: null, columnValues: [], from: null, where: [], sort: null, limit: null };
 
   const mode = peek();
-  if (mode === 'table' || mode === 'list' || mode === 'tasks') {
+  if (mode === 'table' || mode === 'list' || mode === 'tasks' || mode === 'kanban') {
     q.mode = mode;
     next();
   }
@@ -91,9 +99,19 @@ export function parseQuery(src: string): Query {
     }
     if (!q.fields.length) q.fields = ['title', 'updated'];
   }
+  if (q.mode === 'kanban') {
+    if (peek() === 'by') next();
+    if (i >= tokens.length || KANBAN_END.has(peek()!)) throw new QueryError('KANBAN braucht ein Feld, z. B. KANBAN BY status VALUES "offen", "läuft", "fertig"');
+    q.groupBy = unquote(next()).toLowerCase();
+  }
   while (i < tokens.length) {
     const kw = next().toLowerCase();
-    if (kw === 'from') {
+    if (kw === 'values' && q.mode === 'kanban') {
+      while (i < tokens.length && !KEYWORDS.has(peek()!)) {
+        const t = next();
+        if (t !== ',') q.columnValues.push(unquote(t));
+      }
+    } else if (kw === 'from') {
       const t = next();
       if (!t) throw new QueryError('FROM braucht einen Ordner, z. B. FROM "1 Projekte"');
       q.from = unquote(t).replace(/\/$/, '');
@@ -224,6 +242,15 @@ export function runQuery(src: string | Query, notes: QueryNote[], today = new Da
     return sort.desc ? -c : c;
   });
   if (query.limit) rows = rows.slice(0, query.limit);
+  if (query.mode === 'kanban') {
+    const field = query.groupBy!;
+    const valueOf = (r: QueryRow) => String(r.values[field] ?? '').trim();
+    const given = query.columnValues.length > 0;
+    const names = given ? query.columnValues : [...new Set(rows.map(valueOf))].sort((a, b) => compare(a, b));
+    const lanes = names.map((value) => ({ value, rows: rows.filter((r) => valueOf(r).toLowerCase() === value.toLowerCase()) }));
+    // Without a given list, notes lacking the field land in a lane with an empty name
+    return { query, columns: ['title'], rows, lanes };
+  }
   const columns = query.mode === 'table' ? query.fields : query.mode === 'tasks' ? ['text', 'due', 'note'] : ['title'];
   return { query, columns, rows };
 }
