@@ -5,6 +5,7 @@ import { openDialog } from '../lib/dialogs';
 import { reviewDue } from './Review';
 import { useVault, vault } from '../data/vault';
 import { navigate } from '../lib/router';
+import { useReadOnly } from '../lib/readOnly';
 import { formatDue } from '../editor/widgets';
 import { NoteCard } from './NoteList';
 
@@ -22,6 +23,7 @@ const BUCKETS: { id: TaskBucket; label: string; tone: string }[] = [
 
 function TaskItem({ task }: { task: TaskRow }) {
   const [leaving, setLeaving] = useState(false);
+  const locked = useReadOnly();
   const bucket = bucketOf(task);
   return (
     <li className={`group flex items-start gap-3 rounded-xl px-3 py-2.5 transition-all duration-300 hover:bg-raised/60 ${leaving ? 'translate-x-4 opacity-0' : ''}`}>
@@ -29,6 +31,7 @@ function TaskItem({ task }: { task: TaskRow }) {
         type="checkbox"
         className="cm-checkbox mt-1 shrink-0"
         checked={leaving}
+        disabled={locked}
         onChange={() => {
           setLeaving(true);
           setTimeout(() => void vault.toggleTask(task.noteId, task.line), 280);
@@ -105,7 +108,7 @@ export function HomeView() {
       )}
 
       <form
-        className="card mb-6 flex items-center gap-2 p-1.5 pl-3 anim-fade-up"
+        className="edit-only card mb-6 flex items-center gap-2 p-1.5 pl-3 anim-fade-up"
         onSubmit={(e) => {
           e.preventDefault();
           if (!input.trim()) return;
@@ -155,7 +158,7 @@ export function HomeView() {
         <>
           <h2 className="mt-10 mb-3 flex items-center px-1 text-xs font-semibold uppercase tracking-wider text-faint">
             Aktive Projekte
-            <button className="ml-auto normal-case tracking-normal hover:text-accent" onClick={() => openDialog({ kind: 'note', folder: PARA.projects })}>
+            <button className="edit-only ml-auto normal-case tracking-normal hover:text-accent" onClick={() => openDialog({ kind: 'note', folder: PARA.projects })}>
               + Projekt
             </button>
           </h2>

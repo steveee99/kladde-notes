@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { splitPath } from '@kladde/shared';
 import { vault } from '../data/vault';
+import { isReadOnly } from './readOnly';
 
 /** What is being dragged: a note or a whole folder */
 export type DragItem = { kind: 'note'; id: string } | { kind: 'folder'; path: string };
@@ -14,6 +15,10 @@ export function dragSource(item: DragItem) {
     draggable: true,
     onDragStart(e: React.DragEvent) {
       e.stopPropagation();
+      if (isReadOnly()) {
+        e.preventDefault();
+        return;
+      }
       current = item;
       const el = e.currentTarget as HTMLElement;
       el.dataset.dragging = 'true';
@@ -32,7 +37,7 @@ export function dragSource(item: DragItem) {
 }
 
 function canDrop(item: DragItem | null, folder: string): boolean {
-  if (!item) return false;
+  if (!item || isReadOnly()) return false;
   if (item.kind === 'note') {
     const note = vault.get(item.id);
     return !!note && note.access === 'owner' && splitPath(note.path).folder !== folder;

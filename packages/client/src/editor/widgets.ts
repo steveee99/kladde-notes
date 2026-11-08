@@ -56,12 +56,13 @@ export class TableWidget extends BlockWidget {
 export class QueryWidget extends BlockWidget {
   constructor(
     src: string,
-    readonly stamp: number
+    readonly stamp: number,
+    readonly locked = false
   ) {
     super(src);
   }
   eq(other: QueryWidget) {
-    return other.src === this.src && other.stamp === this.stamp;
+    return other.src === this.src && other.stamp === this.stamp && other.locked === this.locked;
   }
   toDOM(view: EditorView) {
     const result = editorHost.runQuery(this.src);
@@ -82,6 +83,7 @@ export class QueryWidget extends BlockWidget {
             box.type = 'checkbox';
             box.className = 'cm-checkbox';
             box.checked = !!row.values.done;
+            box.disabled = this.locked;
             box.addEventListener('change', () => editorHost.toggleTask(row.noteId, row.line!));
             wrap.append(box);
           }
@@ -169,23 +171,24 @@ export class CodeHeaderWidget extends WidgetType {
 export class CheckboxWidget extends WidgetType {
   constructor(
     readonly checked: boolean,
-    readonly line: number
+    readonly line: number,
+    readonly locked = false
   ) {
     super();
   }
   eq(other: CheckboxWidget) {
-    return other.checked === this.checked && other.line === this.line;
+    return other.checked === this.checked && other.line === this.line && other.locked === this.locked;
   }
   toDOM(view: EditorView) {
     const box = document.createElement('input');
     box.type = 'checkbox';
     box.className = 'cm-checkbox';
     box.checked = this.checked;
-    box.disabled = !view.state.facet(EditorView.editable);
+    box.disabled = this.locked;
     box.addEventListener('mousedown', (e) => e.preventDefault());
     box.addEventListener('click', (e) => {
       e.preventDefault();
-      toggleLine(view, this.line);
+      if (!view.state.readOnly) toggleLine(view, this.line);
     });
     return box;
   }

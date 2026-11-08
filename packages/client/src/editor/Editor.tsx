@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { EditorState } from '@codemirror/state';
+import { Compartment, EditorState, Extension } from '@codemirror/state';
 import { EditorView, keymap, placeholder as cmPlaceholder } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
@@ -9,6 +9,10 @@ import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 import { tags as t } from '@lezer/highlight';
 import { livePreview, previewAll, refreshEffect } from './livePreview';
 import { editorHost } from './host';
+import { useReadOnly } from '../lib/readOnly';
+
+/** Read-only notes show everything rendered and accept no input */
+const readOnlyExtensions = (on: boolean): Extension => [previewAll.of(on), EditorState.readOnly.of(on), EditorView.editable.of(!on)];
 
 /** CodeMirror's base theme sets a monospace font with high specificity; prose uses the UI font */
 const proseTheme = EditorView.theme({
@@ -90,6 +94,11 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   const view = useRef<EditorView | null>(null);
   const changeRef = useRef(onChange);
   changeRef.current = onChange;
+  const lockedEverywhere = useReadOnly();
+  const locked = readOnly || lockedEverywhere;
+  const lockConf = useRef(new Compartment());
+  const lockedRef = useRef(locked);
+  lockedRef.current = locked;
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -110,9 +119,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           proseTheme,
           EditorView.lineWrapping,
           livePreview(),
-          previewAll.of(readOnly),
-          EditorState.readOnly.of(readOnly),
-          EditorView.editable.of(!readOnly),
+          lockConf.current.of(readOnlyExtensions(lockedRef.current)),
           EditorView.contentAttributes.of({ spellcheck: 'true', autocapitalize: 'sentences' }),
           cmPlaceholder(placeholder ?? 'Schreib los …'),
           autocompletion({ override: [wikiCompletion], icons: false }),
@@ -140,7 +147,15 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
     };
     // A new editor per note; `value` updates are handled below
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [docKey, readOnly]);
+  }, [docKey]);
+
+  // The read-only switch changes without rebuilding the editor (undo history and scroll stay)
+  useEffect(() => {
+    const v = view.current;
+    if (!v || v.state.readOnly === locked) return;
+    if (locked) v.contentDOM.blur();
+    v.dispatch({ effects: lockConf.current.reconfigure(readOnlyExtensions(locked)) });
+  }, [locked]);
 
   // Changes from sync (another device) while the note is open
   useEffect(() => {

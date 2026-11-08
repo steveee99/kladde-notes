@@ -99,13 +99,13 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
         </button>
         {mode === 'folder' && folder && folder !== PARA.archive && (
           restoreTarget(folder) !== null ? (
-            <button className="btn-ghost" title={`Zurück nach ${restoreTarget(folder)}`} onClick={() => void vault.restoreFolder(folder).then(() => navigate(`/f/${encodeURIComponent(restoreTarget(folder)!)}`, true))}>
+            <button className="edit-only btn-ghost" title={`Zurück nach ${restoreTarget(folder)}`} onClick={() => void vault.restoreFolder(folder).then(() => navigate(`/f/${encodeURIComponent(restoreTarget(folder)!)}`, true))}>
               <ArchiveRestore size={16} /> <span className="hidden sm:inline">Wiederherstellen</span>
             </button>
           ) : (
             !Object.values(PARA).includes(folder as never) && (
               <button
-                className="btn-ghost"
+                className="edit-only btn-ghost"
                 title="Ordner mit allen Notizen ins Archiv verschieben"
                 onClick={() => confirm(`„${folder}“ archivieren?`) && void vault.archiveFolder(folder).then(() => navigate(`/f/${encodeURIComponent(archiveTarget(folder))}`, true))}
               >
@@ -115,7 +115,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
           )
         )}
         {mode !== 'shared' && (
-          <button className="btn-primary" onClick={() => newNote(folder)}>
+          <button className="edit-only btn-primary" onClick={() => newNote(folder)}>
             <Plus size={16} /> Neu
           </button>
         )}
@@ -137,7 +137,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
               />
             </div>
           ) : (
-            <button className="chip px-3 py-1.5 text-sm hover:text-ink" onClick={() => setCreating(true)}>
+            <button className="edit-only chip px-3 py-1.5 text-sm hover:text-ink" onClick={() => setCreating(true)}>
               <FolderPlus size={14} /> Unterordner
             </button>
           )}

@@ -5,6 +5,7 @@ import { undo } from '@codemirror/commands';
 import { excerpt, splitPath, toDateString } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { navigate } from '../lib/router';
+import { useReadOnly } from '../lib/readOnly';
 import { Editor, insertAtLineStart, insertText, wrapSelection } from '../editor/Editor';
 import { editorHost } from '../editor/host';
 import { ShareDialog } from './ShareDialog';
@@ -62,6 +63,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const version = useVault();
   const note = vault.get(id);
   const [view, setView] = useState<EditorView | null>(null);
+  const locked = useReadOnly();
   const [sharing, setSharing] = useState(false);
   const [showGraph, setShowGraph] = useState(true);
   const [title, setTitle] = useState('');
@@ -86,8 +88,10 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
     );
   }
 
-  const readOnly = note.access === 'read';
-  const isOwner = note.access === 'owner';
+  const sharedReadOnly = note.access === 'read';
+  // The read-only switch locks the note like a share with read access
+  const readOnly = sharedReadOnly || locked;
+  const isOwner = note.access === 'owner' && !locked;
   const { folder } = splitPath(note.path);
   const index = vault.links();
   const backlinks = index.backlinks(id).map((b) => vault.get(b)!).filter(Boolean);
@@ -105,7 +109,9 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           <button className="btn-icon -ml-2" onClick={() => history.back()} title="Zurück">
             <ArrowLeft size={18} />
           </button>
-          {isOwner ? (
+          {note.access === 'owner' && locked ? (
+            <span className="min-w-0 truncate py-1">{folder || '(oberste Ebene)'}</span>
+          ) : isOwner ? (
             <select
               className="min-w-0 max-w-[50%] truncate rounded-lg bg-transparent py-1 pr-1 hover:bg-raised"
               value={folder}
@@ -120,11 +126,15 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             </select>
           ) : (
             <span className="chip">
-              <Users size={12} /> {note.owner} · {readOnly ? 'nur lesen' : 'bearbeiten'}
+              <Users size={12} /> {note.owner} · {sharedReadOnly ? 'nur lesen' : 'bearbeiten'}
             </span>
           )}
           <div className="ml-auto flex items-center">
-            {readOnly && <Lock size={15} className="mr-2" />}
+            {readOnly && (
+              <span title={sharedReadOnly ? 'Nur lesen (geteilt)' : 'Lesemodus'}>
+                <Lock size={15} className="mr-2" />
+              </span>
+            )}
             {isOwner && (
               <button className="btn-icon" title="Teilen" onClick={() => setSharing(true)}>
                 <Share2 size={18} />
@@ -162,7 +172,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             }
           }}
         />
-        <ParaBar note={note} />
+        {!locked && <ParaBar note={note} />}
         <Editor docKey={id} value={note.content} readOnly={readOnly} stamp={version} onChange={(content) => void vault.update(id, { content })} onView={setView} />
         <div className="mb-10 space-y-6 border-t border-line pt-4">
           {backlinks.length > 0 && (
@@ -187,7 +197,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                     <button className="min-w-0 flex-1 truncate text-left hover:text-accent" onClick={() => navigate(`/n/${m.id}`)}>
                       {splitPath(m.path).name}
                     </button>
-                    <button className="chip shrink-0 px-2.5 py-1 hover:bg-accent/15 hover:text-accent" onClick={() => void vault.linkMention(m.id, id)}>
+                    <button className="edit-only chip shrink-0 px-2.5 py-1 hover:bg-accent/15 hover:text-accent" onClick={() => void vault.linkMention(m.id, id)}>
                       <Link2 size={12} /> Verlinken
                     </button>
                   </li>

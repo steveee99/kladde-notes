@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { ChevronRight, Cloud, CloudOff, CalendarCheck, Inbox as InboxIcon, Network, Folder, FolderOpen, FolderPlus, Pencil, Trash2, Home, Lightbulb, Loader2, Menu, Plus, Search, Settings, Share2, AlertTriangle, X, FileText } from 'lucide-react';
+import { ChevronRight, Cloud, CloudOff, CalendarCheck, Inbox as InboxIcon, Network, Folder, FolderOpen, FolderPlus, Pencil, Trash2, Home, Lightbulb, Loader2, Menu, Plus, Search, Settings, Share2, AlertTriangle, X, FileText, Lock, LockOpen } from 'lucide-react';
 import { PARA, splitPath } from '@kladde/shared';
 import { openDialog } from '../lib/dialogs';
 import { Dialogs } from './Dialogs';
@@ -8,6 +8,7 @@ import { useVault, vault } from '../data/vault';
 import { navigate, usePath } from '../lib/router';
 import { QuickCapture } from './QuickCapture';
 import { dragSource, useDropTarget } from '../lib/dnd';
+import { isReadOnly, setReadOnly, useReadOnly } from '../lib/readOnly';
 
 export function newNote(folder?: string) {
   openDialog({ kind: 'note', folder });
@@ -28,6 +29,24 @@ export function SyncBadge() {
     <button onClick={vault.kick} title={label} className={`chip transition-colors ${state === 'offline' ? 'text-warn' : state === 'error' ? 'text-danger' : ''}`}>
       <Icon size={13} className={state === 'syncing' ? 'animate-spin' : ''} />
       <span className="hidden sm:inline">{label}</span>
+    </button>
+  );
+}
+
+/** Switches the read-only mode for every page on this device */
+export function ReadOnlyToggle() {
+  const on = useReadOnly();
+  const label = on ? 'Lesemodus an' : 'Lesemodus aus';
+  return (
+    <button
+      onClick={() => setReadOnly(!on)}
+      title={on ? 'Lesemodus beenden: wieder bearbeiten' : 'Lesemodus: nichts kann versehentlich geändert werden'}
+      aria-pressed={on}
+      aria-label={label}
+      className={`chip transition-colors ${on ? 'bg-accent/15 text-accent' : 'hover:text-ink'}`}
+    >
+      {on ? <Lock size={13} /> : <LockOpen size={13} />}
+      {on && <span>Lesen</span>}
     </button>
   );
 }
@@ -85,6 +104,7 @@ function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNo
   const drop = useDropTarget(node.path, () => setOpen(true));
   const active = current === `/f/${encodeURIComponent(node.path)}`;
   const empty = vault.isFolderEmpty(node.path);
+  const locked = useReadOnly();
   const indent = { paddingLeft: depth * 14 };
   return (
     <li>
@@ -122,12 +142,12 @@ function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNo
               onNavigate?.();
             }}
             onKeyDown={(e) => e.key === 'Enter' && navigate(`/f/${encodeURIComponent(node.path)}`)}
-            onDoubleClick={() => setMode('rename')}
+            onDoubleClick={() => !isReadOnly() && setMode('rename')}
           >
             {open && node.children.length ? <FolderOpen size={15} className="shrink-0" /> : <Folder size={15} className="shrink-0" />}
             <span className="truncate">{node.name}</span>
           </div>
-          <span className="flex items-center opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+          <span className="edit-only flex items-center opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100">
             <button className="rounded p-1 hover:bg-surface hover:text-ink" title="Unterordner anlegen" onClick={() => (setOpen(true), setMode('new'))}>
               <FolderPlus size={13} />
             </button>
@@ -140,7 +160,7 @@ function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNo
               </button>
             )}
           </span>
-          <span className="w-5 text-right text-xs text-faint group-hover:hidden [@media(hover:none)]:hidden">{counts.get(node.path) || ''}</span>
+          <span className={`w-5 text-right text-xs text-faint ${locked ? '' : 'group-hover:hidden [@media(hover:none)]:hidden'}`}>{counts.get(node.path) || ''}</span>
         </div>
       )}
       {open && (node.children.length > 0 || mode === 'new') && (
@@ -194,7 +214,8 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       <div className="mb-3 flex items-center gap-2 px-1.5">
         <img src="/icons/icon.svg" className="h-7 w-7" alt="" />
         <span className="font-semibold tracking-tight">Kladde</span>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-1.5">
+          <ReadOnlyToggle />
           <SyncBadge />
         </div>
       </div>
@@ -207,7 +228,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       {shared > 0 && item('/shared', Share2, 'Mit mir geteilt', <span className="text-xs text-faint">{shared}</span>)}
       <div className="mt-4 mb-1 flex items-center justify-between px-2.5 text-xs font-semibold uppercase tracking-wider text-faint">
         Ordner
-        <button className="rounded p-1 hover:bg-raised hover:text-ink" title="Neuer Ordner" onClick={() => setNewRoot(true)}>
+        <button className="edit-only rounded p-1 hover:bg-raised hover:text-ink" title="Neuer Ordner" onClick={() => setNewRoot(true)}>
           <FolderPlus size={14} />
         </button>
       </div>
@@ -226,13 +247,13 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         {buildTree(folders).map((n) => (
           <FolderItem key={n.path} node={n} current={path} counts={counts} depth={0} onNavigate={onNavigate} />
         ))}
-        <li>
+        <li className="edit-only">
           <div {...rootDrop.props} className={`drop-target drop-zone-root rounded-lg border border-dashed border-line px-3 py-2 text-xs text-faint ${rootDrop.over ? 'drop-over' : ''}`}>
             Hierher ziehen: oberste Ebene
           </div>
         </li>
       </ul>
-      <div className="mt-2 grid grid-cols-2 gap-2">
+      <div className="edit-only mt-2 grid grid-cols-2 gap-2">
         <button className="btn-primary" onClick={() => (newNote(), onNavigate?.())}>
           <Plus size={16} /> Notiz
         </button>
@@ -272,7 +293,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <Menu size={20} />
           </button>
           <span className="font-semibold">Kladde</span>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1.5">
+            <ReadOnlyToggle />
             <SyncBadge />
           </div>
         </header>
@@ -296,7 +318,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </div>
       {!isNote && (
         <button
-          className="fixed bottom-20 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent text-on-accent shadow-soft transition-transform duration-200 ease-spring hover:scale-105 active:scale-90 md:bottom-6 md:right-6"
+          className="edit-only fixed bottom-20 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent text-on-accent shadow-soft transition-transform duration-200 ease-spring hover:scale-105 active:scale-90 md:bottom-6 md:right-6"
           onClick={() => setCapture(true)}
           title="Schnell erfassen"
         >

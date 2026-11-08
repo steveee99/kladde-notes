@@ -13,3 +13,5 @@ Alle nutzersichtbaren Änderungen an Kladde.
 - Wissensnetz als Graph (gesamt und lokal unter jeder Notiz), Wochenrückblick und Vorlagen (auch eigene aus einem Ordner „Vorlagen“).
 - Frontmatter wird als kompakte Eigenschaften-Leiste angezeigt; leere Checkboxen zählen nicht mehr als Aufgabe.
 - Unterordner direkt im Ordnerbaum oder in der Ordneransicht anlegen; Ordner umbenennen (Stift oder Doppelklick) und leere Ordner löschen.
+- Lesemodus: Ein Schloss-Schalter oben in der Seitenleiste (mobil in der Kopfzeile) sperrt auf diesem Gerät alle Seiten gegen Änderungen – Notizen, Titel, Aufgaben-Häkchen, Ordner sowie Anlegen, Verschieben und Löschen.
+- Der Textcursor im Editor ist im dunklen Theme wieder sichtbar.

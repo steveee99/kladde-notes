@@ -14,7 +14,7 @@ export function SortActions({ note, compact = false, onDone }: { note: LocalNote
     </button>
   );
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="edit-only flex flex-wrap items-center gap-1.5">
       {btn(Briefcase, 'Projekt', () => vault.moveNote(note.id, PARA.projects))}
       {btn(Target, 'Bereich', () => vault.moveNote(note.id, PARA.areas))}
       {btn(Library, 'Ressource', () => vault.moveNote(note.id, PARA.resources))}

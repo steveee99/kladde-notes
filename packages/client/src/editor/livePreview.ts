@@ -179,7 +179,7 @@ function build(state: EditorState): DecorationSet {
           const ln = doc.lineAt(node.from);
           if (checked) decos.push(mark('cm-task-done').range(node.to, ln.to));
           if (!isActive(node.from, node.to)) {
-            replace(node.from, node.to + (doc.sliceString(node.to, node.to + 1) === ' ' ? 1 : 0), Decoration.replace({ widget: new CheckboxWidget(checked, ln.number - 1) }));
+            replace(node.from, node.to + (doc.sliceString(node.to, node.to + 1) === ' ' ? 1 : 0), Decoration.replace({ widget: new CheckboxWidget(checked, ln.number - 1, state.readOnly) }));
           }
           return;
         }
@@ -198,7 +198,7 @@ function build(state: EditorState): DecorationSet {
           for (let l = firstLine.number; l <= lastLine.number; l++) codeLines.add(l);
           const editing = isActive(node.from, node.to);
           if (!editing && (lang === 'query' || lang === 'gallery')) {
-            const widget = lang === 'query' ? new QueryWidget(body, stamp) : new GalleryWidget(body);
+            const widget = lang === 'query' ? new QueryWidget(body, stamp, state.readOnly) : new GalleryWidget(body);
             blockWidget(node, Decoration.replace({ widget, block: true }));
             return false;
           }
@@ -254,7 +254,7 @@ function build(state: EditorState): DecorationSet {
 const previewField = StateField.define<DecorationSet>({
   create: (state) => build(state),
   update(value, tr) {
-    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(refreshEffect) || e.is(focusEffect)) || syntaxTree(tr.state) !== syntaxTree(tr.startState)) {
+    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(refreshEffect) || e.is(focusEffect)) || syntaxTree(tr.state) !== syntaxTree(tr.startState) || tr.state.readOnly !== tr.startState.readOnly) {
       return build(tr.state);
     }
     return value;

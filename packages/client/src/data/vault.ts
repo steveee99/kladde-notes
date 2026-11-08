@@ -25,6 +25,7 @@ import {
   toggleTask,
 } from '@kladde/shared';
 import { api, ApiError } from '../lib/api';
+import { isReadOnly } from '../lib/readOnly';
 import { LocalDb, LocalNote, openLocalDb } from './db';
 import { welcomeNotes } from './welcome';
 
@@ -191,7 +192,14 @@ class Vault {
     return candidate;
   }
 
+  /** A note the user creates; blocked in read-only mode */
   async create(folder: string, title: string, content = ''): Promise<LocalNote> {
+    if (isReadOnly()) throw new Error('Der Lesemodus ist aktiv.');
+    return this.insert(folder, title, content);
+  }
+
+  /** Also used by sync (conflict copies) and the first start, which read-only mode must not stop */
+  private async insert(folder: string, title: string, content: string): Promise<LocalNote> {
     const now = Date.now();
     const note: LocalNote = {
       id: newId(),
@@ -211,7 +219,7 @@ class Vault {
 
   async update(id: string, patch: { content?: string; folder?: string; title?: string }): Promise<void> {
     const note = this.notes.get(id);
-    if (!note || note.access === 'read') return;
+    if (!note || note.access === 'read' || isReadOnly()) return;
     let path = note.path;
     if (note.access === 'owner' && (patch.folder !== undefined || patch.title !== undefined)) {
       const cur = splitPath(note.path);
@@ -331,7 +339,7 @@ class Vault {
 
   async remove(id: string): Promise<void> {
     const note = this.notes.get(id);
-    if (!note || note.access !== 'owner') return;
+    if (!note || note.access !== 'owner' || isReadOnly()) return;
     await this.put({ ...note, deleted: true, updatedAt: Date.now(), dirty: true });
     this.schedule(0);
   }
@@ -359,7 +367,7 @@ class Vault {
 
   async addFolder(path: string): Promise<string | null> {
     const clean = cleanFolder(path);
-    if (!clean) return null;
+    if (!clean || isReadOnly()) return null;
     await this.setFolders([...this.storedFolders(), clean]);
     return clean;
   }
@@ -392,7 +400,7 @@ class Vault {
   /** Renames or moves a folder: every note and subfolder below it follows */
   async renameFolder(from: string, to: string): Promise<void> {
     const target = cleanFolder(to);
-    if (!target || !this.canMoveFolder(from, target)) return;
+    if (!target || !this.canMoveFolder(from, target) || isReadOnly()) return;
     const swap = (f: string) => (f === from || f.startsWith(`${from}/`) ? target + f.slice(from.length) : f);
     for (const note of this.notesBelow(from)) {
       const { folder, name } = splitPath(note.path);
@@ -408,7 +416,7 @@ class Vault {
 
   /** Only empty folders (with empty subfolders) can be deleted */
   async deleteFolder(folder: string): Promise<boolean> {
-    if (!this.isFolderEmpty(folder)) return false;
+    if (!this.isFolderEmpty(folder) || isReadOnly()) return false;
     await this.setFolders(this.storedFolders().filter((f) => f !== folder && !f.startsWith(`${folder}/`)));
     return true;
   }
@@ -484,8 +492,8 @@ class Vault {
 
   /** First start of a new space: PARA folders, Zettelkasten and a welcome note */
   private async seed() {
-    for (const f of DEFAULT_FOLDERS) await this.addFolder(f);
-    for (const w of welcomeNotes()) await this.create(w.folder, w.title, w.content);
+    await this.setFolders([...this.storedFolders(), ...DEFAULT_FOLDERS]);
+    for (const w of welcomeNotes()) await this.insert(w.folder, w.title, w.content);
   }
 
   private async push() {
@@ -556,7 +564,7 @@ class Vault {
     if (local.deleted || local.content === server.content) return;
     const { folder, name } = splitPath(server.deleted ? local.path : server.path);
     const stamp = new Date().toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }).replace(/[/:]/g, '-');
-    await this.create(server.access === 'owner' ? folder : DEFAULT_FOLDERS[0], `${name} (Konflikt ${stamp})`, local.content);
+    await this.insert(server.access === 'owner' ? folder : DEFAULT_FOLDERS[0], `${name} (Konflikt ${stamp})`, local.content);
   }
 }
 

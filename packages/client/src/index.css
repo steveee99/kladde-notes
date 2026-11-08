@@ -247,7 +247,12 @@ body {
 }
 .cm-content {
   padding: 8px 0 40vh;
-  caret-color: rgb(var(--accent));
+  /* CodeMirror's base theme sets black/white with higher specificity: invisible on dark themes */
+  caret-color: rgb(var(--accent)) !important;
+}
+/* Read-only mode (lib/readOnly.ts): everything that changes notes or folders disappears */
+html[data-readonly] .edit-only {
+  display: none !important;
 }
 .cm-cursor {
   border-left: 2px solid rgb(var(--accent)) !important;
