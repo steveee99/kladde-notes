@@ -8,6 +8,7 @@ Alle nutzersichtbaren Änderungen an Kladde.
 ## [0.3.1] – 2026-11-08
 =======
 - Behoben: In älteren iOS-Home-Bildschirm-Installationen (ab iOS 26.1) bleibt unter der unteren Leiste kein andersfarbiger Streifen mehr; die Leiste reicht optisch bis zum Rand.
+- Rezept-Import: Wird eine Adresse gesperrt, nennt die Meldung jetzt die aufgelöste IP-Adresse.
 >>>>>>> Stashed changes
 
 - Rezept-Import: erkennt jetzt auch Rezepte, die die Seite erst beim Laden im Browser einbaut (z. B. Picnic und andere Next.js-Seiten); Mengen wie „0.5“ werden als „0,5“ geschrieben.
