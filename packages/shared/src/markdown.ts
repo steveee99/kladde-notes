@@ -66,3 +66,30 @@ export function excerpt(content: string, length = 140): string {
     .trim()
     .slice(0, length);
 }
+
+/**
+ * Sets (or with null removes) frontmatter keys, creating the block if needed.
+ * Values are written as plain `key: value` lines, other lines stay untouched.
+ */
+export function setFrontmatter(content: string, updates: Record<string, string | null>): string {
+  const m = FRONTMATTER.exec(content);
+  const lines = m ? m[1].split('\n') : [];
+  const body = m ? content.slice(m[0].length) : content;
+  for (const [key, value] of Object.entries(updates)) {
+    const i = lines.findIndex((l) => new RegExp(`^${key}:`, 'i').test(l));
+    if (value === null) {
+      if (i >= 0) lines.splice(i, 1);
+    } else if (i >= 0) lines[i] = `${key}: ${value}`;
+    else lines.push(`${key}: ${value}`);
+  }
+  if (!lines.length) return body;
+  return `---\n${lines.join('\n')}\n---\n${body}`;
+}
+
+/** Runs `fn` on every piece of text outside fenced and inline code, keeping the code as it is */
+export function mapOutsideCode(content: string, fn: (text: string) => string): string {
+  return content
+    .split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/)
+    .map((part, i) => (i % 2 ? part : fn(part)))
+    .join('');
+}
