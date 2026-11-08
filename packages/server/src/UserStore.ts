@@ -222,6 +222,8 @@ export class UserStore {
     const password = randomPassword();
     this.db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(await hashPassword(password), userId);
     this.deleteSessionsOf(userId);
+    // A reset means the account may be taken over: connected AI assistants lose access too
+    this.db.prepare('DELETE FROM mcp_tokens WHERE user_id = ?').run(userId);
     return password;
   }
 

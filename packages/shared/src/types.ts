@@ -124,3 +124,26 @@ export const FOLDERS_NOTE_PATH = '.kladde/folders.json';
 export const DEFAULT_FOLDERS = ['0 Inbox', '1 Projekte', '2 Bereiche', '3 Ressourcen', '4 Archiv', 'Zettelkasten'];
 export const INBOX_FOLDER = '0 Inbox';
 export const ZETTEL_FOLDER = 'Zettelkasten';
+
+/** An AI assistant with access to the user's notes over MCP (OAuth connection or personal token) */
+export interface McpConnection {
+  id: string;
+  name: string;
+  kind: 'oauth' | 'token';
+  canWrite: boolean;
+  createdAt: number;
+  lastUsedAt: number | null;
+}
+
+/** A new personal token: the secret is shown exactly once */
+export interface McpTokenCreated {
+  connection: McpConnection;
+  token: string;
+}
+
+/** What the consent page shows before an AI assistant gets access */
+export interface OAuthRequestInfo {
+  clientName: string;
+  redirectHost: string;
+  wantsWrite: boolean;
+}

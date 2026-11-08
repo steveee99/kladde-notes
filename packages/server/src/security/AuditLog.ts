@@ -9,7 +9,10 @@ export type AuditEvent =
   | 'logout'
   | 'password_changed'
   | 'account_deleted'
-  | 'admin_command';
+  | 'admin_command'
+  | 'mcp_token_created'
+  | 'mcp_connected'
+  | 'mcp_revoked';
 
 export interface AuditEntry {
   at: number;

@@ -115,6 +115,33 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 3,
+    description: 'MCP access: OAuth clients and access tokens',
+    up(db) {
+      db.exec(`
+        CREATE TABLE oauth_clients (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          redirect_uris TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+        CREATE TABLE mcp_tokens (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          client_id TEXT REFERENCES oauth_clients(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          can_write INTEGER NOT NULL,
+          access_hash TEXT NOT NULL UNIQUE,
+          access_expires_at INTEGER,
+          refresh_hash TEXT UNIQUE,
+          created_at INTEGER NOT NULL,
+          last_used_at INTEGER
+        );
+        CREATE INDEX mcp_tokens_user ON mcp_tokens(user_id);
+      `);
+    },
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number[] {

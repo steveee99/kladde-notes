@@ -234,6 +234,12 @@ export class NoteStore {
     return { path: p.path, content: p.content, owner: row.owner_name, updatedAt: row.updated_at };
   }
 
+  /** The user's own live notes with ids and versions (MCP access: only the own space, never shared notes) */
+  ownedNotes(userId: string): SyncedNote[] {
+    const rows = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND deleted = 0').all(userId) as unknown as NoteRow[];
+    return rows.map((r) => this.toSynced(r, 'owner'));
+  }
+
   /** All live notes of a user (for the export mirror) */
   allOf(userId: string): { path: string; content: string }[] {
     const rows = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND deleted = 0').all(userId) as unknown as NoteRow[];

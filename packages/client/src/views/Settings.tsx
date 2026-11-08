@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
-import { ChevronRight, Copy, KeyRound, LayoutTemplate, Lock, LogOut, Monitor, Moon, ShieldCheck, Smartphone, Sun, Trash2, Zap } from 'lucide-react';
+import { Bot, ChevronRight, Copy, KeyRound, LayoutTemplate, Lock, LogOut, Monitor, Moon, ShieldCheck, Smartphone, Sun, Trash2, Zap } from 'lucide-react';
 import { APP_VERSION, Me, PASSWORD_MIN_LENGTH } from '@kladde/shared';
 import { api } from '../lib/api';
 import { getTheme, setTheme, ThemeChoice } from '../lib/theme';
@@ -36,6 +36,15 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
           <ChevronRight size={18} className="text-faint" />
         </button>
       )}
+
+      <button className="card flex w-full items-center gap-3 p-4 text-left transition-colors hover:border-accent/40 anim-fade-up" onClick={() => navigate('/settings/mcp')}>
+        <Bot size={20} className="text-accent" />
+        <div className="flex-1">
+          <div className="font-semibold">KI-Assistenten</div>
+          <div className="text-sm text-muted">Claude & Co. per MCP mit deinen Notizen verbinden</div>
+        </div>
+        <ChevronRight size={18} className="text-faint" />
+      </button>
 
       <button className="card flex w-full items-center gap-3 p-4 text-left transition-colors hover:border-accent/40 anim-fade-up" onClick={() => navigate('/settings/templates')}>
         <LayoutTemplate size={20} className="text-accent" />

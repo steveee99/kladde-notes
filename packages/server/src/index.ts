@@ -16,6 +16,8 @@ import { apiRouter, LiveUpdates } from './api.js';
 import { TelegramAdminBot } from './admin/TelegramBot.js';
 import { AdminActions, escapeHtml } from './admin/AdminCommands.js';
 import { adminRouter } from './admin/adminRouter.js';
+import { McpTokenStore } from './mcp/McpTokenStore.js';
+import { mcpRouters } from './mcp/router.js';
 
 const env = process.env;
 const PORT = Number(env.PORT ?? 3002);
@@ -37,6 +39,7 @@ const notes = new NoteStore(db, cipher, (event) => {
   mirror?.apply(event);
 });
 const files = new FileStore(db, cipher, DATA_DIR);
+const mcp = mcpRouters({ users, notes, tokens: new McpTokenStore(db), audit, publicUrl: PUBLIC_URL });
 
 if (mirror) for (const u of users.listUsers()) mirror.writeAll(u.id, notes.allOf(u.id));
 
@@ -90,6 +93,8 @@ app.use((req, res, next) => {
 });
 
 app.get('/health', (_req, res) => res.json({ ok: true, version: APP_VERSION }));
+// MCP for AI assistants (bearer tokens, so outside the /api origin check)
+app.use(mcp.publicRouter);
 
 app.use('/api', (req, res, next) => {
   if (req.method !== 'GET' && !isAllowedOrigin(req, allowedOrigins, TRUST_PROXY)) {
@@ -107,6 +112,7 @@ app.use('/api/auth', express.json({ limit: '64kb' }), authRouter({
   onRegistered: (user, note) => void bot?.notify(`🆕 Neues Konto: <b>${escapeHtml(user.username)}</b>${note ? ` (Einladung: ${escapeHtml(note)})` : ''}`),
 }));
 app.use('/api', (req, res, next) => (req.path === '/sync' || req.path === '/files' ? next() : express.json({ limit: '256kb' })(req, res, next)));
+app.use('/api/mcp', mcp.accountRouter);
 app.use('/api/admin', adminRouter({ users, audit, status: actions.status }));
 app.use('/api', apiRouter(users, notes, files, live));
 

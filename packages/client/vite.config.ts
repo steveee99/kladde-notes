@@ -29,7 +29,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/health/],
+        navigateFallbackDenylist: [/^\/api\//, /^\/health/, /^\/mcp/, /^\/\.well-known\//, /^\/oauth\/(token|register|revoke)/],
         runtimeCaching: [
           {
             // Attachments are immutable: once seen they work offline
@@ -46,6 +46,10 @@ export default defineConfig({
     proxy: {
       '/api': { target: 'http://localhost:3002' },
       '/health': { target: 'http://localhost:3002' },
+      // MCP and its OAuth endpoints; /oauth/authorize is the consent page of the app itself
+      '/mcp': { target: 'http://localhost:3002' },
+      '/.well-known/oauth-': { target: 'http://localhost:3002' },
+      '^/oauth/(token|register|revoke)': { target: 'http://localhost:3002' },
     },
   },
 });

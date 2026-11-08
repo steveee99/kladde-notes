@@ -17,6 +17,8 @@ import { GraphView } from './views/Graph';
 import { ReviewView } from './views/Review';
 import { AdminView } from './views/Admin';
 import { TemplatesView } from './views/Templates';
+import { McpSettingsView } from './views/McpSettings';
+import { OAuthConsent } from './views/OAuthConsent';
 
 const ME_KEY = 'kladde_me';
 
@@ -99,6 +101,8 @@ export function App() {
 
   if (me === undefined) return <div className="flex h-full items-center justify-center text-faint">…</div>;
   if (me === null) return <Login onDone={signedIn} />;
+  // An AI assistant asks for access (OAuth): after the login above, without the app around it
+  if (path === '/oauth/authorize') return <OAuthConsent me={me} />;
 
   let page: React.ReactNode;
   const note = match(path, '/n/:id');
@@ -112,6 +116,7 @@ export function App() {
   else if (path === '/search') page = <SearchView />;
   else if (path === '/admin') page = <AdminView me={me} />;
   else if (path === '/settings/templates') page = <TemplatesView />;
+  else if (path === '/settings/mcp') page = <McpSettingsView />;
   else if (path === '/settings')
     page = (
       <SettingsView

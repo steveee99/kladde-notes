@@ -86,6 +86,12 @@ docker exec kladde node packages/server/dist/cli.js einladen Anna
 | `BACKUP_KEEP` | Tägliche Datenbank-Backups in `data/backups` (Standard 7, `0` = aus) |
 | `EXPORT_DIR` | Klartext-Spiegel der Notizen (z. B. NAS), leer = aus |
 
+**KI-Assistenten (MCP):** Unter `PUBLIC_URL/mcp` läuft ein MCP-Server (Streamable HTTP). Clients wie claude.ai, Claude Desktop oder Claude Code melden sich per OAuth 2.1 an (dynamische Registrierung, PKCE, Zustimmung mit dem normalen Kladde-Login) oder mit einem Zugriffstoken aus Einstellungen → KI-Assistenten (`Authorization: Bearer kld_…`). Jede Verbindung sieht nur die eigenen Notizen ihres Kontos. Der Reverse-Proxy muss dafür neben der App auch `/mcp`, `/oauth/…` und `/.well-known/oauth-…` durchreichen (Standard, wenn alles an Kladde geht); `PUBLIC_URL` sollte gesetzt sein, damit die OAuth-Adressen stimmen.
+
+```bash
+claude mcp add --transport http kladde https://notes.example.org/mcp
+```
+
 **Zur Verschlüsselung:** Liegt der Schlüssel im selben Volume wie die Datenbank, schützt das Kopien der Datenbank und Backups (NAS, Git), nicht einen vollständig übernommenen Server. Für mehr Schutz `DATA_KEY` als Secret übergeben. Den Schlüssel unbedingt sichern – ohne ihn sind die Notizen verloren.
 
 ---

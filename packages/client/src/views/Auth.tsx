@@ -45,7 +45,7 @@ function PasswordLogin({ busy, run, primary }: { busy: boolean; run: (fn: () => 
   );
 }
 
-function Frame({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+export function Frame({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
     <div className="flex min-h-full items-center justify-center px-4 [--pad-top:1rem] [--pad-bottom:1rem] safe-top safe-bottom">
       <div className="card w-full max-w-sm p-6 anim-fade-up">

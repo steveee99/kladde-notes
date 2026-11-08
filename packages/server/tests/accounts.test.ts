@@ -90,7 +90,7 @@ describe('migration 2', () => {
     const insert = db.prepare('INSERT INTO users (id, username, username_lower, created_at) VALUES (?, ?, ?, ?)');
     insert.run('u2', 'zweite', 'zweite', 2);
     insert.run('u1', 'erste', 'erste', 1);
-    expect(migrate(db)).toEqual([2]);
+    expect(migrate(db, MIGRATIONS.slice(0, 2))).toEqual([2]);
     const users = new UserStore(db);
     expect(users.getUser('u1')).toMatchObject({ isAdmin: true, hasPassword: false });
     expect(users.getUser('u2')!.isAdmin).toBe(false);
