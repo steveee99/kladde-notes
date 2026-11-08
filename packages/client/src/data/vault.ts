@@ -13,6 +13,9 @@ import {
   archiveTarget,
   excerpt,
   fillTemplate,
+  normalizeTemplates,
+  templateUsesZettelId,
+  TEMPLATES_SETTING,
   joinPath,
   linkFirstMention,
   renameWikiLinks,
@@ -305,15 +308,27 @@ class Vault {
   }
 
   async createFromTemplate(template: Template | null, title: string, folder: string): Promise<LocalNote> {
-    const content = template ? fillTemplate(template.content, { title, zid: zettelId() }) : '';
-    return this.create(folder, template?.id === 'literatur' ? `${zettelId()} ${title}` : title, content);
+    if (!template) return this.create(folder, title, '');
+    const zid = zettelId();
+    const content = fillTemplate(template.content, { title, zid });
+    return this.create(folder, templateUsesZettelId(template.content) ? `${zid} ${title}` : title, content);
   }
 
-  /** Notes in any folder named "Vorlagen" are offered as templates */
-  userTemplates(): Template[] {
-    return this.list()
-      .filter((n) => n.access === 'owner' && splitPath(n.path).folder.split('/').pop() === 'Vorlagen')
-      .map((n) => ({ id: n.id, label: splitPath(n.path).name, folder: PARA.inbox, content: n.content }));
+  /** Own templates, kept in the synced settings (none at first) */
+  templates(): Template[] {
+    return normalizeTemplates(this.setting(TEMPLATES_SETTING));
+  }
+
+  async saveTemplate(template: Template): Promise<void> {
+    const list = this.templates();
+    const i = list.findIndex((t) => t.id === template.id);
+    if (i >= 0) list[i] = template;
+    else list.push(template);
+    await this.setSetting(TEMPLATES_SETTING, list);
+  }
+
+  async removeTemplate(id: string): Promise<void> {
+    await this.setSetting(TEMPLATES_SETTING, this.templates().filter((t) => t.id !== id));
   }
 
   // ------------------------------------------------------------------ synced settings (system note)

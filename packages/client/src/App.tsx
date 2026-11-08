@@ -16,6 +16,7 @@ import { InboxView } from './views/Inbox';
 import { GraphView } from './views/Graph';
 import { ReviewView } from './views/Review';
 import { AdminView } from './views/Admin';
+import { TemplatesView } from './views/Templates';
 
 const ME_KEY = 'kladde_me';
 
@@ -110,6 +111,7 @@ export function App() {
   else if (path === '/shared') page = <NoteList mode="shared" />;
   else if (path === '/search') page = <SearchView />;
   else if (path === '/admin') page = <AdminView me={me} />;
+  else if (path === '/settings/templates') page = <TemplatesView />;
   else if (path === '/settings')
     page = (
       <SettingsView

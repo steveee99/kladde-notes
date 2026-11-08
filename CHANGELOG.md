@@ -4,6 +4,9 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Vorlagen haben einen eigenen Bereich unter Einstellungen → Vorlagen. Dort legst du eigene Vorlagen (z. B. für Projekte oder Besprechungen) mit Name, Zielordner und Inhalt an, bearbeitest und löschst sie. Platzhalter: `{{title}}`, `{{date}}` und `{{zid}}` (Zettel-ID, kommt auch vor den Titel). Die Vorlagen werden verschlüsselt mit den Einstellungen synchronisiert.
+- Geändert: Es gibt keine eingebauten Vorlagen mehr, und Notizen im Ordner „Vorlagen“ gelten nicht mehr als Vorlagen. Die Notizen selbst bleiben erhalten; ihren Inhalt kannst du in eine neue Vorlage übernehmen.
+
 ## [0.6.0] – 2026-11-08
 
 - Neu: Slash-Befehle im Editor: `/` am Zeilenanfang oder nach einem Leerzeichen öffnet ein Menü mit Überschriften, Liste, nummerierter Liste, Aufgabe, Tabelle, Zitat, Codeblock, Trennlinie, Abfragen, Galerie, Links, dem heutigen Datum und Datei-Upload. Weitertippen filtert (auch englische Namen wie `/table` oder `/todo`).

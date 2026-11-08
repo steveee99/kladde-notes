@@ -3,7 +3,6 @@ import { LinkIndex, hasPlainMention, linkFirstMention, renameWikiLinks } from '.
 import { setFrontmatter, extractMeta, excerpt } from '../src/markdown';
 import { buildReview } from '../src/review';
 import { archiveTarget, restoreTarget, roleOfPath } from '../src/para';
-import { fillTemplate, BUILTIN_TEMPLATES } from '../src/templates';
 
 const note = (id: string, path: string, content: string, updatedAt = 0, createdAt = 0) => ({ id, path, content, updatedAt, createdAt });
 
@@ -68,10 +67,6 @@ describe('frontmatter, PARA, templates', () => {
     expect(roleOfPath('1 Projekte/Haus/Plan.md')).toBe('projects');
   });
 
-  it('fills templates', () => {
-    const t = BUILTIN_TEMPLATES.find((x) => x.id === 'literatur')!;
-    expect(fillTemplate(t.content, { title: 'Buch', zid: '202611081530', date: '2026-11-08' })).toContain('id: 202611081530');
-  });
 });
 
 describe('review', () => {

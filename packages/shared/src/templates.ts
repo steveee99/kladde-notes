@@ -1,7 +1,6 @@
-import { PARA } from './para.js';
 import { toDateString } from './tasks.js';
 
-/** Built-in templates; notes in a folder named "Vorlagen" are offered as templates too */
+/** A user-made template for new notes; kept in the synced settings, there are none at first */
 export interface Template {
   id: string;
   label: string;
@@ -10,105 +9,38 @@ export interface Template {
   content: string;
 }
 
-export const TEMPLATE_FOLDER_NAME = 'Vorlagen';
+/** Settings key the templates are stored under */
+export const TEMPLATES_SETTING = 'templates';
 
-export const BUILTIN_TEMPLATES: Template[] = [
-  {
-    id: 'projekt',
-    label: 'Projekt',
-    folder: PARA.projects,
-    content: `---
-status: aktiv
-ziel: 
-frist: 
----
-# {{title}}
-
-## Ziel
-Woran merke ich, dass das Projekt fertig ist?
-
-## Nächste Schritte
-- [ ] 
-
-## Notizen
-`,
-  },
-  {
-    id: 'bereich',
-    label: 'Bereich',
-    folder: PARA.areas,
-    content: `---
-standard: 
----
-# {{title}}
-
-Ein Bereich hat kein Ende, sondern einen Standard, den ich halten will.
-
-## Standard
-
-## Laufende Projekte
-\`\`\`query
-LIST FROM "${PARA.projects}" WHERE bereich = "{{title}}" AND status != fertig
-\`\`\`
-
-## Wiederkehrendes
-- [ ] 
-`,
-  },
-  {
-    id: 'literatur',
-    label: 'Literaturnotiz',
-    folder: PARA.zettel,
-    content: `---
-id: {{zid}}
-typ: literatur
-quelle: 
-autor: 
----
-# {{title}}
-
-## Kernaussagen (in eigenen Worten)
-- 
-
-## Was bedeutet das für mich?
-
-## Verbindungen
-- [[]]
-`,
-  },
-  {
-    id: 'besprechung',
-    label: 'Besprechung',
-    folder: PARA.inbox,
-    content: `---
-datum: {{date}}
-teilnehmer: 
----
-# {{title}}
-
-## Themen
-- 
-
-## Entscheidungen
-- 
-
-## Aufgaben
-- [ ]  📅 {{date}}
-`,
-  },
-  {
-    id: 'tag',
-    label: 'Tagesnotiz',
-    folder: PARA.inbox,
-    content: `# {{date}}
-
-## Heute wichtig
-- [ ]  📅 {{date}}
-
-## Notizen
-`,
-  },
+export const TEMPLATE_PLACEHOLDERS: { token: string; label: string }[] = [
+  { token: '{{title}}', label: 'Titel der neuen Notiz' },
+  { token: '{{date}}', label: 'heutiges Datum (YYYY-MM-DD)' },
+  { token: '{{zid}}', label: 'Zettel-ID; die Notiz bekommt sie auch vor den Titel' },
 ];
+
+/** Reads stored templates defensively: synced settings may come from older or broken clients */
+export function normalizeTemplates(value: unknown): Template[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const out: Template[] = [];
+  for (const t of value) {
+    if (!t || typeof t !== 'object') continue;
+    const { id, label, folder, content } = t as Record<string, unknown>;
+    if (typeof id !== 'string' || !id || seen.has(id)) continue;
+    seen.add(id);
+    out.push({
+      id,
+      label: typeof label === 'string' && label.trim() ? label.trim() : 'Ohne Namen',
+      folder: typeof folder === 'string' ? folder : '',
+      content: typeof content === 'string' ? content : '',
+    });
+  }
+  return out;
+}
+
+export function templateUsesZettelId(content: string): boolean {
+  return content.includes('{{zid}}');
+}
 
 export function fillTemplate(content: string, vars: { title: string; date?: string; zid?: string }): string {
   const date = vars.date ?? toDateString(new Date());
