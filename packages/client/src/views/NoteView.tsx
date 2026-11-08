@@ -6,11 +6,13 @@ import { excerpt, splitPath, toDateString } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
-import { Editor, insertAtLineStart, insertText, wrapSelection } from '../editor/Editor';
+import { Editor, insertAtLineStart, insertText, toggleCode, toggleWrap, wrapSelection } from '../editor/Editor';
 import { editorHost } from '../editor/host';
 import { ShareDialog } from './ShareDialog';
 import { ParaBar } from './ParaBar';
 import { Graph } from './Graph';
+
+const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Strg';
 
 function Toolbar({ view }: { view: EditorView | null }) {
   const file = useRef<HTMLInputElement>(null);
@@ -27,14 +29,14 @@ function Toolbar({ view }: { view: EditorView | null }) {
     </button>
   );
   return (
-    <div className="sticky bottom-0 z-20 flex gap-1 overflow-x-auto border-t border-line bg-surface/95 px-2 py-1.5 backdrop-blur safe-bottom scrollbar-thin">
+    <div className="sticky bottom-0 z-20 flex gap-1 overflow-x-auto border-t border-line bg-surface/95 px-2 pt-1.5 backdrop-blur [--pad-bottom:0.375rem] max-md:pb-1.5 md:safe-bottom scrollbar-thin">
       {btn(CheckSquare, 'Aufgabe', () => insertAtLineStart(view, '- [ ] '))}
       {btn(CalendarPlus, 'Fällig heute', () => insertText(view, ` 📅 ${toDateString(new Date())}`))}
       {btn(Heading, 'Überschrift', () => insertAtLineStart(view, '## '))}
       {btn(List, 'Liste', () => insertAtLineStart(view, '- '))}
-      {btn(Bold, 'Fett', () => wrapSelection(view, '**'))}
-      {btn(Link2, 'Verknüpfen', () => wrapSelection(view, '[[', ']]'))}
-      {btn(Code, 'Code', () => wrapSelection(view, '\n```\n', '\n```\n'))}
+      {btn(Bold, `Fett (${MOD}+B)`, () => toggleWrap(view, '**'))}
+      {btn(Link2, `Verknüpfen (${MOD}+Shift+L)`, () => wrapSelection(view, '[[', ']]'))}
+      {btn(Code, `Code (${MOD}+Shift+M)`, () => toggleCode(view))}
       {btn(ImageIcon, 'Bild/PDF', () => file.current?.click())}
       {btn(Undo2, 'Rückgängig', () => undo(view))}
       <input

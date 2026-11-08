@@ -17,3 +17,6 @@ Alle nutzersichtbaren Änderungen an Kladde.
 - Unterordner direkt im Ordnerbaum oder in der Ordneransicht anlegen; Ordner umbenennen (Stift oder Doppelklick) und leere Ordner löschen.
 - Lesemodus: Ein Schloss-Schalter oben in der Seitenleiste (mobil in der Kopfzeile) sperrt auf diesem Gerät alle Seiten gegen Änderungen – Notizen, Titel, Aufgaben-Häkchen, Ordner sowie Anlegen, Verschieben und Löschen.
 - Der Textcursor im Editor ist im dunklen Theme wieder sichtbar.
+- Tastenkürzel im Editor: Strg/⌘+B fett, Strg/⌘+I kursiv, Strg/⌘+Shift+M Code (eine Zeile inline, mehrere Zeilen als Codeblock), Strg/⌘+Shift+X durchgestrichen, Strg/⌘+Shift+L Verknüpfung; erneutes Drücken nimmt die Formatierung zurück. Strg/⌘+K öffnet überall die Suche.
+- iPhone: Kopf- und Fußleiste halten jetzt Abstand zu Notch/Dynamic Island und Home-Indikator; Dialoge und die Editor-Leiste behalten ihren Innenabstand.
+- Auswahl-Chips (Projektstatus, Zettel-Typ, Ordner in der Inbox) zeigen den Pfeil im Chip statt daneben.

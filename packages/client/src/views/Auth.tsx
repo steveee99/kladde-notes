@@ -14,7 +14,7 @@ function errorText(err: unknown): string {
 
 function Frame({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
-    <div className="flex min-h-full items-center justify-center p-4 safe-top safe-bottom">
+    <div className="flex min-h-full items-center justify-center px-4 [--pad-top:1rem] [--pad-bottom:1rem] safe-top safe-bottom">
       <div className="card w-full max-w-sm p-6 anim-fade-up">
         <img src="/icons/icon.svg" alt="" className="mb-4 h-14 w-14 anim-pop" />
         <h1 className="text-2xl font-bold tracking-tight">{title}</h1>

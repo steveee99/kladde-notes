@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronRight, Cloud, CloudOff, CalendarCheck, Inbox as InboxIcon, Network, Folder, FolderOpen, FolderPlus, Pencil, Trash2, Home, Lightbulb, Loader2, Menu, Plus, Search, Settings, Share2, AlertTriangle, X, FileText, Lock, LockOpen } from 'lucide-react';
 import { PARA, splitPath } from '@kladde/shared';
 import { openDialog } from '../lib/dialogs';
@@ -266,11 +266,28 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
+/** Strg/⌘+K opens the search from anywhere, also from inside the editor */
+function useSearchShortcut() {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'k') return;
+      e.preventDefault();
+      e.stopPropagation();
+      navigate('/search');
+      // Already on the search page: autoFocus does not run again
+      requestAnimationFrame(() => document.querySelector<HTMLInputElement>('[data-search-input]')?.select());
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
+}
+
 export function Shell({ children }: { children: React.ReactNode }) {
   const [drawer, setDrawer] = useState(false);
   const [capture, setCapture] = useState(false);
   const path = usePath();
   const isNote = path.startsWith('/n/');
+  useSearchShortcut();
   return (
     <div className="flex h-full">
       <aside className="hidden w-64 shrink-0 border-r border-line bg-surface/60 md:block lg:w-72">
@@ -280,7 +297,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 bg-black/40 anim-fade-in" onClick={() => setDrawer(false)} />
           <aside className="absolute inset-y-0 left-0 w-[82%] max-w-xs bg-surface shadow-soft safe-top safe-bottom" style={{ animation: 'slide-in 260ms var(--ease) both' }}>
-            <button className="btn-icon absolute right-2 top-2" onClick={() => setDrawer(false)}>
+            <button className="btn-icon absolute right-2 top-[calc(0.5rem+env(safe-area-inset-top))]" onClick={() => setDrawer(false)}>
               <X size={18} />
             </button>
             <Sidebar onNavigate={() => setDrawer(false)} />
@@ -288,7 +305,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-2 border-b border-line bg-bg/80 px-3 py-2 backdrop-blur safe-top md:hidden">
+        <header className="flex items-center gap-2 border-b border-line bg-bg/80 pb-2 backdrop-blur [--pad-top:0.5rem] [--pad-x:0.75rem] safe-top safe-x md:hidden">
           <button className="btn-icon" onClick={() => setDrawer(true)}>
             <Menu size={20} />
           </button>
@@ -299,7 +316,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <main className="vt-main min-h-0 flex-1 overflow-y-auto scrollbar-thin">{children}</main>
-        <nav className="grid grid-cols-4 border-t border-line bg-surface/90 backdrop-blur safe-bottom md:hidden">
+        <nav className="grid grid-cols-4 border-t border-line bg-surface/90 backdrop-blur safe-bottom safe-x md:hidden">
           {[
             ['/', Home, 'Start'],
             ['/notes', FileText, 'Notizen'],
@@ -318,7 +335,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </div>
       {!isNote && (
         <button
-          className="edit-only fixed bottom-20 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent text-on-accent shadow-soft transition-transform duration-200 ease-spring hover:scale-105 active:scale-90 md:bottom-6 md:right-6"
+          className="edit-only fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-30 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent text-on-accent shadow-soft transition-transform duration-200 ease-spring hover:scale-105 active:scale-90 md:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] md:right-6"
           onClick={() => setCapture(true)}
           title="Schnell erfassen"
         >

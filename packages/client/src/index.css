@@ -215,12 +215,23 @@ body {
   }
 }
 
-.safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
+@layer utilities {
+  /*
+   * Safe areas (notch, Dynamic Island, home indicator) are added on top of the element's own padding.
+   * Set --pad-top / --pad-bottom for the padding the element would have without them.
+   */
+  .safe-bottom {
+    padding-bottom: calc(var(--pad-bottom, 0px) + env(safe-area-inset-bottom));
+  }
+  .safe-top {
+    padding-top: calc(var(--pad-top, 0px) + env(safe-area-inset-top));
+  }
+  .safe-x {
+    padding-left: max(var(--pad-x, 0px), env(safe-area-inset-left));
+    padding-right: max(var(--pad-x, 0px), env(safe-area-inset-right));
+  }
 }
-.safe-top {
-  padding-top: env(safe-area-inset-top);
-}
+
 .scrollbar-thin::-webkit-scrollbar {
   width: 8px;
   height: 8px;

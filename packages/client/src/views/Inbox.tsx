@@ -4,6 +4,7 @@ import { PARA, excerpt, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { navigate } from '../lib/router';
+import { ChipSelect } from './ChipSelect';
 
 /** Actions to file one inbox item: PARA roots, Zettelkasten, any folder, archive, delete */
 export function SortActions({ note, compact = false, onDone }: { note: LocalNote; compact?: boolean; onDone?: () => void }) {
@@ -20,8 +21,8 @@ export function SortActions({ note, compact = false, onDone }: { note: LocalNote
       {btn(Library, 'Ressource', () => vault.moveNote(note.id, PARA.resources))}
       {btn(Lightbulb, 'Zettel', () => vault.toZettel(note.id))}
       {btn(Archive, 'Archiv', () => vault.archiveNote(note.id))}
-      <select
-        className="chip max-w-[9rem] cursor-pointer bg-raised px-2 py-1.5 text-xs outline-none"
+      <ChipSelect
+        className="max-w-[9rem] text-xs"
         value=""
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => e.target.value && run(() => vault.moveNote(note.id, e.target.value))()}
@@ -35,7 +36,7 @@ export function SortActions({ note, compact = false, onDone }: { note: LocalNote
               {f}
             </option>
           ))}
-      </select>
+      </ChipSelect>
       {btn(Trash2, 'Löschen', () => vault.remove(note.id), 'hover:!bg-danger/15 hover:!text-danger')}
     </div>
   );

@@ -14,7 +14,7 @@ export function QuickCapture({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <div className="absolute inset-0 bg-black/40 anim-fade-in" onClick={onClose} />
-      <div className="relative w-full max-w-lg rounded-t-3xl bg-surface p-4 shadow-soft anim-sheet safe-bottom sm:rounded-3xl">
+      <div className="relative w-full max-w-lg rounded-t-3xl bg-surface px-4 pt-4 shadow-soft anim-sheet [--pad-bottom:1rem] safe-bottom sm:rounded-3xl">
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line sm:hidden" />
         <textarea
           autoFocus

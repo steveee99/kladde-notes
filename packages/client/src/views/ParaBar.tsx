@@ -3,6 +3,7 @@ import { PROJECT_STATUSES, ZETTEL_TYPES, extractMeta, restoreTarget, roleOfPath,
 import { vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { SortActions } from './Inbox';
+import { ChipSelect } from './ChipSelect';
 
 const STATUS_TONE: Record<string, string> = { aktiv: 'text-ok', pausiert: 'text-warn', fertig: 'text-faint' };
 
@@ -26,8 +27,8 @@ export function ParaBar({ note }: { note: LocalNote }) {
       {role === 'projects' && (
         <>
           <span className="chip">Projekt</span>
-          <select
-            className={`chip cursor-pointer bg-raised py-1 outline-none ${STATUS_TONE[meta.frontmatter.status ?? 'aktiv'] ?? ''}`}
+          <ChipSelect
+            className={STATUS_TONE[meta.frontmatter.status ?? 'aktiv'] ?? ''}
             value={meta.frontmatter.status ?? 'aktiv'}
             onChange={(e) => void vault.setFrontmatter(note.id, { status: e.target.value })}
           >
@@ -36,7 +37,7 @@ export function ParaBar({ note }: { note: LocalNote }) {
                 {s}
               </option>
             ))}
-          </select>
+          </ChipSelect>
           {meta.frontmatter.frist && <span className="chip">Frist {meta.frontmatter.frist}</span>}
           <button className="btn-ghost ml-auto py-1 text-ok" onClick={() => confirm('Projekt abschließen und ins Archiv verschieben?') && void vault.archiveNote(note.id, true)}>
             <CheckCircle2 size={15} /> Abschließen
@@ -55,8 +56,7 @@ export function ParaBar({ note }: { note: LocalNote }) {
               {meta.frontmatter.id}
             </span>
           )}
-          <select
-            className="chip cursor-pointer bg-raised py-1 outline-none"
+          <ChipSelect
             value={meta.frontmatter.typ ?? ''}
             onChange={(e) => void vault.setFrontmatter(note.id, { typ: e.target.value || null })}
           >
@@ -66,7 +66,7 @@ export function ParaBar({ note }: { note: LocalNote }) {
                 {t.label}
               </option>
             ))}
-          </select>
+          </ChipSelect>
           {vault.links().isOrphan(note.id) && (
             <span className="chip text-warn" title="Ein Zettel entfaltet seinen Wert erst durch Verbindungen">
               <Unlink size={12} /> noch nicht verbunden

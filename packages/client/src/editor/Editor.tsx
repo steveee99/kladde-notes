@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Compartment, EditorState, Extension } from '@codemirror/state';
-import { EditorView, keymap, placeholder as cmPlaceholder } from '@codemirror/view';
+import { EditorView, KeyBinding, keymap, placeholder as cmPlaceholder } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
@@ -77,6 +77,22 @@ function replaceMarker(view: EditorView, marker: string, text: string) {
   if (at >= 0) view.dispatch({ changes: { from: at, to: at + marker.length, insert: text } });
 }
 
+/**
+ * Formatting shortcuts. Mod is Strg, on macOS ⌘; on macOS Strg works as well (it replaces the Emacs-style
+ * cursor keys there). Strg/⌘+K for search is global (Shell).
+ */
+const formatCommands: [string, (v: EditorView) => boolean][] = [
+  ['b', (v) => toggleWrap(v, '**')],
+  ['i', (v) => toggleWrap(v, '*')],
+  ['Shift-m', (v) => toggleCode(v)],
+  ['Shift-x', (v) => toggleWrap(v, '~~')],
+  ['Shift-l', (v) => (wrapSelection(v, '[[', ']]'), true)],
+];
+const formatKeymap: KeyBinding[] = formatCommands.flatMap(([key, run]) => [
+  { key: `Mod-${key}`, run, preventDefault: true },
+  { mac: `Ctrl-${key}`, run, preventDefault: true },
+]);
+
 export interface EditorProps {
   docKey: string;
   value: string;
@@ -113,7 +129,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
         doc: value,
         extensions: [
           history(),
-          keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+          keymap.of([...formatKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
           markdown({ base: markdownLanguage, codeLanguages: languages }),
           syntaxHighlighting(highlight),
           proseTheme,
@@ -202,4 +218,49 @@ export function insertText(view: EditorView, text: string) {
   const { from, to } = view.state.selection.main;
   view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length } });
   view.focus();
+}
+
+/**
+ * Wraps the selection in a marker, or removes it when the selection is already wrapped
+ * (markers inside or right around the selection). An empty selection gets an empty pair.
+ */
+export function toggleWrap(view: EditorView, marker: string): boolean {
+  if (view.state.readOnly) return false;
+  const { from, to } = view.state.selection.main;
+  const doc = view.state.doc;
+  const n = marker.length;
+  const text = doc.sliceString(from, to);
+  const isWrapped = (s: string) => s.length >= 2 * n && s.startsWith(marker) && s.endsWith(marker) && (marker !== '*' || !s.startsWith('**') || s.startsWith('***'));
+  if (isWrapped(text)) {
+    view.dispatch({ changes: { from, to, insert: text.slice(n, -n) }, selection: { anchor: from, head: to - 2 * n } });
+  } else if (from >= n && doc.sliceString(from - n, from) === marker && doc.sliceString(to, to + n) === marker && !(marker === '*' && doc.sliceString(from - 2, from) === '**' && doc.sliceString(to, to + 2) === '**' && doc.sliceString(from - 3, from) !== '***')) {
+    view.dispatch({
+      changes: [
+        { from: from - n, to: from, insert: '' },
+        { from: to, to: to + n, insert: '' },
+      ],
+      selection: { anchor: from - n, head: to - n },
+    });
+  } else {
+    wrapSelection(view, marker);
+    return true;
+  }
+  view.focus();
+  return true;
+}
+
+/** Inline code for a selection within one line, a fenced block for several lines */
+export function toggleCode(view: EditorView): boolean {
+  if (view.state.readOnly) return false;
+  const { from, to } = view.state.selection.main;
+  const doc = view.state.doc;
+  if (doc.lineAt(from).number === doc.lineAt(to).number) return toggleWrap(view, '`');
+  const start = doc.lineAt(from).from;
+  const end = doc.lineAt(to).to;
+  const body = doc.sliceString(start, end);
+  const fenced = /^```[^\n]*\n([\s\S]*)\n```$/.exec(body);
+  const insert = fenced ? fenced[1] : `\`\`\`\n${body}\n\`\`\``;
+  view.dispatch({ changes: { from: start, to: end, insert }, selection: { anchor: start, head: start + insert.length } });
+  view.focus();
+  return true;
 }
