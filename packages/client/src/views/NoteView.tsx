@@ -1,0 +1,178 @@
+import { useEffect, useRef, useState } from 'react';
+import type { EditorView } from '@codemirror/view';
+import { ArrowLeft, Bold, CalendarPlus, CheckSquare, Code, Heading, Image as ImageIcon, Link2, List, Lock, Share2, Trash2, Undo2, Users } from 'lucide-react';
+import { undo } from '@codemirror/commands';
+import { excerpt, splitPath, toDateString } from '@kladde/shared';
+import { useVault, vault } from '../data/vault';
+import { navigate } from '../lib/router';
+import { Editor, insertAtLineStart, insertText, wrapSelection } from '../editor/Editor';
+import { editorHost } from '../editor/host';
+import { ShareDialog } from './ShareDialog';
+
+function Toolbar({ view }: { view: EditorView | null }) {
+  const file = useRef<HTMLInputElement>(null);
+  if (!view) return null;
+  const btn = (Icon: typeof Bold, title: string, fn: () => void) => (
+    <button
+      key={title}
+      title={title}
+      className="btn-icon shrink-0"
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={fn}
+    >
+      <Icon size={18} />
+    </button>
+  );
+  return (
+    <div className="sticky bottom-0 z-20 flex gap-1 overflow-x-auto border-t border-line bg-surface/95 px-2 py-1.5 backdrop-blur safe-bottom scrollbar-thin">
+      {btn(CheckSquare, 'Aufgabe', () => insertAtLineStart(view, '- [ ] '))}
+      {btn(CalendarPlus, 'Fällig heute', () => insertText(view, ` 📅 ${toDateString(new Date())}`))}
+      {btn(Heading, 'Überschrift', () => insertAtLineStart(view, '## '))}
+      {btn(List, 'Liste', () => insertAtLineStart(view, '- '))}
+      {btn(Bold, 'Fett', () => wrapSelection(view, '**'))}
+      {btn(Link2, 'Verknüpfen', () => wrapSelection(view, '[[', ']]'))}
+      {btn(Code, 'Code', () => wrapSelection(view, '\n```\n', '\n```\n'))}
+      {btn(ImageIcon, 'Bild/PDF', () => file.current?.click())}
+      {btn(Undo2, 'Rückgängig', () => undo(view))}
+      <input
+        ref={file}
+        type="file"
+        accept="image/*,application/pdf"
+        hidden
+        multiple
+        onChange={async (e) => {
+          for (const f of [...(e.target.files ?? [])]) {
+            try {
+              const r = await editorHost.upload(f);
+              insertText(view, `\n![${r.name}](${r.url})\n`);
+            } catch (err) {
+              alert(`Upload fehlgeschlagen: ${(err as Error).message}`);
+            }
+          }
+          e.target.value = '';
+        }}
+      />
+    </div>
+  );
+}
+
+export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
+  const version = useVault();
+  const note = vault.get(id);
+  const [view, setView] = useState<EditorView | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [title, setTitle] = useState('');
+  const titleRef = useRef<HTMLInputElement>(null);
+  const name = note ? splitPath(note.path).name : '';
+
+  useEffect(() => setTitle(name), [name]);
+  useEffect(() => {
+    if (isNew) titleRef.current?.select();
+  }, [isNew, id]);
+
+  if (!note) {
+    return (
+      <div className="p-10 text-center text-muted anim-fade-in">
+        {vault.ready ? 'Diese Notiz gibt es nicht (mehr).' : 'Lade …'}
+        <div>
+          <button className="btn-ghost mt-4" onClick={() => navigate('/')}>
+            Zum Start
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const readOnly = note.access === 'read';
+  const isOwner = note.access === 'owner';
+  const { folder } = splitPath(note.path);
+  const backlinks = vault.list().filter((n) => n.id !== id && new RegExp(`\\[\\[${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\||#|\\]\\])`, 'i').test(n.content));
+  const commitTitle = () => {
+    if (title.trim() && title.trim() !== name) void vault.update(id, { title: title.trim() });
+    else setTitle(name);
+  };
+
+  return (
+    <div className="flex min-h-full flex-col">
+      <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-4 sm:px-8 sm:pt-8">
+        <div className="mb-2 flex items-center gap-1 text-sm text-faint anim-fade-in">
+          <button className="btn-icon -ml-2" onClick={() => history.back()} title="Zurück">
+            <ArrowLeft size={18} />
+          </button>
+          {isOwner ? (
+            <select
+              className="min-w-0 max-w-[50%] truncate rounded-lg bg-transparent py-1 pr-1 hover:bg-raised"
+              value={folder}
+              onChange={(e) => void vault.update(id, { folder: e.target.value })}
+              title="Verschieben"
+            >
+              {[...new Set(['', ...vault.folders(), folder])].map((f) => (
+                <option key={f} value={f}>
+                  {f || '(oberste Ebene)'}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="chip">
+              <Users size={12} /> {note.owner} · {readOnly ? 'nur lesen' : 'bearbeiten'}
+            </span>
+          )}
+          <div className="ml-auto flex items-center">
+            {readOnly && <Lock size={15} className="mr-2" />}
+            {isOwner && (
+              <button className="btn-icon" title="Teilen" onClick={() => setSharing(true)}>
+                <Share2 size={18} />
+              </button>
+            )}
+            {isOwner && (
+              <button
+                className="btn-icon hover:!text-danger"
+                title="Löschen"
+                onClick={() => {
+                  if (confirm(`„${name}“ löschen?`)) {
+                    void vault.remove(id);
+                    navigate(folder ? `/f/${encodeURIComponent(folder)}` : '/notes', true);
+                  }
+                }}
+              >
+                <Trash2 size={18} />
+              </button>
+            )}
+          </div>
+        </div>
+        <input
+          ref={titleRef}
+          className="mb-2 w-full bg-transparent text-3xl font-bold tracking-tight outline-none placeholder:text-faint sm:text-4xl"
+          value={title}
+          readOnly={!isOwner}
+          placeholder="Titel"
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={commitTitle}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commitTitle();
+              view?.focus();
+            }
+          }}
+        />
+        <Editor docKey={id} value={note.content} readOnly={readOnly} stamp={version} onChange={(content) => void vault.update(id, { content })} onView={setView} />
+        {backlinks.length > 0 && (
+          <section className="mb-10 border-t border-line pt-4 anim-fade-in">
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-faint">Verweise hierher · {backlinks.length}</h2>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {backlinks.map((b) => (
+                <button key={b.id} className="rounded-xl border border-line p-3 text-left text-sm transition hover:border-accent/40" onClick={() => navigate(`/n/${b.id}`)}>
+                  <div className="font-medium">{splitPath(b.path).name}</div>
+                  <div className="line-clamp-1 text-muted">{excerpt(b.content, 90)}</div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+      {!readOnly && <Toolbar view={view} />}
+      {sharing && <ShareDialog noteId={id} onClose={() => setSharing(false)} />}
+    </div>
+  );
+}

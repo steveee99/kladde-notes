@@ -1,0 +1,103 @@
+# Kladde
+
+**Kladde** ist eine selbst gehostete Notiz-App für den Browser: Markdown mit Live-Vorschau, Aufgaben mit Fälligkeit und Wiederholung, Abfragen über die eigenen Notizen – offline nutzbar auf Handy, iPad und Desktop, synchronisiert sobald wieder online. Zugang nur per Einladung, Anmeldung per **Passkey** (kein Passwort).
+
+> Eine *Kladde* ist das Notizbuch, in das erst einmal alles hineinkommt, bevor es ins Reine geschrieben wird.
+
+> Status: **Proof of Concept (0.1.0)**. Infrastruktur (Monorepo, Docker-Härtung, Einladungen, Telegram-Admin, Release-Skript, Git Flow) stammt aus *Project Gamma*.
+
+---
+
+## ✨ Funktionen im PoC
+
+| Bereich | Stand |
+| --- | --- |
+| **Zugang** | Einladungscode → Benutzername → Passkey. Weitere Geräte per Einmal-Code (15 min) oder zusätzlichem Passkey. Sessions als httpOnly-Cookie |
+| **Spaces** | Jeder Benutzer hat seinen eigenen Bereich, kein Zugriff auf fremde Notizen |
+| **Teilen** | Pro Notiz mit Benutzern (lesen/bearbeiten) oder öffentlicher Nur-Lese-Link für Gäste (`/s/…`) |
+| **Editor** | CodeMirror 6 mit Live-Preview: Markdown-Syntax ist nur in der Cursor-Zeile sichtbar |
+| **Tabellen** | GFM-Tabellen werden als interaktive Tabelle gerendert (Spalte sortieren, filtern) |
+| **Abfragen** | ```` ```query ```` -Blöcke: `TABLE title, status FROM "1 Projekte" WHERE tags contains x SORT updated DESC LIMIT 10`, auch `LIST` und `TASKS` |
+| **Aufgaben** | `- [ ] Text 📅 2026-11-30 🔁 monatlich` oder handytauglich `due:morgen every:week`; Startbildschirm gruppiert nach Überfällig/Heute/Demnächst; erledigte Wiederholungen erzeugen die nächste |
+| **Wissen** | PARA-Ordner (Inbox, Projekte, Bereiche, Ressourcen, Archiv) + Zettelkasten (Zettel mit Zeitstempel-ID), `[[Wikilinks]]` mit Autovervollständigung, Backlinks, `#tags` |
+| **Medien** | Bilder und PDFs per Einfügen/Ziehen/Button; Bilder-Grid mit ```` ```gallery ```` ; PDF eingebettet; Code-Blöcke mit Syntax-Highlighting und Kopieren |
+| **Offline & Sync** | IndexedDB pro Konto, Sync über Cursor + Versionen; bei Konflikten gewinnt der Server, der lokale Text bleibt als „(Konflikt …)“-Kopie erhalten; Live-Updates per Server-Sent Events |
+| **App** | PWA (installierbar, Service Worker), Themes Hell/Dunkel/OLED/System – alle Farben als CSS-Variablen; Übergänge per View Transitions API |
+| **Sicherheit** | Notizen (Pfad + Inhalt) und Anhänge AES-256-GCM-verschlüsselt auf dem Server, Origin-Prüfung, Rate-Limits, Audit-Log, gehärteter Container |
+| **NAS** | Optionaler Klartext-Spiegel aller Notizen als `.md`-Dateien nach `EXPORT_DIR` (z. B. eingebundene NAS-Freigabe) |
+
+### Noch nicht umgesetzt (Roadmap)
+- Backup in ein GitLab/GitHub-Repository (geplant: `EXPORT_DIR` + periodischer `git push` pro Benutzer, Token in den Einstellungen)
+- Ende-zu-Ende-Verschlüsselung (Schlüssel nur im Browser) und Verschlüsselung der lokalen IndexedDB
+- Anhänge offline hochladen (derzeit nur online), Versionsverlauf einer Notiz
+- Echtzeit-Kollaboration im selben Dokument (heute: Konflikt-Kopie)
+
+---
+
+## 🚀 Lokale Entwicklung
+
+Voraussetzungen: Node.js ≥ 22.13 (für `node:sqlite`), npm ≥ 9.
+
+```bash
+npm install
+npm run dev
+```
+
+- Frontend (Vite): http://localhost:5174 – leitet `/api` an den Server weiter
+- Backend: http://localhost:3002
+- **Dev-Login:** Auf der Anmeldeseite gibt es lokal den Button „Dev-Login“ (Benutzer `dev`, nur mit `DEV_LOGIN=1` und außerhalb von Production)
+- Beim ersten Start schreibt der Server einen Einladungslink ins Log (`✉️ Erste Einladung …`). Passkeys funktionieren auf `localhost` auch ohne HTTPS
+- Neu anfangen: `packages/server/data/` löschen
+
+```bash
+npm run build   # shared → server → client
+npm run test    # Abfragesprache, Aufgaben, Notiz-/Benutzer-Store
+```
+
+---
+
+## 🐳 Betrieb mit Docker
+
+```bash
+PUBLIC_URL=https://notes.example.org docker compose up --build -d
+docker logs kladde   # enthält die erste Einladung
+```
+
+Die App läuft dann auf Port `13002`. **Passkeys brauchen HTTPS** (außer auf localhost) und sind an die Domain aus `PUBLIC_URL` gebunden – betreibe die App hinter einem Reverse-Proxy (Caddy, nginx, Traefik) und setze `TRUST_PROXY=1`.
+
+Einladungen ohne Telegram:
+
+```bash
+docker exec kladde node packages/server/dist/cli.js einladen Anna
+```
+
+| Variable | Bedeutung |
+| --- | --- |
+| `PUBLIC_URL` | Öffentliche Adresse; legt die Passkey-Domain fest und baut Einladungslinks |
+| `TRUST_PROXY` | `1` hinter einem Reverse-Proxy |
+| `DATA_KEY` | Schlüssel für die Verschlüsselung (`openssl rand -base64 32`). Leer = Schlüsseldatei `data/secret.key` im Volume |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ADMIN_USER_IDS` | Admin-Bot wie bei Project Gamma: `/einladen`, `/einladungen`, `/konten`, `/sperren`, `/status`, `/protokoll` |
+| `BACKUP_KEEP` | Tägliche Datenbank-Backups in `data/backups` (Standard 7, `0` = aus) |
+| `EXPORT_DIR` | Klartext-Spiegel der Notizen (z. B. NAS), leer = aus |
+
+**Zur Verschlüsselung:** Liegt der Schlüssel im selben Volume wie die Datenbank, schützt das Kopien der Datenbank und Backups (NAS, Git), nicht einen vollständig übernommenen Server. Für mehr Schutz `DATA_KEY` als Secret übergeben. Den Schlüssel unbedingt sichern – ohne ihn sind die Notizen verloren.
+
+---
+
+## 📁 Projektstruktur
+
+```
+kladde/
+├── packages/
+│   ├── shared/   # Typen, Markdown-Metadaten, Aufgaben-Parser (Fälligkeit/Wiederholung), Abfragesprache
+│   ├── server/   # Express + node:sqlite: Passkeys (SimpleWebAuthn), Sync, Freigaben, Dateien, Telegram-Admin
+│   └── client/   # React 18 + Vite + Tailwind + CodeMirror 6, IndexedDB-Sync, PWA
+├── scripts/      # release.mjs, docker-entrypoint.sh (aus Project Gamma)
+├── Dockerfile
+└── docker-compose.yml
+```
+
+### Sync-Protokoll (Kurzfassung)
+- `GET /api/sync?since=N` → alle eigenen und geteilten Notizen mit `seq > N`, entzogene Freigaben, neuer Cursor
+- `POST /api/sync` mit `{ changes: [{ id, baseVersion, path, content, deleted }] }` → je Notiz `ok` (neue Version), `conflict` (Serverstand) oder `forbidden`
+- `GET /api/events` (SSE) meldet `changed`, damit andere Geräte sofort nachladen

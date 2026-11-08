@@ -1,0 +1,140 @@
+import { useState } from 'react';
+import { ArrowDownAZ, Clock, CornerLeftUp, Folder, FolderPlus, Plus, Users } from 'lucide-react';
+import { excerpt, extractMeta, splitPath } from '@kladde/shared';
+import { useVault, vault } from '../data/vault';
+import type { LocalNote } from '../data/db';
+import { navigate } from '../lib/router';
+import { FolderNameInput, newNote } from './Shell';
+import { dragSource, useDropTarget } from '../lib/dnd';
+
+export function NoteCard({ note }: { note: LocalNote }) {
+  const meta = extractMeta(note.path, note.content);
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      {...(note.access === 'owner' ? dragSource({ kind: 'note', id: note.id }) : {})}
+      onClick={() => navigate(`/n/${note.id}`)}
+      onKeyDown={(e) => e.key === 'Enter' && navigate(`/n/${note.id}`)}
+      className="card group w-full cursor-pointer p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40"
+    >
+      <div className="flex items-center gap-2">
+        <span className="truncate font-medium">{meta.title}</span>
+        {note.access !== 'owner' && (
+          <span className="chip">
+            <Users size={11} /> {note.owner}
+          </span>
+        )}
+        {note.dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title="Noch nicht synchronisiert" />}
+      </div>
+      <p className="mt-1 line-clamp-2 text-sm text-muted">{excerpt(note.content) || 'Leer'}</p>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-faint">
+        <span>{new Date(note.updatedAt).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' })}</span>
+        {meta.tags.slice(0, 4).map((t) => (
+          <span key={t} className="cm-tag">
+            #{t}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Subfolder chip: opens the folder, accepts dropped notes and folders, can itself be dragged */
+function FolderChip({ path }: { path: string }) {
+  const drop = useDropTarget(path);
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      {...dragSource({ kind: 'folder', path })}
+      {...drop.props}
+      className={`drop-target chip cursor-pointer px-3 py-1.5 text-sm hover:text-ink ${drop.over ? 'drop-over' : ''}`}
+      onClick={() => navigate(`/f/${encodeURIComponent(path)}`)}
+      onKeyDown={(e) => e.key === 'Enter' && navigate(`/f/${encodeURIComponent(path)}`)}
+    >
+      <Folder size={14} /> {path.split('/').pop()}
+    </div>
+  );
+}
+
+/** "Up one level" chip, also a drop target for the parent folder */
+function ParentChip({ folder }: { folder: string }) {
+  const drop = useDropTarget(folder);
+  return (
+    <button
+      {...drop.props}
+      className={`drop-target chip px-3 py-1.5 text-sm hover:text-ink ${drop.over ? 'drop-over' : ''}`}
+      onClick={() => navigate(folder ? `/f/${encodeURIComponent(folder)}` : '/notes')}
+      title={folder || 'Oberste Ebene'}
+    >
+      <CornerLeftUp size={14} /> {folder ? folder.split('/').pop() : 'Oberste Ebene'}
+    </button>
+  );
+}
+
+/** Notes of one folder (with subfolders), all notes, or the ones shared with me */
+export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | 'all' | 'shared' }) {
+  useVault();
+  const [sort, setSort] = useState<'updated' | 'title'>('updated');
+  const [creating, setCreating] = useState(false);
+  let notes = vault.list();
+  if (mode === 'shared') notes = notes.filter((n) => n.access !== 'owner');
+  else notes = notes.filter((n) => n.access === 'owner');
+  if (mode === 'folder' && folder !== undefined) notes = notes.filter((n) => splitPath(n.path).folder === folder);
+  notes.sort((a, b) => (sort === 'updated' ? b.updatedAt - a.updatedAt : a.path.localeCompare(b.path, 'de', { numeric: true })));
+  const subfolders = mode === 'folder' ? vault.folders().filter((f) => f.startsWith(`${folder}/`) && !f.slice(folder!.length + 1).includes('/')) : [];
+  const parent = mode === 'folder' && folder ? (folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) : '') : null;
+  const title = mode === 'all' ? 'Alle Notizen' : mode === 'shared' ? 'Mit mir geteilt' : folder!.split('/').pop();
+
+  return (
+    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-8 sm:py-10">
+      <div className="mb-6 flex items-center gap-2 anim-fade-up">
+        <div className="min-w-0 flex-1">
+          {mode === 'folder' && folder!.includes('/') && <p className="truncate text-sm text-faint">{folder!.split('/').slice(0, -1).join(' / ')}</p>}
+          <h1 className="truncate text-2xl font-bold tracking-tight">{title}</h1>
+        </div>
+        <button className="btn-icon" title="Sortierung" onClick={() => setSort(sort === 'updated' ? 'title' : 'updated')}>
+          {sort === 'updated' ? <Clock size={18} /> : <ArrowDownAZ size={18} />}
+        </button>
+        {mode !== 'shared' && (
+          <button className="btn-primary" onClick={() => newNote(folder)}>
+            <Plus size={16} /> Neu
+          </button>
+        )}
+      </div>
+      {mode === 'folder' && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {parent !== null && <ParentChip folder={parent} />}
+          {subfolders.map((f) => (
+            <FolderChip key={f} path={f} />
+          ))}
+          {creating ? (
+            <div className="w-56">
+              <FolderNameInput
+                placeholder="Name des Unterordners"
+                onDone={(name) => {
+                  setCreating(false);
+                  if (name) void vault.addFolder(`${folder}/${name.replace(/\//g, '-')}`);
+                }}
+              />
+            </div>
+          ) : (
+            <button className="chip px-3 py-1.5 text-sm hover:text-ink" onClick={() => setCreating(true)}>
+              <FolderPlus size={14} /> Unterordner
+            </button>
+          )}
+        </div>
+      )}
+      {notes.length === 0 ? (
+        <div className="py-16 text-center text-faint anim-fade-in">Noch keine Notizen hier.</div>
+      ) : (
+        <div className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {notes.map((n) => (
+            <NoteCard key={n.id} note={n} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

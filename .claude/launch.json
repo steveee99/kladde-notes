@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "npx concurrently -n shared,server,client -c blue,green,magenta \"npm run build:watch --workspace=packages/shared\" \"npm run dev --workspace=packages/server\" \"npm run dev --workspace=packages/client -- --host\""
+      ],
+      "port": 5174
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+# Fixed project name: container and volume names stay the same whatever the folder is called
+name: kladde
+services:
+  kladde:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kladde
+    stop_grace_period: 10s
+    ports:
+      - "13002:3002"
+    environment:
+      - PORT=3002
+      - NODE_ENV=production
+      - DB_PATH=/app/data/kladde.sqlite
+      # Public address (e.g. https://notes.example.org). Required for passkeys: they are bound to this domain
+      - PUBLIC_URL=${PUBLIC_URL:-}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+      # Behind a reverse proxy (nginx, Caddy, Traefik): 1 = trust one proxy hop
+      - TRUST_PROXY=${TRUST_PROXY:-}
+      # Key for the encryption at rest (base64, 32 bytes: `openssl rand -base64 32`).
+      # Empty = a key file is generated in the data volume (protects backups and copies of the database only)
+      - DATA_KEY=${DATA_KEY:-}
+      # Telegram admin bot for invites (like Project Gamma); without it the first invite code is printed to the log
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - TELEGRAM_ADMIN_USER_IDS=${TELEGRAM_ADMIN_USER_IDS:-}
+      # Daily database backup in data/backups; how many to keep, 0 = off
+      - BACKUP_KEEP=${BACKUP_KEEP:-7}
+      # Optional plain Markdown mirror of all notes (e.g. a NAS share mounted at /app/export), empty = off
+      - EXPORT_DIR=${EXPORT_DIR:-}
+    volumes:
+      - kladde-data:/app/data
+      # NAS mirror: uncomment and set EXPORT_DIR=/app/export
+      # - /mnt/nas/notes:/app/export
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+
+volumes:
+  kladde-data:
