@@ -5,6 +5,7 @@ import type { SyntaxNode } from '@lezer/common';
 import {
   CheckboxWidget,
   CodeHeaderWidget,
+  DiagramWidget,
   DueWidget,
   GalleryWidget,
   ImageWidget,
@@ -18,7 +19,7 @@ import {
 
 /**
  * Obsidian-style live preview: Markdown syntax is hidden and rendered everywhere except in the
- * lines the cursor is in. Tables, ```query and ```gallery blocks become interactive widgets.
+ * lines the cursor is in. Tables, ```query, ```gallery, ```mermaid and ```mindmap blocks become interactive widgets.
  * Block widgets must come from a StateField (not a view plugin), so all decorations are built here.
  */
 
@@ -200,6 +201,10 @@ function build(state: EditorState): DecorationSet {
           if (!editing && (lang === 'query' || lang === 'gallery')) {
             const widget = lang === 'query' ? new QueryWidget(body, stamp, state.readOnly) : new GalleryWidget(body);
             blockWidget(node, Decoration.replace({ widget, block: true }));
+            return false;
+          }
+          if (!editing && (lang === 'mermaid' || lang === 'mindmap')) {
+            blockWidget(node, Decoration.replace({ widget: new DiagramWidget(lang, body), block: true }));
             return false;
           }
           for (let l = firstLine.number; l <= lastLine.number; l++) {

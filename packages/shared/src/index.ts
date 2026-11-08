@@ -9,3 +9,4 @@ export * from './review.js';
 export * from './util.js';
 export * from './version.js';
 export * from './recipe.js';
+export * from './diagram.js';

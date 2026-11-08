@@ -691,3 +691,57 @@ html[data-readonly] .edit-only {
   padding: 1px 8px;
   color: rgb(var(--muted));
 }
+
+/* ------------------------------------------------------------------ diagrams (```mermaid, ```mindmap) */
+
+.wz-diagram {
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+  border: 1px solid rgb(var(--line));
+  border-radius: 12px;
+  background: rgb(var(--surface));
+  overflow-x: auto;
+  cursor: zoom-in;
+  min-height: 64px;
+}
+.wz-diagram svg {
+  height: auto;
+  max-width: 100%;
+}
+.wz-diagram.wz-diagram-failed {
+  flex-direction: column;
+  gap: 8px;
+  cursor: default;
+}
+.wz-diagram-wait {
+  align-self: center;
+  font-size: 13px;
+  color: rgb(var(--faint));
+}
+.wz-diagram-src {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgb(var(--code-bg));
+  color: rgb(var(--muted));
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  white-space: pre-wrap;
+}
+.wz-diagram-lightbox {
+  background: rgb(var(--bg) / 0.96);
+}
+.wz-diagram-full {
+  width: min(96vw, 1400px);
+  max-height: 92vh;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+}
+.wz-diagram-full svg {
+  width: 100%;
+  max-width: none !important;
+  height: auto;
+  max-height: 90vh;
+}

@@ -2,6 +2,7 @@ import { EditorView, WidgetType } from '@codemirror/view';
 import { formatValue, parseDate, toDateString, toggleTask } from '@kladde/shared';
 import { dataTable, parseMarkdownTable, stripInline } from './datatable';
 import { editorHost } from './host';
+import { DiagramKind, drawDiagram, openDiagram } from './diagram';
 
 /** Moves the cursor into a block so it shows its source (the "✎" button of block widgets) */
 function editButton(view: EditorView, pos: () => number): HTMLElement {
@@ -122,6 +123,32 @@ export class GalleryWidget extends BlockWidget {
       grid.append(img);
     }
     return this.frame(view, grid);
+  }
+}
+
+/** ```mermaid and ```mindmap blocks; click opens the diagram full screen */
+export class DiagramWidget extends BlockWidget {
+  constructor(
+    readonly kind: DiagramKind,
+    src: string
+  ) {
+    super(src);
+  }
+  eq(other: DiagramWidget) {
+    return other.kind === this.kind && other.src === this.src;
+  }
+  get estimatedHeight() {
+    return 240;
+  }
+  toDOM(view: EditorView) {
+    const box = document.createElement('div');
+    box.className = 'cm-block-widget wz-diagram';
+    box.addEventListener('click', () => {
+      const svg = box.querySelector('svg');
+      if (svg) openDiagram(svg.outerHTML);
+    });
+    drawDiagram(box, this.kind, this.src, () => view.requestMeasure());
+    return this.frame(view, box);
   }
 }
 
