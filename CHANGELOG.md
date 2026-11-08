@@ -4,7 +4,10 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.3.2] – 2026-11-08
+
 <<<<<<< Updated upstream
+
 ## [0.3.1] – 2026-11-08
 =======
 - Behoben: In älteren iOS-Home-Bildschirm-Installationen (ab iOS 26.1) bleibt unter der unteren Leiste kein andersfarbiger Streifen mehr; die Leiste reicht optisch bis zum Rand.
