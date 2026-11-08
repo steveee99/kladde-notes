@@ -138,7 +138,8 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       res.status(400).json({ error: 'Diesen Benutzer gibt es nicht.' });
       return;
     }
-    live.notify(notes.shareFolder(req.user!.id, folder, target.id, !!req.body.canWrite));
+    const { canWrite, canCreate, canDelete } = req.body;
+    live.notify(notes.shareFolder(req.user!.id, folder, target.id, { canWrite: !!canWrite, canCreate: !!canCreate, canDelete: !!canDelete }));
     res.json(notes.folderShares(req.user!.id, folder));
   });
 

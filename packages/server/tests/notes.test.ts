@@ -94,7 +94,7 @@ describe('Folder shares', () => {
       change('privat-01', 'Tagebuch', 0, 'Privat/Tagebuch.md'),
       change('rezept-xx', 'Ähnlicher Name', 0, 'Rezepte alt/Suppe.md'),
     ]);
-    expect(notes.shareFolder(anna.id, 'Rezepte', ben.id, false)).toEqual(expect.arrayContaining([anna.id, ben.id]));
+    expect(notes.shareFolder(anna.id, 'Rezepte', ben.id, {})).toEqual(expect.arrayContaining([anna.id, ben.id]));
     expect(visible(notes, ben.id)).toEqual({ 'rezept-01': 'read', 'rezept-02': 'read' });
     expect(notes.pull(ben.id, 0).notes[0].owner).toBe('anna');
 
@@ -108,19 +108,19 @@ describe('Folder shares', () => {
     expect(events[0].audience).toEqual([anna.id, ben.id]);
     expect(notes.pull(ben.id, cursor).notes.map((n) => n.id)).toEqual(['rezept-03']);
 
-    notes.shareFolder(anna.id, 'Rezepte', ben.id, true);
+    notes.shareFolder(anna.id, 'Rezepte', ben.id, { canWrite: true });
     expect(visible(notes, ben.id)['rezept-01']).toBe('write');
     expect(notes.push(ben.id, [change('rezept-01', 'Pasta von Ben', 1, 'Ben/Pasta.md')])[0].status).toBe('ok');
     expect(notes.pull(anna.id, 0).notes.find((n) => n.id === 'rezept-01')).toMatchObject({ path: 'Rezepte/Pasta.md', content: 'Pasta von Ben' });
-    expect(notes.folderShares(anna.id, 'Rezepte').users).toEqual([{ username: 'ben', canWrite: true }]);
-    expect(notes.folderShares(anna.id, 'Rezepte/Backen').inherited).toEqual([{ username: 'ben', canWrite: true, viaFolder: 'Rezepte' }]);
+    expect(notes.folderShares(anna.id, 'Rezepte').users).toEqual([{ username: 'ben', canWrite: true, canCreate: false, canDelete: false }]);
+    expect(notes.folderShares(anna.id, 'Rezepte/Backen').inherited).toEqual([{ username: 'ben', canWrite: true, canCreate: false, canDelete: false, viaFolder: 'Rezepte' }]);
     expect(notes.shares(anna.id, 'rezept-01').users).toEqual([{ username: 'ben', canWrite: true, viaFolder: 'Rezepte' }]);
   });
 
   it('moving a note out of the folder or unsharing the folder revokes access', () => {
     const { notes, anna, ben } = setup();
     notes.push(anna.id, [change('rezept-01', 'Pasta', 0, 'Rezepte/Pasta.md'), change('rezept-02', 'Kuchen', 0, 'Rezepte/Kuchen.md')]);
-    notes.shareFolder(anna.id, 'Rezepte', ben.id, false);
+    notes.shareFolder(anna.id, 'Rezepte', ben.id, {});
     let cursor = notes.pull(ben.id, 0).cursor;
     notes.push(anna.id, [change('rezept-01', 'Pasta', 1, 'Privat/Pasta.md')]);
     expect(notes.pull(ben.id, cursor).revoked).toEqual(['rezept-01']);
@@ -139,7 +139,7 @@ describe('Folder shares', () => {
     const { notes, anna, ben } = setup();
     notes.push(anna.id, [change('rezept-01', 'Pasta', 0, 'Rezepte/Pasta.md')]);
     notes.share(anna.id, 'rezept-01', ben.id, true);
-    notes.shareFolder(anna.id, 'Rezepte', ben.id, false);
+    notes.shareFolder(anna.id, 'Rezepte', ben.id, {});
     expect(notes.shares(anna.id, 'rezept-01').users).toEqual([{ username: 'ben', canWrite: true }]);
     notes.unshare(anna.id, 'rezept-01', ben.id);
     expect(visible(notes, ben.id)).toEqual({ 'rezept-01': 'read' });
@@ -151,20 +151,74 @@ describe('Folder shares', () => {
   it('shares follow a renamed folder and are dropped with a deleted one', () => {
     const { notes, anna, ben } = setup();
     notes.push(anna.id, [change('rezept-01', 'Pasta', 0, 'Rezepte/Pasta.md')]);
-    notes.shareFolder(anna.id, 'Rezepte', ben.id, false);
+    notes.shareFolder(anna.id, 'Rezepte', ben.id, {});
     notes.push(anna.id, [change('rezept-01', 'Pasta', 1, 'Kochen/Pasta.md')]);
     notes.renameFolderShares(anna.id, 'Rezepte', 'Kochen');
     expect(visible(notes, ben.id)).toEqual({ 'rezept-01': 'read' });
-    expect(notes.folderShares(anna.id, 'Kochen').users).toEqual([{ username: 'ben', canWrite: false }]);
+    expect(notes.folderShares(anna.id, 'Kochen').users).toEqual([{ username: 'ben', canWrite: false, canCreate: false, canDelete: false }]);
 
     notes.dropFolderShares(anna.id, 'Kochen');
     expect(visible(notes, ben.id)).toEqual({});
     expect(notes.folderShares(anna.id, 'Kochen').users).toEqual([]);
   });
 
+  it('lets the recipient create notes in the owner\'s space when allowed', () => {
+    const { db, notes, anna, ben, events } = setup();
+    notes.push(anna.id, [change('rezept-01', 'Pasta', 0, 'Rezepte/Pasta.md')]);
+    notes.shareFolder(anna.id, 'Rezepte', ben.id, { canWrite: true });
+    expect(notes.pull(ben.id, 0).sharedFolders).toEqual([{ owner: 'anna', folder: 'Rezepte', canWrite: true, canCreate: false, canDelete: false }]);
+
+    // Without the create permission, outside the folder or for an unknown owner it is refused
+    const own = (id: string, path: string, owner: string) => ({ ...change(id, 'Von Ben', 0, path), owner });
+    expect(notes.push(ben.id, [own('rezept-ben', 'Rezepte/Curry.md', 'anna')])[0].status).toBe('forbidden');
+    notes.shareFolder(anna.id, 'Rezepte', ben.id, { canCreate: true });
+    expect(notes.pull(ben.id, 0).sharedFolders?.[0]).toMatchObject({ canWrite: true, canCreate: true });
+    expect(notes.push(ben.id, [own('privat-ben', 'Privat/Curry.md', 'anna')])[0].status).toBe('forbidden');
+    expect(notes.push(ben.id, [own('rezept-ben', 'Rezepte/Curry.md', 'niemand')])[0].status).toBe('forbidden');
+
+    events.length = 0;
+    expect(notes.push(ben.id, [own('rezept-ben', 'Rezepte/Backen/Curry.md', 'anna')])[0]).toEqual({ id: 'rezept-ben', status: 'ok', version: 1 });
+    expect((db.prepare('SELECT owner_id FROM notes WHERE id = ?').get('rezept-ben') as { owner_id: string }).owner_id).toBe(anna.id);
+    expect(events[0]).toMatchObject({ ownerId: anna.id, path: 'Rezepte/Backen/Curry.md' });
+    expect(events[0].audience).toEqual(expect.arrayContaining([anna.id, ben.id]));
+    expect(notes.pull(anna.id, 0).notes.find((n) => n.id === 'rezept-ben')).toMatchObject({ access: 'owner', content: 'Von Ben' });
+    expect(notes.pull(ben.id, 0).notes.find((n) => n.id === 'rezept-ben')).toMatchObject({ access: 'write', owner: 'anna' });
+
+    // Ben edits it like any shared note; after the share ends he sees nothing of it any more
+    expect(notes.push(ben.id, [change('rezept-ben', 'Curry, scharf', 1, 'Rezepte/Backen/Curry.md')])[0].status).toBe('ok');
+    notes.unshareFolder(anna.id, 'Rezepte', ben.id);
+    expect(visible(notes, ben.id)).toEqual({});
+    expect(notes.pull(ben.id, 0).sharedFolders).toEqual([]);
+    expect(notes.pull(anna.id, 0).notes.find((n) => n.id === 'rezept-ben')?.content).toBe('Curry, scharf');
+  });
+
+  it('lets the recipient delete notes only with the delete permission', () => {
+    const { notes, anna, ben } = setup();
+    notes.push(anna.id, [change('rezept-01', 'Pasta', 0, 'Rezepte/Pasta.md'), change('rezept-02', 'Kuchen', 0, 'Rezepte/Kuchen.md')]);
+    notes.shareFolder(anna.id, 'Rezepte', ben.id, { canWrite: true });
+    expect(notes.pull(ben.id, 0).notes.every((n) => !n.canDelete)).toBe(true);
+    const del = (id: string) => ({ ...change(id, '', 1, 'Rezepte/x.md'), deleted: true });
+    expect(notes.push(ben.id, [del('rezept-01')])[0].status).toBe('forbidden');
+    expect(notes.pull(anna.id, 0).notes.find((n) => n.id === 'rezept-01')).toMatchObject({ deleted: false, content: 'Pasta' });
+
+    // Delete implies edit; a changed permission reaches the recipient with the next pull
+    const cursor = notes.pull(ben.id, 0).cursor;
+    notes.shareFolder(anna.id, 'Rezepte', ben.id, { canDelete: true });
+    expect(notes.folderShares(anna.id, 'Rezepte').users[0]).toMatchObject({ canWrite: true, canDelete: true });
+    expect(notes.pull(ben.id, cursor).notes.map((n) => [n.id, n.canDelete])).toEqual(
+      expect.arrayContaining([
+        ['rezept-01', true],
+        ['rezept-02', true],
+      ])
+    );
+    expect(notes.push(ben.id, [del('rezept-02')])[0].status).toBe('ok');
+    expect(notes.pull(anna.id, 0).notes.find((n) => n.id === 'rezept-02')?.deleted).toBe(true);
+    expect(visible(notes, ben.id)).toEqual({ 'rezept-01': 'write' });
+  });
+
   it('cannot share a folder with oneself', () => {
     const { notes, anna } = setup();
-    expect(() => notes.shareFolder(anna.id, 'Rezepte', anna.id, false)).toThrow();
+    expect(() => notes.shareFolder(anna.id, 'Rezepte', anna.id, {})).toThrow();
   });
 });
 

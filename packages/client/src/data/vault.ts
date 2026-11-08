@@ -4,6 +4,7 @@ import {
   FOLDERS_NOTE_PATH,
   PullResponse,
   PushResponse,
+  SharedFolder,
   LinkIndex,
   PARA,
   SYSTEM_PREFIX,
@@ -50,6 +51,8 @@ class Vault {
   message = '';
   lastSync: number | null = null;
   ready = false;
+  /** Folders other users share with this user (from the last pull) */
+  sharedFolders: SharedFolder[] = [];
   private userId = '';
   private db: LocalDb | null = null;
   private version = 0;
@@ -88,6 +91,7 @@ class Vault {
     if (this.userId !== userId) return;
     this.db = db;
     for (const n of await this.db.getAll('notes')) this.notes.set(n.id, n);
+    this.sharedFolders = ((await this.db.get('meta', 'sharedFolders')) as SharedFolder[] | undefined) ?? [];
     this.ready = true;
     this.emit();
     window.addEventListener('online', this.kick);
@@ -104,6 +108,7 @@ class Vault {
     this.events?.close();
     this.events = null;
     this.notes.clear();
+    this.sharedFolders = [];
     this.ready = false;
     this.db = null;
     this.emit();
@@ -199,6 +204,37 @@ class Vault {
   async create(folder: string, title: string, content = ''): Promise<LocalNote> {
     if (isReadOnly()) throw new Error('Der Lesemodus ist aktiv.');
     return this.insert(folder, title, content);
+  }
+
+  /** A note in a folder another user shares with this user: it belongs to them and lives in their space */
+  async createShared(shared: SharedFolder, title: string, content = ''): Promise<LocalNote> {
+    if (isReadOnly()) throw new Error('Der Lesemodus ist aktiv.');
+    if (!shared.canCreate) throw new Error('Hier darfst du keine Notizen anlegen.');
+    const now = Date.now();
+    const note: LocalNote = {
+      id: newId(),
+      path: this.uniquePath(shared.folder, title),
+      content,
+      version: 0,
+      createdAt: now,
+      updatedAt: now,
+      deleted: false,
+      access: 'write',
+      owner: shared.owner,
+      ...(shared.canDelete ? { canDelete: true } : {}),
+      dirty: true,
+    };
+    await this.put(note);
+    this.schedule();
+    return note;
+  }
+
+  /** The shared folder (of its owner) a shared note lies in, the innermost one first */
+  sharedFolderOf(note: LocalNote): SharedFolder | undefined {
+    if (note.access === 'owner') return undefined;
+    return this.sharedFolders
+      .filter((f) => f.owner === note.owner && note.path.startsWith(`${f.folder}/`))
+      .sort((a, b) => b.folder.length - a.folder.length)[0];
   }
 
   /** Also used by sync (conflict copies) and the first start, which read-only mode must not stop */
@@ -354,9 +390,14 @@ class Vault {
 
   async remove(id: string): Promise<void> {
     const note = this.notes.get(id);
-    if (!note || note.access !== 'owner' || isReadOnly()) return;
+    if (!note || !this.canDelete(note) || isReadOnly()) return;
     await this.put({ ...note, deleted: true, updatedAt: Date.now(), dirty: true });
     this.schedule(0);
+  }
+
+  /** Own notes, and shared ones from a folder share that allows deleting */
+  canDelete(note: LocalNote): boolean {
+    return note.access === 'owner' || (note.access === 'write' && !!note.canDelete);
   }
 
   async toggleTask(id: string, line: number): Promise<void> {
@@ -520,7 +561,17 @@ class Vault {
     const { results } = await api<PushResponse>('/sync', {
       method: 'POST',
       json: {
-        changes: dirty.map((n) => ({ id: n.id, baseVersion: n.version, path: n.path, content: n.content, deleted: n.deleted, createdAt: n.createdAt, updatedAt: n.updatedAt })),
+        changes: dirty.map((n) => ({
+          id: n.id,
+          baseVersion: n.version,
+          path: n.path,
+          content: n.content,
+          deleted: n.deleted,
+          createdAt: n.createdAt,
+          updatedAt: n.updatedAt,
+          // New note in a folder someone shares with us: it is created in their space
+          ...(n.version === 0 && n.access !== 'owner' && n.owner ? { owner: n.owner } : {}),
+        })),
       },
     });
     const pushed = new Map(dirty.map((n) => [n.id, n]));
@@ -536,6 +587,13 @@ class Vault {
         } else await this.put({ ...current, version: r.version, dirty: !unchanged });
       } else if (r.status === 'conflict') {
         await this.resolveConflict(current, r.server);
+      } else if (current.version === 0 && current.access !== 'owner' && !current.deleted) {
+        // Creating in a shared folder is no longer allowed: the text stays, as an own note in the inbox
+        const { owner: _owner, canDelete: _canDelete, ...rest } = current;
+        await this.put({ ...rest, access: 'owner', path: this.uniquePath(PARA.inbox, splitPath(current.path).name, current.id), dirty: true });
+      } else if (current.deleted && current.access !== 'owner') {
+        // Deleting is not (or no longer) allowed: the note comes back
+        await this.put({ ...current, deleted: false, canDelete: false, dirty: false });
       } else {
         // Not allowed (e.g. read-only share): drop the local change
         await this.put({ ...current, dirty: false });
@@ -555,6 +613,10 @@ class Vault {
     for (const id of res.revoked) {
       this.notes.delete(id);
       await this.db!.delete('notes', id);
+    }
+    if (res.sharedFolders) {
+      this.sharedFolders = res.sharedFolders;
+      await this.db!.put('meta', res.sharedFolders, 'sharedFolders');
     }
     await this.db!.put('meta', res.cursor, 'cursor');
     this.emit();

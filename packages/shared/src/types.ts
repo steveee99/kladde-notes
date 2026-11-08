@@ -14,6 +14,22 @@ export interface SyncedNote {
   access: NoteAccess;
   /** Username of the owner (only set for notes shared with the user) */
   owner?: string;
+  /** A shared note the user may delete (folder share with delete permission) */
+  canDelete?: boolean;
+}
+
+/** What a user may do in a folder shared with them (reading is always allowed) */
+export interface FolderPermissions {
+  canWrite: boolean;
+  /** Create notes in the folder; they belong to the owner and live in the owner's space */
+  canCreate: boolean;
+  canDelete: boolean;
+}
+
+/** A folder another user shares with the signed-in user */
+export interface SharedFolder extends FolderPermissions {
+  owner: string;
+  folder: string;
 }
 
 export interface PullResponse {
@@ -21,6 +37,8 @@ export interface PullResponse {
   /** Ids the user lost access to (share revoked) */
   revoked: string[];
   cursor: number;
+  /** All folders other users currently share with the user (always complete, not only changes) */
+  sharedFolders?: SharedFolder[];
 }
 
 export interface PushChange {
@@ -32,6 +50,8 @@ export interface PushChange {
   deleted: boolean;
   createdAt: number;
   updatedAt: number;
+  /** New note in a folder another user shares with the caller: that user's name; the note belongs to them */
+  owner?: string;
 }
 
 export type PushResult =
@@ -101,6 +121,10 @@ export interface NoteShare {
   canWrite: boolean;
   /** Set when the access comes from a shared folder (managed there, not on the note) */
   viaFolder?: string;
+  /** Folder shares only: may create notes in the folder */
+  canCreate?: boolean;
+  /** Folder shares only: may delete notes in the folder */
+  canDelete?: boolean;
 }
 
 export interface FolderShares {

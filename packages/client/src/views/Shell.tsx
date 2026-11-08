@@ -237,7 +237,7 @@ function Sidebar({ onNavigate, isAdmin }: { onNavigate?: () => void; isAdmin?: b
       {item('/search', Search, 'Suche')}
       {item('/graph', Network, 'Wissensnetz')}
       {item('/review', CalendarCheck, 'Wochenrückblick', reviewDue() ? <span className="h-2 w-2 rounded-full bg-accent" /> : null)}
-      {shared > 0 && item('/shared', Share2, 'Mit mir geteilt', <span className="text-xs text-faint">{shared}</span>)}
+      {(shared > 0 || vault.sharedFolders.length > 0) && item('/shared', Share2, 'Mit mir geteilt', <span className="text-xs text-faint">{shared || ''}</span>)}
       <div className="mt-4 mb-1 flex items-center justify-between px-2.5 text-xs font-semibold uppercase tracking-wider text-faint">
         Ordner
         <button className="edit-only rounded p-1 hover:bg-raised hover:text-ink" title="Neuer Ordner" onClick={() => setNewRoot(true)}>

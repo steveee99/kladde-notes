@@ -160,6 +160,16 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 5,
+    description: 'Folder share permissions: create and delete notes in the shared folder',
+    up(db) {
+      db.exec(`
+        ALTER TABLE folder_shares ADD COLUMN can_create INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE folder_shares ADD COLUMN can_delete INTEGER NOT NULL DEFAULT 0;
+      `);
+    },
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number[] {

@@ -6,6 +6,8 @@ import type { LocalNote } from '../data/db';
 import { navigate } from '../lib/router';
 import { FolderNameInput, newNote } from './Shell';
 import { dragSource, useDropTarget } from '../lib/dnd';
+import { describePermissions } from './ShareDialog';
+import type { SharedFolder } from '@kladde/shared';
 
 export function NoteCard({ note }: { note: LocalNote }) {
   const meta = extractMeta(note.path, note.content);
@@ -77,6 +79,78 @@ function ParentRow({ folder }: { folder: string }) {
       <CornerLeftUp size={17} className="shrink-0" />
       <span className="min-w-0 flex-1 truncate">{folder ? folder.split('/').pop() : 'Oberste Ebene'}</span>
     </li>
+  );
+}
+
+/** One folder another user shares with me: its notes, and a new note in it when that is allowed */
+function SharedFolderSection({ shared, notes }: { shared: SharedFolder; notes: LocalNote[] }) {
+  const [creating, setCreating] = useState(false);
+  return (
+    <section className="anim-fade-up">
+      <div className="mb-2 flex items-center gap-2">
+        <Folder size={16} className="shrink-0 text-accent" />
+        <h2 className="min-w-0 truncate font-semibold" title={shared.folder}>
+          {shared.folder.split('/').pop()}
+        </h2>
+        <span className="chip shrink-0">
+          <Users size={11} /> {shared.owner} · {describePermissions(shared)}
+        </span>
+        {shared.canCreate && !creating && (
+          <button className="edit-only btn-ghost ml-auto shrink-0" onClick={() => setCreating(true)}>
+            <Plus size={16} /> <span className="hidden sm:inline">Neue Notiz</span>
+          </button>
+        )}
+      </div>
+      {creating && (
+        <div className="mb-3">
+          <FolderNameInput
+            placeholder={`Titel der neuen Notiz in „${shared.folder.split('/').pop()}“`}
+            onDone={(title) => {
+              setCreating(false);
+              if (title) void vault.createShared(shared, title.replace(/[\\/]/g, '-')).then((n) => navigate(`/n/${n.id}`));
+            }}
+          />
+        </div>
+      )}
+      {notes.length === 0 ? (
+        <p className="px-1 text-sm text-faint">Noch keine Notizen in diesem Ordner.</p>
+      ) : (
+        <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {notes.map((n) => (
+            <NoteCard key={n.id} note={n} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** "Shared with me": grouped by the folders shared with me, then single shared notes */
+function SharedList({ notes }: { notes: LocalNote[] }) {
+  const byFolder = new Map<SharedFolder, LocalNote[]>(vault.sharedFolders.map((f) => [f, []]));
+  const single: LocalNote[] = [];
+  for (const n of notes) {
+    const f = vault.sharedFolderOf(n);
+    if (f && byFolder.has(f)) byFolder.get(f)!.push(n);
+    else single.push(n);
+  }
+  if (!notes.length && !vault.sharedFolders.length) return <div className="py-16 text-center text-faint anim-fade-in">Noch hat niemand etwas mit dir geteilt.</div>;
+  return (
+    <div className="space-y-8">
+      {[...byFolder].map(([f, list]) => (
+        <SharedFolderSection key={`${f.owner}/${f.folder}`} shared={f} notes={list} />
+      ))}
+      {single.length > 0 && (
+        <section className="anim-fade-up">
+          {byFolder.size > 0 && <h2 className="mb-2 font-semibold">Einzelne Notizen</h2>}
+          <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {single.map((n) => (
+              <NoteCard key={n.id} note={n} />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
   );
 }
 
@@ -154,7 +228,9 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
           )}
         </ul>
       )}
-      {notes.length === 0 ? (
+      {mode === 'shared' ? (
+        <SharedList notes={notes} />
+      ) : notes.length === 0 ? (
         <div className="py-16 text-center text-faint anim-fade-in">Noch keine Notizen hier.</div>
       ) : (
         <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

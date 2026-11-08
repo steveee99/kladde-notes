@@ -94,6 +94,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   // The read-only switch locks the note like a share with read access
   const readOnly = sharedReadOnly || locked;
   const isOwner = note.access === 'owner' && !locked;
+  // Own notes, or shared ones whose folder share allows deleting
+  const mayDelete = !locked && vault.canDelete(note);
   const { folder } = splitPath(note.path);
   const index = vault.links();
   const backlinks = index.backlinks(id).map((b) => vault.get(b)!).filter(Boolean);
@@ -128,7 +130,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             </select>
           ) : (
             <span className="chip">
-              <Users size={12} /> {note.owner} · {sharedReadOnly ? 'nur lesen' : 'bearbeiten'}
+              <Users size={12} /> {note.owner} · {sharedReadOnly ? 'nur lesen' : note.canDelete ? 'bearbeiten, löschen' : 'bearbeiten'}
             </span>
           )}
           <div className="ml-auto flex items-center">
@@ -142,14 +144,14 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 <Share2 size={18} />
               </button>
             )}
-            {isOwner && (
+            {mayDelete && (
               <button
                 className="btn-icon hover:!text-danger"
                 title="Löschen"
                 onClick={() => {
                   if (confirm(`„${name}“ löschen?`)) {
                     void vault.remove(id);
-                    navigate(folder ? `/f/${encodeURIComponent(folder)}` : '/notes', true);
+                    navigate(!isOwner ? '/shared' : folder ? `/f/${encodeURIComponent(folder)}` : '/notes', true);
                   }
                 }}
               >
