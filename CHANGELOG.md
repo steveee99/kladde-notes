@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.5.0] – 2026-11-08
+
 - Neu: Verwaltung für Admins (Seitenleiste bzw. Einstellungen → „Verwaltung“): alle Konten mit Passkeys, Notizen und letzter Aktivität; Passwort zurücksetzen (neues Zufallspasswort, das Konto wird überall abgemeldet), Gerätecode für einen neuen Passkey erzeugen, Admin-Rolle vergeben oder nehmen, Konten sperren und entsperren. Dazu Einladungen erstellen, Links kopieren und löschen sowie das Protokoll der Anmeldungen und Admin-Aktionen. Das älteste Konto ist automatisch Admin.
 - Neu: Anmeldung mit Benutzername und Passwort als Alternative zum Passkey, z. B. wenn Kladde im lokalen Netz ohne HTTPS läuft (dort gehen Passkeys nicht). Ohne HTTPS zeigt die Anmeldung direkt das Passwort-Formular; Einladungen lassen sich auch mit Passwort annehmen. Das Passwort legst du in den Einstellungen fest, änderst oder entfernst es dort.
 - Neu: Telegram-Befehle `/passwort BENUTZER` (neues Zufallspasswort) und `/admin BENUTZER [an|aus]`.
