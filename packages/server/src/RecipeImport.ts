@@ -34,7 +34,31 @@ export function isPrivateAddress(ip: string): boolean {
   const v6 = ip.toLowerCase();
   const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(v6);
   if (mapped) return isPrivateAddress(mapped[1]);
-  return v6 === '::' || v6 === '::1' || /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6) || v6.startsWith('ff') || v6.startsWith('64:ff9b');
+  // NAT64 (64:ff9b::/96, RFC 6052): an IPv6-only network with DNS64 hands out public IPv4 hosts this way,
+  // so judge the embedded IPv4 address instead of the prefix. Other 64:ff9b ranges (e.g. the local-use /48) stay blocked.
+  if (v6.startsWith('64:ff9b')) {
+    const nat64 = embeddedNat64(v6);
+    return nat64 === null || isPrivateAddress(nat64);
+  }
+  return v6 === '::' || v6 === '::1' || /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6) || v6.startsWith('ff');
+}
+
+/** The IPv4 address inside a 64:ff9b::/96 address, or null if it is not one */
+function embeddedNat64(v6: string): string | null {
+  if (!net.isIPv6(v6)) return null;
+  let text = v6;
+  const dotted = /(\d+\.\d+\.\d+\.\d+)$/.exec(text);
+  if (dotted) {
+    const [a, b, c, d] = dotted[1].split('.').map(Number);
+    text = text.slice(0, -dotted[1].length) + ((a << 8) | b).toString(16) + ':' + ((c << 8) | d).toString(16);
+  }
+  const [head, tail] = text.split('::');
+  const left = head ? head.split(':') : [];
+  const right = tail === undefined ? [] : tail ? tail.split(':') : [];
+  const groups = tail === undefined ? left : [...left, ...Array(8 - left.length - right.length).fill('0'), ...right];
+  const words = groups.map((g) => parseInt(g, 16));
+  if (words.length !== 8 || words[0] !== 0x64 || words[1] !== 0xff9b || words.slice(2, 6).some((w) => w !== 0)) return null;
+  return [words[6] >> 8, words[6] & 0xff, words[7] >> 8, words[7] & 0xff].join('.');
 }
 
 const safeLookup: net.LookupFunction = (hostname, options, callback) => {
