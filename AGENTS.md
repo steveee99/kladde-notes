@@ -1,7 +1,7 @@
 # Guidelines for AI Agents Working on Kladde
 
 ## Project Overview
-Self-hosted, offline-first Markdown notes app (PWA). Infrastructure (npm workspaces, Docker hardening, invites, Telegram admin bot, release script, Git Flow) is carried over from the sibling project Project Gamma (`../project-gamma`).
+Self-hosted, offline-first Markdown notes app (PWA). Infrastructure (npm workspaces, Docker hardening, invites, Telegram admin bot, release script) is carried over from the sibling project Project Gamma (`../project-gamma`).
 
 ## Monorepo Architecture
 - `packages/shared`: Pure logic without browser or node dependencies: sync contracts (`types.ts`), Markdown metadata/frontmatter (`markdown.ts`), task parsing/recurrence (`tasks.ts`), the query language (`query.ts`), PARA roles and Zettel ids (`para.ts`), link resolution/backlinks/mentions/graph (`links.ts`), templates and the weekly review.
@@ -18,34 +18,17 @@ Self-hosted, offline-first Markdown notes app (PWA). Infrastructure (npm workspa
 7. **Commands:** `npm run build`, `npm run test`, `npm run dev`.
 8. **Versioning & Changelog:** one SemVer version for the monorepo; user-facing changes go (German) under `## [Unveröffentlicht]` in `CHANGELOG.md`; release with `npm run release -- patch|minor|major`.
 
-## Git Flow
-The repo follows Git Flow. **`main` and `develop` are protected by convention: never commit or push to them directly, and never force-push.** (GitHub-side branch protection is not enabled because the repo is private on a free plan, so nothing technical stops a direct push; agents must not rely on that.) Every change reaches them through a pull request from a branch; PRs need a green CI run (`.github/workflows/ci.yml`: build + test).
-
-| Branch | Branches off | Merges into | Purpose |
-| --- | --- | --- | --- |
-| `main` | – | – | Released versions only; every release is tagged `vX.Y.Z` |
-| `develop` | – | – | Integration branch for the next release |
-| `feature/<name>` (also `fix/<name>`) | `develop` | `develop` | New features and non-urgent fixes |
-| `release/<x.y.z>` | `develop` | `main`, then back into `develop` | Stabilisation, version bump, release candidates |
-| `hotfix/<name>` | `main` | `main`, then back into `develop` | Urgent production fixes |
+## Git
+For now the project works on a single branch: **`main`**, kept up to date locally. There is no remote, no `develop` and no feature/release branches (the owner decided this on 2026-11-08; Git Flow from Project Gamma may come back later).
 
 Rules for agents:
-1. Before starting work, make sure you are on a feature branch cut from an up-to-date `develop` (`git switch develop && git pull && git switch -c feature/<name>`). If the checkout is on `main` or `develop`, branch first.
-2. Commit in English (conventional style: `feat:`, `fix:`, `chore:`), push the branch and open a PR against `develop` (hotfix: against `main`). Merge only via PR; do not merge or push to protected branches yourself unless the user asks.
-3. Changelog entries (German) are added in the feature PR under `## [Unveröffentlicht]`.
-4. Features merged into `develop` use squash or merge commits; `release/*` and `hotfix/*` PRs into `main` use a **merge commit** so `main` and `develop` stay related, and the tag lands on `main`.
+1. Commit finished, building work directly on `main` (`npm run build` and `npm run test` must pass first). Commit only when the user asks for it.
+2. Commit messages in English, conventional style (`feat:`, `fix:`, `chore:`, `docs:`), ending with the attribution lines the session asks for.
+3. Never rewrite history on `main` (no amend of pushed/shared commits, no reset, no force).
+4. Changelog entries (German) go under `## [Unveröffentlicht]` in `CHANGELOG.md`.
 
 ### Releasing
 ```bash
-git switch develop && git pull && git switch -c release/0.2.0
-npm run release -- minor --rc            # 0.2.0-rc.1: bumps versions only, changelogs untouched
-git commit -am "chore(release): v0.2.0-rc.1" && git tag v0.2.0-rc.1
-# fixes for the candidate are committed on the release branch, then:
-npm run release -- rc                    # 0.2.0-rc.2, rc.3, ...
-npm run release -- final                 # 0.2.0: moves "Unveröffentlicht" into the changelogs
-git commit -am "chore(release): v0.2.0"
+npm run release -- patch|minor|major     # bumps all versions, moves "Unveröffentlicht" into a release
+git commit -am "chore(release): vX.Y.Z" && git tag vX.Y.Z
 ```
-Then open a PR `release/0.2.0` → `main` (merge commit), tag `v0.2.0` on `main`, and open a second PR `main` → `develop` (or `release/0.2.0` → `develop`) to carry the release commits and fixes back. Skip the RC steps for a plain release: `npm run release -- minor`. Release candidates are SemVer pre-releases (`x.y.z-rc.N`); while one is in flight only `rc` and `final` are accepted. Tag RCs on the release branch, never on `main`.
-Hotfix: branch `hotfix/<name>` from `main`, fix, `npm run release -- patch`, PR into `main`, tag, back-merge into `develop`.
-
-

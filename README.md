@@ -4,7 +4,7 @@
 
 > Eine *Kladde* ist das Notizbuch, in das erst einmal alles hineinkommt, bevor es ins Reine geschrieben wird.
 
-> Status: **Proof of Concept (0.1.0)**. Infrastruktur (Monorepo, Docker-Härtung, Einladungen, Telegram-Admin, Release-Skript, Git Flow) stammt aus *Project Gamma*.
+> Status: **Proof of Concept (0.1.0)**. Infrastruktur (Monorepo, Docker-Härtung, Einladungen, Telegram-Admin, Release-Skript) stammt aus *Project Gamma*.
 
 ---
 
