@@ -19,16 +19,13 @@ Self-hosted, offline-first Markdown notes app (PWA). Infrastructure (npm workspa
 8. **Versioning & Changelog:** one SemVer version for the monorepo; user-facing changes go (German) under `## [Unveröffentlicht]` in `CHANGELOG.md`; release with `npm run release -- patch|minor|major`.
 
 ## Git
-For now the project works on a single branch: **`main`**, kept up to date locally. There is no remote, no `develop` and no feature/release branches (the owner decided this on 2026-11-08; Git Flow from Project Gamma may come back later).
+The project works on a single branch: **`main`** on GitHub (`origin`). There is no `develop` and no feature/release branches (the owner decided this on 2026-11-08; Git Flow from Project Gamma may come back later).
 
 Rules for agents:
-1. Commit finished, building work directly on `main` (`npm run build` and `npm run test` must pass first). Commit only when the user asks for it.
-2. Commit messages in English, conventional style (`feat:`, `fix:`, `chore:`, `docs:`), ending with the attribution lines the session asks for.
-3. Never rewrite history on `main` (no amend of pushed/shared commits, no reset, no force).
+1. Commit finished, building work directly on `main` (`npm run build` and `npm run test` must pass first). Commit or push only when the user asks for it.
+2. Commit messages in English, Conventional Commits (`feat:`, `fix:`, `perf:`, `docs:`, `chore:`, `ci:`; `!` or a `BREAKING CHANGE:` footer for breaking changes), ending with the attribution lines the session asks for. The type decides the release (below), so pick it carefully.
+3. Never rewrite history on `main` (no amend of pushed commits, no reset, no force).
 4. Changelog entries (German) go under `## [Unveröffentlicht]` in `CHANGELOG.md`.
+5. Run `git pull --rebase` before committing: the pipeline pushes release commits to `main`.
 
-### Releasing
-```bash
-npm run release -- patch|minor|major     # bumps all versions, moves "Unveröffentlicht" into a release
-git commit -am "chore(release): vX.Y.Z" && git tag vX.Y.Z
-```
+### Releasing and deploying (automatic)

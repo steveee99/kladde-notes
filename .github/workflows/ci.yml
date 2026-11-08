@@ -1,10 +1,10 @@
 name: CI
 
+# Pushes to main run CI as the first job of deploy.yml (no second run here).
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
+  workflow_call:
 
 jobs:
   build-test:
