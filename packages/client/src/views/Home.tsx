@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Briefcase, CalendarCheck, CalendarClock, Inbox as InboxIcon, Plus, Repeat } from 'lucide-react';
+import { AlignJustify, Briefcase, CalendarCheck, CalendarClock, Inbox as InboxIcon, List, Plus, Repeat } from 'lucide-react';
 import { PARA, Task, TaskBucket, bucketOf, parseTasks, projectsOf, roleOfPath, splitPath } from '@kladde/shared';
 import { openDialog } from '../lib/dialogs';
 import { reviewDue } from './Review';
@@ -7,7 +7,7 @@ import { useVault, vault } from '../data/vault';
 import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
 import { formatDue } from '../editor/widgets';
-import { NoteCard } from './NoteList';
+import { NoteCollection, ViewSwitch } from './NoteList';
 
 interface TaskRow extends Task {
   noteId: string;
@@ -21,15 +21,22 @@ const BUCKETS: { id: TaskBucket; label: string; tone: string }[] = [
   { id: 'someday', label: 'Ohne Datum', tone: 'text-muted' },
 ];
 
-function TaskItem({ task }: { task: TaskRow }) {
+function TaskItem({ task, compact }: { task: TaskRow; compact: boolean }) {
   const [leaving, setLeaving] = useState(false);
   const locked = useReadOnly();
   const bucket = bucketOf(task);
   return (
-    <li className={`group flex items-start gap-3 rounded-xl px-3 py-2.5 transition-all duration-300 hover:bg-raised/60 ${leaving ? 'translate-x-4 opacity-0' : ''}`}>
+    <li
+      title="Doppelklick öffnet die Notiz"
+      onDoubleClick={(e) => {
+        if ((e.target as HTMLElement).closest('input,button')) return;
+        navigate(`/n/${task.noteId}?line=${task.line + 1}`);
+      }}
+      className={`group flex items-center gap-3 rounded-xl px-3 transition-all duration-300 hover:bg-raised/60 ${compact ? 'py-1' : 'items-start py-2.5'} ${leaving ? 'translate-x-4 opacity-0' : ''}`}
+    >
       <input
         type="checkbox"
-        className="cm-checkbox mt-1 shrink-0"
+        className={`cm-checkbox shrink-0 ${compact ? '' : 'mt-1'}`}
         checked={leaving}
         disabled={locked}
         onChange={() => {
@@ -37,26 +44,37 @@ function TaskItem({ task }: { task: TaskRow }) {
           setTimeout(() => void vault.toggleTask(task.noteId, task.line), 280);
         }}
       />
-      <div className="min-w-0 flex-1">
-        <div className="text-[15px] leading-snug">{task.text || '(leer)'}</div>
-        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-          {task.due && (
-            <span className={`cm-due ${bucket === 'overdue' ? 'overdue' : bucket === 'today' ? 'today' : ''}`}>
-              <CalendarClock size={11} className="mr-1 inline" />
-              {formatDue(task.due)}
-            </span>
-          )}
-          {task.repeat && (
-            <span className="cm-due">
-              <Repeat size={11} className="mr-1 inline" />
-              {task.repeat}
-            </span>
-          )}
-          <button className="truncate text-xs text-faint hover:text-accent" onClick={() => navigate(`/n/${task.noteId}`)}>
+      {compact ? (
+        <>
+          <span className="min-w-0 flex-1 truncate text-sm">{task.text || '(leer)'}</span>
+          {task.repeat && <Repeat size={11} className="shrink-0 text-faint" />}
+          {task.due && <span className={`cm-due shrink-0 ${bucket === 'overdue' ? 'overdue' : bucket === 'today' ? 'today' : ''}`}>{formatDue(task.due)}</span>}
+          <button className="hidden max-w-[30%] shrink-0 truncate text-xs text-faint hover:text-accent sm:block" onClick={() => navigate(`/n/${task.noteId}`)}>
             {task.noteTitle}
           </button>
+        </>
+      ) : (
+        <div className="min-w-0 flex-1">
+          <div className="text-[15px] leading-snug">{task.text || '(leer)'}</div>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            {task.due && (
+              <span className={`cm-due ${bucket === 'overdue' ? 'overdue' : bucket === 'today' ? 'today' : ''}`}>
+                <CalendarClock size={11} className="mr-1 inline" />
+                {formatDue(task.due)}
+              </span>
+            )}
+            {task.repeat && (
+              <span className="cm-due">
+                <Repeat size={11} className="mr-1 inline" />
+                {task.repeat}
+              </span>
+            )}
+            <button className="truncate text-xs text-faint hover:text-accent" onClick={() => navigate(`/n/${task.noteId}`)}>
+              {task.noteTitle}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </li>
   );
 }
@@ -65,6 +83,21 @@ export function HomeView() {
   const version = useVault();
   const [input, setInput] = useState('');
   const [showSomeday, setShowSomeday] = useState(false);
+  const [compact, setCompactState] = useState(() => {
+    try {
+      return localStorage.getItem('kladde.tasksCompact') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const setCompact = (v: boolean) => {
+    setCompactState(v);
+    try {
+      localStorage.setItem('kladde.tasksCompact', v ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  };
   const notes = vault.list();
 
   const tasks = useMemo(() => {
@@ -128,7 +161,14 @@ export function HomeView() {
         </button>
       </form>
 
-      <section className="space-y-5">
+      {tasks.length > 0 && (
+        <div className="mb-2 flex justify-end anim-fade-up">
+          <button className="btn-ghost text-sm" aria-pressed={compact} onClick={() => setCompact(!compact)} title={compact ? 'Normale Ansicht' : 'Kompakte Ansicht'}>
+            {compact ? <List size={15} /> : <AlignJustify size={15} />} {compact ? 'Normal' : 'Kompakt'}
+          </button>
+        </div>
+      )}
+      <section className={compact ? 'space-y-3' : 'space-y-5'}>
         {BUCKETS.map((b) => {
           const list = tasks.filter((t) => bucketOf(t) === b.id);
           if (!list.length) return null;
@@ -146,7 +186,7 @@ export function HomeView() {
               </h2>
               <ul className="card stagger divide-y divide-line/60 p-1">
                 {list.map((t) => (
-                  <TaskItem key={`${t.noteId}:${t.line}:${t.text}`} task={t} />
+                  <TaskItem key={`${t.noteId}:${t.line}:${t.text}`} task={t} compact={compact} />
                 ))}
               </ul>
             </div>
@@ -184,12 +224,11 @@ export function HomeView() {
         </>
       )}
 
-      <h2 className="mt-10 mb-3 px-1 text-xs font-semibold uppercase tracking-wider text-faint">Zuletzt bearbeitet</h2>
-      <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {recent.map((n) => (
-          <NoteCard key={n.id} note={n} />
-        ))}
+      <div className="mt-10 mb-3 flex items-center justify-between px-1">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-faint">Zuletzt bearbeitet</h2>
+        <ViewSwitch />
       </div>
+      <NoteCollection notes={recent} cols="sm:grid-cols-2" />
     </div>
   );
 }

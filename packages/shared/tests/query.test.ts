@@ -28,6 +28,22 @@ describe('query', () => {
     expect(r.rows[0].values.text).toBe('Dach');
   });
 
+  it('builds kanban lanes in the given order, case-insensitively', () => {
+    const r = runQuery('KANBAN BY status VALUES "fertig", "Aktiv", "offen" FROM "1 Projekte"', notes);
+    expect(r.lanes?.map((l) => [l.value, l.rows.map((x) => x.noteId)])).toEqual([
+      ['fertig', ['2']],
+      ['Aktiv', ['1']],
+      ['offen', []],
+    ]);
+  });
+
+  it('derives kanban lanes from the found values and needs a field', () => {
+    const r = runQuery('KANBAN status', notes);
+    expect(r.lanes?.map((l) => l.value)).toEqual(['', 'aktiv', 'fertig']);
+    expect(() => parseQuery('KANBAN')).toThrow();
+    expect(() => parseQuery('KANBAN FROM "x"')).toThrow();
+  });
+
   it('extracts meta', () => {
     expect(extractMeta('a/b.md', 'x #Tag `#no` [[Link|Alias]]')).toMatchObject({ title: 'b', folder: 'a', tags: ['tag'], links: ['Link'] });
   });

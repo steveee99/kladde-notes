@@ -7,6 +7,8 @@ import {
   CodeHeaderWidget,
   DiagramWidget,
   DueWidget,
+  FootnoteDefWidget,
+  FootnoteRefWidget,
   GalleryWidget,
   ImageWidget,
   LinkWidget,
@@ -222,6 +224,19 @@ function build(state: EditorState): DecorationSet {
     },
   });
 
+  // Footnotes: definitions "[^id]: text" and references "[^id]", numbered by first reference
+  const defs = new Map<string, { text: string; pos: number }>();
+  const order: string[] = [];
+  for (let l = 1; l <= doc.lines; l++) {
+    if (codeLines.has(l) || doc.line(l).to <= fmEnd) continue;
+    const ln = doc.line(l);
+    const d = /^\[\^([^\]\s]+)\]:\s?(.*)$/.exec(ln.text);
+    if (d && !defs.has(d[1])) defs.set(d[1], { text: d[2], pos: ln.from });
+    for (const m of ln.text.matchAll(/\[\^([^\]\s]+)\](?!:)/g)) if (!order.includes(m[1])) order.push(m[1]);
+  }
+  for (const label of defs.keys()) if (!order.includes(label)) order.push(label);
+  const numberOf = (label: string) => order.indexOf(label) + 1;
+
   // Things the Markdown parser does not know: [[wikilinks]], #tags, due dates and repeat rules
   for (let l = 1; l <= doc.lines; l++) {
     if (codeLines.has(l) || doc.line(l).to <= fmEnd) continue;
@@ -232,6 +247,17 @@ function build(state: EditorState): DecorationSet {
       const to = from + m[0].length;
       if (lineActive) decos.push(mark('cm-wikilink').range(from, to));
       else replace(from, to, Decoration.replace({ widget: new WikiWidget(m[1].trim(), m[2]?.trim() ?? null) }));
+    }
+    const def = /^\[\^([^\]\s]+)\]:\s?/.exec(ln.text);
+    if (def) {
+      decos.push(line('cm-footnote-def').range(ln.from));
+      if (!lineActive && free(ln.from, ln.from + def[0].length)) replace(ln.from, ln.from + def[0].length, Decoration.replace({ widget: new FootnoteDefWidget(numberOf(def[1])) }));
+    }
+    for (const m of ln.text.matchAll(/\[\^([^\]\s]+)\](?!:)/g)) {
+      const from = ln.from + m.index!;
+      const to = from + m[0].length;
+      if (lineActive) decos.push(mark('cm-wikilink').range(from, to));
+      else replace(from, to, Decoration.replace({ widget: new FootnoteRefWidget(m[1], numberOf(m[1]), defs.get(m[1])?.text ?? '', defs.get(m[1])?.pos ?? null) }));
     }
     for (const m of ln.text.matchAll(/(^|\s)(#[\p{L}\p{N}_/-]*[\p{L}_/-][\p{L}\p{N}_/-]*)/gu)) {
       const from = ln.from + m.index! + m[1].length;

@@ -4,6 +4,12 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Notizlisten lassen sich zwischen Kacheln, Liste und Tabelle umschalten – in Ordnern, „Alle Notizen“, „Mit mir geteilt“, der Suche und „Zuletzt bearbeitet“ auf der Startseite. Die Wahl gilt überall und wird auf dem Gerät gemerkt.
+- Neu: Abfragen als Kanban-Board: ```` ```query ```` mit `KANBAN BY status VALUES "offen", "läuft", "fertig"` zeigt pro Wert eine Spalte mit den passenden Notizen (ohne `VALUES` werden die vorhandenen Werte genutzt; `FROM`, `WHERE`, `SORT`, `LIMIT` funktionieren wie sonst). Karten lassen sich in eine andere Spalte ziehen und setzen dabei das Feld in der Notiz. Neuer Slash-Befehl `/kanban`.
+- Neu: Aufgaben auf der Startseite gibt es in einer kompakten Ansicht (eine Zeile pro Aufgabe), umschaltbar per Knopf „Kompakt/Normal“.
+- Neu: Ein Doppelklick auf eine Aufgabe (Startseite und Aufgaben-Abfragen) öffnet die Notiz, aus der sie stammt, und springt zur Zeile.
+- Neu: Fußnoten. `[^1]` wird zur hochgestellten Nummer (Hover zeigt den Text, Klick springt zur Definition), Zeilen `[^1]: Text` erscheinen als nummerierte Fußnote.
+
 ## [0.9.0] – 2026-11-08
 
 - Neu: Diagramme und Mindmaps in Notizen. Ein Codeblock ```` ```mermaid ```` wird als Mermaid-Diagramm gezeichnet (Flussdiagramm, Sequenz-, Kreis-, Gantt-, Klassendiagramm u. v. m.). Ein Codeblock ```` ```mindmap ```` macht aus einer einfachen Gliederung eine Mindmap: die erste Zeile ohne Listenzeichen ist die Mitte, eingerückte Listenpunkte (oder Überschriften) die Äste; Links und Formatierungen erscheinen als Text. Steht der Cursor im Block, siehst du den Quelltext, sonst das Bild – auch in der Lesansicht und auf öffentlichen Links. Ein Klick vergrößert das Diagramm, Fehler zeigt Kladde mit dem Quelltext an. Die Farben folgen dem gewählten Design, und alles funktioniert offline. Neue Slash-Befehle: `/mindmap`, `/diagramm`, `/sequenzdiagramm` und `/kreisdiagramm`.

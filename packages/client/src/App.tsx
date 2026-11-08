@@ -50,6 +50,8 @@ Object.assign(editorHost, {
     }
   },
   toggleTask: (id: string, line: number) => void vault.toggleTask(id, line),
+  openTask: (id: string, line: number) => navigate(`/n/${id}?line=${line + 1}`),
+  setFrontmatter: (id: string, updates: Record<string, string | null>) => void vault.setFrontmatter(id, updates),
   noteTitles: () => vault.list().map((n) => splitPath(n.path).name),
   upload: (file: File) => {
     if (!navigator.onLine) return Promise.reject(new Error('Hochladen geht nur online.'));

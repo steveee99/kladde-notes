@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { EditorView } from '@codemirror/view';
+import { EditorView } from '@codemirror/view';
 import { ArrowLeft, ChevronRight, Bold, CalendarPlus, CheckSquare, Code, Heading, Image as ImageIcon, Link2, List, Lock, Share2, Trash2, Undo2, Users } from 'lucide-react';
 import { undo } from '@codemirror/commands';
 import { excerpt, splitPath, toDateString } from '@kladde/shared';
@@ -76,6 +76,15 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   useEffect(() => {
     if (isNew) titleRef.current?.select();
   }, [isNew, id]);
+  // ?line=N (from a double click on a task): scroll to that line once the editor exists
+  const hasNote = !!note;
+  useEffect(() => {
+    const n = Number(new URLSearchParams(location.search).get('line'));
+    if (!view || !hasNote || !n) return;
+    const ln = view.state.doc.line(Math.min(n, view.state.doc.lines));
+    view.dispatch({ selection: { anchor: ln.from }, effects: EditorView.scrollIntoView(ln.from, { y: 'center' }) });
+    history.replaceState(null, '', location.pathname);
+  }, [view, hasNote]);
 
   if (!note) {
     return (

@@ -37,6 +37,7 @@ function commands(insertFiles: FileInserter): SlashCommand[] {
     { label: 'Codeblock', detail: '```', keywords: 'code snippet pre', template: '```|\n\n```', block: true },
     { label: 'Trennlinie', detail: '---', keywords: 'divider hr linie separator', template: '---\n|', block: true },
     { label: 'Abfrage', detail: 'query', keywords: 'query table dataview tabelle', template: '```query\nTABLE title, updated\nFROM "|"\nSORT updated DESC\n```', block: true },
+    { label: 'Kanban', detail: 'query', keywords: 'kanban board status spalten abfrage', template: '```query\nKANBAN BY status VALUES "offen", "läuft", "fertig"\nFROM "|"\n```', block: true },
     { label: 'Offene Aufgaben', detail: 'query', keywords: 'tasks todo query abfrage', template: '```query\nTASKS\nWHERE done = false|\n```', block: true },
     { label: 'Mindmap', detail: 'mindmap', keywords: 'mindmap gedanken map baum tree', template: '```mindmap\n|Thema\n- Idee 1\n  - Detail\n- Idee 2\n```', block: true },
     { label: 'Diagramm', detail: 'mermaid', keywords: 'mermaid diagram flowchart chart ablauf graph', template: '```mermaid\nflowchart LR\n  A[Start] --> B{Entscheidung}\n  B -->|Ja| C[Ergebnis]\n  B -->|Nein| A\n```', select: [28, 33], block: true },
