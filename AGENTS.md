@@ -4,7 +4,7 @@
 Self-hosted, offline-first Markdown notes app (PWA). Infrastructure (npm workspaces, Docker hardening, invites, Telegram admin bot, release script, Git Flow) is carried over from the sibling project Project Gamma (`../project-gamma`).
 
 ## Monorepo Architecture
-- `packages/shared`: Pure logic without browser or node dependencies: sync contracts (`types.ts`), Markdown metadata, task parsing/recurrence (`tasks.ts`), the query language (`query.ts`).
+- `packages/shared`: Pure logic without browser or node dependencies: sync contracts (`types.ts`), Markdown metadata/frontmatter (`markdown.ts`), task parsing/recurrence (`tasks.ts`), the query language (`query.ts`), PARA roles and Zettel ids (`para.ts`), link resolution/backlinks/mentions/graph (`links.ts`), templates and the weekly review.
 - `packages/server`: Express + `node:sqlite`. Passkey auth (`auth.ts`, SimpleWebAuthn), `NoteStore` (encrypted notes, global seq cursor, shares, public links), `FileStore` (encrypted attachments), `ExportMirror` (plain Markdown to `EXPORT_DIR`), Telegram admin.
 - `packages/client`: React 18 + Vite + Tailwind + CodeMirror 6. `data/vault.ts` is the offline store (IndexedDB) and sync engine; `editor/livePreview.ts` builds all decorations in one StateField (block widgets need it).
 
@@ -14,8 +14,9 @@ Self-hosted, offline-first Markdown notes app (PWA). Infrastructure (npm workspa
 3. **Sync:** every accepted change takes the next global `seq`; clients pull `seq > cursor`. Conflicts never lose text (server wins, local copy is kept).
 4. **Theming:** colors only through the CSS variables in `client/src/index.css` (Tailwind maps them); new themes override variables only.
 5. **Schema:** add numbered migrations in `server/src/db.ts`, never edit a released one.
-6. **Commands:** `npm run build`, `npm run test`, `npm run dev`.
-7. **Versioning & Changelog:** one SemVer version for the monorepo; user-facing changes go (German) under `## [Unveröffentlicht]` in `CHANGELOG.md`; release with `npm run release -- patch|minor|major`.
+6. **Links:** resolve `[[links]]` only through `LinkIndex` (title, frontmatter `id`, Zettel id prefix); renaming a note must keep rewriting links (`vault.update` → `relink`).
+7. **Commands:** `npm run build`, `npm run test`, `npm run dev`.
+8. **Versioning & Changelog:** one SemVer version for the monorepo; user-facing changes go (German) under `## [Unveröffentlicht]` in `CHANGELOG.md`; release with `npm run release -- patch|minor|major`.
 
 ## Git Flow
 The repo follows Git Flow. **`main` and `develop` are protected by convention: never commit or push to them directly, and never force-push.** (GitHub-side branch protection is not enabled because the repo is private on a free plan, so nothing technical stops a direct push; agents must not rely on that.) Every change reaches them through a pull request from a branch; PRs need a green CI run (`.github/workflows/ci.yml`: build + test).

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { EditorView } from '@codemirror/view';
-import { ArrowLeft, Bold, CalendarPlus, CheckSquare, Code, Heading, Image as ImageIcon, Link2, List, Lock, Share2, Trash2, Undo2, Users } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Bold, CalendarPlus, CheckSquare, Code, Heading, Image as ImageIcon, Link2, List, Lock, Share2, Trash2, Undo2, Users } from 'lucide-react';
 import { undo } from '@codemirror/commands';
 import { excerpt, splitPath, toDateString } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
@@ -8,6 +8,8 @@ import { navigate } from '../lib/router';
 import { Editor, insertAtLineStart, insertText, wrapSelection } from '../editor/Editor';
 import { editorHost } from '../editor/host';
 import { ShareDialog } from './ShareDialog';
+import { ParaBar } from './ParaBar';
+import { Graph } from './Graph';
 
 function Toolbar({ view }: { view: EditorView | null }) {
   const file = useRef<HTMLInputElement>(null);
@@ -61,6 +63,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const note = vault.get(id);
   const [view, setView] = useState<EditorView | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [showGraph, setShowGraph] = useState(true);
   const [title, setTitle] = useState('');
   const titleRef = useRef<HTMLInputElement>(null);
   const name = note ? splitPath(note.path).name : '';
@@ -86,7 +89,10 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const readOnly = note.access === 'read';
   const isOwner = note.access === 'owner';
   const { folder } = splitPath(note.path);
-  const backlinks = vault.list().filter((n) => n.id !== id && new RegExp(`\\[\\[${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\||#|\\]\\])`, 'i').test(n.content));
+  const index = vault.links();
+  const backlinks = index.backlinks(id).map((b) => vault.get(b)!).filter(Boolean);
+  const mentions = index.unlinkedMentions(id).map((m) => vault.get(m)!).filter((n) => n && n.access !== 'read');
+  const local = index.localGraph(id, 2);
   const commitTitle = () => {
     if (title.trim() && title.trim() !== name) void vault.update(id, { title: title.trim() });
     else setTitle(name);
@@ -156,20 +162,48 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             }
           }}
         />
+        <ParaBar note={note} />
         <Editor docKey={id} value={note.content} readOnly={readOnly} stamp={version} onChange={(content) => void vault.update(id, { content })} onView={setView} />
-        {backlinks.length > 0 && (
-          <section className="mb-10 border-t border-line pt-4 anim-fade-in">
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-faint">Verweise hierher · {backlinks.length}</h2>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {backlinks.map((b) => (
-                <button key={b.id} className="rounded-xl border border-line p-3 text-left text-sm transition hover:border-accent/40" onClick={() => navigate(`/n/${b.id}`)}>
-                  <div className="font-medium">{splitPath(b.path).name}</div>
-                  <div className="line-clamp-1 text-muted">{excerpt(b.content, 90)}</div>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
+        <div className="mb-10 space-y-6 border-t border-line pt-4">
+          {backlinks.length > 0 && (
+            <section className="anim-fade-in">
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-faint">Verweise hierher · {backlinks.length}</h2>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {backlinks.map((b) => (
+                  <button key={b.id} className="rounded-xl border border-line p-3 text-left text-sm transition hover:border-accent/40" onClick={() => navigate(`/n/${b.id}`)}>
+                    <div className="font-medium">{splitPath(b.path).name}</div>
+                    <div className="line-clamp-1 text-muted">{excerpt(b.content, 90)}</div>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+          {mentions.length > 0 && (
+            <section className="anim-fade-in">
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-faint">Unverlinkte Erwähnungen · {mentions.length}</h2>
+              <ul className="space-y-1.5">
+                {mentions.map((m) => (
+                  <li key={m.id} className="flex items-center gap-2 rounded-xl border border-dashed border-line px-3 py-2 text-sm">
+                    <button className="min-w-0 flex-1 truncate text-left hover:text-accent" onClick={() => navigate(`/n/${m.id}`)}>
+                      {splitPath(m.path).name}
+                    </button>
+                    <button className="chip shrink-0 px-2.5 py-1 hover:bg-accent/15 hover:text-accent" onClick={() => void vault.linkMention(m.id, id)}>
+                      <Link2 size={12} /> Verlinken
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {local.nodes.length > 1 && (
+            <section className="anim-fade-in">
+              <button className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-faint hover:text-ink" onClick={() => setShowGraph(!showGraph)}>
+                <ChevronRight size={14} className={`transition-transform duration-200 ${showGraph ? 'rotate-90' : ''}`} /> Lokales Netz · {local.nodes.length - 1}
+              </button>
+              {showGraph && <Graph nodes={local.nodes} edges={local.edges} focusId={id} height={300} onOpen={(n) => n !== id && navigate(`/n/${n}`)} />}
+            </section>
+          )}
+        </div>
       </div>
       {!readOnly && <Toolbar view={view} />}
       {sharing && <ShareDialog noteId={id} onClose={() => setSharing(false)} />}

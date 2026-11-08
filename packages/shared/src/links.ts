@@ -72,15 +72,23 @@ export class LinkIndex {
     return [...(this.incoming.get(id) ?? [])];
   }
 
+  /** Names a note may be mentioned by: its title and, for Zettel, the title without the id in front */
+  mentionNames(id: string): string[] {
+    const n = this.notes.get(id);
+    if (!n) return [];
+    const bare = n.title.replace(ZETTEL_ID_PATTERN, '').trim();
+    return [...new Set([n.title, bare])].filter((t) => t.length >= 3 && !/^\d+$/.test(t));
+  }
+
   /** Notes that mention the title in plain text without linking to the note */
   unlinkedMentions(id: string): string[] {
-    const target = this.notes.get(id);
-    if (!target || target.title.length < 3) return [];
+    const names = this.mentionNames(id);
+    if (!names.length) return [];
     const linked = new Set(this.backlinks(id));
     const out: string[] = [];
     for (const [other, n] of this.notes) {
       if (other === id || linked.has(other)) continue;
-      if (hasPlainMention(n.content, target.title)) out.push(other);
+      if (names.some((name) => hasPlainMention(n.content, name))) out.push(other);
     }
     return out;
   }
@@ -135,8 +143,11 @@ export function hasPlainMention(content: string, title: string): boolean {
   return found;
 }
 
-/** Turns the first plain mention of `title` into a [[link]] (keeping the original spelling as alias if it differs) */
-export function linkFirstMention(content: string, title: string): string {
+/**
+ * Turns the first plain mention of `title` into a link to `target` (default: the title itself);
+ * the original spelling stays visible as alias if it differs
+ */
+export function linkFirstMention(content: string, title: string, target = title): string {
   let done = false;
   const re = mentionPattern(title);
   return mapOutsideCode(content, (text) => {
@@ -146,7 +157,7 @@ export function linkFirstMention(content: string, title: string): string {
     if (!m) return text;
     done = true;
     const original = text.slice(m.index, m.index + m[0].length);
-    const link = original === title ? `[[${title}]]` : `[[${title}|${original}]]`;
+    const link = original === target ? `[[${target}]]` : `[[${target}|${original}]]`;
     return text.slice(0, m.index) + link + text.slice(m.index + m[0].length);
   });
 }

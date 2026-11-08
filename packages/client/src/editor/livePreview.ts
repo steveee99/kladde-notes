@@ -9,6 +9,7 @@ import {
   GalleryWidget,
   ImageWidget,
   LinkWidget,
+  PropertiesWidget,
   QueryWidget,
   SimpleWidget,
   TableWidget,
@@ -77,9 +78,24 @@ function build(state: EditorState): DecorationSet {
     replace(from, to, widget);
   };
 
+  // Frontmatter: the Markdown parser would read its closing "---" as a heading underline
+  let fmEnd = 0;
+  if (doc.lines > 1 && doc.line(1).text === '---') {
+    for (let l = 2; l <= doc.lines; l++) {
+      if (doc.line(l).text === '---') {
+        fmEnd = doc.line(l).to;
+        if (isActive(0, fmEnd)) lineClass(0, fmEnd, 'cm-frontmatter');
+        else replace(0, fmEnd, Decoration.replace({ widget: new PropertiesWidget(doc.sliceString(doc.line(2).from, doc.line(l - 1).to)), block: true }));
+        break;
+      }
+    }
+  }
+
   tree.iterate({
+    from: fmEnd,
     enter: (ref) => {
       const node = ref.node;
+      if (node.from < fmEnd) return node.to <= fmEnd ? false : undefined;
       const name = node.name;
       const text = () => doc.sliceString(node.from, node.to);
 
@@ -203,7 +219,7 @@ function build(state: EditorState): DecorationSet {
 
   // Things the Markdown parser does not know: [[wikilinks]], #tags, due dates and repeat rules
   for (let l = 1; l <= doc.lines; l++) {
-    if (codeLines.has(l)) continue;
+    if (codeLines.has(l) || doc.line(l).to <= fmEnd) continue;
     const ln = doc.line(l);
     const lineActive = !all && active.has(l);
     for (const m of ln.text.matchAll(/\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g)) {

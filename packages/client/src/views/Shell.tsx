@@ -1,22 +1,20 @@
 import { useRef, useState } from 'react';
-import { ChevronRight, Cloud, CloudOff, Folder, FolderOpen, FolderPlus, Pencil, Trash2, Home, Lightbulb, Loader2, Menu, Plus, Search, Settings, Share2, AlertTriangle, X, FileText } from 'lucide-react';
-import { INBOX_FOLDER, ZETTEL_FOLDER, splitPath } from '@kladde/shared';
+import { ChevronRight, Cloud, CloudOff, CalendarCheck, Inbox as InboxIcon, Network, Folder, FolderOpen, FolderPlus, Pencil, Trash2, Home, Lightbulb, Loader2, Menu, Plus, Search, Settings, Share2, AlertTriangle, X, FileText } from 'lucide-react';
+import { PARA, splitPath } from '@kladde/shared';
+import { openDialog } from '../lib/dialogs';
+import { Dialogs } from './Dialogs';
+import { reviewDue } from './Review';
 import { useVault, vault } from '../data/vault';
 import { navigate, usePath } from '../lib/router';
 import { QuickCapture } from './QuickCapture';
 import { dragSource, useDropTarget } from '../lib/dnd';
 
-export async function newNote(folder = INBOX_FOLDER) {
-  const note = await vault.create(folder, 'Neue Notiz', '');
-  navigate(`/n/${note.id}?new=1`);
+export function newNote(folder?: string) {
+  openDialog({ kind: 'note', folder });
 }
 
-export async function newZettel() {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  const id = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}`;
-  const note = await vault.create(ZETTEL_FOLDER, `${id} `, '');
-  navigate(`/n/${note.id}?new=1`);
+export function newZettel() {
+  openDialog({ kind: 'zettel' });
 }
 
 export function SyncBadge() {
@@ -177,6 +175,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const counts = new Map<string, number>();
   for (const n of notes) if (n.access === 'owner') counts.set(splitPath(n.path).folder, (counts.get(splitPath(n.path).folder) ?? 0) + 1);
   const shared = notes.filter((n) => n.access !== 'owner').length;
+  const inboxCount = notes.filter((n) => n.access === 'owner' && splitPath(n.path).folder === PARA.inbox).length;
   const nav = (to: string) => {
     navigate(to);
     onNavigate?.();
@@ -201,7 +200,10 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
       {item('/', Home, 'Start')}
       {item('/notes', FileText, 'Alle Notizen', <span className="text-xs text-faint">{notes.filter((n) => n.access === 'owner').length}</span>)}
+      {item('/inbox', InboxIcon, 'Inbox', inboxCount ? <span className="rounded-full bg-warn/15 px-1.5 text-xs text-warn">{inboxCount}</span> : null)}
       {item('/search', Search, 'Suche')}
+      {item('/graph', Network, 'Wissensnetz')}
+      {item('/review', CalendarCheck, 'Wochenrückblick', reviewDue() ? <span className="h-2 w-2 rounded-full bg-accent" /> : null)}
       {shared > 0 && item('/shared', Share2, 'Mit mir geteilt', <span className="text-xs text-faint">{shared}</span>)}
       <div className="mt-4 mb-1 flex items-center justify-between px-2.5 text-xs font-semibold uppercase tracking-wider text-faint">
         Ordner
@@ -302,6 +304,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </button>
       )}
       {capture && <QuickCapture onClose={() => setCapture(false)} />}
+      <Dialogs />
     </div>
   );
 }

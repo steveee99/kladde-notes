@@ -582,3 +582,36 @@ body {
   overflow: hidden;
   transition: all 200ms var(--ease);
 }
+
+/* Frontmatter */
+.cm-frontmatter {
+  font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  font-size: 0.85em;
+  color: rgb(var(--muted));
+  background: rgb(var(--code-bg));
+  padding: 0 10px !important;
+}
+.wz-props {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 0 10px;
+  cursor: text;
+}
+.wz-prop {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid rgb(var(--line));
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.wz-prop-key {
+  padding: 1px 7px;
+  background: rgb(var(--raised));
+  color: rgb(var(--faint));
+}
+.wz-prop-value {
+  padding: 1px 8px;
+  color: rgb(var(--muted));
+}

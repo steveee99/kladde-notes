@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { ArrowDownAZ, Clock, CornerLeftUp, Folder, FolderPlus, Plus, Users } from 'lucide-react';
-import { excerpt, extractMeta, splitPath } from '@kladde/shared';
+import { Archive, ArchiveRestore, ArrowDownAZ, Clock, CornerLeftUp, Folder, FolderPlus, Plus, Users } from 'lucide-react';
+import { PARA, archiveTarget, excerpt, extractMeta, restoreTarget, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { navigate } from '../lib/router';
@@ -97,6 +97,23 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
         <button className="btn-icon" title="Sortierung" onClick={() => setSort(sort === 'updated' ? 'title' : 'updated')}>
           {sort === 'updated' ? <Clock size={18} /> : <ArrowDownAZ size={18} />}
         </button>
+        {mode === 'folder' && folder && folder !== PARA.archive && (
+          restoreTarget(folder) !== null ? (
+            <button className="btn-ghost" title={`Zurück nach ${restoreTarget(folder)}`} onClick={() => void vault.restoreFolder(folder).then(() => navigate(`/f/${encodeURIComponent(restoreTarget(folder)!)}`, true))}>
+              <ArchiveRestore size={16} /> <span className="hidden sm:inline">Wiederherstellen</span>
+            </button>
+          ) : (
+            !Object.values(PARA).includes(folder as never) && (
+              <button
+                className="btn-ghost"
+                title="Ordner mit allen Notizen ins Archiv verschieben"
+                onClick={() => confirm(`„${folder}“ archivieren?`) && void vault.archiveFolder(folder).then(() => navigate(`/f/${encodeURIComponent(archiveTarget(folder))}`, true))}
+              >
+                <Archive size={16} /> <span className="hidden sm:inline">Archivieren</span>
+              </button>
+            )
+          )
+        )}
         {mode !== 'shared' && (
           <button className="btn-primary" onClick={() => newNote(folder)}>
             <Plus size={16} /> Neu

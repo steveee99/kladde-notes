@@ -47,7 +47,7 @@ export function QuickCapture({ onClose }: { onClose: () => void }) {
             <Send size={16} /> Ablegen
           </button>
         </div>
-        <p className="mt-2 text-xs text-faint">Landet in „0 Inbox/Eingang“.</p>
+        <p className="mt-2 text-xs text-faint">{asTask ? 'Aufgaben landen in „0 Inbox/Eingang“.' : 'Wird eine eigene Notiz in der Inbox – zum späteren Einsortieren.'}</p>
       </div>
     </div>
   );

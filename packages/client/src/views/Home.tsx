@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
-import { CalendarClock, Plus, Repeat } from 'lucide-react';
-import { Task, TaskBucket, bucketOf, parseTasks, splitPath } from '@kladde/shared';
+import { Briefcase, CalendarCheck, CalendarClock, Inbox as InboxIcon, Plus, Repeat } from 'lucide-react';
+import { PARA, Task, TaskBucket, bucketOf, parseTasks, projectsOf, roleOfPath, splitPath } from '@kladde/shared';
+import { openDialog } from '../lib/dialogs';
+import { reviewDue } from './Review';
 import { useVault, vault } from '../data/vault';
 import { navigate } from '../lib/router';
 import { formatDue } from '../editor/widgets';
@@ -71,6 +73,9 @@ export function HomeView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version]);
 
+  const own = notes.filter((n) => n.access === 'owner');
+  const projects = projectsOf(own).sort((a, b) => (a.status === b.status ? b.updatedAt - a.updatedAt : a.status === 'aktiv' ? -1 : 1));
+  const inboxCount = own.filter((n) => roleOfPath(n.path) === 'inbox').length;
   const recent = [...notes].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6);
   const hour = new Date().getHours();
   const greeting = hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Hallo' : 'Guten Abend';
@@ -83,6 +88,21 @@ export function HomeView() {
         <h1 className="text-3xl font-bold tracking-tight">{greeting} 👋</h1>
         <p className="mt-1 text-muted">{openCount ? `${openCount} Aufgabe${openCount === 1 ? '' : 'n'} für heute.` : 'Für heute ist alles erledigt. ✨'}</p>
       </header>
+
+      {(inboxCount > 0 || reviewDue()) && (
+        <div className="mb-6 flex flex-wrap gap-2 anim-fade-up">
+          {inboxCount > 0 && (
+            <button className="chip px-3 py-1.5 text-sm text-warn hover:bg-warn/10" onClick={() => navigate('/inbox')}>
+              <InboxIcon size={14} /> {inboxCount} in der Inbox
+            </button>
+          )}
+          {reviewDue() && (
+            <button className="chip px-3 py-1.5 text-sm text-accent hover:bg-accent/10" onClick={() => navigate('/review')}>
+              <CalendarCheck size={14} /> Wochenrückblick fällig
+            </button>
+          )}
+        </div>
+      )}
 
       <form
         className="card mb-6 flex items-center gap-2 p-1.5 pl-3 anim-fade-up"
@@ -130,6 +150,36 @@ export function HomeView() {
           );
         })}
       </section>
+
+      {projects.length > 0 && (
+        <>
+          <h2 className="mt-10 mb-3 flex items-center px-1 text-xs font-semibold uppercase tracking-wider text-faint">
+            Aktive Projekte
+            <button className="ml-auto normal-case tracking-normal hover:text-accent" onClick={() => openDialog({ kind: 'note', folder: PARA.projects })}>
+              + Projekt
+            </button>
+          </h2>
+          <div className="stagger grid gap-3 sm:grid-cols-2">
+            {projects.map((p) => (
+              <button key={p.id} onClick={() => navigate(`/n/${p.id}`)} className="card p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40">
+                <div className="flex items-center gap-2">
+                  <Briefcase size={15} className="shrink-0 text-accent" />
+                  <span className="truncate font-medium">{p.title}</span>
+                  {p.status === 'pausiert' && <span className="chip text-warn">pausiert</span>}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+                  {p.openTasks ? (
+                    <span className="chip">{p.openTasks} offen</span>
+                  ) : (
+                    <span className="chip text-warn">kein nächster Schritt</span>
+                  )}
+                  {p.nextDue && <span className="cm-due">📅 {formatDue(p.nextDue)}</span>}
+                </div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       <h2 className="mt-10 mb-3 px-1 text-xs font-semibold uppercase tracking-wider text-faint">Zuletzt bearbeitet</h2>
       <div className="stagger grid gap-3 sm:grid-cols-2">

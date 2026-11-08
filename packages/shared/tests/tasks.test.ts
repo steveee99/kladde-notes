@@ -11,8 +11,8 @@ describe('tasks', () => {
     expect(tasks[1]).toMatchObject({ text: 'Müll', due: '2026-11-09', repeat: 'week', done: true });
   });
 
-  it('ignores checkboxes inside code fences', () => {
-    expect(parseTasks('```\n- [ ] no\n```\n- [ ] yes')).toHaveLength(1);
+  it('ignores checkboxes inside code fences and empty placeholders', () => {
+    expect(parseTasks('```\n- [ ] no\n```\n- [ ] yes\n- [ ] \n- [ ]  📅 2026-11-08')).toHaveLength(1);
   });
 
   it('computes the next due date', () => {

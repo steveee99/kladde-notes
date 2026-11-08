@@ -343,3 +343,43 @@ export class SimpleWidget extends WidgetType {
     return s;
   }
 }
+
+/** Frontmatter as a compact row of properties (shown when the cursor is outside it) */
+export class PropertiesWidget extends WidgetType {
+  constructor(readonly src: string) {
+    super();
+  }
+  eq(o: PropertiesWidget) {
+    return o.src === this.src;
+  }
+  toDOM(view: EditorView) {
+    const wrap = document.createElement('div');
+    wrap.className = 'wz-props';
+    for (const line of this.src.split('\n')) {
+      const m = /^([^:]+):\s*(.*)$/.exec(line);
+      if (!m) continue;
+      const item = document.createElement('span');
+      item.className = 'wz-prop';
+      const k = document.createElement('span');
+      k.className = 'wz-prop-key';
+      k.textContent = m[1].trim();
+      const v = document.createElement('span');
+      v.className = 'wz-prop-value';
+      v.textContent = m[2].trim() || '—';
+      item.append(k, v);
+      wrap.append(item);
+    }
+    if (view.state.facet(EditorView.editable)) {
+      wrap.title = 'Eigenschaften bearbeiten';
+      wrap.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        view.dispatch({ selection: { anchor: 4 } });
+        view.focus();
+      });
+    }
+    return wrap;
+  }
+  ignoreEvent() {
+    return true;
+  }
+}

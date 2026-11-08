@@ -19,7 +19,12 @@
 | **Tabellen** | GFM-Tabellen werden als interaktive Tabelle gerendert (Spalte sortieren, filtern) |
 | **Abfragen** | ```` ```query ```` -Blöcke: `TABLE title, status FROM "1 Projekte" WHERE tags contains x SORT updated DESC LIMIT 10`, auch `LIST` und `TASKS` |
 | **Aufgaben** | `- [ ] Text 📅 2026-11-30 🔁 monatlich` oder handytauglich `due:morgen every:week`; Startbildschirm gruppiert nach Überfällig/Heute/Demnächst; erledigte Wiederholungen erzeugen die nächste |
-| **Wissen** | PARA-Ordner (Inbox, Projekte, Bereiche, Ressourcen, Archiv) + Zettelkasten (Zettel mit Zeitstempel-ID), `[[Wikilinks]]` mit Autovervollständigung, Backlinks, `#tags` |
+| **PARA** | Ordner Inbox, Projekte, Bereiche, Ressourcen, Archiv. **Inbox als Arbeitsliste** (`/inbox`): jeder Gedanke ist eine eigene Notiz und wird per Klick zu Projekt, Bereich, Ressource, Zettel oder Archiv. **Projekte** mit `status: aktiv/pausiert/fertig`; „Abschließen“ setzt Status + Datum und verschiebt nach `4 Archiv/…`, „Wiederherstellen“ zurück. Ganze Ordner archivieren. Aktive Projekte auf dem Startbildschirm, mit Hinweis „kein nächster Schritt“ |
+| **Zettelkasten** | Zettel-Dialog mit Typ (flüchtig, Literatur mit Quelle, dauerhaft) und fester ID im Frontmatter; `[[ID]]` und `[[ID Titel]]` bleiben auch nach Umbenennen gültig. Hinweis auf unverbundene Zettel |
+| **Verknüpfen** | `[[Wikilinks]]` mit Autovervollständigung; **beim Umbenennen werden alle Links angepasst**; Rückverweise; **unverlinkte Erwähnungen** mit Knopf „Verlinken“; `#tags`; Frontmatter als Eigenschaften-Leiste |
+| **Wissensnetz** | Graph aller Notizen (`/graph`, nach PARA-Rolle eingefärbt, zoom- und verschiebbar) und lokales Netz unter jeder Notiz |
+| **Wochenrückblick** | `/review`: Inbox, überfällige Aufgaben, Projekte ohne nächsten Schritt, ruhende Bereiche, alte flüchtige und unverbundene Zettel; Erinnerung nach 7 Tagen |
+| **Vorlagen** | Projekt, Bereich, Literaturnotiz, Besprechung, Tagesnotiz – plus eigene Vorlagen aus jedem Ordner namens „Vorlagen“ (`{{title}}`, `{{date}}`) |
 | **Medien** | Bilder und PDFs per Einfügen/Ziehen/Button; Bilder-Grid mit ```` ```gallery ```` ; PDF eingebettet; Code-Blöcke mit Syntax-Highlighting und Kopieren |
 | **Offline & Sync** | IndexedDB pro Konto, Sync über Cursor + Versionen; bei Konflikten gewinnt der Server, der lokale Text bleibt als „(Konflikt …)“-Kopie erhalten; Live-Updates per Server-Sent Events |
 | **App** | PWA (installierbar, Service Worker), Themes Hell/Dunkel/OLED/System – alle Farben als CSS-Variablen; Übergänge per View Transitions API |

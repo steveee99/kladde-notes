@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Me, runQuery, splitPath, INBOX_FOLDER } from '@kladde/shared';
+import { Me, PARA, runQuery, splitPath, INBOX_FOLDER } from '@kladde/shared';
 import { api, ApiError, uploadFile } from './lib/api';
 import { match, navigate, usePath } from './lib/router';
 import { vault } from './data/vault';
@@ -12,6 +12,9 @@ import { NoteList } from './views/NoteList';
 import { NoteView } from './views/NoteView';
 import { SearchView } from './views/Search';
 import { SettingsView } from './views/Settings';
+import { InboxView } from './views/Inbox';
+import { GraphView } from './views/Graph';
+import { ReviewView } from './views/Review';
 
 const ME_KEY = 'kladde_me';
 
@@ -98,6 +101,9 @@ export function App() {
   let page: React.ReactNode;
   const note = match(path, '/n/:id');
   if (note) page = <NoteView key={note.id} id={note.id} isNew={location.search.includes('new=1')} />;
+  else if (path === '/inbox' || path === `/f/${encodeURIComponent(PARA.inbox)}`) page = <InboxView />;
+  else if (path === '/graph') page = <GraphView />;
+  else if (path === '/review') page = <ReviewView />;
   else if (path.startsWith('/f/')) page = <NoteList key={path} mode="folder" folder={decodeURIComponent(path.slice(3))} />;
   else if (path === '/notes') page = <NoteList mode="all" />;
   else if (path === '/shared') page = <NoteList mode="shared" />;

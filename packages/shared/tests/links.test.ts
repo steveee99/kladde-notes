@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LinkIndex, hasPlainMention, linkFirstMention, renameWikiLinks } from '../src/links';
-import { setFrontmatter, extractMeta } from '../src/markdown';
+import { setFrontmatter, extractMeta, excerpt } from '../src/markdown';
 import { buildReview } from '../src/review';
 import { archiveTarget, restoreTarget, roleOfPath } from '../src/para';
 import { fillTemplate, BUILTIN_TEMPLATES } from '../src/templates';
@@ -31,6 +31,12 @@ describe('links', () => {
     expect(hasPlainMention('Projekt Xyz', 'Projekt X')).toBe(false);
   });
 
+  it('finds Zettel by their title without id and links them by full title', () => {
+    const idx = new LinkIndex([note('z', 'Zettelkasten/202611081530 Kleine Schritte.md', ''), note('t', 'x.md', 'Über kleine Schritte nachdenken')]);
+    expect(idx.unlinkedMentions('z')).toEqual(['t']);
+    expect(linkFirstMention('Über kleine Schritte nachdenken', 'Kleine Schritte', '202611081530 Kleine Schritte')).toBe('Über [[202611081530 Kleine Schritte|kleine Schritte]] nachdenken');
+  });
+
   it('renames links with heading and alias, not in code', () => {
     const out = renameWikiLinks('[[Alt]] [[alt#Kap|A]] `[[Alt]]` [[Altbau]]', 'Alt', 'Neu');
     expect(out).toBe('[[Neu]] [[Neu#Kap|A]] `[[Alt]]` [[Altbau]]');
@@ -49,6 +55,10 @@ describe('frontmatter, PARA, templates', () => {
     const b = setFrontmatter(a, { status: 'fertig', abgeschlossen: '2026-11-08' });
     expect(extractMeta('x.md', b).frontmatter).toEqual({ status: 'fertig', abgeschlossen: '2026-11-08' });
     expect(setFrontmatter(b, { status: null, abgeschlossen: null })).toBe('# Hi');
+  });
+
+  it('keeps list markup out of excerpts', () => {
+    expect(excerpt('# T\n- [ ] Aufgabe 📅 2026-11-08 🔁 weekly\n- Punkt')).toBe('T Aufgabe Punkt');
   });
 
   it('maps archive paths both ways', () => {

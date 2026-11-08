@@ -6,13 +6,5 @@ build/
 .env
 .env.local
 coverage/
-/wallpaper.jpeg
-/Wallpaper/
-/background.mp3
-
-
-# Local SQLite database (game persistence)
-data/
-
 # Local data (database, key, files)
 packages/server/data/

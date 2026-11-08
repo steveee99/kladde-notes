@@ -61,6 +61,8 @@ export function parseTasks(content: string, today = new Date()): Task[] {
     const due = DUE.exec(rest);
     const repeat = REPEAT.exec(rest);
     const text = rest.replace(DUE, '').replace(REPEAT, '').replace(DONE_DATE, '').replace(/\s+/g, ' ').trim();
+    // An empty checkbox is a placeholder (e.g. from a template), not a task
+    if (!text) return;
     tasks.push({
       line,
       text,
