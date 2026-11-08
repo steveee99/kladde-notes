@@ -312,7 +312,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-2 border-b border-line bg-bg/80 pb-2 [--pad-top:0.5rem] [--pad-x:0.75rem] safe-top safe-x md:hidden">
+        {/* Opaque and sticky at the top edge: iOS 26/27 home-screen apps only drop their status bar blur ("scroll pocket") over such a bar */}
+        <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-line bg-bg pb-2 [--pad-top:0.5rem] [--pad-x:0.75rem] safe-top safe-x md:hidden">
           <button className="btn-icon" onClick={() => setDrawer(true)}>
             <Menu size={20} />
           </button>

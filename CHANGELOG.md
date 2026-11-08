@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Behoben: Die Kopfzeile in der iOS-Home-Bildschirm-App (iOS 26/27) ist jetzt wirklich scharf. Die Unschärfe kam von iOS selbst, das sie nur über einer undurchsichtigen, fixierten Kopfzeile weglässt.
+
 ## [0.4.2] – 2026-11-08
 
 - Behoben: In der iOS-Home-Bildschirm-App ist die Kopfzeile (Menü, „Kladde“, Symbole) nicht mehr verschwommen.
