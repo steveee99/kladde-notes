@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.4.1] – 2026-11-08
+
 - Diagnose: misst die Abstände oben und unten jetzt getrennt, zeigt die Lage von Kopfzeile und unterer Leiste und hat einen Test-Knopf „volle Höhe“.
 
 ## [0.4.0] – 2026-11-08
