@@ -72,10 +72,23 @@
   color-scheme: dark;
 }
 
+/*
+ * The document itself never scrolls: iOS scrolls the window when the keyboard opens and, in the
+ * home-screen app, often leaves it there, which shifts the header under the status bar and lifts
+ * the bottom bar. #root scrolls instead (login and public pages); the shell scrolls inside <main>.
+ */
 html,
 body,
 #root {
   height: 100%;
+}
+html,
+body {
+  overflow: hidden;
+}
+#root {
+  overflow-y: auto;
+  overscroll-behavior: none;
 }
 body {
   overscroll-behavior: none;

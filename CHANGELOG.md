@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Behoben: In der iOS-Home-Bildschirm-App rutschen Kopfzeile und untere Leiste nicht mehr nach oben (z. B. nach dem Schließen der Tastatur); die Kopfzeile liegt nicht mehr halb unter der Statusleiste.
+
 ## [0.1.0] – 2026-11-08
 
 - Erster Proof of Concept: Anmeldung per Einladung und Passkey, Markdown-Notizen mit Live-Vorschau, Tabellen mit Sortieren/Filtern, Abfrageblöcke, Aufgaben mit Fälligkeit und Wiederholung, Offline-Synchronisierung, Freigaben, Themes (Hell, Dunkel, OLED), installierbar als App.
