@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Behoben: Sicherheitsaktualisierungen für Abhängigkeiten (Mermaid, Vitest, Glob).
+
 ## [0.14.0] – 2026-11-09
 
 - Geändert: Es gibt nur noch ein dunkles Design – „Material“ heißt jetzt „Dunkel“ und ersetzt die bisherigen Designs „Dunkel“ und „OLED“. Wer eines davon gewählt hatte, bekommt automatisch das neue; „System“ nutzt es im Dunkelmodus.

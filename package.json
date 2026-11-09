@@ -15,5 +15,8 @@
   "devDependencies": {
     "concurrently": "^9.1.2",
     "typescript": "^5.8.2"
+  },
+  "overrides": {
+    "glob": "^14.0.2"
   }
 }
