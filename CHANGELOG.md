@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Design „Material“ unter Einstellungen → Erscheinungsbild. Angelehnt an Googles Material 3: fast schwarze, neutralgraue Flächen, die sich in Tonstufen statt mit Linien abheben, ein blauer Akzent, größere Rundungen und die Bewegungskurven von Material.
+
 ## [0.12.0] – 2026-11-09
 
 - Neu: Git-Sync. Unter Einstellungen → Git-Sync hinterlegst du pro Konto eine Git-Adresse (https), E-Mail und Access-Token. Deine eigenen Notizen (keine geteilten) werden dann als Markdown-Dateien auf den Branch `main` übertragen – ein Commit pro Sync, rund zwei Minuten nach der letzten Änderung oder per „Jetzt synchronisieren“. Die Commit-Nachricht stellst du selbst ein; `{date}` wird zum aktuellen Datum, `{time}` zur Uhrzeit (Standard: „Kladde-Sync {date}“). Zugangsdaten liegen verschlüsselt in der Datenbank; die Dateien im Repository sind unverschlüsselt. Das Docker-Image enthält dafür jetzt `git`.

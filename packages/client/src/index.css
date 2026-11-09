@@ -73,6 +73,34 @@
 }
 
 /*
+ * Material 3 (dark): neutral near-black surfaces in tonal steps instead of lines and shadows,
+ * the blue primary from the M3 baseline scheme, large shape radii and M3 motion curves
+ */
+[data-theme='material'] {
+  --bg: 14 14 16;
+  --surface: 26 26 29;
+  --raised: 38 38 42;
+  --line: 52 53 58;
+  --ink: 227 227 230;
+  --muted: 196 198 204;
+  --faint: 142 144 153;
+  --accent: 168 199 250;
+  --on-accent: 6 46 111;
+  --accent2: 128 214 200;
+  --ok: 133 214 150;
+  --warn: 240 190 110;
+  --danger: 242 184 181;
+  --code-bg: 22 22 25;
+  --selection: 168 199 250 / 0.26;
+  --radius: 16px;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 3px 1px rgb(0 0 0 / 0.15);
+  --ease: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --dur: 250ms;
+  color-scheme: dark;
+}
+
+/*
  * The document itself never scrolls: iOS scrolls the window when the keyboard opens and, in the
  * home-screen app, often leaves it there, which shifts the header under the status bar and lifts
  * the bottom bar. #root scrolls instead (login and public pages); the shell scrolls inside <main>.

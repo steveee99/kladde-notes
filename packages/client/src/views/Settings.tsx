@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
-import { Bot, ChevronRight, Copy, GitBranch, KeyRound, LayoutTemplate, Lock, LogOut, Monitor, Moon, ShieldCheck, Smartphone, Sun, Trash2, Zap } from 'lucide-react';
+import { Bot, ChevronRight, Copy, GitBranch, KeyRound, LayoutTemplate, Lock, LogOut, Monitor, Moon, Palette, ShieldCheck, Smartphone, Sun, Trash2, Zap } from 'lucide-react';
 import { APP_VERSION, Me, PASSWORD_MIN_LENGTH } from '@kladde/shared';
 import { api } from '../lib/api';
 import { getTheme, setTheme, ThemeChoice } from '../lib/theme';
@@ -19,6 +19,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
     { id: 'light', label: 'Hell', Icon: Sun },
     { id: 'dark', label: 'Dunkel', Icon: Moon },
     { id: 'oled', label: 'OLED', Icon: Zap },
+    { id: 'material', label: 'Material', Icon: Palette },
   ];
   const linkUrl = link ? `${location.origin}/link/${link.code}` : '';
 
@@ -68,7 +69,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
 
       <section className="card p-5 anim-fade-up">
         <h2 className="mb-3 font-semibold">Erscheinungsbild</h2>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
           {themes.map(({ id, label, Icon }) => (
             <button
               key={id}

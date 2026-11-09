@@ -1,4 +1,4 @@
-export type ThemeChoice = 'system' | 'light' | 'dark' | 'oled';
+export type ThemeChoice = 'system' | 'light' | 'dark' | 'oled' | 'material';
 const KEY = 'kladde_theme';
 
 export function getTheme(): ThemeChoice {
