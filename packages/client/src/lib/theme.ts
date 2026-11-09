@@ -1,18 +1,21 @@
 import { useSyncExternalStore } from 'react';
 
-export type ThemeChoice = 'system' | 'light' | 'dark' | 'oled' | 'material';
+export type ThemeChoice = 'system' | 'light' | 'material';
 const KEY = 'kladde_theme';
 
 export function getTheme(): ThemeChoice {
   try {
-    return (localStorage.getItem(KEY) as ThemeChoice) || 'system';
+    const stored = localStorage.getItem(KEY);
+    // The former dark themes ('dark', 'oled') are gone: Material is the dark theme now
+    if (stored === 'dark' || stored === 'oled') return 'material';
+    return (stored as ThemeChoice) || 'system';
   } catch {
     return 'system';
   }
 }
 
 export function applyTheme(choice: ThemeChoice = getTheme()): void {
-  const resolved = choice === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : choice;
+  const resolved = choice === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'material' : 'light') : choice;
   const root = document.documentElement;
   root.dataset.theme = resolved;
   const bg = getComputedStyle(root).getPropertyValue('--bg').trim().split(/\s+/).join(',');

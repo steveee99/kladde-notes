@@ -14,7 +14,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Kladde" />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F7F6F3" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#14141B" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0E0E10" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="robots" content="noindex, nofollow" />
     <meta name="referrer" content="no-referrer" />
@@ -23,7 +23,8 @@
       // Theme before first paint, so there is no flash
       try {
         var t = localStorage.getItem('kladde_theme') || 'system';
-        if (t === 'system') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        if (t === 'dark' || t === 'oled') t = 'material';
+        if (t === 'system') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'material' : 'light';
         document.documentElement.dataset.theme = t;
       } catch (e) {}
     </script>

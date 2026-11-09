@@ -1,9 +1,9 @@
 /** @type {import('tailwindcss').Config} */
-// Every color is a CSS variable (see src/index.css), so the themes (light, dark, OLED) only swap variables
+// Every color is a CSS variable (see src/index.css), so the themes (light, Material) only swap variables
 const v = (name) => `rgb(var(--${name}) / <alpha-value>)`;
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
-  darkMode: ['class', '[data-theme="dark"], [data-theme="oled"], [data-theme="material"]'],
+  darkMode: ['class', '[data-theme="material"]'],
   theme: {
     extend: {
       colors: {
