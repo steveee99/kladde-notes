@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Copy, Folder, Globe, Trash2, UserPlus, X } from 'lucide-react';
 import type { FolderPermissions, FolderShares, NoteShare, NoteShares } from '@kladde/shared';
 import { api } from '../lib/api';
+import { useVisualViewport } from '../lib/viewport';
 
 /** What is shared: one note, or a folder with its subfolders (including notes added later) */
 export type ShareTarget = { note: string } | { folder: string };
@@ -106,11 +107,19 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose:
   };
   useEffect(() => void call(ep.list()), ['note' in target ? target.note : target.folder]);
   const link = shares?.publicToken ? `${location.origin}/s/${shares.publicToken}` : null;
+  const vp = useVisualViewport();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-      <div className="absolute inset-0 bg-black/40 anim-fade-in" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-t-3xl bg-surface px-5 pt-5 shadow-soft anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-3xl">
+    <div
+      className="fixed inset-x-0 z-50 flex items-end justify-center sm:items-center"
+      style={
+        vp
+          ? { top: `${vp.top}px`, height: `${vp.height}px` }
+          : { top: 0, bottom: 0 }
+      }
+    >
+      <div className="fixed inset-0 bg-black/40 anim-fade-in" onClick={onClose} />
+      <div className="relative max-h-[min(90vh,100%)] w-full max-w-md overflow-y-auto rounded-t-3xl bg-surface px-5 pt-5 shadow-soft anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-3xl">
         <div className="mb-4 flex items-center">
           <h2 className="min-w-0 truncate text-lg font-semibold">{isNote ? 'Teilen' : `Ordner „${target.folder.split('/').pop()}“ teilen`}</h2>
           <button className="btn-icon ml-auto" onClick={onClose}>

@@ -22,7 +22,7 @@ export function SortActions({ note, compact = false, onDone }: { note: LocalNote
       {btn(Lightbulb, 'Zettel', () => vault.toZettel(note.id))}
       {btn(Archive, 'Archiv', () => vault.archiveNote(note.id))}
       <ChipSelect
-        className="max-w-[9rem] text-xs"
+        className="max-w-[9rem] shrink-0 text-xs"
         value=""
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => e.target.value && run(() => vault.moveNote(note.id, e.target.value))()}

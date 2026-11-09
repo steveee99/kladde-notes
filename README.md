@@ -1,41 +1,42 @@
 # Kladde
 
-**Kladde** ist eine selbst gehostete Notiz-App für den Browser: Markdown mit Live-Vorschau, Aufgaben mit Fälligkeit und Wiederholung, Abfragen über die eigenen Notizen – offline nutzbar auf Handy, iPad und Desktop, synchronisiert sobald wieder online. Zugang nur per Einladung, Anmeldung per **Passkey** – oder mit Benutzername und Passwort, wo Passkeys nicht gehen (lokales Netz ohne HTTPS).
+**Kladde** ist eine selbst gehostete Notiz-App für den Browser: Markdown mit Live-Vorschau, Aufgaben mit Fälligkeit und Wiederholung, Abfragen und Kanban-Boards über die eigenen Notizen – offline nutzbar auf Handy, iPad und Desktop, synchronisiert sobald wieder online. Zugang nur per Einladung, Anmeldung per **Passkey** – oder mit Benutzername und Passwort, wo Passkeys nicht gehen (lokales Netz ohne HTTPS).
 
 > Eine *Kladde* ist das Notizbuch, in das erst einmal alles hineinkommt, bevor es ins Reine geschrieben wird.
 
-> Status: **Proof of Concept (0.1.0)**.
-
 ---
 
-## ✨ Funktionen im PoC
+## ✨ Funktionen
 
 | Bereich | Stand |
 | --- | --- |
 | **Zugang** | Einladungscode → Benutzername → Passkey oder Passwort. Weitere Geräte per Einmal-Code (15 min) oder zusätzlichem Passkey. Sessions als httpOnly-Cookie |
 | **Verwaltung** | Für Admins in der App: Konten, Passwort-Reset, Gerätecodes, Admin-Rolle, Sperren, Einladungen, Protokoll. Das älteste Konto ist Admin |
 | **Spaces** | Jeder Benutzer hat seinen eigenen Bereich, kein Zugriff auf fremde Notizen |
-| **Teilen** | Pro Notiz mit Benutzern (lesen/bearbeiten) oder öffentlicher Nur-Lese-Link für Gäste (`/s/…`) |
-| **Editor** | CodeMirror 6 mit Live-Preview: Markdown-Syntax ist nur in der Cursor-Zeile sichtbar |
-| **Tabellen** | GFM-Tabellen werden als interaktive Tabelle gerendert (Spalte sortieren, filtern) |
-| **Abfragen** | ```` ```query ```` -Blöcke: `TABLE title, status FROM "1 Projekte" WHERE tags contains x SORT updated DESC LIMIT 10`, auch `LIST` und `TASKS` |
-| **Aufgaben** | `- [ ] Text 📅 2026-11-30 🔁 monatlich` oder handytauglich `due:morgen every:week`; Startbildschirm gruppiert nach Überfällig/Heute/Demnächst; erledigte Wiederholungen erzeugen die nächste |
+| **Teilen** | Pro Notiz oder **ganze Ordner** teilen (mit Rechten für Lesen, Bearbeiten, Anlegen, Löschen) oder öffentlicher Nur-Lese-Link für Gäste (`/s/…`) |
+| **Editor** | CodeMirror 6 mit Live-Preview: Markdown-Syntax ist nur in der Cursor-Zeile sichtbar; **Slash-Befehle** (`/`) für Blöcke, Diagramme, Tabellen, Abfragen und Datei-Upload; Fußnoten (`[^1]`) |
+| **Tabellen & Diagramme** | GFM-Tabellen als interaktive Tabellen (sortieren, filtern); Mermaid-Diagramme (` ```mermaid `) und Mindmaps (` ```mindmap `) direkt in der Vorschau |
+| **Abfragen & Kanban** | ```` ```query ```` -Blöcke: `TABLE`, `LIST`, `TASKS` sowie **`KANBAN`** (`KANBAN BY status VALUES "offen", "läuft", "fertig"`) mit interaktivem Drag-and-Drop |
+| **Aufgaben** | `- [ ] Text 📅 2026-11-30 🔁 monatlich` oder handytauglich `due:morgen every:week`; freie Aufgaben auf der Startseite ohne Notiz; Schnellmenü für Fälligkeiten (Heute/Morgen/Woche); Doppelklick springt zur Quellnotiz |
 | **PARA** | Ordner Inbox, Projekte, Bereiche, Ressourcen, Archiv. **Inbox als Arbeitsliste** (`/inbox`): jeder Gedanke ist eine eigene Notiz und wird per Klick zu Projekt, Bereich, Ressource, Zettel oder Archiv. **Projekte** mit `status: aktiv/pausiert/fertig`; „Abschließen“ setzt Status + Datum und verschiebt nach `4 Archiv/…`, „Wiederherstellen“ zurück. Ganze Ordner archivieren. Aktive Projekte auf dem Startbildschirm, mit Hinweis „kein nächster Schritt“ |
 | **Zettelkasten** | Zettel-Dialog mit Typ (flüchtig, Literatur mit Quelle, dauerhaft) und fester ID im Frontmatter; `[[ID]]` und `[[ID Titel]]` bleiben auch nach Umbenennen gültig. Hinweis auf unverbundene Zettel |
 | **Verknüpfen** | `[[Wikilinks]]` mit Autovervollständigung; **beim Umbenennen werden alle Links angepasst**; Rückverweise; **unverlinkte Erwähnungen** mit Knopf „Verlinken“; `#tags`; Frontmatter als Eigenschaften-Leiste |
 | **Wissensnetz** | Graph aller Notizen (`/graph`, nach PARA-Rolle eingefärbt, zoom- und verschiebbar) und lokales Netz unter jeder Notiz |
+| **Versionsverlauf** | Verlauf pro Notiz mit bis zu 100 Ständen auf dem Server; Diff-Ansicht mit hinzugefügten/entfernten Zeilen (`git diff`-Stil) oder gerenderter Text; Wiederherstellung per Klick |
+| **Rezept-Import** | Rezepte per Link importieren (schema.org von Chefkoch, EatSmarter, Food-Blogs etc.) einheitlich nach `3 Ressourcen/Rezepte`: Zutaten-Tabelle, nummerierte Schritte, Quelle |
+| **Git-Sync** | Eigene Notizen automatisch als Markdown-Dateien in ein persönliches Git-Repository (GitLab, GitHub etc.) pushen (Branch `main`, anpassbare Commit-Nachricht) |
+| **KI & MCP** | MCP-Server (`/mcp`, Streamable HTTP) für Assistenten wie Claude Desktop, Claude Code, Cursor: OAuth 2.1 oder persönliche Zugriffstoken (PAT); Zugriff isoliert auf eigene Notizen |
 | **Wochenrückblick** | `/review`: Inbox, überfällige Aufgaben, Projekte ohne nächsten Schritt, ruhende Bereiche, alte flüchtige und unverbundene Zettel; Erinnerung nach 7 Tagen |
-| **Vorlagen** | Projekt, Bereich, Literaturnotiz, Besprechung, Tagesnotiz – plus eigene Vorlagen aus jedem Ordner namens „Vorlagen“ (`{{title}}`, `{{date}}`) |
+| **Vorlagen** | Eigene Vorlagen unter Einstellungen → Vorlagen verwalten (`{{title}}`, `{{date}}`, `{{zid}}`), mit Standard-Zielordner und verschlüsselter Synchronisation |
 | **Medien** | Bilder und PDFs per Einfügen/Ziehen/Button; Bilder-Grid mit ```` ```gallery ```` ; PDF eingebettet; Code-Blöcke mit Syntax-Highlighting und Kopieren |
 | **Offline & Sync** | IndexedDB pro Konto, Sync über Cursor + Versionen; bei Konflikten gewinnt der Server, der lokale Text bleibt als „(Konflikt …)“-Kopie erhalten; Live-Updates per Server-Sent Events |
-| **App** | PWA (installierbar, Service Worker), Themes Hell/Dunkel/OLED/System – alle Farben als CSS-Variablen; Übergänge per View Transitions API |
+| **App & Design** | PWA (installierbar, Service Worker), Designs Hell und Dunkel (Material 3 mit Navigation Rail am Desktop/Tablet und Navigation Bar am Handy); Notizlisten umschaltbar (Kacheln/Liste/Tabelle) |
 | **Sicherheit** | Notizen (Pfad + Inhalt) und Anhänge AES-256-GCM-verschlüsselt auf dem Server, Origin-Prüfung, Rate-Limits, Audit-Log, gehärteter Container |
 | **NAS** | Optionaler Klartext-Spiegel aller Notizen als `.md`-Dateien nach `EXPORT_DIR` (z. B. eingebundene NAS-Freigabe) |
 
 ### Noch nicht umgesetzt (Roadmap)
-- Backup in ein GitLab/GitHub-Repository (geplant: `EXPORT_DIR` + periodischer `git push` pro Benutzer, Token in den Einstellungen)
 - Ende-zu-Ende-Verschlüsselung (Schlüssel nur im Browser) und Verschlüsselung der lokalen IndexedDB
-- Anhänge offline hochladen (derzeit nur online), Versionsverlauf einer Notiz
+- Anhänge offline hochladen (derzeit nur online)
 - Echtzeit-Kollaboration im selben Dokument (heute: Konflikt-Kopie)
 
 ---

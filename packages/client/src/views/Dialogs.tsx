@@ -21,6 +21,7 @@ import { api } from "../lib/api";
 import { vault } from "../data/vault";
 import { closeDialog, useDialog } from "../lib/dialogs";
 import { navigate } from "../lib/router";
+import { isCoarsePointer, useVisualViewport } from "../lib/viewport";
 
 export function Sheet({
   title,
@@ -31,13 +32,21 @@ export function Sheet({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  const vp = useVisualViewport();
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+    <div
+      className="fixed inset-x-0 z-50 flex items-end justify-center sm:items-center"
+      style={
+        vp
+          ? { top: `${vp.top}px`, height: `${vp.height}px` }
+          : { top: 0, bottom: 0 }
+      }
+    >
       <div
-        className="absolute inset-0 bg-black/40 anim-fade-in"
+        className="fixed inset-0 bg-black/40 anim-fade-in"
         onClick={onClose}
       />
-      <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface px-5 pt-5 shadow-soft anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-3xl">
+      <div className="relative max-h-[min(90vh,100%)] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface px-5 pt-5 shadow-soft anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-3xl">
         <div className="mb-4 flex items-center">
           <h2 className="text-lg font-semibold">{title}</h2>
           <button className="btn-icon ml-auto" onClick={onClose}>
@@ -86,7 +95,7 @@ function NewNoteDialog({ folder }: { folder?: string }) {
         </div>
       )}
       <input
-        autoFocus
+        autoFocus={!isCoarsePointer()}
         className="input mb-3"
         placeholder="Titel"
         value={title}
@@ -141,7 +150,7 @@ function ZettelDialog() {
   return (
     <Sheet title="Neuer Zettel" onClose={closeDialog}>
       <input
-        autoFocus
+        autoFocus={!isCoarsePointer()}
         className="input mb-3"
         placeholder="Ein Gedanke in einem Satz"
         value={title}
@@ -237,7 +246,7 @@ function RecipeDialog({ initialUrl = "" }: { initialUrl?: string }) {
     <Sheet title="Rezept importieren" onClose={closeDialog}>
       <div className="mb-3 flex gap-2">
         <input
-          autoFocus
+          autoFocus={!isCoarsePointer()}
           type="url"
           inputMode="url"
           className="input"

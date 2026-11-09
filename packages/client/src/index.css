@@ -467,24 +467,33 @@ html[data-readonly] .edit-only {
   background: rgb(var(--surface));
 }
 .cm-tooltip-autocomplete {
-  border-radius: 10px !important;
+  border-radius: 14px !important;
   border: 1px solid rgb(var(--line)) !important;
   background: rgb(var(--surface)) !important;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.12), 0 2px 6px rgb(0 0 0 / 0.08) !important;
   overflow: hidden;
+}
+.cm-tooltip-autocomplete > ul {
+  font-family: var(--font-sans) !important;
+  max-height: 20em !important;
+  padding: 6px !important;
+}
+.cm-tooltip-autocomplete > ul > li {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 12px !important;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 100ms var(--ease);
 }
 .cm-tooltip-autocomplete li[aria-selected] {
   background: rgb(var(--accent)) !important;
   color: rgb(var(--on-accent)) !important;
 }
-.cm-tooltip-autocomplete > ul {
-  font-family: var(--font-sans) !important;
-  max-height: 18em !important;
-}
-.cm-tooltip-autocomplete > ul > li {
-  display: flex;
-  align-items: baseline;
-  gap: 16px;
-  padding: 4px 10px !important;
+.cm-tooltip-autocomplete .cm-completionMatchedText {
+  font-weight: 600;
+  text-decoration: underline;
 }
 .cm-tooltip-autocomplete .cm-completionDetail {
   margin-left: auto;
@@ -920,4 +929,29 @@ html[data-readonly] .edit-only {
 [data-theme='material'] main h1 {
   font-weight: 500;
   letter-spacing: 0;
+}
+[data-theme='material'] .cm-tooltip-autocomplete {
+  border-radius: 16px !important;
+  border: 1px solid rgb(var(--line) / 0.4) !important;
+  background: rgb(var(--raised)) !important;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.4), 0 2px 8px rgb(0 0 0 / 0.25) !important;
+}
+[data-theme='material'] .cm-tooltip-autocomplete > ul {
+  padding: 8px 6px !important;
+}
+[data-theme='material'] .cm-tooltip-autocomplete > ul > li {
+  padding: 9px 14px !important;
+  border-radius: 10px !important;
+  font-size: 14px;
+}
+[data-theme='material'] .cm-tooltip-autocomplete > ul > li:hover:not([aria-selected]) {
+  background: rgb(var(--surface) / 0.6) !important;
+}
+[data-theme='material'] .cm-tooltip-autocomplete li[aria-selected] {
+  background: rgb(var(--accent-container)) !important;
+  color: rgb(var(--on-accent-container)) !important;
+  font-weight: 500;
+}
+[data-theme='material'] .cm-tooltip-autocomplete li[aria-selected] .cm-completionDetail {
+  color: rgb(var(--on-accent-container) / 0.75) !important;
 }

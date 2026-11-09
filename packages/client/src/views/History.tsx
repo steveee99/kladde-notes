@@ -4,6 +4,7 @@ import { diffLines, diffStats, NoteVersion, NoteVersionInfo, splitPath } from '@
 import { api } from '../lib/api';
 import { vault } from '../data/vault';
 import { Editor } from '../editor/Editor';
+import { useVisualViewport } from '../lib/viewport';
 
 type Mode = 'diff' | 'rendered';
 
@@ -55,10 +56,19 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
     onClose();
   };
 
+  const vp = useVisualViewport();
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-      <div className="absolute inset-0 bg-black/40 anim-fade-in" onClick={onClose} />
-      <div className="relative flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl bg-surface shadow-soft anim-sheet sm:rounded-3xl">
+    <div
+      className="fixed inset-x-0 z-50 flex items-end justify-center sm:items-center"
+      style={
+        vp
+          ? { top: `${vp.top}px`, height: `${vp.height}px` }
+          : { top: 0, bottom: 0 }
+      }
+    >
+      <div className="fixed inset-0 bg-black/40 anim-fade-in" onClick={onClose} />
+      <div className="relative flex h-[min(90vh,100%)] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl bg-surface shadow-soft anim-sheet sm:rounded-3xl">
         <div className="flex items-center gap-2 border-b border-line px-4 py-3">
           {detail && (
             <button className="btn-icon sm:hidden" onClick={() => setDetail(false)} title="Zurück zur Liste">

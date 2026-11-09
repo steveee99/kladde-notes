@@ -4,6 +4,10 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Behoben: Auf dem Desktop überdeckte das Ordner-Dropdown in der Inbox den Löschen-Knopf bei längeren Ordnernamen. Die Dropdown-Breite ist nun sauber begrenzt, sodass der Löschen-Knopf immer klickbar bleibt.
+- Behoben: Dialoge und Eingabefenster (z. B. der Rezept-Import) passen sich auf Mobilgeräten nun dynamisch an das virtuelle Tastaturfenster an und verschwinden nicht mehr hinter der geöffneten Tastatur. Auf Touch-Geräten öffnet sich die Tastatur zudem nicht mehr automatisch beim Aufrufen des Dialogs.
+- Geändert: Das Slash-Menü (`/`) im Editor bietet mehr Innenabstand und wurde im Material-Design mit abgerundeten Menüeinträgen, Tonal-Highlighting und weicherem Schatten gestaltet.
+
 ## [0.14.1] – 2026-11-09
 
 - Behoben: Sicherheitsaktualisierungen für Abhängigkeiten (Mermaid, Vitest, Glob).

@@ -1,3 +1,38 @@
+import { useEffect, useState } from 'react';
+
+/** True when the primary input mechanism is a touch screen / coarse pointer */
+export const isCoarsePointer = () => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+
+/**
+ * Tracks the visual viewport. When an on-screen keyboard appears on mobile devices,
+ * this provides the visible area offset and height so modals and sheets stay visible.
+ */
+export function useVisualViewport(): { top: number; height: number; keyboardOpen: boolean } | null {
+  const [vp, setVp] = useState<{ top: number; height: number; keyboardOpen: boolean } | null>(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return null;
+    const vv = window.visualViewport;
+    const keyboardOpen = window.innerHeight - vv.height > 100;
+    return { top: vv.offsetTop, height: vv.height, keyboardOpen };
+  });
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      const keyboardOpen = window.innerHeight - vv.height > 100;
+      setVp({ top: vv.offsetTop, height: vv.height, keyboardOpen });
+    };
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
+
+  return vp;
+}
+
 /**
  * iOS scrolls the window to keep the caret visible while the keyboard is open and does not always
  * scroll back when it closes. The document is not meant to scroll (see index.css), so any window
