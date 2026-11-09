@@ -193,3 +193,18 @@ export interface OAuthRequestInfo {
   redirectHost: string;
   wantsWrite: boolean;
 }
+
+/** Git sync of a user's own notes to a remote repository (branch main); the access token is never sent back */
+export interface GitSyncSettings {
+  url: string;
+  email: string;
+  hasToken: boolean;
+  /** Commit message; {date} (YYYY-MM-DD) and {time} (HH:MM) are replaced */
+  message: string;
+  enabled: boolean;
+  lastRunAt: number | null;
+  lastStatus: 'ok' | 'unchanged' | 'error' | null;
+  lastError: string | null;
+}
+
+export const DEFAULT_GIT_MESSAGE = 'Kladde-Sync {date}';

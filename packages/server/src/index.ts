@@ -8,6 +8,7 @@ import { DataCipher } from './crypto.js';
 import { UserStore } from './UserStore.js';
 import { NoteStore } from './NoteStore.js';
 import { FileStore } from './FileStore.js';
+import { GitSync } from './GitSync.js';
 import { ExportMirror } from './ExportMirror.js';
 import { AuditLog } from './security/AuditLog.js';
 import { configuredOrigins, isAllowedOrigin } from './security/origin.js';
@@ -34,10 +35,13 @@ const users = new UserStore(db);
 const audit = new AuditLog(db);
 const live = new LiveUpdates();
 const mirror = ExportMirror.fromEnv((id) => users.getUser(id)?.username ?? null);
+let gitSync: GitSync | undefined;
 const notes = new NoteStore(db, cipher, (event) => {
   live.notify(event.audience);
   mirror?.apply(event);
+  gitSync?.touch(event.ownerId);
 });
+gitSync = new GitSync(db, cipher, (id) => notes.allOf(id), (id) => users.getUser(id)?.username ?? null, DATA_DIR);
 const files = new FileStore(db, cipher, DATA_DIR);
 const mcp = mcpRouters({ users, notes, tokens: new McpTokenStore(db), audit, publicUrl: PUBLIC_URL });
 
@@ -114,7 +118,7 @@ app.use('/api/auth', express.json({ limit: '64kb' }), authRouter({
 app.use('/api', (req, res, next) => (req.path === '/sync' || req.path === '/files' ? next() : express.json({ limit: '256kb' })(req, res, next)));
 app.use('/api/mcp', mcp.accountRouter);
 app.use('/api/admin', adminRouter({ users, audit, status: actions.status }));
-app.use('/api', apiRouter(users, notes, files, live));
+app.use('/api', apiRouter(users, notes, files, live, gitSync));
 
 const clientDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'client', 'dist');
 if (fs.existsSync(clientDist)) {

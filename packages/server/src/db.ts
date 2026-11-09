@@ -186,6 +186,22 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 7,
+    description: 'Git sync target per user (url, email, token and commit message are encrypted)',
+    up(db) {
+      db.exec(`
+        CREATE TABLE git_sync (
+          user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          payload BLOB NOT NULL,
+          last_run_at INTEGER,
+          last_status TEXT,
+          last_error TEXT
+        );
+      `);
+    },
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number[] {
