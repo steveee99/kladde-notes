@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from 'react';
+
 export type ThemeChoice = 'system' | 'light' | 'dark' | 'oled' | 'material';
 const KEY = 'kladde_theme';
 
@@ -29,3 +31,13 @@ export function setTheme(choice: ThemeChoice): void {
 }
 
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => getTheme() === 'system' && applyTheme());
+
+/** The theme in effect right now (never 'system'); components with their own layout per theme re-render on changes */
+function subscribeTheme(cb: () => void): () => void {
+  const mo = new MutationObserver(cb);
+  mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  return () => mo.disconnect();
+}
+export function useResolvedTheme(): string {
+  return useSyncExternalStore(subscribeTheme, () => document.documentElement.dataset.theme ?? 'light');
+}

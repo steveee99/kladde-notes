@@ -11,6 +11,8 @@ import { dragSource, useDropTarget } from '../lib/dnd';
 import { isReadOnly, setReadOnly, useReadOnly } from '../lib/readOnly';
 import { createPortal } from 'react-dom';
 import { ShareDialog } from './ShareDialog';
+import { MaterialShell } from './MaterialShell';
+import { useResolvedTheme } from '../lib/theme';
 
 export function newNote(folder?: string) {
   openDialog({ kind: 'note', folder });
@@ -197,7 +199,7 @@ function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNo
   );
 }
 
-function Sidebar({ onNavigate, isAdmin }: { onNavigate?: () => void; isAdmin?: boolean }) {
+export function Sidebar({ onNavigate, isAdmin }: { onNavigate?: () => void; isAdmin?: boolean }) {
   useVault();
   const [newRoot, setNewRoot] = useState(false);
   const rootDrop = useDropTarget('');
@@ -299,11 +301,16 @@ function useSearchShortcut() {
 }
 
 export function Shell({ children, isAdmin }: { children: React.ReactNode; isAdmin?: boolean }) {
+  useSearchShortcut();
+  // The Material theme brings its own layout (navigation rail, list pane, navigation bar)
+  return useResolvedTheme() === 'material' ? <MaterialShell isAdmin={isAdmin}>{children}</MaterialShell> : <ClassicShell isAdmin={isAdmin}>{children}</ClassicShell>;
+}
+
+function ClassicShell({ children, isAdmin }: { children: React.ReactNode; isAdmin?: boolean }) {
   const [drawer, setDrawer] = useState(false);
   const [capture, setCapture] = useState(false);
   const path = usePath();
   const isNote = path.startsWith('/n/');
-  useSearchShortcut();
   return (
     <div className="flex h-full flex-col">
       {/*

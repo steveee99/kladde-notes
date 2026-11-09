@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Das Design „Material“ hat jetzt einen eigenen Aufbau statt nur eigener Farben: Am Tablet und Desktop eine schmale Navigationsleiste links mit großem Knopf für neue Notizen; die Ordner und alles Weitere öffnen sich über das Menü-Symbol als Schublade. Neben einer geöffneten Notiz steht auf breiten Bildschirmen die Liste der Notizen aus ihrem Ordner (umschaltbar auf alle Notizen). Der Inhalt liegt auf einer abgerundeten Fläche. Am Handy gibt es unten eine Navigationsleiste mit Pillen-Markierung und einen „Erfassen“-Knopf. Knöpfe sind rund, Chips, Eingabefelder, Karten und Checkboxen haben Material-Formen, die Werkzeugleiste im Editor schwebt, und die Schrift ist Roboto Flex (offline verfügbar).
+
 ## [0.13.0] – 2026-11-09
 
 - Neu: Design „Material“ unter Einstellungen → Erscheinungsbild. Angelehnt an Googles Material 3: fast schwarze, neutralgraue Flächen, die sich in Tonstufen statt mit Linien abheben, ein blauer Akzent, größere Rundungen und die Bewegungskurven von Material.

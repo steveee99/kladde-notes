@@ -28,6 +28,10 @@
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-spring: cubic-bezier(0.2, 0.9, 0.25, 1.15);
   --dur: 220ms;
+  /* Container fill for the main action (Material's FAB); other themes use the accent itself */
+  --accent-container: var(--accent);
+  --on-accent-container: var(--on-accent);
+  --font-sans: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
   color-scheme: light;
 }
 
@@ -97,6 +101,9 @@
   --ease: cubic-bezier(0.05, 0.7, 0.1, 1);
   --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
   --dur: 250ms;
+  --accent-container: 11 61 134;
+  --on-accent-container: 211 227 253;
+  --font-sans: 'Roboto Flex Variable', Roboto, system-ui, sans-serif;
   color-scheme: dark;
 }
 
@@ -320,7 +327,7 @@ body {
   outline: none;
 }
 .cm-scroller {
-  font-family: Inter, system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   overflow: visible !important;
 }
 .cm-content {
@@ -373,7 +380,7 @@ html[data-readonly] .edit-only {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 12px;
   color: rgb(var(--muted));
 }
@@ -504,7 +511,7 @@ html[data-readonly] .edit-only {
   color: rgb(var(--on-accent)) !important;
 }
 .cm-tooltip-autocomplete > ul {
-  font-family: Inter, system-ui, -apple-system, sans-serif !important;
+  font-family: var(--font-sans) !important;
   max-height: 18em !important;
 }
 .cm-tooltip-autocomplete > ul > li {
@@ -842,4 +849,100 @@ html[data-readonly] .edit-only {
   max-width: none !important;
   height: auto;
   max-height: 90vh;
+}
+
+/* ------------------------------------------------------------------ Material 3 shapes and components */
+/*
+ * The Material theme has its own shell (views/MaterialShell.tsx: navigation rail, list pane, navigation bar)
+ * and gives the shared components Material 3 shapes: full-round buttons, 8px chips, filled fields,
+ * tonal cards without borders, square-ish checkboxes and a floating editor toolbar. Colors still come
+ * from the variables only.
+ */
+[data-theme='material'] body {
+  letter-spacing: 0.01em;
+}
+[data-theme='material'] .btn {
+  @apply h-10 rounded-full px-5 font-medium;
+}
+[data-theme='material'] .btn-primary {
+  box-shadow: none;
+}
+[data-theme='material'] .btn-ghost {
+  @apply text-accent hover:bg-accent/10 hover:text-accent;
+}
+[data-theme='material'] .btn-icon {
+  @apply h-10 w-10 rounded-full;
+}
+[data-theme='material'] .card {
+  border-color: transparent;
+  background: rgb(var(--raised));
+  box-shadow: none;
+  border-radius: 16px;
+}
+[data-theme='material'] .chip {
+  @apply min-h-[32px] gap-2 rounded-lg border border-faint/60 bg-transparent px-3 text-sm font-medium text-muted;
+}
+[data-theme='material'] .input {
+  @apply rounded-xl border-transparent bg-raised py-3 focus:border-accent focus:ring-0;
+}
+[data-theme='material'] .note-title {
+  font-weight: 500;
+  letter-spacing: 0;
+}
+[data-theme='material'] .note-toolbar {
+  @apply bottom-4 mx-auto mb-4 w-max max-w-[calc(100%-2rem)] rounded-full border-0 bg-raised px-2 py-1.5;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.3), 0 6px 16px rgb(0 0 0 / 0.25);
+}
+[data-theme='material'] .cm-h1,
+[data-theme='material'] .cm-h2 {
+  font-weight: 500;
+  letter-spacing: 0;
+}
+[data-theme='material'] .cm-h3 {
+  font-weight: 500;
+}
+[data-theme='material'] .cm-checkbox {
+  border-radius: 2px;
+  border-color: rgb(var(--muted));
+}
+[data-theme='material'] .cm-due,
+[data-theme='material'] .cm-tag {
+  border-radius: 8px;
+}
+[data-theme='material'] .wz-prop {
+  border-color: rgb(var(--faint) / 0.6);
+  border-radius: 8px;
+  line-height: 30px;
+  font-size: 13px;
+}
+[data-theme='material'] .wz-prop-key {
+  background: transparent;
+  padding: 0 4px 0 12px;
+}
+[data-theme='material'] .wz-prop-value {
+  color: rgb(var(--ink));
+  padding: 0 12px 0 4px;
+}
+[data-theme='material'] .wz-table,
+[data-theme='material'] .wz-diagram,
+[data-theme='material'] .wz-lane {
+  border-color: transparent;
+  background: rgb(var(--raised));
+  border-radius: 16px;
+}
+[data-theme='material'] .wz-card {
+  border-color: transparent;
+  background: rgb(var(--surface));
+  border-radius: 12px;
+}
+/* Sync and read-only status in the rail and the top app bar: plain icon buttons */
+.m3-status .chip {
+  @apply min-h-[40px] min-w-[40px] justify-center rounded-full border-0 px-2;
+}
+.m3-status .chip > span {
+  display: none;
+}
+[data-theme='material'] main h1 {
+  font-weight: 500;
+  letter-spacing: 0;
 }

@@ -30,7 +30,7 @@ function Toolbar({ view }: { view: EditorView | null }) {
     </button>
   );
   return (
-    <div className="sticky bottom-0 z-20 flex gap-1 overflow-x-auto border-t border-line bg-surface/95 px-2 pt-1.5 backdrop-blur [--pad-bottom:0.375rem] max-md:pb-1.5 md:safe-bottom scrollbar-thin">
+    <div className="note-toolbar sticky bottom-0 z-20 flex gap-1 overflow-x-auto border-t border-line bg-surface/95 px-2 pt-1.5 backdrop-blur [--pad-bottom:0.375rem] max-md:pb-1.5 md:safe-bottom scrollbar-thin">
       {btn(CheckSquare, 'Aufgabe', () => insertAtLineStart(view, '- [ ] '))}
       {btn(CalendarPlus, 'Fällig heute', () => insertText(view, ` 📅 ${toDateString(new Date())}`))}
       {btn(Heading, 'Überschrift', () => insertAtLineStart(view, '## '))}
@@ -176,7 +176,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
         </div>
         <input
           ref={titleRef}
-          className="mb-2 w-full bg-transparent text-3xl font-bold tracking-tight outline-none placeholder:text-faint sm:text-4xl"
+          className="note-title mb-2 w-full bg-transparent text-3xl font-bold tracking-tight outline-none placeholder:text-faint sm:text-4xl"
           value={title}
           readOnly={!isOwner}
           placeholder="Titel"
