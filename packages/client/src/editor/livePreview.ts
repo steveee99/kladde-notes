@@ -2,7 +2,9 @@ import { EditorState, Extension, Facet, Range, StateEffect, StateField } from '@
 import { Decoration, DecorationSet, EditorView } from '@codemirror/view';
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
+import { escapeRegExp } from '@kladde/shared';
 import {
+  AutoLinkWidget,
   CheckboxWidget,
   CodeHeaderWidget,
   DiagramWidget,
@@ -18,6 +20,7 @@ import {
   TableWidget,
   WikiWidget,
 } from './widgets';
+import { editorHost } from './host';
 
 /**
  * Obsidian-style live preview: Markdown syntax is hidden and rendered everywhere except in the
@@ -27,9 +30,41 @@ import {
 
 /** true = render every line (read-only views) */
 export const previewAll = Facet.define<boolean, boolean>({ combine: (v) => v.some(Boolean) });
+/** Current note id so notes don't autolink to themselves */
+export const noteIdFacet = Facet.define<string, string>({ combine: (v) => v[0] ?? '' });
 /** Re-render widgets that depend on other notes (queries, link targets) */
 export const refreshEffect = StateEffect.define<number>();
 const focusEffect = StateEffect.define<boolean>();
+
+interface AutoLinkMatcher {
+  stamp: number;
+  noteId: string;
+  regex: RegExp | null;
+  map: Map<string, string>;
+}
+let cachedMatcher: AutoLinkMatcher | null = null;
+
+function getAutoLinkMatcher(noteId: string, stamp: number): { regex: RegExp | null; map: Map<string, string> } {
+  if (cachedMatcher && cachedMatcher.noteId === noteId && cachedMatcher.stamp === stamp) {
+    return cachedMatcher;
+  }
+  const targets = editorHost.autoLinkTargets(noteId);
+  if (!targets.length) {
+    cachedMatcher = { stamp, noteId, regex: null, map: new Map() };
+    return cachedMatcher;
+  }
+  const map = new Map<string, string>();
+  const escaped: string[] = [];
+  for (const t of targets) {
+    const key = t.name.trim().toLowerCase();
+    if (!key || map.has(key)) continue;
+    map.set(key, t.target);
+    escaped.push(escapeRegExp(t.name.trim()));
+  }
+  const regex = escaped.length ? new RegExp(`(?<![\\p{L}\\p{N}\\[#@/])(?:${escaped.join('|')})(?![\\p{L}\\p{N}\\]])`, 'giu') : null;
+  cachedMatcher = { stamp, noteId, regex, map };
+  return cachedMatcher;
+}
 
 const focusField = StateField.define<boolean>({
   create: () => false,
@@ -65,8 +100,10 @@ function build(state: EditorState): DecorationSet {
   const decos: Range<Decoration>[] = [];
   /** Replaced ranges: nothing else may be replaced inside them */
   const replaced: [number, number][] = [];
+  const protectedRanges: [number, number][] = [];
   const codeLines = new Set<number>();
   const free = (from: number, to: number) => !replaced.some(([a, b]) => from < b && to > a);
+  const isProtected = (from: number, to: number) => !free(from, to) || protectedRanges.some(([a, b]) => from < b && to > a);
   const replace = (from: number, to: number, deco: Decoration = hide) => {
     if (from >= to || !free(from, to)) return;
     replaced.push([from, to]);
@@ -125,6 +162,7 @@ function build(state: EditorState): DecorationSet {
           decos.push(mark('cm-strike').range(node.from, node.to));
           return;
         case 'InlineCode':
+          protectedRanges.push([node.from, node.to]);
           decos.push(mark('cm-inline-code').range(node.from, node.to));
           return;
         case 'EmphasisMark':
@@ -139,6 +177,7 @@ function build(state: EditorState): DecorationSet {
           }
           return;
         case 'Link': {
+          protectedRanges.push([node.from, node.to]);
           const marks = node.getChildren('LinkMark');
           const url = node.getChild('URL');
           if (marks.length < 2 || !url || doc.sliceString(node.from, node.from + 2) === '[[') return;
@@ -150,6 +189,7 @@ function build(state: EditorState): DecorationSet {
           return false;
         }
         case 'Image': {
+          protectedRanges.push([node.from, node.to]);
           const url = node.getChild('URL');
           const marks = node.getChildren('LinkMark');
           if (!url || isActive(node.from, node.to)) return false;
@@ -245,6 +285,7 @@ function build(state: EditorState): DecorationSet {
     for (const m of ln.text.matchAll(/\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g)) {
       const from = ln.from + m.index!;
       const to = from + m[0].length;
+      protectedRanges.push([from, to]);
       if (lineActive) decos.push(mark('cm-wikilink').range(from, to));
       else replace(from, to, Decoration.replace({ widget: new WikiWidget(m[1].trim(), m[2]?.trim() ?? null) }));
     }
@@ -256,11 +297,13 @@ function build(state: EditorState): DecorationSet {
     for (const m of ln.text.matchAll(/\[\^([^\]\s]+)\](?!:)/g)) {
       const from = ln.from + m.index!;
       const to = from + m[0].length;
+      protectedRanges.push([from, to]);
       if (lineActive) decos.push(mark('cm-wikilink').range(from, to));
       else replace(from, to, Decoration.replace({ widget: new FootnoteRefWidget(m[1], numberOf(m[1]), defs.get(m[1])?.text ?? '', defs.get(m[1])?.pos ?? null) }));
     }
     for (const m of ln.text.matchAll(/(^|\s)(#[\p{L}\p{N}_/-]*[\p{L}_/-][\p{L}\p{N}_/-]*)/gu)) {
       const from = ln.from + m.index! + m[1].length;
+      protectedRanges.push([from, from + m[2].length]);
       if (free(from, from + m[2].length)) decos.push(mark('cm-tag').range(from, from + m[2].length));
     }
     if (!lineActive && /^\s*[-*+]\s+\[[ xX]\]/.test(ln.text)) {
@@ -275,6 +318,24 @@ function build(state: EditorState): DecorationSet {
       for (const m of ln.text.matchAll(/\s*✅\s*\d{4}-\d{2}-\d{2}/g)) {
         const from = ln.from + m.index!;
         replace(from, from + m[0].length);
+      }
+    }
+    const matcher = getAutoLinkMatcher(state.facet(noteIdFacet), stamp);
+    if (matcher.regex) {
+      matcher.regex.lastIndex = 0;
+      for (const m of ln.text.matchAll(matcher.regex)) {
+        const from = ln.from + m.index!;
+        const to = from + m[0].length;
+        if (isProtected(from, to)) continue;
+        const original = m[0];
+        const target = matcher.map.get(original.toLowerCase());
+        if (!target) continue;
+
+        if (lineActive) {
+          decos.push(mark('cm-autolink').range(from, to));
+        } else {
+          replace(from, to, Decoration.replace({ widget: new AutoLinkWidget(target, original, from, to) }));
+        }
       }
     }
   }

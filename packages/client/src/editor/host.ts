@@ -11,6 +11,7 @@ export interface EditorHost {
   openTask(noteId: string, line: number): void;
   setFrontmatter(noteId: string, updates: Record<string, string | null>): void;
   noteTitles(): string[];
+  autoLinkTargets(excludeId?: string): { name: string; target: string }[];
   upload(file: File): Promise<{ url: string; name: string; mime: string }>;
 }
 
@@ -23,5 +24,6 @@ export const editorHost: EditorHost = {
   openTask: () => {},
   setFrontmatter: () => {},
   noteTitles: () => [],
+  autoLinkTargets: () => [],
   upload: () => Promise.reject(new Error('nicht verfügbar')),
 };

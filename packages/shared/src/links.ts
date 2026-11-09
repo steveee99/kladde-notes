@@ -122,6 +122,25 @@ export class LinkIndex {
   isOrphan(id: string): boolean {
     return this.outgoing(id).length === 0 && this.backlinks(id).length === 0;
   }
+
+  /**
+   * Returns all valid mention targets across all notes (excluding `excludeId`),
+   * sorted with the longest names first so that multi-word titles take precedence.
+   */
+  autoLinkTargets(excludeId?: string): { name: string; target: string }[] {
+    const map = new Map<string, string>();
+    for (const [id, note] of this.notes) {
+      if (excludeId && id === excludeId) continue;
+      const target = note.title;
+      for (const name of this.mentionNames(id)) {
+        const key = name.toLowerCase();
+        if (!map.has(key)) map.set(key, target);
+      }
+    }
+    return [...map.entries()]
+      .map(([name, target]) => ({ name, target }))
+      .sort((a, b) => b.name.length - a.name.length);
+  }
 }
 
 /** Plain-text occurrence of `title` (whole words, outside code and outside existing links) */
@@ -168,4 +187,44 @@ export function renameWikiLinks(content: string, oldTitle: string, newTitle: str
   return mapOutsideCode(content, (text) =>
     text.replace(WIKI, (all, target: string, heading: string, alias: string) => (target.trim().toLowerCase() === old ? `[[${newTitle}${heading}${alias}]]` : all))
   );
+}
+
+/**
+ * Turns all plain mentions of known targets into wikilinks outside code, frontmatter, and existing links.
+ * Longer target names are prioritized.
+ */
+export function linkAllMentions(content: string, targets: { name: string; target: string }[]): string {
+  if (!targets.length) return content;
+  const targetMap = new Map<string, string>();
+  for (const t of targets) {
+    const k = t.name.toLowerCase();
+    if (!targetMap.has(k)) targetMap.set(k, t.target);
+  }
+  const escaped = targets.map((t) => escapeRegExp(t.name));
+  const re = new RegExp(`(?<![\\p{L}\\p{N}\\[#@/])(?:${escaped.join('|')})(?![\\p{L}\\p{N}\\]])`, 'giu');
+
+  return mapOutsideCode(content, (text) => {
+    let prefix = '';
+    let body = text;
+    const fm = /^---\n[\s\S]*?\n---\n?/.exec(text);
+    if (fm) {
+      prefix = fm[0];
+      body = text.slice(prefix.length);
+    }
+    const masked = stripLinks(body);
+    let result = '';
+    let lastIndex = 0;
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(masked)) !== null) {
+      result += body.slice(lastIndex, m.index);
+      const original = body.slice(m.index, m.index + m[0].length);
+      const target = targetMap.get(original.toLowerCase()) ?? original;
+      const link = original === target ? `[[${target}]]` : `[[${target}|${original}]]`;
+      result += link;
+      lastIndex = m.index + m[0].length;
+    }
+    result += body.slice(lastIndex);
+    return prefix + result;
+  });
 }

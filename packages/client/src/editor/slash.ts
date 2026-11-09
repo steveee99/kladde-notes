@@ -1,6 +1,8 @@
 import { Completion, CompletionContext, CompletionResult, startCompletion } from '@codemirror/autocomplete';
 import { EditorView } from '@codemirror/view';
-import { toDateString } from '@kladde/shared';
+import { linkAllMentions, toDateString } from '@kladde/shared';
+import { editorHost } from './host';
+import { noteIdFacet } from './livePreview';
 
 /**
  * Slash commands: "/" at the start of a line or after a space opens a menu of blocks (table, lists,
@@ -45,6 +47,22 @@ function commands(insertFiles: FileInserter): SlashCommand[] {
     { label: 'Kreisdiagramm', detail: 'mermaid', keywords: 'mermaid pie chart torte', template: '```mermaid\npie title |Verteilung\n  "A" : 40\n  "B" : 35\n  "C" : 25\n```', block: true },
     { label: 'Galerie', detail: 'gallery', keywords: 'gallery bilder images', template: '```gallery\n|\n```', block: true },
     { label: 'Notiz verlinken', detail: '[[ ]]', keywords: 'link wiki verweis', template: '[[|]]' },
+    {
+      label: 'Erwähnungen verlinken',
+      detail: 'Alle [[…]]',
+      keywords: 'linkify mentions autolink verlinken',
+      run: (view, from, to) => {
+        view.dispatch({ changes: { from, to, insert: '' } });
+        const currentId = view.state.facet(noteIdFacet);
+        const targets = editorHost.autoLinkTargets(currentId);
+        if (!targets.length) return;
+        const doc = view.state.doc.toString();
+        const updated = linkAllMentions(doc, targets);
+        if (updated !== doc) {
+          view.dispatch({ changes: { from: 0, to: doc.length, insert: updated }, userEvent: 'input' });
+        }
+      },
+    },
     { label: 'Link', detail: '[ ]( )', keywords: 'url web link', template: '[|](https://)' },
     { label: 'Datum heute', detail: 'YYYY-MM-DD', keywords: 'date today heute', template: () => `${toDateString(new Date())}|` },
     {

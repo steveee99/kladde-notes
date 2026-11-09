@@ -7,7 +7,7 @@ import { languages } from '@codemirror/language-data';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 import { tags as t } from '@lezer/highlight';
-import { livePreview, previewAll, refreshEffect } from './livePreview';
+import { livePreview, noteIdFacet, previewAll, refreshEffect } from './livePreview';
 import { editorHost } from './host';
 import { slashCompletion } from './slash';
 import { useReadOnly } from '../lib/readOnly';
@@ -136,6 +136,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           syntaxHighlighting(highlight),
           proseTheme,
           EditorView.lineWrapping,
+          noteIdFacet.of(docKey),
           livePreview(),
           lockConf.current.of(readOnlyExtensions(lockedRef.current)),
           EditorView.contentAttributes.of({ spellcheck: 'true', autocapitalize: 'sentences' }),

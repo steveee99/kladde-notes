@@ -4,8 +4,9 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
-## [0.15.0] – 2026-11-09
+- Neu: Automatische Erkennung von Notiznamen im Text: Wird der Titel einer existierenden Notiz im Fließtext erwähnt, wird er in der Live-Vorschau und im Lesemodus automatisch als klickbarer Hyperlink (dezent gepunktet unterstrichen) dargestellt. Ein Klick öffnet sofort die Zielnotiz. Über ein kleines Symbol beim Daraufzeigen (sowie über den neuen Slash-Befehl `/verlinken` für alle Erwähnungen) lässt sich der Treffer mit einem Klick dauerhaft in einen echten [[Wikilink]] umwandeln.
 
+## [0.15.0] – 2026-11-09
 - Neu: Widescreen-Einstellung unter Einstellungen → Erscheinungsbild: Wähle zwischen „Fluid (ganze Breite)“ und „Feste Breite“ (mit Schieberegler, Zahleneingabe und Schnellauswahl in Pixeln; Standard ist 1200 px). Notizen, Übersichten und Tabellen nutzen den zusätzlichen Platz auf breiten Bildschirmen optimal aus.
 
 ## [0.14.2] – 2026-11-09

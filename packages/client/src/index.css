@@ -381,6 +381,51 @@ html[data-readonly] .edit-only {
   color: rgb(var(--muted));
   text-decoration-style: dashed;
 }
+.cm-autolink {
+  color: rgb(var(--accent));
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: rgb(var(--accent) / 0.5);
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--dur) var(--ease);
+}
+.cm-autolink:hover {
+  text-decoration-color: rgb(var(--accent));
+}
+.cm-autolink-widget {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: baseline;
+}
+.cm-autolink-text {
+  text-decoration: inherit;
+}
+.cm-autolink-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 3px;
+  padding: 1px 3px;
+  border-radius: 4px;
+  background: rgb(var(--accent) / 0.12);
+  color: rgb(var(--accent));
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease), background var(--dur) var(--ease);
+  cursor: pointer;
+  line-height: 1;
+}
+.cm-autolink-widget:hover .cm-autolink-btn {
+  opacity: 1;
+}
+.cm-autolink-btn:hover {
+  background: rgb(var(--accent) / 0.25);
+}
+@media (hover: none) {
+  .cm-autolink-btn {
+    opacity: 0.7;
+  }
+}
 .cm-footnote-ref {
   color: rgb(var(--accent));
   font-weight: 600;

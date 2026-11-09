@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LinkIndex, hasPlainMention, linkFirstMention, renameWikiLinks } from '../src/links';
+import { LinkIndex, hasPlainMention, linkFirstMention, renameWikiLinks, linkAllMentions } from '../src/links';
 import { setFrontmatter, extractMeta, excerpt } from '../src/markdown';
 import { buildReview } from '../src/review';
 import { archiveTarget, restoreTarget, roleOfPath } from '../src/para';
@@ -39,6 +39,18 @@ describe('links', () => {
   it('renames links with heading and alias, not in code', () => {
     const out = renameWikiLinks('[[Alt]] [[alt#Kap|A]] `[[Alt]]` [[Altbau]]', 'Alt', 'Neu');
     expect(out).toBe('[[Neu]] [[Neu#Kap|A]] `[[Alt]]` [[Altbau]]');
+  });
+
+  it('provides autoLinkTargets and links all mentions', () => {
+    const targets = index.autoLinkTargets('c');
+    expect(targets).toEqual([
+      { name: '202611081530 gedanke', target: '202611081530 Gedanke' },
+      { name: 'projekt x', target: 'Projekt X' },
+      { name: 'gedanke', target: '202611081530 Gedanke' },
+    ]);
+    const input = 'Hier wird über das Projekt X gesprochen. Auch gedanke spielt eine Rolle. `Projekt X` im Code bleibt.';
+    const result = linkAllMentions(input, targets);
+    expect(result).toBe('Hier wird über das [[Projekt X]] gesprochen. Auch [[202611081530 Gedanke|gedanke]] spielt eine Rolle. `Projekt X` im Code bleibt.');
   });
 
   it('builds a local graph', () => {

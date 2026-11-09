@@ -390,6 +390,75 @@ export class WikiWidget extends WidgetType {
   }
 }
 
+export class AutoLinkWidget extends WidgetType {
+  constructor(
+    readonly target: string,
+    readonly original: string,
+    readonly from: number,
+    readonly to: number
+  ) {
+    super();
+  }
+
+  eq(o: AutoLinkWidget) {
+    return o.target === this.target && o.original === this.original && o.from === this.from && o.to === this.to;
+  }
+
+  toDOM(view: EditorView) {
+    const s = document.createElement('span');
+    s.className = 'cm-autolink cm-autolink-widget';
+    s.title = `Notiz „${this.target}“ (Klick zum Öffnen)`;
+
+    const text = document.createElement('span');
+    text.className = 'cm-autolink-text';
+    text.textContent = this.original;
+    text.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      editorHost.openWiki(this.target);
+    });
+    s.append(text);
+
+    if (view.state.facet(EditorView.editable)) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'cm-autolink-btn';
+      btn.title = `Als [[${this.target}]] verlinken`;
+      btn.setAttribute('aria-label', `Als [[${this.target}]] verlinken`);
+      btn.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>`;
+
+      btn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        let from = this.from;
+        try {
+          const pos = view.posAtDOM(s);
+          if (pos >= 0) from = pos;
+        } catch {
+          // fallback to this.from
+        }
+        const to = from + this.original.length;
+        const link = this.original === this.target ? `[[${this.target}]]` : `[[${this.target}|${this.original}]]`;
+        view.dispatch({
+          changes: { from, to, insert: link },
+          userEvent: 'input',
+        });
+      });
+      s.append(btn);
+    }
+
+    return s;
+  }
+
+  ignoreEvent() {
+    return true;
+  }
+}
+
 export class ImageWidget extends WidgetType {
   constructor(
     readonly url: string,
