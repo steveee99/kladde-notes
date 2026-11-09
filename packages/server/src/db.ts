@@ -170,6 +170,22 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 6,
+    description: 'Note version history (path and content are encrypted)',
+    up(db) {
+      db.exec(`
+        CREATE TABLE note_versions (
+          id TEXT PRIMARY KEY,
+          note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+          created_at INTEGER NOT NULL,
+          saved_at INTEGER NOT NULL,
+          payload BLOB NOT NULL
+        );
+        CREATE INDEX note_versions_note ON note_versions(note_id, saved_at);
+      `);
+    },
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number[] {
