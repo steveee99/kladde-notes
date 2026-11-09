@@ -35,47 +35,6 @@
   color-scheme: light;
 }
 
-[data-theme='dark'] {
-  --bg: 20 20 27;
-  --surface: 28 28 37;
-  --raised: 38 38 50;
-  --line: 52 52 66;
-  --ink: 234 233 242;
-  --muted: 160 158 178;
-  --faint: 110 108 128;
-  --accent: 139 124 255;
-  --on-accent: 16 14 30;
-  --accent2: 79 209 197;
-  --ok: 92 214 140;
-  --warn: 240 176 80;
-  --danger: 255 110 120;
-  --code-bg: 34 34 45;
-  --selection: 139 124 255 / 0.28;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px rgb(0 0 0 / 0.35);
-  color-scheme: dark;
-}
-
-/* True black for OLED screens: pixels off, accents a little brighter */
-[data-theme='oled'] {
-  --bg: 0 0 0;
-  --surface: 10 10 12;
-  --raised: 22 22 26;
-  --line: 36 36 42;
-  --ink: 240 240 245;
-  --muted: 150 150 165;
-  --faint: 95 95 110;
-  --accent: 160 148 255;
-  --on-accent: 0 0 0;
-  --accent2: 90 225 210;
-  --ok: 100 225 150;
-  --warn: 250 185 90;
-  --danger: 255 120 130;
-  --code-bg: 16 16 20;
-  --selection: 160 148 255 / 0.3;
-  --shadow: none;
-  color-scheme: dark;
-}
-
 /*
  * Material 3 (dark): neutral near-black surfaces in tonal steps instead of lines and shadows,
  * the blue primary from the M3 baseline scheme, large shape radii and M3 motion curves
@@ -330,7 +289,14 @@ body {
   font-family: var(--font-sans);
   overflow: visible !important;
 }
+.cm-editor,
 .cm-content {
+  /* CodeMirror's content box does not shrink below its widest widget: wide tables scrolled the whole page */
+  min-width: 0;
+  max-width: 100%;
+}
+.cm-content {
+  flex-shrink: 1 !important;
   padding: 8px 0 40vh;
   /* CodeMirror's base theme sets black/white with higher specificity: invisible on dark themes */
   caret-color: rgb(var(--accent)) !important;
@@ -594,6 +560,7 @@ html[data-readonly] .edit-only {
 }
 .wz-table-scroll {
   overflow-x: auto;
+  overscroll-behavior-x: contain;
 }
 .wz-table table {
   width: 100%;
@@ -627,7 +594,15 @@ html[data-readonly] .edit-only {
 .wz-table th.sorted.desc .wz-sort::after {
   content: '↓';
 }
+.wz-table th,
 .wz-table td {
+  /* The editor wraps anywhere; in cells that split words, so columns keep a readable width and the table scrolls */
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.wz-table td {
+  min-width: 7rem;
+  max-width: 20rem;
   padding: 8px 12px;
   border-top: 1px solid rgb(var(--line));
   vertical-align: top;
