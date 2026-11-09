@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.11.0] – 2026-11-09
+
 - Neu: Versionsverlauf für Notizen. Der Knopf „Verlauf“ (Uhr-Symbol) oben in der Notiz listet die gespeicherten Stände (verschlüsselt auf dem Server, bis zu 100 pro Notiz; eine Schreibsitzung zählt als eine Version – erst nach 10 Minuten Pause oder nach einer Stunde beginnt eine neue). Ein Klick zeigt die Änderungen gegenüber der vorigen Version wie bei `git diff` (grün hinzugefügt, rot entfernt, mit Zeilennummern) oder umschaltbar den gerenderten Text. „Wiederherstellen“ setzt die Notiz auf den gewählten Stand zurück. Der Verlauf beginnt mit dem Update; gelöschte Notizen verlieren ihren Verlauf.
 - Geändert: „Löschen“ im Eingang fragt jetzt wie in der Notiz vorher nach.
 
