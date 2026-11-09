@@ -12,7 +12,7 @@ Self-hosted, offline-first Markdown notes app (PWA) with npm workspaces, a harde
 1. **Encryption at rest:** never store note paths/contents or attachments unencrypted in the database or `data/files`; use `DataCipher` with the record id as AAD.
 2. **Spaces:** every query on notes must check ownership or a share (`NoteStore.accessOf`). Only owners rename, move or delete.
 3. **Sync:** every accepted change takes the next global `seq`; clients pull `seq > cursor`. Conflicts never lose text (server wins, local copy is kept).
-4. **Theming:** colors only through the CSS variables in `client/src/index.css` (Tailwind maps them); new themes override variables only.
+4. **Theming:** colors only through the CSS variables in `client/src/index.css` (Tailwind maps them); new themes override variables only. Exception: the Material theme also has its own layout (`views/MaterialShell.tsx`, chosen in `Shell` via `useResolvedTheme`) and Material 3 component shapes under `[data-theme='material']` in `index.css`.
 5. **Schema:** add numbered migrations in `server/src/db.ts`, never edit a released one.
 6. **Links:** resolve `[[links]]` only through `LinkIndex` (title, frontmatter `id`, Zettel id prefix); renaming a note must keep rewriting links (`vault.update` → `relink`).
 7. **Commands:** `npm run build`, `npm run test`, `npm run dev`.
