@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.13.0] – 2026-11-09
+
 - Neu: Design „Material“ unter Einstellungen → Erscheinungsbild. Angelehnt an Googles Material 3: fast schwarze, neutralgraue Flächen, die sich in Tonstufen statt mit Linien abheben, ein blauer Akzent, größere Rundungen und die Bewegungskurven von Material.
 
 ## [0.12.0] – 2026-11-09
