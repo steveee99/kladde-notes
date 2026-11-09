@@ -241,3 +241,22 @@ describe('UserStore', () => {
     expect(users.userForSession(token)).toBeNull();
   });
 });
+
+describe('note history', () => {
+  it('keeps encrypted versions, merges quick saves and drops them on delete', () => {
+    const { db, notes, anna, ben } = setup();
+    notes.push(anna.id, [change('note-hist1', 'eins')]);
+    notes.push(anna.id, [change('note-hist1', 'zwei', 1)]);
+    expect(notes.versions(anna.id, 'note-hist1')).toHaveLength(1);
+    expect(notes.version(anna.id, 'note-hist1', notes.versions(anna.id, 'note-hist1')[0].id).content).toBe('zwei');
+    // an older save starts a new version
+    db.prepare('UPDATE note_versions SET created_at = created_at - 3600000').run();
+    notes.push(anna.id, [change('note-hist1', 'drei', 2)]);
+    expect(notes.versions(anna.id, 'note-hist1').map((v) => v.size)).toEqual([4, 4]);
+    const raw = db.prepare('SELECT payload FROM note_versions').get() as { payload: Uint8Array };
+    expect(Buffer.from(raw.payload).toString('utf8')).not.toContain('zwei');
+    expect(() => notes.versions(ben.id, 'note-hist1')).toThrow();
+    notes.push(anna.id, [{ ...change('note-hist1', '', 3), deleted: true }]);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM note_versions').get()).toEqual({ n: 0 });
+  });
+});

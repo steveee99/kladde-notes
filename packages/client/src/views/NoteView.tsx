@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { EditorView } from '@codemirror/view';
-import { ArrowLeft, ChevronRight, Bold, CalendarPlus, CheckSquare, Code, Heading, Image as ImageIcon, Link2, List, Lock, Share2, Trash2, Undo2, Users } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Bold, CalendarPlus, CheckSquare, Code, Heading, History, Image as ImageIcon, Link2, List, Lock, Share2, Trash2, Undo2, Users } from 'lucide-react';
 import { undo } from '@codemirror/commands';
 import { excerpt, splitPath, toDateString } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
@@ -9,6 +9,7 @@ import { useReadOnly } from '../lib/readOnly';
 import { Editor, insertAtLineStart, insertText, toggleCode, toggleWrap, wrapSelection } from '../editor/Editor';
 import { editorHost } from '../editor/host';
 import { ShareDialog } from './ShareDialog';
+import { HistoryDialog } from './History';
 import { ParaBar } from './ParaBar';
 import { Graph } from './Graph';
 
@@ -67,6 +68,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const [view, setView] = useState<EditorView | null>(null);
   const locked = useReadOnly();
   const [sharing, setSharing] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [showGraph, setShowGraph] = useState(true);
   const [title, setTitle] = useState('');
   const titleRef = useRef<HTMLInputElement>(null);
@@ -148,6 +150,9 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 <Lock size={15} className="mr-2" />
               </span>
             )}
+            <button className="btn-icon" title="Verlauf" onClick={() => setShowHistory(true)}>
+              <History size={18} />
+            </button>
             {isOwner && (
               <button className="btn-icon" title="Teilen" onClick={() => setSharing(true)}>
                 <Share2 size={18} />
@@ -229,6 +234,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
         </div>
       </div>
       {!readOnly && <Toolbar view={view} />}
+      {showHistory && <HistoryDialog noteId={id} current={note.content} canRestore={!readOnly} onClose={() => setShowHistory(false)} />}
       {sharing && <ShareDialog target={{ note: id }} onClose={() => setSharing(false)} />}
     </div>
   );

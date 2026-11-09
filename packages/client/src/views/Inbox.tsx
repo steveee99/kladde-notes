@@ -8,7 +8,7 @@ import { ChipSelect } from './ChipSelect';
 
 /** Actions to file one inbox item: PARA roots, Zettelkasten, any folder, archive, delete */
 export function SortActions({ note, compact = false, onDone }: { note: LocalNote; compact?: boolean; onDone?: () => void }) {
-  const run = (fn: () => Promise<unknown>) => () => void fn().then(onDone);
+  const run = (fn: () => Promise<unknown>) => () => void fn().then(onDone, () => {});
   const btn = (Icon: typeof Archive, label: string, fn: () => Promise<unknown>, cls = '') => (
     <button key={label} className={`chip px-2.5 py-1.5 text-xs transition-colors hover:bg-accent/15 hover:text-accent ${cls}`} onClick={(e) => (e.stopPropagation(), run(fn)())}>
       <Icon size={13} /> {!compact && label}
@@ -37,7 +37,15 @@ export function SortActions({ note, compact = false, onDone }: { note: LocalNote
             </option>
           ))}
       </ChipSelect>
-      {btn(Trash2, 'Löschen', () => vault.remove(note.id), 'hover:!bg-danger/15 hover:!text-danger')}
+      {btn(
+        Trash2,
+        'Löschen',
+        async () => {
+          if (!confirm(`„${splitPath(note.path).name}“ löschen?`)) throw new Error('cancelled');
+          await vault.remove(note.id);
+        },
+        'hover:!bg-danger/15 hover:!text-danger'
+      )}
     </div>
   );
 }

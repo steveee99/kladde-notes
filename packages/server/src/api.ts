@@ -85,6 +85,22 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
 
   const notFound = (res: Response) => res.status(404).json({ error: 'Notiz nicht gefunden (oder nicht deine).' });
 
+  router.get('/notes/:id/versions', (req, res) => {
+    try {
+      res.json(notes.versions(req.user!.id, req.params.id));
+    } catch {
+      notFound(res);
+    }
+  });
+
+  router.get('/notes/:id/versions/:version', (req, res) => {
+    try {
+      res.json(notes.version(req.user!.id, req.params.id, req.params.version));
+    } catch {
+      notFound(res);
+    }
+  });
+
   router.get('/notes/:id/shares', (req, res) => {
     try {
       res.json(notes.shares(req.user!.id, req.params.id));

@@ -134,6 +134,19 @@ export interface FolderShares {
   inherited: NoteShare[];
 }
 
+/** One saved state of a note (its content is loaded per version) */
+export interface NoteVersionInfo {
+  id: string;
+  /** When this state was last saved */
+  savedAt: number;
+  path: string;
+  size: number;
+}
+
+export interface NoteVersion extends NoteVersionInfo {
+  content: string;
+}
+
 export interface NoteShares {
   users: NoteShare[];
   /** Public read-only link token, null if none */

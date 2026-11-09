@@ -1,10 +1,14 @@
 import { DatabaseSync } from 'node:sqlite';
-import { FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote } from '@kladde/shared';
+import { NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote } from '@kladde/shared';
 import { DataCipher, randomToken } from './crypto.js';
 import { transaction } from './db.js';
 
 /** Upper bound for one note; attachments go through the file store */
 export const MAX_NOTE_BYTES = 2 * 1024 * 1024;
+/** Saves within this window update the newest version instead of adding one (typing is one version) */
+export const VERSION_WINDOW_MS = 10 * 60 * 1000;
+/** Older versions of a note are dropped beyond this many */
+export const MAX_VERSIONS = 100;
 const ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 
 interface NoteRow {
@@ -15,6 +19,14 @@ interface NoteRow {
   created_at: number;
   updated_at: number;
   deleted: number;
+  payload: Uint8Array;
+}
+
+interface VersionRow {
+  id: string;
+  note_id: string;
+  created_at: number;
+  saved_at: number;
   payload: Uint8Array;
 }
 
@@ -215,6 +227,7 @@ export class NoteStore {
           this.db
             .prepare('INSERT INTO notes (id, owner_id, version, seq, created_at, updated_at, deleted, payload) VALUES (?, ?, 1, ?, ?, ?, ?, ?)')
             .run(change.id, ownerId, seq, createdAt, updatedAt, change.deleted ? 1 : 0, this.cipher.encryptJson({ path, content }, `note:${change.id}`));
+          if (!change.deleted) this.recordVersion(change.id, path, content, now);
           const shares = ownerId === userId ? folderShares() : this.folderSharesOf(ownerId);
           const added = change.deleted ? [] : this.applyFolderShares(ownerId, change.id, path, seq, shares);
           events.push({ noteId: change.id, ownerId, audience: [...new Set([ownerId, userId, ...added])], path, previousPath: null, content, deleted: !!change.deleted });
@@ -235,6 +248,8 @@ export class NoteStore {
         this.db
           .prepare('UPDATE notes SET version = version + 1, seq = ?, updated_at = ?, deleted = ?, payload = ? WHERE id = ?')
           .run(seq, updatedAt, deleted ? 1 : 0, this.cipher.encryptJson({ path, content: deleted ? '' : content }, `note:${row.id}`), row.id);
+        if (deleted) this.db.prepare('DELETE FROM note_versions WHERE note_id = ?').run(row.id);
+        else if (path !== old.path || content !== old.content) this.recordVersion(row.id, path, content, now);
         const audience = this.audience(row);
         if (deleted) this.dropShares(row.id, seq);
         else if (access === 'owner' && path !== old.path) audience.push(...this.applyFolderShares(userId, row.id, path, seq, folderShares()));
@@ -244,6 +259,51 @@ export class NoteStore {
     );
     for (const e of events) this.onChange(e);
     return results;
+  }
+
+  /** Keeps the history: saves close together share one version, the oldest ones fall off */
+  private recordVersion(noteId: string, path: string, content: string, now: number): void {
+    const payload = (id: string) => this.cipher.encryptJson({ path, content }, `note_version:${id}`);
+    const last = this.db.prepare('SELECT id, created_at FROM note_versions WHERE note_id = ? ORDER BY saved_at DESC, rowid DESC LIMIT 1').get(noteId) as
+      | { id: string; created_at: number }
+      | undefined;
+    if (last && now - last.created_at < VERSION_WINDOW_MS) {
+      this.db.prepare('UPDATE note_versions SET saved_at = ?, payload = ? WHERE id = ?').run(now, payload(last.id), last.id);
+      return;
+    }
+    const id = randomToken(12);
+    this.db.prepare('INSERT INTO note_versions (id, note_id, created_at, saved_at, payload) VALUES (?, ?, ?, ?, ?)').run(id, noteId, now, now, payload(id));
+    this.db
+      .prepare('DELETE FROM note_versions WHERE note_id = ? AND id NOT IN (SELECT id FROM note_versions WHERE note_id = ? ORDER BY saved_at DESC, rowid DESC LIMIT ?)')
+      .run(noteId, noteId, MAX_VERSIONS);
+  }
+
+  /** Newest first; anybody who can see the note may look at its history */
+  versions(userId: string, noteId: string): NoteVersionInfo[] {
+    this.readableRow(userId, noteId);
+    const rows = this.db.prepare('SELECT * FROM note_versions WHERE note_id = ? ORDER BY saved_at DESC, rowid DESC').all(noteId) as unknown as VersionRow[];
+    return rows.map((r) => {
+      const v = this.versionOf(r);
+      return { id: r.id, savedAt: r.saved_at, path: v.path, size: Buffer.byteLength(v.content) };
+    });
+  }
+
+  version(userId: string, noteId: string, versionId: string): NoteVersion {
+    this.readableRow(userId, noteId);
+    const r = this.db.prepare('SELECT * FROM note_versions WHERE id = ? AND note_id = ?').get(versionId, noteId) as VersionRow | undefined;
+    if (!r) throw new Error('not found');
+    const v = this.versionOf(r);
+    return { id: r.id, savedAt: r.saved_at, path: v.path, size: Buffer.byteLength(v.content), content: v.content };
+  }
+
+  private versionOf(r: VersionRow): Payload {
+    return this.cipher.decryptJson<Payload>(r.payload, `note_version:${r.id}`);
+  }
+
+  private readableRow(userId: string, noteId: string): NoteRow {
+    const row = this.getRow(noteId);
+    if (!row || row.deleted || !this.accessOf(userId, row)) throw new Error('not found');
+    return row;
   }
 
   private dropShares(noteId: string, seq: number): void {
