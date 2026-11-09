@@ -18,6 +18,7 @@ import { ReviewView } from './views/Review';
 import { AdminView } from './views/Admin';
 import { TemplatesView } from './views/Templates';
 import { McpSettingsView } from './views/McpSettings';
+import { GitSettingsView } from './views/GitSettings';
 import { OAuthConsent } from './views/OAuthConsent';
 
 const ME_KEY = 'kladde_me';
@@ -124,6 +125,7 @@ export function App() {
   else if (path === '/admin') page = <AdminView me={me} />;
   else if (path === '/settings/templates') page = <TemplatesView />;
   else if (path === '/settings/mcp') page = <McpSettingsView />;
+  else if (path === '/settings/git') page = <GitSettingsView />;
   else if (path === '/settings')
     page = (
       <SettingsView

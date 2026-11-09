@@ -3,6 +3,7 @@ import type { PushChange } from '@kladde/shared';
 import { NoteStore } from './NoteStore.js';
 import { FileStore, MAX_FILE_BYTES } from './FileStore.js';
 import { UserStore } from './UserStore.js';
+import type { GitSync } from './GitSync.js';
 import { handle, rateLimit, requireUser } from './http.js';
 import { ImportError, importRecipe } from './RecipeImport.js';
 
@@ -28,7 +29,7 @@ export class LiveUpdates {
   }
 }
 
-export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, live: LiveUpdates): express.Router {
+export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, live: LiveUpdates, gitSync?: GitSync): express.Router {
   const router = express.Router();
   const authed = requireUser(users);
 
@@ -206,6 +207,18 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       }
     })
   );
+
+  // ---------------------------------------------------------------- git sync of the own notes
+
+  if (gitSync) {
+    router.get('/git', authed, handle((req, res) => res.json(gitSync.get(req.user!.id))));
+    router.put('/git', authed, handle((req, res) => res.json(gitSync.save(req.user!.id, req.body ?? {}))));
+    router.delete('/git', authed, handle((req, res) => {
+      gitSync.remove(req.user!.id);
+      res.json(null);
+    }));
+    router.post('/git/sync', authed, rateLimit(20, 10 * 60_000), handle(async (req, res) => res.json(await gitSync.run(req.user!.id))));
+  }
 
   router.post(
     '/files',

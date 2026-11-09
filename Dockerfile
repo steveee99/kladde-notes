@@ -19,8 +19,8 @@ RUN npm run build --workspace=packages/client
 # Production runner stage
 FROM node:24-alpine AS runner
 
-# su-exec: the entrypoint drops from root to the "node" user after fixing the volume's owner
-RUN apk add --no-cache su-exec
+# su-exec: the entrypoint drops from root to the "node" user after fixing the volume's owner; git: optional per-user note sync to a Git repository
+RUN apk add --no-cache su-exec git
 
 WORKDIR /app
 
