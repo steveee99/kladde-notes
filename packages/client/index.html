@@ -20,12 +20,20 @@
     <meta name="referrer" content="no-referrer" />
     <title>Kladde</title>
     <script>
-      // Theme before first paint, so there is no flash
+      // Theme and layout width before first paint, so there is no flash
       try {
         var t = localStorage.getItem('kladde_theme') || 'system';
         if (t === 'dark' || t === 'oled') t = 'material';
         if (t === 'system') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'material' : 'light';
         document.documentElement.dataset.theme = t;
+      } catch (e) {}
+      try {
+        var w = localStorage.getItem('kladde_widescreen');
+        var cfg = w ? JSON.parse(w) : null;
+        var mode = (cfg && (cfg.mode === 'fluid' || cfg.mode === 'fixed')) ? cfg.mode : 'fixed';
+        var width = (cfg && typeof cfg.width === 'number' && cfg.width >= 480 && cfg.width <= 3840) ? Math.round(cfg.width) : 1200;
+        document.documentElement.dataset.widescreen = mode;
+        document.documentElement.style.setProperty('--content-width', mode === 'fluid' ? 'none' : width + 'px');
       } catch (e) {}
     </script>
   </head>

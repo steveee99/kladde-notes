@@ -46,7 +46,7 @@ export function ReviewView() {
   const r = buildReview(vault.list().filter((n) => n.access === 'owner'));
   const last = vault.setting<number>(REVIEW_KEY);
   return (
-    <div className="mx-auto max-w-3xl space-y-4 px-4 py-6 sm:px-8 sm:py-10">
+    <div className="content-container mx-auto space-y-4 px-4 py-6 sm:px-8 sm:py-10">
       <div className="anim-fade-up">
         <h1 className="text-2xl font-bold tracking-tight">Wochenrückblick</h1>
         <p className="mt-1 text-muted">{last ? `Zuletzt am ${new Date(last).toLocaleDateString('de-DE', { dateStyle: 'full' })}.` : 'Noch nie gemacht – ein guter Moment.'}</p>

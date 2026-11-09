@@ -32,6 +32,7 @@
   --accent-container: var(--accent);
   --on-accent-container: var(--on-accent);
   --font-sans: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --content-width: 1200px;
   color-scheme: light;
 }
 
@@ -244,6 +245,12 @@ body {
   }
   .chip {
     @apply inline-flex items-center gap-1 rounded-full bg-raised px-2 py-0.5 text-xs text-muted;
+  }
+  .content-container {
+    width: 100%;
+    max-width: var(--content-width);
+    margin-left: auto;
+    margin-right: auto;
   }
 }
 

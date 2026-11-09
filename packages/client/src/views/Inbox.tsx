@@ -74,7 +74,7 @@ export function InboxView() {
     .filter((n) => n.access === 'owner' && splitPath(n.path).folder === PARA.inbox)
     .sort((a, b) => a.createdAt - b.createdAt);
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8 sm:py-10">
+    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
       <div className="mb-6 anim-fade-up">
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
           <InboxIcon size={24} className="text-accent" /> Inbox

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
-import { Bot, ChevronRight, Copy, GitBranch, KeyRound, LayoutTemplate, Lock, LogOut, Monitor, Moon, ShieldCheck, Smartphone, Sun, Trash2, Zap } from 'lucide-react';
+import { Bot, ChevronRight, Copy, FoldHorizontal, GitBranch, KeyRound, LayoutTemplate, Lock, LogOut, Monitor, Moon, ShieldCheck, Smartphone, Sun, Trash2, UnfoldHorizontal, Zap } from 'lucide-react';
 import { APP_VERSION, Me, PASSWORD_MIN_LENGTH } from '@kladde/shared';
 import { api } from '../lib/api';
 import { getTheme, setTheme, ThemeChoice } from '../lib/theme';
+import { DEFAULT_FIXED_WIDTH, MAX_WIDTH, MIN_WIDTH, setWidescreen, useWidescreen } from '../lib/widescreen';
 import { useVault, vault } from '../data/vault';
 import { startupReport, toggleTallPageTest, viewportReport } from '../lib/viewport';
 import { navigate } from '../lib/router';
@@ -11,6 +12,7 @@ import { passkeysAvailable } from './Auth';
 
 export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) => void; onLogout: () => void }) {
   useVault();
+  const widescreen = useWidescreen();
   const [theme, setThemeState] = useState<ThemeChoice>(getTheme());
   const [link, setLink] = useState<{ code: string; expiresAt: number } | null>(null);
   const [error, setError] = useState('');
@@ -81,6 +83,75 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
             </button>
           ))}
         </div>
+
+        <div className="my-5 border-t border-line" />
+
+        <div className="mb-3">
+          <h3 className="font-semibold text-sm">Widescreen</h3>
+          <p className="text-xs text-muted">Breite von Notizen und Übersichten auf größeren Bildschirmen.</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setWidescreen({ ...widescreen, mode: 'fixed' })}
+            className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-sm transition-all duration-200 ${widescreen.mode === 'fixed' ? 'border-accent bg-accent/10 text-accent' : 'border-line text-muted hover:border-faint'}`}
+          >
+            <FoldHorizontal size={20} />
+            <span className="font-medium">Feste Breite</span>
+          </button>
+          <button
+            onClick={() => setWidescreen({ ...widescreen, mode: 'fluid' })}
+            className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-sm transition-all duration-200 ${widescreen.mode === 'fluid' ? 'border-accent bg-accent/10 text-accent' : 'border-line text-muted hover:border-faint'}`}
+          >
+            <UnfoldHorizontal size={20} />
+            <span className="font-medium">Fluid (ganze Breite)</span>
+          </button>
+        </div>
+
+        {widescreen.mode === 'fixed' && (
+          <div className="mt-4 space-y-3 rounded-xl bg-raised/50 p-3 anim-fade-in">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted">Maximale Breite</span>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min={MIN_WIDTH}
+                  max={MAX_WIDTH}
+                  step={20}
+                  value={widescreen.width}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (val > 0) setWidescreen({ ...widescreen, width: val });
+                  }}
+                  className="input h-8 w-24 py-1 text-right font-mono text-sm"
+                  aria-label="Maximale Breite in Pixeln"
+                />
+                <span className="text-xs text-muted">px</span>
+              </div>
+            </div>
+            <input
+              type="range"
+              min={768}
+              max={2560}
+              step={20}
+              value={widescreen.width}
+              onChange={(e) => setWidescreen({ ...widescreen, width: Number(e.target.value) })}
+              className="w-full accent-accent cursor-pointer"
+              aria-label="Breite regeln"
+            />
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[768, 1000, 1200, 1400, 1600].map((px) => (
+                <button
+                  key={px}
+                  onClick={() => setWidescreen({ ...widescreen, width: px })}
+                  className={`chip text-xs transition-colors ${widescreen.width === px ? 'border border-accent bg-accent/15 text-accent' : 'hover:text-ink'}`}
+                >
+                  {px} px{px === DEFAULT_FIXED_WIDTH ? ' (Standard)' : px === 768 ? ' (Kompakt)' : ''}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="card p-5 anim-fade-up">

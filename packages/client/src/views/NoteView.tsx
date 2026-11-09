@@ -119,7 +119,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
 
   return (
     <div className="flex min-h-full flex-col">
-      <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-4 sm:px-8 sm:pt-8">
+      <div className="content-container mx-auto w-full flex-1 px-4 pt-4 sm:px-8 sm:pt-8">
         <div className="mb-2 flex items-center gap-1 text-sm text-faint anim-fade-in">
           <button className="btn-icon -ml-2" onClick={() => history.back()} title="Zurück">
             <ArrowLeft size={18} />

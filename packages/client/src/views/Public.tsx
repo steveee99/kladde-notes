@@ -13,7 +13,7 @@ export function PublicNote({ token }: { token: string }) {
   if (error) return <div className="p-8 text-center text-muted">{error}</div>;
   if (!note) return <div className="p-8 text-center text-faint">Lade …</div>;
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-8 anim-fade-up">
+    <div className="content-container mx-auto px-4 py-8 sm:px-8 anim-fade-up">
       <div className="mb-6 flex items-center gap-2 text-sm text-faint">
         <img src="/icons/icon.svg" className="h-6 w-6" alt="" /> Geteilt von {note.owner} · {new Date(note.updatedAt).toLocaleDateString('de-DE')}
       </div>

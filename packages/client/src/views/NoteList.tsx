@@ -311,7 +311,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
   const title = mode === 'all' ? 'Alle Notizen' : mode === 'shared' ? 'Mit mir geteilt' : folder!.split('/').pop();
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-8 sm:py-10">
+    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
       <div className="mb-6 flex items-center gap-2 anim-fade-up">
         <div className="min-w-0 flex-1">
           {mode === 'folder' && folder!.includes('/') && <p className="truncate text-sm text-faint">{folder!.split('/').slice(0, -1).join(' / ')}</p>}

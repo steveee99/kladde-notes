@@ -264,7 +264,7 @@ export function GraphView() {
   const ids = new Set(nodes.map((n) => n.id));
   const edges = g.edges.filter((e) => ids.has(e.source) && ids.has(e.target));
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8">
+    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-8">
       <div className="mb-4 flex flex-wrap items-center gap-3 anim-fade-up">
         <h1 className="text-2xl font-bold tracking-tight">Wissensnetz</h1>
         <span className="text-sm text-faint">

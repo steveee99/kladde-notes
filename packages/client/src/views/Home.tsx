@@ -196,7 +196,7 @@ export function HomeView() {
   const openCount = tasks.filter((t) => bucketOf(t) === 'overdue' || bucketOf(t) === 'today').length;
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8 sm:py-10">
+    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
       <header className="mb-6 anim-fade-up">
         <p className="text-sm text-muted">{new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
         <h1 className="text-3xl font-bold tracking-tight">{greeting} 👋</h1>
