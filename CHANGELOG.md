@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.14.0] – 2026-11-09
+
 - Geändert: Es gibt nur noch ein dunkles Design – „Material“ heißt jetzt „Dunkel“ und ersetzt die bisherigen Designs „Dunkel“ und „OLED“. Wer eines davon gewählt hatte, bekommt automatisch das neue; „System“ nutzt es im Dunkelmodus.
 - Behoben: Breite Tabellen machten auf dem Handy die ganze Notiz breiter als den Bildschirm, sodass die Seite seitlich scrollte. Jetzt scrollt nur die Tabelle, und Zellen brechen nicht mehr mitten im Wort um.
 - Neu: Das Design „Material“ hat jetzt einen eigenen Aufbau statt nur eigener Farben: Am Tablet und Desktop eine schmale Navigationsleiste links mit großem Knopf für neue Notizen; die Ordner und alles Weitere öffnen sich über das Menü-Symbol als Schublade. Neben einer geöffneten Notiz steht auf breiten Bildschirmen die Liste der Notizen aus ihrem Ordner (umschaltbar auf alle Notizen). Der Inhalt liegt auf einer abgerundeten Fläche. Am Handy gibt es unten eine Navigationsleiste mit Pillen-Markierung und einen „Erfassen“-Knopf. Knöpfe sind rund, Chips, Eingabefelder, Karten und Checkboxen haben Material-Formen, die Werkzeugleiste im Editor schwebt, und die Schrift ist Roboto Flex (offline verfügbar).
