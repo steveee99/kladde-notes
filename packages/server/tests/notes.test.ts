@@ -249,8 +249,8 @@ describe('note history', () => {
     notes.push(anna.id, [change('note-hist1', 'zwei', 1)]);
     expect(notes.versions(anna.id, 'note-hist1')).toHaveLength(1);
     expect(notes.version(anna.id, 'note-hist1', notes.versions(anna.id, 'note-hist1')[0].id).content).toBe('zwei');
-    // an older save starts a new version
-    db.prepare('UPDATE note_versions SET created_at = created_at - 3600000').run();
+    // a pause starts a new version
+    db.prepare('UPDATE note_versions SET created_at = created_at - 3600000, saved_at = saved_at - 3600000').run();
     notes.push(anna.id, [change('note-hist1', 'drei', 2)]);
     expect(notes.versions(anna.id, 'note-hist1').map((v) => v.size)).toEqual([4, 4]);
     const raw = db.prepare('SELECT payload FROM note_versions').get() as { payload: Uint8Array };

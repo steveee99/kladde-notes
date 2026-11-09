@@ -5,8 +5,10 @@ import { transaction } from './db.js';
 
 /** Upper bound for one note; attachments go through the file store */
 export const MAX_NOTE_BYTES = 2 * 1024 * 1024;
-/** Saves within this window update the newest version instead of adding one (typing is one version) */
-export const VERSION_WINDOW_MS = 10 * 60 * 1000;
+/** A pause this long starts a new version; saves closer together update the newest one (a writing session is one version) */
+export const VERSION_PAUSE_MS = 10 * 60 * 1000;
+/** Even without a pause, a version never grows beyond this span */
+export const VERSION_MAX_SPAN_MS = 60 * 60 * 1000;
 /** Older versions of a note are dropped beyond this many */
 export const MAX_VERSIONS = 100;
 const ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
@@ -264,10 +266,10 @@ export class NoteStore {
   /** Keeps the history: saves close together share one version, the oldest ones fall off */
   private recordVersion(noteId: string, path: string, content: string, now: number): void {
     const payload = (id: string) => this.cipher.encryptJson({ path, content }, `note_version:${id}`);
-    const last = this.db.prepare('SELECT id, created_at FROM note_versions WHERE note_id = ? ORDER BY saved_at DESC, rowid DESC LIMIT 1').get(noteId) as
-      | { id: string; created_at: number }
+    const last = this.db.prepare('SELECT id, created_at, saved_at FROM note_versions WHERE note_id = ? ORDER BY saved_at DESC, rowid DESC LIMIT 1').get(noteId) as
+      | { id: string; created_at: number; saved_at: number }
       | undefined;
-    if (last && now - last.created_at < VERSION_WINDOW_MS) {
+    if (last && now - last.saved_at < VERSION_PAUSE_MS && now - last.created_at < VERSION_MAX_SPAN_MS) {
       this.db.prepare('UPDATE note_versions SET saved_at = ?, payload = ? WHERE id = ?').run(now, payload(last.id), last.id);
       return;
     }
