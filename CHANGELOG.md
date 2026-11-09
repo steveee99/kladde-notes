@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.15.0] – 2026-11-09
+
 - Neu: Widescreen-Einstellung unter Einstellungen → Erscheinungsbild: Wähle zwischen „Fluid (ganze Breite)“ und „Feste Breite“ (mit Schieberegler, Zahleneingabe und Schnellauswahl in Pixeln; Standard ist 1200 px). Notizen, Übersichten und Tabellen nutzen den zusätzlichen Platz auf breiten Bildschirmen optimal aus.
 
 ## [0.14.2] – 2026-11-09
