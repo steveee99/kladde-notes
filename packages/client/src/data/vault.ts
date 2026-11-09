@@ -27,6 +27,7 @@ import {
   normalizeDueWords,
   splitPath,
   toggleTask,
+  setTaskMeta,
 } from '@kladde/shared';
 import { api, ApiError } from '../lib/api';
 import { isReadOnly } from '../lib/readOnly';
@@ -398,6 +399,33 @@ class Vault {
   /** Own notes, and shared ones from a folder share that allows deleting */
   canDelete(note: LocalNote): boolean {
     return note.access === 'owner' || (note.access === 'write' && !!note.canDelete);
+  }
+
+  // Free tasks (not tied to a note) live in a hidden system note and are merged with the tasks of all notes on the home screen
+  freeTasksId() {
+    return `sysfreetasks-${this.userId}`;
+  }
+
+  async addFreeTask(text: string): Promise<void> {
+    if (isReadOnly()) return;
+    const id = this.freeTasksId();
+    const line = `- [ ] ${text}`;
+    const current = this.notes.get(id);
+    if (current && !current.deleted) await this.update(id, { content: `${current.content.replace(/\n*$/, '')}\n${line}\n` });
+    else {
+      const now = Date.now();
+      await this.put({ id, path: `${SYSTEM_PREFIX}tasks.md`, content: `${line}\n`, version: current?.version ?? 0, createdAt: now, updatedAt: now, deleted: false, access: 'owner', dirty: true });
+      this.schedule();
+    }
+  }
+
+  freeTasksNote(): LocalNote | undefined {
+    return this.get(this.freeTasksId());
+  }
+
+  async setTaskMeta(id: string, line: number, meta: { due?: string | null; repeat?: string | null }): Promise<void> {
+    const note = this.get(id);
+    if (note) await this.update(id, { content: setTaskMeta(note.content, line, meta) });
   }
 
   async toggleTask(id: string, line: number): Promise<void> {

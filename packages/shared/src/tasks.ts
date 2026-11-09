@@ -158,3 +158,33 @@ export function bucketOf(task: Task, today = new Date()): TaskBucket {
   if (task.due === t) return 'today';
   return 'upcoming';
 }
+
+export type DueShortcut = 'today' | 'tomorrow' | 'nextWeek';
+
+/** Date for the quick buttons: today, tomorrow or next Monday */
+export function shortcutDate(kind: DueShortcut, today = new Date()): string {
+  if (kind === 'today') return toDateString(today);
+  if (kind === 'tomorrow') return toDateString(addDays(today, 1));
+  return toDateString(addDays(today, ((8 - today.getDay()) % 7) || 7));
+}
+
+/** Rewrites the open task in `line` with a new due date (null removes it) and/or repeat rule (undefined keeps, null removes) */
+export function setTaskMeta(content: string, line: number, meta: { due?: string | null; repeat?: string | null }): string {
+  const lines = content.split('\n');
+  const raw = lines[line];
+  const m = raw !== undefined ? TASK_LINE.exec(raw) : null;
+  if (!m) return content;
+  let rest = m[3];
+  const doneDate = DONE_DATE.exec(rest)?.[0] ?? '';
+  rest = rest.replace(DONE_DATE, '');
+  if (meta.due !== undefined) {
+    rest = rest.replace(DUE, '').replace(/\s+/g, ' ').trim();
+    if (meta.due) rest = `${rest} 📅 ${meta.due}`;
+  }
+  if (meta.repeat !== undefined) {
+    rest = rest.replace(REPEAT, '').replace(/\s+/g, ' ').trim();
+    if (meta.repeat) rest = `${rest} 🔁 ${meta.repeat}`;
+  }
+  lines[line] = `${m[1]}[${m[2]}] ${rest.trim()}${doneDate}`;
+  return lines.join('\n');
+}

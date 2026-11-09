@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
-import { AlignJustify, Briefcase, CalendarCheck, CalendarClock, Inbox as InboxIcon, List, Plus, Repeat } from 'lucide-react';
-import { PARA, Task, TaskBucket, bucketOf, parseTasks, projectsOf, roleOfPath, splitPath } from '@kladde/shared';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AlignJustify, Briefcase, CalendarCheck, CalendarClock, Inbox as InboxIcon, List, Plus, Repeat, X } from 'lucide-react';
+import { PARA, Task, TaskBucket, bucketOf, parseTasks, shortcutDate, projectsOf, roleOfPath, splitPath } from '@kladde/shared';
 import { openDialog } from '../lib/dialogs';
 import { reviewDue } from './Review';
 import { useVault, vault } from '../data/vault';
@@ -21,15 +21,88 @@ const BUCKETS: { id: TaskBucket; label: string; tone: string }[] = [
   { id: 'someday', label: 'Ohne Datum', tone: 'text-muted' },
 ];
 
+const REPEATS = [
+  { value: '', label: 'Keine Wiederholung' },
+  { value: 'täglich', label: 'Täglich' },
+  { value: 'wöchentlich', label: 'Wöchentlich' },
+  { value: 'monatlich', label: 'Monatlich' },
+  { value: 'jährlich', label: 'Jährlich' },
+];
+
+/** Small button next to a task: due date shortcuts, a date picker and the repeat rule */
+function TaskMeta({ task }: { task: TaskRow }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+  const set = (meta: { due?: string | null; repeat?: string | null }) => void vault.setTaskMeta(task.noteId, task.line, meta);
+  const shortcuts = [
+    ['Heute', 'today'],
+    ['Morgen', 'tomorrow'],
+    ['Nächste Woche', 'nextWeek'],
+  ] as const;
+  return (
+    <div ref={ref} className="edit-only relative shrink-0">
+      <button className="rounded-md p-1 text-faint hover:bg-raised hover:text-accent" title="Datum und Wiederholung" aria-label="Datum und Wiederholung" onClick={() => setOpen(!open)}>
+        <CalendarClock size={14} />
+      </button>
+      {open && (
+        <div className="card absolute right-0 z-20 mt-1 w-56 space-y-2 p-2 shadow-lg">
+          <div className="flex flex-wrap gap-1">
+            {shortcuts.map(([label, kind]) => (
+              <button
+                key={kind}
+                className="chip px-2 py-1 text-xs hover:bg-accent/10"
+                onClick={() => {
+                  set({ due: shortcutDate(kind) });
+                  setOpen(false);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1">
+            <input type="date" className="min-w-0 flex-1 rounded-md border border-line bg-transparent px-2 py-1 text-sm" value={task.due ?? ''} onChange={(e) => set({ due: e.target.value || null })} />
+            {task.due && (
+              <button className="rounded-md p-1 text-faint hover:text-danger" title="Datum entfernen" onClick={() => set({ due: null })}>
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <select
+            className="w-full rounded-md border border-line bg-transparent px-2 py-1 text-sm"
+            value={task.repeat ?? ''}
+            onChange={(e) => set({ repeat: e.target.value || null })}
+          >
+            {REPEATS.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+            {task.repeat && !REPEATS.some((r) => r.value === task.repeat) && <option value={task.repeat}>{task.repeat}</option>}
+          </select>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TaskItem({ task, compact }: { task: TaskRow; compact: boolean }) {
   const [leaving, setLeaving] = useState(false);
   const locked = useReadOnly();
   const bucket = bucketOf(task);
   return (
     <li
-      title="Doppelklick öffnet die Notiz"
+      title={task.noteTitle ? 'Doppelklick öffnet die Notiz' : undefined}
       onDoubleClick={(e) => {
-        if ((e.target as HTMLElement).closest('input,button')) return;
+        if (!task.noteTitle || (e.target as HTMLElement).closest('input,button,select')) return;
         navigate(`/n/${task.noteId}?line=${task.line + 1}`);
       }}
       className={`group flex items-center gap-3 rounded-xl px-3 transition-all duration-300 hover:bg-raised/60 ${compact ? 'py-1' : 'items-start py-2.5'} ${leaving ? 'translate-x-4 opacity-0' : ''}`}
@@ -69,12 +142,15 @@ function TaskItem({ task, compact }: { task: TaskRow; compact: boolean }) {
                 {task.repeat}
               </span>
             )}
-            <button className="truncate text-xs text-faint hover:text-accent" onClick={() => navigate(`/n/${task.noteId}`)}>
-              {task.noteTitle}
-            </button>
+            {task.noteTitle && (
+              <button className="truncate text-xs text-faint hover:text-accent" onClick={() => navigate(`/n/${task.noteId}`)}>
+                {task.noteTitle}
+              </button>
+            )}
           </div>
         </div>
       )}
+      {!compact && <TaskMeta task={task} />}
     </li>
   );
 }
@@ -102,6 +178,8 @@ export function HomeView() {
 
   const tasks = useMemo(() => {
     const out: TaskRow[] = [];
+    const free = vault.freeTasksNote();
+    if (free) for (const t of parseTasks(free.content)) if (!t.done) out.push({ ...t, noteId: free.id, noteTitle: '' });
     for (const n of notes) {
       for (const t of parseTasks(n.content)) if (!t.done) out.push({ ...t, noteId: n.id, noteTitle: splitPath(n.path).name });
     }
@@ -145,7 +223,7 @@ export function HomeView() {
         onSubmit={(e) => {
           e.preventDefault();
           if (!input.trim()) return;
-          void vault.capture(input.trim(), true);
+          void vault.addFreeTask(input.trim());
           setInput('');
         }}
       >

@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Freie Aufgaben. Das Feld „Neue Aufgabe“ auf der Startseite legt Aufgaben ohne Notiz an (in einer versteckten Systemnotiz, verschlüsselt und synchronisiert); sie erscheinen zusammen mit den geplanten Aufgaben aus deinen Notizen.
+- Neu: Jede Aufgabe auf der Startseite hat einen kleinen Kalender-Knopf für Fälligkeit und Wiederholung – mit Shortcuts für Heute, Morgen und Nächste Woche (Montag), Datumswahl und Wiederholung (täglich bis jährlich).
 - Neu: Versionsverlauf für Notizen. Der Knopf „Verlauf“ (Uhr-Symbol) oben in der Notiz listet die gespeicherten Stände (verschlüsselt auf dem Server, bis zu 100 pro Notiz; eine Schreibsitzung zählt als eine Version – erst nach 10 Minuten Pause oder nach einer Stunde beginnt eine neue). Ein Klick zeigt die Änderungen gegenüber der vorigen Version wie bei `git diff` (grün hinzugefügt, rot entfernt, mit Zeilennummern) oder umschaltbar den gerenderten Text. „Wiederherstellen“ setzt die Notiz auf den gewählten Stand zurück. Der Verlauf beginnt mit dem Update; gelöschte Notizen verlieren ihren Verlauf.
 - Geändert: „Löschen“ im Eingang fragt jetzt wie in der Notiz vorher nach.
 
