@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.22.0] – 2026-11-10
+
 - Neu: Alle nativen `<select>`-Auswahlfelder durch Material-3-konforme Dropdown-Menüs (schwebendes Listen-Menü per Portal) ersetzt.
 - Neu: Button im Menübaum (Kopfzeile „Ordner“ sowie Suchergebnis-Kopf der Seitenleiste) zum Fokussieren, automatischen Aufklappen übergeordneter Ordner und Hervorheben der aktuell geöffneten Notiz.
 - Neu: Tastenkürzel `Strg+Shift+D` / `⌘+Shift+D` öffnet von überall (auch direkt aus dem Editor) die heutige Tagesnotiz; Datumsleiste `<-- | Datepicker | -->` oberhalb von Tagesnotizen mit Material-3-Kalender-Popover und eigener Tagesansicht (`/daily`, `/daily/:date`).
