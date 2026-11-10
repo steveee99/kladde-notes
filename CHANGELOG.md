@@ -4,6 +4,7 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu (CLI): Erweiterte Server-CLI mit `import <quelle> <ziel>` (einzelne Datei oder rekursiver Ordner inkl. Bildern/PDFs und Obsidian-Links), `export <quelle> <ziel>` (ganzer Space, Ordner oder Einzelnotiz, optional `--strip-frontmatter` / `--with-files`) sowie Hilfsbefehlen (`suche`, `notizen`, `ordner`, `anhaenge`, `anhaenge-bereinigen`, `status`, `backup`, Kontenverwaltung).
 - Neu: Notizen lassen sich direkt als Markdown (`.md`), Word-Dokument (`.docx`), PDF-Datei (`.pdf`) oder über die Druckansicht exportieren – jeweils ohne YAML-Frontmatter.
 - Neu (MCP): Neues Werkzeug `semantic_search` für eine lokale semantische Suche über alle eigenen Notizen – berücksichtigt deutsche und englische Wortstämme, zusammengesetzte Begriffe, themenverwandte Begriffe sowie verknüpfte `[[Links]]`.
 
