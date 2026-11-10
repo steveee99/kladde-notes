@@ -1,6 +1,6 @@
 import { escapeRegExp } from './util.js';
 import { extractMeta, mapOutsideCode, splitPath } from './markdown.js';
-import { ZETTEL_ID_PATTERN } from './para.js';
+import { PARA, RoleFolderMap, ZETTEL_ID_PATTERN, isFolderProjectHome } from './para.js';
 
 /**
  * Link resolution. A [[link]] matches, in this order: a note title, a frontmatter `id`
@@ -35,13 +35,22 @@ export class LinkIndex {
   private outgoingCache = new Map<string, string[]>();
   private incoming = new Map<string, Set<string>>();
 
-  constructor(notes: LinkNote[]) {
+  constructor(notes: LinkNote[], config: RoleFolderMap = PARA) {
     for (const n of notes) {
       const meta = extractMeta(n.path, n.content);
       const name = splitPath(n.path).name;
+      const isProjectHome = isFolderProjectHome(n.path, config);
+      const folderLeaf = meta.folder ? meta.folder.split('/').pop()! : '';
+      const displayTitle = isProjectHome ? meta.frontmatter.title || folderLeaf : name;
       const zid = meta.frontmatter.id ?? ZETTEL_ID_PATTERN.exec(name)?.[1] ?? null;
-      this.notes.set(n.id, { ...n, title: name, folder: meta.folder, links: meta.links, zid });
-      if (!this.byTitle.has(name.toLowerCase())) this.byTitle.set(name.toLowerCase(), n.id);
+      this.notes.set(n.id, { ...n, title: displayTitle, folder: meta.folder, links: meta.links, zid });
+      if (isProjectHome) {
+        if (displayTitle && !this.byTitle.has(displayTitle.toLowerCase())) this.byTitle.set(displayTitle.toLowerCase(), n.id);
+        if (folderLeaf && !this.byTitle.has(folderLeaf.toLowerCase())) this.byTitle.set(folderLeaf.toLowerCase(), n.id);
+        if (folderLeaf && !this.byTitle.has(`${folderLeaf}/${name}`.toLowerCase())) this.byTitle.set(`${folderLeaf}/${name}`.toLowerCase(), n.id);
+      } else {
+        if (!this.byTitle.has(name.toLowerCase())) this.byTitle.set(name.toLowerCase(), n.id);
+      }
       if (meta.frontmatter.title && !this.byTitle.has(meta.frontmatter.title.toLowerCase())) this.byTitle.set(meta.frontmatter.title.toLowerCase(), n.id);
       if (zid && !this.byId.has(zid)) this.byId.set(zid, n.id);
     }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Search as SearchIcon } from 'lucide-react';
+import { projectTitleOf } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { tl, useLang } from '../lib/i18n';
 import { NoteCollection, ViewSwitch } from './NoteList';
@@ -8,12 +9,13 @@ export function SearchView() {
   useVault();
   const lang = useLang();
   const [q, setQ] = useState('');
+  const rc = vault.roleConfig();
   const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
   const results = terms.length
     ? vault
         .list()
         .filter((n) => {
-          const hay = `${n.path}\n${n.content}`.toLowerCase();
+          const hay = `${projectTitleOf(n.path, n.content, rc)}\n${n.path}\n${n.content}`.toLowerCase();
           return terms.every((t) => hay.includes(t));
         })
         .sort((a, b) => b.updatedAt - a.updatedAt)

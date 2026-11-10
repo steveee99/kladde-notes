@@ -202,6 +202,13 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 8,
+    description: 'user profile pictures (avatar id & mime)',
+    up: (db) => {
+      db.exec('ALTER TABLE users ADD COLUMN avatar_id TEXT; ALTER TABLE users ADD COLUMN avatar_mime TEXT;');
+    },
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number[] {

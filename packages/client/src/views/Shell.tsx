@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CalendarCheck,
+  CalendarDays,
   CheckCircle2,
   ChefHat,
   ChevronRight,
@@ -22,16 +23,14 @@ import {
   Pencil,
   Plus,
   Search,
-  Settings,
   Share2,
   ShieldCheck,
   Trash2,
   X,
 } from 'lucide-react';
-import { excerpt, INBOX_FOLDER, splitPath } from '@kladde/shared';
+import { excerpt, INBOX_FOLDER, Me, projectTitleOf, splitPath } from '@kladde/shared';
 import { createPortal } from 'react-dom';
 import { openDialog } from '../lib/dialogs';
-import { Dialogs } from './Dialogs';
 import { reviewDue } from './Review';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
@@ -40,6 +39,7 @@ import { dragSource, useDropTarget } from '../lib/dnd';
 import { isReadOnly, setReadOnly, useReadOnly } from '../lib/readOnly';
 import { ShareDialog } from './ShareDialog';
 import { MaterialShell } from './MaterialShell';
+import { Avatar } from './Avatar';
 import { editorHost } from '../editor/host';
 import { folderDisplayName, locale, t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
@@ -330,11 +330,12 @@ function FolderItem({
   );
 }
 
-export function Sidebar({ onNavigate, isAdmin, headerAction }: { onNavigate?: () => void; isAdmin?: boolean; headerAction?: React.ReactNode }) {
+export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onNavigate?: () => void; isAdmin?: boolean; headerAction?: React.ReactNode }) {
   const version = useVault();
   const lang = useLang();
   const loc = locale(lang);
   const inboxZero = useInboxZero();
+  const locked = useReadOnly();
   const [newRoot, setNewRoot] = useState(false);
   const [query, setQuery] = useState('');
   const rootDrop = useDropTarget('');
@@ -342,8 +343,11 @@ export function Sidebar({ onNavigate, isAdmin, headerAction }: { onNavigate?: ()
   const folders = vault.folders();
   const notes = vault.list();
   const features = vault.features();
+  const roleConfig = vault.roleConfig();
   const activeNoteId = path.startsWith('/n/') ? decodeURIComponent(path.slice(3)) : null;
   const activeNote = activeNoteId ? vault.get(activeNoteId) : undefined;
+  const dailyNote = features.daily.enabled ? vault.findDailyNote() : undefined;
+  const settingsActive = path === '/settings' || path.startsWith('/settings/');
   const activeFolder = path.startsWith('/f/')
     ? decodeURIComponent(path.slice(3))
     : activeNote && activeNote.access === 'owner'
@@ -373,15 +377,16 @@ export function Sidebar({ onNavigate, isAdmin, headerAction }: { onNavigate?: ()
   const terms = useMemo(() => query.trim().toLowerCase().split(/\s+/).filter(Boolean), [query]);
   const searchResults = useMemo(() => {
     if (!terms.length) return [];
+    const rc = vault.roleConfig();
     const list = vault
       .list()
       .filter((n) => {
-        const hay = `${n.path}\n${n.content}`.toLowerCase();
+        const hay = `${projectTitleOf(n.path, n.content, rc)}\n${n.path}\n${n.content}`.toLowerCase();
         return terms.every((term) => hay.includes(term));
       })
       .sort((a, b) => {
-        const nameA = splitPath(a.path).name.toLowerCase();
-        const nameB = splitPath(b.path).name.toLowerCase();
+        const nameA = projectTitleOf(a.path, a.content, rc).toLowerCase();
+        const nameB = projectTitleOf(b.path, b.content, rc).toLowerCase();
         const hitA = terms.every((term) => nameA.includes(term)) ? 1 : 0;
         const hitB = terms.every((term) => nameB.includes(term)) ? 1 : 0;
         if (hitA !== hitB) return hitB - hitA;
@@ -455,7 +460,8 @@ export function Sidebar({ onNavigate, isAdmin, headerAction }: { onNavigate?: ()
           ) : (
             <ul className="space-y-1">
               {searchResults.map((n) => {
-                const { folder, name } = splitPath(n.path);
+                const { folder } = splitPath(n.path);
+                const title = projectTitleOf(n.path, n.content, roleConfig);
                 const active = path === `/n/${n.id}`;
                 return (
                   <li key={n.id}>
@@ -464,7 +470,7 @@ export function Sidebar({ onNavigate, isAdmin, headerAction }: { onNavigate?: ()
                       aria-current={active ? 'page' : undefined}
                       className={`w-full rounded-2xl px-3 py-2 text-left transition-colors ${active ? 'bg-accent-container text-on-accent-container' : 'hover:bg-raised'}`}
                     >
-                      <div className="truncate text-sm font-medium">{name}</div>
+                      <div className="truncate text-sm font-medium">{title}</div>
                       <div className="truncate text-[11px] text-muted">{folderDisplayName(folder, lang)}</div>
                       {excerpt(n.content, 65) && <div className="mt-0.5 truncate text-xs text-faint">{excerpt(n.content, 65)}</div>}
                     </button>
@@ -477,6 +483,18 @@ export function Sidebar({ onNavigate, isAdmin, headerAction }: { onNavigate?: ()
       ) : (
         <>
           {item('/', Home, t('nav.home'))}
+          {features.daily.enabled && (!locked || !!dailyNote) && (
+            <button
+              type="button"
+              onClick={() => void vault.openDailyNote().then((n) => nav(`/n/${n.id}`))}
+              aria-current={dailyNote && activeNoteId === dailyNote.id ? 'page' : undefined}
+              className={`flex w-full items-center gap-3 rounded-full px-3 py-2 text-sm font-medium transition-colors ${
+                dailyNote && activeNoteId === dailyNote.id ? 'bg-accent-container text-on-accent-container' : 'text-muted hover:bg-raised hover:text-ink'
+              }`}
+            >
+              <CalendarDays size={18} /> <span className="flex-1 truncate text-left">{t('daily.navLabel')}</span>
+            </button>
+          )}
           {item('/notes', FileText, t('nav.allNotes'), <span className="text-xs opacity-75">{notes.filter((n) => n.access === 'owner').length}</span>)}
           {item('/inbox', InboxIcon, t('nav.inbox'), inboxZero && inboxCount > 0 ? <span className="rounded-full bg-warn/15 px-1.5 py-0.5 text-xs font-semibold text-warn">{inboxCount}</span> : null)}
           {item('/graph', Network, t('nav.graph'))}
@@ -541,7 +559,18 @@ export function Sidebar({ onNavigate, isAdmin, headerAction }: { onNavigate?: ()
             )}
           </div>
           {isAdmin && item('/admin', ShieldCheck, t('nav.admin'))}
-          {item('/settings', Settings, t('nav.settings'))}
+          <button
+            type="button"
+            onClick={() => nav('/settings')}
+            aria-current={settingsActive ? 'page' : undefined}
+            className={`flex w-full items-center gap-3 rounded-full px-3 py-2 text-sm font-medium transition-colors ${
+              settingsActive ? 'bg-accent-container text-on-accent-container' : 'text-muted hover:bg-raised hover:text-ink'
+            }`}
+          >
+            <Avatar name={me.username} avatarUrl={me.avatarUrl} size="xs" active={settingsActive} />
+            <span className="flex-1 truncate text-left">{t('nav.settings')}</span>
+            <span className="truncate text-xs opacity-70">{me.username}</span>
+          </button>
         </>
       )}
     </div>
@@ -604,7 +633,7 @@ function useSaveShortcut(showToast: (text: string, tone?: 'ok' | 'warn' | 'dange
   }, [triggerSave]);
 }
 
-export function Shell({ children, isAdmin }: { children: React.ReactNode; isAdmin?: boolean }) {
+export function Shell({ me, children, isAdmin }: { me: Me; children: React.ReactNode; isAdmin?: boolean }) {
   const [toast, setToast] = useState<{ text: string; tone: 'ok' | 'warn' | 'danger' } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -625,7 +654,7 @@ export function Shell({ children, isAdmin }: { children: React.ReactNode; isAdmi
 
   return (
     <>
-      <MaterialShell isAdmin={isAdmin}>{children}</MaterialShell>
+      <MaterialShell me={me} isAdmin={isAdmin}>{children}</MaterialShell>
       {toast &&
         createPortal(
           <div

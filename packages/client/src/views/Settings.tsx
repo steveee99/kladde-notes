@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
 import {
   Bot,
+  CalendarDays,
+  Camera,
   Check,
   ChefHat,
   ChevronRight,
@@ -16,6 +18,7 @@ import {
   KeyRound,
   LayoutTemplate,
   Lightbulb,
+  Loader2,
   Lock,
   LogOut,
   Maximize2,
@@ -24,11 +27,23 @@ import {
   Smartphone,
   SlidersHorizontal,
   Trash2,
+  Upload,
   X,
   Zap,
 } from 'lucide-react';
-import { APP_VERSION, DEFAULT_RECIPE_FOLDER, FeatureSettings, Me, PASSWORD_MIN_LENGTH, STANDALONE_RECIPE_FOLDER } from '@kladde/shared';
-import { api } from '../lib/api';
+import {
+  APP_VERSION,
+  cleanDailyFormat,
+  DEFAULT_DAILY_FOLDER,
+  DEFAULT_DAILY_FORMAT,
+  DEFAULT_RECIPE_FOLDER,
+  FeatureSettings,
+  Me,
+  PASSWORD_MIN_LENGTH,
+  resolveDailyNote,
+  STANDALONE_RECIPE_FOLDER,
+} from '@kladde/shared';
+import { api, deleteAvatar, uploadAvatar } from '../lib/api';
 import { folderDisplayName, Lang, locale, setLang, tl, useLang } from '../lib/i18n';
 import { setInboxZero, useInboxZero } from '../lib/prefs';
 import { useReadOnly } from '../lib/readOnly';
@@ -37,6 +52,108 @@ import { useVault, vault } from '../data/vault';
 import { startupReport, toggleTallPageTest, viewportReport } from '../lib/viewport';
 import { navigate } from '../lib/router';
 import { passkeysAvailable } from './Auth';
+import { Avatar } from './Avatar';
+
+function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
+  const lang = useLang();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    if (!navigator.onLine && !me.standalone) {
+      setErr(tl(lang, 'settings.profileOnlineOnly'));
+      return;
+    }
+    setBusy(true);
+    setErr('');
+    try {
+      onMe(await uploadAvatar(file));
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    if (!navigator.onLine && !me.standalone) {
+      setErr(tl(lang, 'settings.profileOnlineOnly'));
+      return;
+    }
+    setBusy(true);
+    setErr('');
+    try {
+      onMe(await deleteAvatar());
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="card p-5 anim-fade-up">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <button
+          type="button"
+          onClick={() => !busy && inputRef.current?.click()}
+          disabled={busy}
+          title={me.avatarUrl ? tl(lang, 'settings.profileChange') : tl(lang, 'settings.profileUpload')}
+          aria-label={me.avatarUrl ? tl(lang, 'settings.profileChange') : tl(lang, 'settings.profileUpload')}
+          className="group relative self-start rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <Avatar name={me.username} avatarUrl={me.avatarUrl} size="xl" />
+          <span className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface bg-accent-container text-on-accent-container shadow-soft transition-transform group-hover:scale-105">
+            {busy ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
+          </span>
+        </button>
+
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base font-semibold">{tl(lang, 'settings.profileTitle')}</h2>
+            <span className="chip text-xs">{me.username}</span>
+          </div>
+          <p className="text-xs text-muted">{tl(lang, 'settings.profileHint')}</p>
+          <div className="flex flex-wrap gap-2 pt-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => inputRef.current?.click()}
+              className="inline-flex items-center gap-2 rounded-full bg-accent-container px-4 py-2 text-sm font-medium text-on-accent-container transition-colors hover:brightness-110 disabled:opacity-50"
+            >
+              {busy ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+              {busy ? tl(lang, 'settings.profileUploading') : me.avatarUrl ? tl(lang, 'settings.profileChange') : tl(lang, 'settings.profileUpload')}
+            </button>
+            {me.avatarUrl && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void handleRemove()}
+                className="btn-ghost rounded-full border border-line px-4 py-2 text-sm text-danger hover:bg-danger/10"
+              >
+                <Trash2 size={15} /> {tl(lang, 'settings.profileRemove')}
+              </button>
+            )}
+          </div>
+          {err && <p className="pt-1 text-sm text-danger">{err}</p>}
+        </div>
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+        hidden
+        onChange={(e) => {
+          void handleFile(e.target.files?.[0]);
+          e.target.value = '';
+        }}
+      />
+    </section>
+  );
+}
 
 export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) => void; onLogout: () => void }) {
   useVault();
@@ -103,6 +220,8 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
   return (
     <div className="content-container space-y-6 px-4 py-6 sm:px-8 sm:py-10">
       <h1 className="text-2xl font-bold tracking-tight anim-fade-up">{tl(lang, 'settings.title')}</h1>
+
+      <ProfileSection me={me} onMe={onMe} />
 
       <div className="space-y-3">
         {navCards.map(({ path, Icon, title, desc }) => (
@@ -450,6 +569,8 @@ function FolderPicker({
   label,
   value,
   folders,
+  allowRoot,
+  extraOptions = [],
   disabled,
   onChange,
 }: {
@@ -457,13 +578,19 @@ function FolderPicker({
   label: string;
   value: string;
   folders: string[];
+  allowRoot?: boolean;
+  extraOptions?: string[];
   disabled?: boolean;
   onChange: (folder: string) => void;
 }) {
   const lang = useLang();
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState('');
-  const options = (folders.includes(value) ? folders : [value, ...folders]).filter(Boolean);
+  const merged = [...folders];
+  for (const extra of [...extraOptions, value]) {
+    if (extra && !merged.includes(extra)) merged.unshift(extra);
+  }
+  const options = merged.filter(Boolean);
   const isCreating = creating && !disabled;
 
   const createFolder = async () => {
@@ -539,6 +666,11 @@ function FolderPicker({
             value={value}
             onChange={(e) => onChange(e.target.value)}
           >
+            {allowRoot && (
+              <option key="__root__" value="">
+                {tl(lang, 'common.topLevel')}
+              </option>
+            )}
             {options.map((f) => (
               <option key={f} value={f}>
                 {folderDisplayName(f, lang)}
@@ -562,12 +694,57 @@ function FolderPicker({
   );
 }
 
-/** Synced per-account workflow opt-ins (PARA, Zettelkasten, Recipe import) with configurable target folders */
+const DAILY_TOKENS = ['YYYY', 'YY', 'MMMM', 'MM', 'DD', 'WW', 'dddd'] as const;
+
+/** Synced per-account workflow settings (Daily Notes, PARA, Zettelkasten, Recipe import) with configurable target folders */
 function FeaturesSection({ features, folders, locked }: { features: FeatureSettings; folders: string[]; locked: boolean }) {
   const lang = useLang();
+  const formatInputRef = useRef<HTMLInputElement>(null);
+  const [formatDraft, setFormatDraft] = useState(features.daily.format);
+
+  useEffect(() => {
+    setFormatDraft(features.daily.format);
+  }, [features.daily.format]);
+
   const save = (next: FeatureSettings) => {
     void vault.updateFeatures(next).catch(() => {});
   };
+
+  const commitDailyFormat = (raw: string) => {
+    const cleaned = cleanDailyFormat(raw, DEFAULT_DAILY_FORMAT);
+    setFormatDraft(cleaned);
+    if (cleaned !== features.daily.format) {
+      save({ ...features, daily: { ...features.daily, format: cleaned } });
+    }
+  };
+
+  const insertDailyToken = (tok: string) => {
+    if (locked) return;
+    const input = formatInputRef.current;
+    if (input && document.activeElement === input && input.selectionStart !== null && input.selectionEnd !== null) {
+      const next = `${formatDraft.slice(0, input.selectionStart)}${tok}${formatDraft.slice(input.selectionEnd)}`;
+      commitDailyFormat(next);
+      return;
+    }
+    const trimmed = formatDraft.trim();
+    if (!trimmed) {
+      commitDailyFormat(`${tok}.md`);
+      return;
+    }
+    const hadMd = /\.md$/i.test(trimmed);
+    const stem = hadMd ? trimmed.slice(0, -3) : trimmed;
+    const sep = !stem || stem.endsWith('/') || stem.endsWith('-') || stem.endsWith('_') || stem.endsWith(' ') ? '' : '-';
+    commitDailyFormat(`${stem}${sep}${tok}${hadMd ? '.md' : ''}`);
+  };
+
+  const dailyPreview = resolveDailyNote(
+    {
+      folder: features.daily.folder,
+      format: formatDraft.trim() ? cleanDailyFormat(formatDraft, DEFAULT_DAILY_FORMAT) : DEFAULT_DAILY_FORMAT,
+    },
+    new Date(),
+    lang
+  ).path;
 
   return (
     <section className="card p-5 anim-fade-up">
@@ -580,6 +757,88 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
           <span>{tl(lang, 'settings.featuresReadOnlyHint')}</span>
         </div>
       )}
+
+      {/* Daily Notes */}
+      <div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-start gap-2.5">
+            <CalendarDays size={18} className="mt-0.5 shrink-0 text-accent" />
+            <div>
+              <label htmlFor="feature-daily-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
+                {tl(lang, 'settings.dailyTitle')}
+              </label>
+              <p className="text-xs text-muted">{tl(lang, 'settings.dailyDesc')}</p>
+            </div>
+          </div>
+          <Switch
+            id="feature-daily-switch"
+            checked={features.daily.enabled}
+            disabled={locked}
+            label={tl(lang, 'settings.dailyToggleLabel')}
+            onChange={(enabled) => save({ ...features, daily: { ...features.daily, enabled } })}
+          />
+        </div>
+        {features.daily.enabled && (
+          <div className="mt-3 space-y-3 rounded-2xl border border-line bg-raised/50 p-4 anim-fade-in">
+            <FolderPicker
+              id="daily-target-folder"
+              label={tl(lang, 'settings.targetFolderLabel')}
+              value={features.daily.folder}
+              folders={folders}
+              allowRoot
+              extraOptions={[DEFAULT_DAILY_FOLDER]}
+              disabled={locked}
+              onChange={(folder) => save({ ...features, daily: { ...features.daily, folder } })}
+            />
+            <div className="space-y-1.5">
+              <label htmlFor="daily-naming-format" className="block text-xs font-medium text-muted">
+                {tl(lang, 'settings.dailyFormatLabel')}
+              </label>
+              <input
+                ref={formatInputRef}
+                id="daily-naming-format"
+                type="text"
+                disabled={locked}
+                placeholder={tl(lang, 'settings.dailyFormatPlaceholder')}
+                className="input h-9 w-full py-1 font-mono text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                value={formatDraft}
+                onChange={(e) => setFormatDraft(e.target.value)}
+                onBlur={() => commitDailyFormat(formatDraft)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commitDailyFormat(formatDraft);
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+              />
+              <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+                <span className="text-muted">{tl(lang, 'settings.dailyTokensLabel')}</span>
+                {DAILY_TOKENS.map((tok) => (
+                  <button
+                    key={tok}
+                    type="button"
+                    disabled={locked}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => insertDailyToken(tok)}
+                    className="chip font-mono text-[11px] transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {tok}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-baseline gap-1.5 pt-0.5 text-xs">
+                <span className="text-muted">{tl(lang, 'settings.dailyPreviewLabel')}</span>
+                <code className="break-all rounded bg-surface px-1.5 py-0.5 font-mono text-[11px] text-accent">
+                  {dailyPreview}
+                </code>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <hr className="my-5 border-line" />
 
       {/* PARA method opt-in */}
       <div>

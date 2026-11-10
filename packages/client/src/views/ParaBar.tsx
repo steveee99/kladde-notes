@@ -1,5 +1,5 @@
-import { Archive, ArchiveRestore, Briefcase, CheckCircle2, Hash, Library, Lightbulb, Target, Unlink } from 'lucide-react';
-import { DEFAULT_PARA_FOLDERS, PROJECT_STATUSES, ZETTEL_TYPES, extractMeta, restoreTarget, roleOfPath, splitPath } from '@kladde/shared';
+import { Archive, ArchiveRestore, Briefcase, CheckCircle2, FolderInput, Hash, Library, Lightbulb, Target, Unlink } from 'lucide-react';
+import { DEFAULT_PARA_FOLDERS, PROJECT_STATUSES, ZETTEL_TYPES, extractMeta, isProjectNote, isSingleProjectFile, restoreTarget, roleOfPath, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { ChipSelect } from './ChipSelect';
@@ -13,18 +13,21 @@ export function ParaBar({ note }: { note: LocalNote }) {
   const lang = useLang();
   if (note.access !== 'owner') return null;
   const features = vault.features();
-  const role = roleOfPath(note.path, vault.roleConfig());
+  const roleConfig = vault.roleConfig();
+  const role = roleOfPath(note.path, roleConfig);
   const meta = extractMeta(note.path, note.content);
   const folder = splitPath(note.path).folder;
   const archiveRoot = features.para.folders.archive;
   const restoreDest = features.para.enabled ? restoreTarget(folder, archiveRoot) : null;
   const archived = restoreDest !== null;
+  const isProject = features.para.enabled && isProjectNote(note.path, roleConfig);
+  const isSingleProject = features.para.enabled && isSingleProjectFile(note.path, roleConfig);
 
   const showInboxActions = role === 'inbox' && (features.para.enabled || features.zettel.enabled);
-  const showProjectControls = role === 'projects' && features.para.enabled;
+  const showProjectControls = isProject;
   const showZettelControls = role === 'zettel' && features.zettel.enabled;
   const showRestoreBtn = archived;
-  const showArchiveBtn = !archived && features.para.enabled && role !== 'inbox' && role !== 'projects' && role !== 'archive' && folder !== archiveRoot;
+  const showArchiveBtn = !archived && features.para.enabled && role !== 'inbox' && !isProject && role !== 'archive' && folder !== archiveRoot;
 
   if (!showInboxActions && !showProjectControls && !showZettelControls && !showRestoreBtn && !showArchiveBtn) return null;
 
@@ -79,7 +82,17 @@ export function ParaBar({ note }: { note: LocalNote }) {
             ))}
           </ChipSelect>
           {meta.frontmatter.frist && <span className="chip">{t('para.deadlineBadge', { date: meta.frontmatter.frist })}</span>}
-          <button className="btn-ghost ml-auto py-1 text-ok" onClick={() => confirm(t('para.finishConfirm')) && void vault.archiveNote(note.id, true)}>
+          {isSingleProject && (
+            <button
+              type="button"
+              className="edit-only chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent"
+              title={t('para.convertFolderTitle')}
+              onClick={() => void vault.convertProjectToFolder(note.id)}
+            >
+              <FolderInput size={13} /> {t('para.convertFolderBtn')}
+            </button>
+          )}
+          <button className="btn-ghost ml-auto py-1 text-ok" onClick={() => confirm(t('para.finishConfirm')) && void vault.archiveProject(note.id)}>
             <CheckCircle2 size={15} /> {t('para.finishBtn')}
           </button>
         </>

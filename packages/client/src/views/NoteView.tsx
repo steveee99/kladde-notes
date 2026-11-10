@@ -33,11 +33,22 @@ import {
   Share2,
   Trash2,
   Undo2,
-  Users,
   X,
 } from 'lucide-react';
 import { undo } from '@codemirror/commands';
-import { excerpt, extractHeadings, safeExportFilename, splitPath, stripFrontmatter, toDateString, type GraphEdge, type GraphNode, type NoteHeading } from '@kladde/shared';
+import {
+  excerpt,
+  extractHeadings,
+  isFolderProjectHome,
+  projectTitleOf,
+  safeExportFilename,
+  splitPath,
+  stripFrontmatter,
+  toDateString,
+  type GraphEdge,
+  type GraphNode,
+  type NoteHeading,
+} from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { navigate } from '../lib/router';
@@ -49,6 +60,7 @@ import { HistoryDialog } from './History';
 import { ParaBar } from './ParaBar';
 import { Graph, GraphLegend } from './Graph';
 import { Sheet } from './Dialogs';
+import { Avatar } from './Avatar';
 import { folderDisplayName, t, useLang, type Lang } from '../lib/i18n';
 import { setNoteSplitOpen, setNoteSplitTab, useNoteSplitOpen, useNoteSplitTab, type NoteSplitTab } from '../lib/prefs';
 import { isCoarsePointer } from '../lib/viewport';
@@ -102,6 +114,127 @@ function Toolbar({ view, lang }: { view: EditorView | null; lang: Lang }) {
           e.target.value = '';
         }}
       />
+    </div>
+  );
+}
+
+/** Mobile compact breadcrumb pill showing only the last folder breadcrumb; clicking reveals every clickable path level */
+function MobileBreadcrumbMenu({ folderSegments, lang }: { folderSegments: string[]; lang: Lang }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const items: { key: string; label: string; to: string; depth: number }[] = [
+    { key: '__root__', label: t('note.breadcrumbRoot'), to: '/notes', depth: 0 },
+    ...folderSegments.map((seg, i) => ({
+      key: folderSegments.slice(0, i + 1).join('/'),
+      label: i === 0 ? folderDisplayName(seg, lang) : seg,
+      to: `/f/${encodeURIComponent(folderSegments.slice(0, i + 1).join('/'))}`,
+      depth: i + 1,
+    })),
+  ];
+  const last = items[items.length - 1];
+
+  const updatePos = useCallback(() => {
+    const btn = triggerRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const gap = 6;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const menuW = menuRef.current?.offsetWidth || 240;
+    const menuH = menuRef.current?.offsetHeight || 220;
+    const left = Math.max(8, Math.min(rect.left, vw - menuW - 8));
+    const top = Math.max(8, Math.min(rect.bottom + gap, vh - menuH - 8));
+    setPos({ top, left });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    updatePos();
+  }, [open, updatePos]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    const onScroll = () => {
+      const r = triggerRef.current?.getBoundingClientRect();
+      if (!r || r.bottom <= 0 || r.top >= window.innerHeight) setOpen(false);
+      else updatePos();
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    window.addEventListener('resize', updatePos);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('resize', updatePos);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [open, updatePos]);
+
+  return (
+    <div className="flex min-w-0 flex-1 items-center md:hidden">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={t('note.breadcrumbExpand', { name: last.label })}
+        className={`inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-medium transition-colors ${
+          open ? 'bg-accent-container text-on-accent-container' : 'bg-raised/70 text-ink hover:bg-raised'
+        }`}
+      >
+        <Folder size={14} className={`shrink-0 ${open ? 'text-on-accent-container' : 'text-accent'}`} />
+        <span className="min-w-0 truncate">{last.label}</span>
+        <ChevronDown size={14} className={`shrink-0 transition-transform duration-150 ${open ? 'rotate-180' : 'opacity-70'}`} />
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            aria-label={t('note.breadcrumbMenuAria')}
+            style={{ top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? 'visible' : 'hidden' }}
+            className="no-print fixed z-[90] max-h-[60vh] w-64 overflow-y-auto rounded-2xl border border-line/70 bg-raised p-1.5 shadow-soft anim-fade-in scrollbar-thin"
+          >
+            {items.map((item, idx) => {
+              const isCurrent = idx === items.length - 1;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  role="menuitem"
+                  style={{ paddingLeft: `${12 + Math.min(item.depth, 4) * 10}px` }}
+                  onClick={() => {
+                    setOpen(false);
+                    navigate(item.to);
+                  }}
+                  className={`flex w-full items-center gap-2 rounded-xl py-2 pr-3 text-left text-sm transition-colors ${
+                    isCurrent ? 'bg-accent-container text-on-accent-container font-medium' : 'text-ink hover:bg-surface'
+                  }`}
+                >
+                  <Folder size={14} className={isCurrent ? 'shrink-0' : 'shrink-0 text-accent'} />
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                </button>
+              );
+            })}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
@@ -440,6 +573,7 @@ function NoteInspectorPane({
   onClose?: () => void;
 }) {
   useLang();
+  const rc = vault.roleConfig();
   const tabs: { id: NoteSplitTab; label: string; Icon: typeof ListTree; count?: number }[] = [
     { id: 'toc', label: t('note.tabToc'), Icon: ListTree, count: headings.length || undefined },
     { id: 'links', label: t('note.tabLinks'), Icon: Link2, count: backlinks.length + mentions.length || undefined },
@@ -510,7 +644,7 @@ function NoteInspectorPane({
                 <div className="space-y-2">
                   {backlinks.map((b) => (
                     <button key={b.id} className="w-full rounded-2xl border border-line/80 bg-bg/40 p-3 text-left text-sm transition hover:border-accent/40 hover:bg-raised/60" onClick={() => navigate(`/n/${b.id}`)}>
-                      <div className="truncate font-medium">{splitPath(b.path).name}</div>
+                      <div className="truncate font-medium">{projectTitleOf(b.path, b.content, rc)}</div>
                       {excerpt(b.content, 85) && <div className="mt-0.5 line-clamp-2 text-xs text-muted">{excerpt(b.content, 85)}</div>}
                     </button>
                   ))}
@@ -529,7 +663,7 @@ function NoteInspectorPane({
                   {mentions.map((m) => (
                     <li key={m.id} className="flex items-center gap-2 rounded-2xl border border-dashed border-line px-3 py-2 text-sm">
                       <button className="min-w-0 flex-1 truncate text-left hover:text-accent" onClick={() => navigate(`/n/${m.id}`)}>
-                        {splitPath(m.path).name}
+                        {projectTitleOf(m.path, m.content, rc)}
                       </button>
                       <button className="edit-only chip shrink-0 cursor-pointer px-2.5 py-1 hover:bg-accent/15 hover:text-accent" onClick={() => void vault.linkMention(m.id, noteId)}>
                         <Link2 size={12} /> {t('note.linkMentionTitle')}
@@ -563,6 +697,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const version = useVault();
   const lang = useLang();
   const note = vault.get(id);
+  const rc = vault.roleConfig();
   const [view, setView] = useState<EditorView | null>(null);
   const locked = useReadOnly();
   const [sharing, setSharing] = useState(false);
@@ -575,10 +710,13 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const [copiedMd, setCopiedMd] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [title, setTitle] = useState('');
-  const titleRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
   const name = note ? splitPath(note.path).name : '';
+  const isProjectHome = !!note && note.access === 'owner' && isFolderProjectHome(note.path, rc);
+  const displayName = note ? projectTitleOf(note.path, note.content, rc) : '';
+  const hasNote = !!note;
 
-  useEffect(() => setTitle(name), [name]);
+  useEffect(() => setTitle(displayName), [displayName]);
   useEffect(() => {
     if (isNew) titleRef.current?.select();
   }, [isNew, id]);
@@ -588,10 +726,33 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
     };
   }, []);
 
+  useLayoutEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [title, id, hasNote]);
+
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [id, hasNote]);
+
   // Keep synchronous ref so Ctrl+S flushes pending title edits immediately
   const commitTitle = () => {
-    if (title.trim() && title.trim() !== name) void vault.update(id, { title: title.trim() });
-    else setTitle(name);
+    const next = title.trim();
+    if (!next || next === displayName) {
+      setTitle(displayName);
+      return;
+    }
+    if (isProjectHome) void vault.renameProject(id, next);
+    else void vault.update(id, { title: next });
   };
   const commitTitleRef = useRef(commitTitle);
   commitTitleRef.current = commitTitle;
@@ -603,7 +764,6 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   }, []);
 
   // ?line=N (from a double click on a task): scroll to that line once the editor exists
-  const hasNote = !!note;
   useEffect(() => {
     const n = Number(new URLSearchParams(location.search).get('line'));
     if (!view || !hasNote || !n) return;
@@ -663,7 +823,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   };
 
   const handleDelete = () => {
-    if (confirm(t('note.deleteConfirm', { name }))) {
+    if (confirm(t('note.deleteConfirm', { name: displayName }))) {
       void vault.remove(id);
       navigate(!isOwner ? '/shared' : folder ? `/f/${encodeURIComponent(folder)}` : '/notes', true);
     }
@@ -678,8 +838,11 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               <ArrowLeft size={18} />
             </button>
 
-            {/* Full folder path breadcrumbs */}
-            <nav aria-label={t('note.breadcrumbAria')} className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+            {/* Mobile: single last folder breadcrumb + dropdown to tap any ancestor */}
+            <MobileBreadcrumbMenu folderSegments={folderSegments} lang={lang} />
+
+            {/* Desktop: full folder path breadcrumbs */}
+            <nav aria-label={t('note.breadcrumbAria')} className="hidden min-w-0 flex-1 flex-wrap items-center gap-1 md:flex">
               <button
                 type="button"
                 onClick={() => navigate('/notes')}
@@ -704,10 +867,11 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 );
               })}
               <ChevronRight size={14} className="shrink-0 opacity-60" />
-              <span className="truncate px-1 font-medium text-ink/85">{title || name}</span>
+              <span className="truncate px-1 font-medium text-ink/85">{isProjectHome ? name : title || displayName}</span>
               {note.access !== 'owner' && (
                 <span className="chip ml-1 shrink-0">
-                  <Users size={12} /> {note.owner} · {sharedReadOnly ? t('note.sharedReadOnly') : note.canDelete ? t('note.sharedEditDelete') : t('note.sharedEditOnly')}
+                  <Avatar name={note.owner ?? ''} avatarUrl={note.ownerAvatar} size="xs" /> {note.owner} ·{' '}
+                  {sharedReadOnly ? t('note.sharedReadOnly') : note.canDelete ? t('note.sharedEditDelete') : t('note.sharedEditOnly')}
                 </span>
               )}
             </nav>
@@ -739,7 +903,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 {splitOpen ? <PanelRightClose size={18} /> : <PanelRight size={18} />}
               </button>
               <NoteOverflowMenu
-                title={title || name}
+                title={title || displayName}
                 content={note.content}
                 isOwner={isOwner}
                 canShare={isOwner && !vault.standalone}
@@ -752,13 +916,21 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             </div>
           </div>
 
-          <input
+          {note.access !== 'owner' && (
+            <div className="no-print mb-2 inline-flex items-center gap-1.5 chip md:hidden anim-fade-in">
+              <Avatar name={note.owner ?? ''} avatarUrl={note.ownerAvatar} size="xs" /> {note.owner} ·{' '}
+              {sharedReadOnly ? t('note.sharedReadOnly') : note.canDelete ? t('note.sharedEditDelete') : t('note.sharedEditOnly')}
+            </div>
+          )}
+
+          <textarea
             ref={titleRef}
-            className="note-title mb-2 w-full bg-transparent text-3xl font-bold tracking-tight outline-none placeholder:text-faint sm:text-4xl print:hidden"
+            rows={1}
+            className="note-title mb-2 block w-full resize-none overflow-hidden break-words bg-transparent text-3xl font-bold tracking-tight leading-tight outline-none placeholder:text-faint sm:text-4xl print:hidden"
             value={title}
             readOnly={!isOwner}
             placeholder={t('note.titlePlaceholder')}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => setTitle(e.target.value.replace(/[\r\n]+/g, ' '))}
             onBlur={commitTitle}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -768,7 +940,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               }
             }}
           />
-          <h1 className="mb-3 hidden text-3xl font-bold tracking-tight print:block">{title || name}</h1>
+          <h1 className="mb-3 hidden break-words text-3xl font-bold tracking-tight print:block">{title || displayName}</h1>
           {!locked && (
             <div className="no-print">
               <ParaBar note={note} />
@@ -785,7 +957,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                   <div className="grid gap-2 sm:grid-cols-2">
                     {backlinks.map((b) => (
                       <button key={b.id} className="rounded-xl border border-line p-3 text-left text-sm transition hover:border-accent/40" onClick={() => navigate(`/n/${b.id}`)}>
-                        <div className="font-medium">{splitPath(b.path).name}</div>
+                        <div className="font-medium">{projectTitleOf(b.path, b.content, rc)}</div>
                         <div className="line-clamp-1 text-muted">{excerpt(b.content, 90)}</div>
                       </button>
                     ))}
@@ -799,7 +971,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                     {mentions.map((m) => (
                       <li key={m.id} className="flex items-center gap-2 rounded-xl border border-dashed border-line px-3 py-2 text-sm">
                         <button className="min-w-0 flex-1 truncate text-left hover:text-accent" onClick={() => navigate(`/n/${m.id}`)}>
-                          {splitPath(m.path).name}
+                          {projectTitleOf(m.path, m.content, rc)}
                         </button>
                         <button className="edit-only chip shrink-0 px-2.5 py-1 hover:bg-accent/15 hover:text-accent" onClick={() => void vault.linkMention(m.id, id)}>
                           <Link2 size={12} /> {t('note.linkMentionTitle')}
@@ -868,7 +1040,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
 
       {moving && (
         <MoveNoteSheet
-          noteTitle={title || name}
+          noteTitle={title || displayName}
           currentFolder={folder}
           onMove={(targetFolder) => {
             setMoving(false);

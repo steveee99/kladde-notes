@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { INBOX_FOLDER, Me, runQuery, splitPath } from '@kladde/shared';
+import { INBOX_FOLDER, Me, projectTitleOf, runQuery } from '@kladde/shared';
 import { api, ApiError, uploadFile } from './lib/api';
 import { t } from './lib/i18n';
 import { match, navigate, usePath } from './lib/router';
@@ -55,7 +55,10 @@ Object.assign(editorHost, {
   toggleTask: (id: string, line: number) => void vault.toggleTask(id, line),
   openTask: (id: string, line: number) => navigate(`/n/${id}?line=${line + 1}`),
   setFrontmatter: (id: string, updates: Record<string, string | null>) => void vault.setFrontmatter(id, updates),
-  noteTitles: () => vault.list().map((n) => splitPath(n.path).name),
+  noteTitles: () => {
+    const rc = vault.roleConfig();
+    return vault.list().map((n) => projectTitleOf(n.path, n.content, rc));
+  },
   autoLinkTargets: (excludeId?: string) => vault.links().autoLinkTargets(excludeId),
   upload: (file: File) => {
     if (!navigator.onLine && !vault.standalone) return Promise.reject(new Error(t('note.uploadOnlineOnly')));
@@ -153,5 +156,5 @@ export function App() {
     );
   else page = <HomeView />;
 
-  return <Shell isAdmin={!me.standalone && me.isAdmin}>{page}</Shell>;
+  return <Shell me={me} isAdmin={!me.standalone && me.isAdmin}>{page}</Shell>;
 }

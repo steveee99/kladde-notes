@@ -26,6 +26,7 @@ export interface UserRecord {
   bannedAt: number | null;
   isAdmin: boolean;
   hasPassword: boolean;
+  avatarUrl: string | null;
 }
 
 export interface StoredCredential {
@@ -108,6 +109,7 @@ const toUser = (r: Row): UserRecord => ({
   bannedAt: (r.banned_at as number | null) ?? null,
   isAdmin: !!r.is_admin,
   hasPassword: !!r.password_hash,
+  avatarUrl: r.avatar_id ? `/api/avatars/${r.avatar_id as string}` : null,
 });
 const toCredential = (r: Row): StoredCredential => ({
   id: r.id as string,

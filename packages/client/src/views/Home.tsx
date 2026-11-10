@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlignJustify, Briefcase, CalendarCheck, CalendarClock, Inbox as InboxIcon, List, Plus, Repeat, X } from 'lucide-react';
-import { INBOX_FOLDER, Task, TaskBucket, bucketOf, parseTasks, shortcutDate, projectsOf, splitPath } from '@kladde/shared';
+import { AlignJustify, Briefcase, CalendarCheck, CalendarClock, CalendarDays, Inbox as InboxIcon, List, Plus, Repeat, X } from 'lucide-react';
+import { INBOX_FOLDER, Task, TaskBucket, bucketOf, parseTasks, projectTitleOf, shortcutDate, projectsOf, splitPath } from '@kladde/shared';
 import { openDialog } from '../lib/dialogs';
 import { reviewDue } from './Review';
 import { useVault, vault } from '../data/vault';
@@ -248,6 +248,7 @@ export function HomeView() {
   const version = useVault();
   const lang = useLang();
   const inboxZero = useInboxZero();
+  const locked = useReadOnly();
   const [input, setInput] = useState('');
   const [showSomeday, setShowSomeday] = useState(false);
   const [compact, setCompactState] = useState(() => {
@@ -266,13 +267,14 @@ export function HomeView() {
     }
   };
   const notes = vault.list();
+  const roleConfig = vault.roleConfig();
 
   const tasks = useMemo(() => {
     const out: TaskRow[] = [];
     const free = vault.freeTasksNote();
     if (free) for (const tk of parseTasks(free.content)) if (!tk.done) out.push({ ...tk, noteId: free.id, noteTitle: '' });
     for (const n of notes) {
-      for (const tk of parseTasks(n.content)) if (!tk.done) out.push({ ...tk, noteId: n.id, noteTitle: splitPath(n.path).name });
+      for (const tk of parseTasks(n.content)) if (!tk.done) out.push({ ...tk, noteId: n.id, noteTitle: projectTitleOf(n.path, n.content, roleConfig) });
     }
     return out.sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -280,7 +282,8 @@ export function HomeView() {
 
   const own = notes.filter((n) => n.access === 'owner');
   const features = vault.features();
-  const roleConfig = vault.roleConfig();
+  const dailyNote = features.daily.enabled ? vault.findDailyNote() : undefined;
+  const showDailyBtn = features.daily.enabled && (!locked || !!dailyNote);
   const projects = features.para.enabled
     ? projectsOf(own, new Date(), roleConfig).sort((a, b) => (a.status === b.status ? b.updatedAt - a.updatedAt : a.status === 'aktiv' ? -1 : 1))
     : [];
@@ -301,8 +304,17 @@ export function HomeView() {
         <p className="mt-1 text-base text-muted sm:text-lg">{t(features.para.enabled ? 'home.subtitle' : 'home.subtitleNoPara')}</p>
       </header>
 
-      {((inboxZero && inboxCount > 0) || reviewDue()) && (
+      {(showDailyBtn || (inboxZero && inboxCount > 0) || reviewDue()) && (
         <div className="mb-6 flex flex-wrap gap-2.5 anim-fade-up">
+          {showDailyBtn && (
+            <button
+              type="button"
+              className="chip cursor-pointer bg-accent-container/70 px-3.5 py-2 text-sm font-medium text-on-accent-container transition-colors hover:bg-accent-container"
+              onClick={() => void vault.openDailyNote().then((n) => navigate(`/n/${n.id}`))}
+            >
+              <CalendarDays size={15} /> {t('daily.todayBtn')}
+            </button>
+          )}
           {inboxZero && inboxCount > 0 && (
             <button className="chip px-3.5 py-2 text-sm font-medium text-warn hover:bg-warn/15" onClick={() => navigate('/inbox')}>
               <InboxIcon size={15} /> {inboxChipText}

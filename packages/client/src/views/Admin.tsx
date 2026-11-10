@@ -3,6 +3,7 @@ import { Ban, Check, Copy, KeyRound, Mail, RotateCcw, ScrollText, ShieldCheck, S
 import type { AdminAuditEntry, AdminInvite, AdminStatus, AdminUser, Me } from '@kladde/shared';
 import { api } from '../lib/api';
 import { I18nKey, Lang, locale, tl, useLang } from '../lib/i18n';
+import { Avatar } from './Avatar';
 
 type Tab = 'users' | 'invites' | 'audit';
 
@@ -94,6 +95,7 @@ function UsersTab({ me, onError }: { me: Me; onError: (msg: string) => void }) {
           return (
             <li key={u.id} className={`card p-4 ${u.bannedAt ? 'opacity-70' : ''}`}>
               <div className="flex flex-wrap items-center gap-2">
+                <Avatar name={u.username} avatarUrl={u.avatarUrl} size="sm" />
                 <span className="font-semibold">{u.username}</span>
                 {self && <Badge>{tl(lang, 'admin.selfBadge')}</Badge>}
                 {u.isAdmin && (

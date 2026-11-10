@@ -1,14 +1,16 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { FileText, Home, Images, Inbox as InboxIcon, Menu, Network, Pencil, Settings, X } from 'lucide-react';
-import { INBOX_FOLDER, splitPath } from '@kladde/shared';
+import { CalendarDays, FileText, Home, Images, Inbox as InboxIcon, Menu, Network, Pencil, X } from 'lucide-react';
+import { INBOX_FOLDER, Me, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { navigate, usePath } from '../lib/router';
 import { toggleMaterialSidebarMode, useMaterialSidebarMode } from '../lib/sidebarMode';
 import { Dialogs } from './Dialogs';
 import { QuickCapture } from './QuickCapture';
 import { newNote, ReadOnlyToggle, Sidebar, SyncBadge } from './Shell';
+import { Avatar } from './Avatar';
 import { t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
+import { useReadOnly } from '../lib/readOnly';
 
 /*
  * Shell of Kladde (Material 3): a navigation rail or sticky navigation drawer on tablet and desktop
@@ -52,12 +54,13 @@ function BarItem({ to, Icon, label, badge }: { to: string; Icon: Icon; label: st
   );
 }
 
-export function MaterialShell({ children, isAdmin }: { children: React.ReactNode; isAdmin?: boolean }) {
+export function MaterialShell({ me, children, isAdmin }: { me: Me; children: React.ReactNode; isAdmin?: boolean }) {
   useVault();
   useLang();
   const sidebarMode = useMaterialSidebarMode();
   const sticky = sidebarMode === 'sticky';
   const inboxZero = useInboxZero();
+  const locked = useReadOnly();
   const [drawer, setDrawer] = useState(false);
   const [capture, setCapture] = useState(false);
   const [rightHost, setRightHost] = useState<HTMLDivElement | null>(null);
@@ -65,6 +68,11 @@ export function MaterialShell({ children, isAdmin }: { children: React.ReactNode
   const noteId = path.startsWith('/n/') ? decodeURIComponent(path.slice(3)) : null;
   const inboxCount = vault.list().filter((n) => n.access === 'owner' && splitPath(n.path).folder === INBOX_FOLDER).length;
   const inboxBadge = inboxZero && inboxCount > 0 ? inboxCount : undefined;
+  const features = vault.features();
+  const dailyNote = features.daily.enabled ? vault.findDailyNote() : undefined;
+  const dailyActive = !!dailyNote && noteId === dailyNote.id;
+  const showDailyRail = features.daily.enabled && (!locked || !!dailyNote);
+  const settingsActive = path === '/settings' || path.startsWith('/settings/');
 
   useEffect(() => {
     const onOpenSearch = () => {
@@ -85,6 +93,7 @@ export function MaterialShell({ children, isAdmin }: { children: React.ReactNode
           <aside aria-label={t('nav.navigationLabel')} className="m3-status hidden w-[292px] shrink-0 py-4 pl-4 pr-3 md:flex lg:w-[308px]">
             <div className="flex min-h-0 w-full flex-col overflow-hidden rounded-[28px] bg-surface">
               <Sidebar
+                me={me}
                 isAdmin={isAdmin}
                 headerAction={
                   <button
@@ -120,6 +129,20 @@ export function MaterialShell({ children, isAdmin }: { children: React.ReactNode
               <Pencil size={22} />
             </button>
             <RailItem to="/" Icon={Home} label={t('nav.home')} />
+            {showDailyRail && (
+              <button
+                type="button"
+                onClick={() => void vault.openDailyNote().then((n) => navigate(`/n/${n.id}`))}
+                aria-current={dailyActive ? 'page' : undefined}
+                title={t('daily.navLabel')}
+                className={`flex w-20 flex-col items-center gap-1 text-xs font-medium ${dailyActive ? 'text-ink' : 'text-muted hover:text-ink'}`}
+              >
+                <span className={`relative flex h-8 w-14 items-center justify-center rounded-full transition-colors duration-200 ${dailyActive ? 'bg-accent/20 text-accent' : 'hover:bg-raised'}`}>
+                  <CalendarDays size={22} />
+                </span>
+                {t('daily.navShort')}
+              </button>
+            )}
             <RailItem to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} />
             <RailItem to="/notes" Icon={FileText} label={t('nav.notes')} />
             <RailItem to="/graph" Icon={Network} label={t('nav.graphShort')} />
@@ -127,7 +150,19 @@ export function MaterialShell({ children, isAdmin }: { children: React.ReactNode
             <div className="m3-status mt-auto flex flex-col items-center gap-1 pt-2">
               <ReadOnlyToggle />
               <SyncBadge />
-              <RailItem to="/settings" Icon={Settings} label={t('nav.options')} />
+              <button
+                type="button"
+                onClick={() => navigate('/settings')}
+                aria-current={settingsActive ? 'page' : undefined}
+                aria-label={t('nav.settings')}
+                title={me.username}
+                className={`flex w-20 flex-col items-center gap-1 text-xs font-medium ${settingsActive ? 'text-ink' : 'text-muted hover:text-ink'}`}
+              >
+                <span className={`relative flex h-8 w-14 items-center justify-center rounded-full transition-colors duration-200 ${settingsActive ? 'bg-accent/20' : 'hover:bg-raised'}`}>
+                  <Avatar name={me.username} avatarUrl={me.avatarUrl} size="sm" active={settingsActive} />
+                </span>
+                {t('nav.options')}
+              </button>
             </div>
           </nav>
         )}
@@ -142,6 +177,7 @@ export function MaterialShell({ children, isAdmin }: { children: React.ReactNode
               onKeyDown={(e) => e.key === 'Escape' && setDrawer(false)}
             >
               <Sidebar
+                me={me}
                 isAdmin={isAdmin}
                 onNavigate={() => setDrawer(false)}
                 headerAction={
@@ -180,7 +216,19 @@ export function MaterialShell({ children, isAdmin }: { children: React.ReactNode
             <BarItem to="/" Icon={Home} label={t('nav.home')} />
             <BarItem to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} />
             <BarItem to="/notes" Icon={FileText} label={t('nav.notes')} />
-            <BarItem to="/settings" Icon={Settings} label={t('nav.options')} />
+            <button
+              type="button"
+              onClick={() => navigate('/settings')}
+              aria-current={settingsActive ? 'page' : undefined}
+              aria-label={t('nav.settings')}
+              title={me.username}
+              className={`flex flex-col items-center gap-1 pb-4 pt-3 text-xs font-medium ${settingsActive ? 'text-ink' : 'text-muted'}`}
+            >
+              <span className={`relative flex h-8 w-16 items-center justify-center rounded-full transition-colors duration-200 ${settingsActive ? 'bg-accent/20' : ''}`}>
+                <Avatar name={me.username} avatarUrl={me.avatarUrl} size="sm" active={settingsActive} />
+              </span>
+              {t('nav.options')}
+            </button>
           </nav>
         </div>
       </div>

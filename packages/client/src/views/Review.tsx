@@ -1,5 +1,5 @@
 import { AlertTriangle, Briefcase, CalendarCheck, Check, Inbox, Lightbulb, Target, Unlink } from 'lucide-react';
-import { buildReview, splitPath } from '@kladde/shared';
+import { buildReview, projectTitleOf } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { locale, tl, useLang } from '../lib/i18n';
 import { navigate } from '../lib/router';
@@ -25,6 +25,7 @@ function Section({ icon: Icon, title, count, ok, children }: { icon: typeof Inbo
 }
 
 function NoteLinks({ ids }: { ids: string[] }) {
+  const rc = vault.roleConfig();
   return (
     <ul className="flex flex-wrap gap-1.5">
       {ids.map((id) => {
@@ -32,7 +33,7 @@ function NoteLinks({ ids }: { ids: string[] }) {
         return n ? (
           <li key={id}>
             <button className="chip px-3 py-1 hover:text-accent" onClick={() => navigate(`/n/${id}`)}>
-              {splitPath(n.path).name}
+              {projectTitleOf(n.path, n.content, rc)}
             </button>
           </li>
         ) : null;

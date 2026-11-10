@@ -105,7 +105,7 @@ export class NoteStore {
     return this.cipher.decryptJson<Payload>(row.payload, `note:${row.id}`);
   }
 
-  private toSynced(row: NoteRow, access: NoteAccess, owner?: string): SyncedNote {
+  private toSynced(row: NoteRow, access: NoteAccess, owner?: string, ownerAvatar?: string | null): SyncedNote {
     const p = this.payload(row);
     return {
       id: row.id,
@@ -117,6 +117,7 @@ export class NoteStore {
       deleted: !!row.deleted,
       access,
       ...(owner ? { owner } : {}),
+      ...(ownerAvatar ? { ownerAvatar: `/api/avatars/${ownerAvatar}` } : {}),
     };
   }
 
@@ -142,12 +143,12 @@ export class NoteStore {
     const own = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND seq > ? ORDER BY seq').all(userId, since) as unknown as NoteRow[];
     const shared = this.db
       .prepare(
-        `SELECT notes.*, shares.can_write, users.username AS owner_name, folder_shares.can_delete FROM shares
+        `SELECT notes.*, shares.can_write, users.username AS owner_name, users.avatar_id AS owner_avatar, folder_shares.can_delete FROM shares
          JOIN notes ON notes.id = shares.note_id JOIN users ON users.id = notes.owner_id
          LEFT JOIN folder_shares ON folder_shares.id = shares.folder_share_id
          WHERE shares.user_id = ? AND (notes.seq > ? OR shares.seq > ?) AND notes.deleted = 0`
       )
-      .all(userId, since, since) as unknown as (NoteRow & { can_write: number; owner_name: string; can_delete: number | null })[];
+      .all(userId, since, since) as unknown as (NoteRow & { can_write: number; owner_name: string; owner_avatar: string | null; can_delete: number | null })[];
     const revoked = this.db
       .prepare('SELECT DISTINCT note_id FROM share_revocations WHERE user_id = ? AND seq > ?')
       .all(userId, since) as { note_id: string }[];
@@ -155,7 +156,7 @@ export class NoteStore {
     return {
       notes: [
         ...own.map((r) => this.toSynced(r, 'owner')),
-        ...shared.map((r) => ({ ...this.toSynced(r, r.can_write ? 'write' : 'read', r.owner_name), ...(r.can_delete ? { canDelete: true } : {}) })),
+        ...shared.map((r) => ({ ...this.toSynced(r, r.can_write ? 'write' : 'read', r.owner_name, r.owner_avatar), ...(r.can_delete ? { canDelete: true } : {}) })),
       ],
       revoked: revoked.map((r) => r.note_id).filter((id) => !sharedIds.has(id) && !this.isShared(id, userId)),
       cursor,
@@ -167,13 +168,14 @@ export class NoteStore {
   sharedWith(userId: string): SharedFolder[] {
     const rows = this.db
       .prepare(
-        `SELECT folder_shares.*, users.username AS owner_name FROM folder_shares JOIN users ON users.id = folder_shares.owner_id
+        `SELECT folder_shares.*, users.username AS owner_name, users.avatar_id AS owner_avatar FROM folder_shares JOIN users ON users.id = folder_shares.owner_id
          WHERE folder_shares.user_id = ? AND users.banned_at IS NULL`
       )
-      .all(userId) as { id: string; can_write: number; can_create: number; can_delete: number; payload: Uint8Array; owner_name: string }[];
+      .all(userId) as { id: string; can_write: number; can_create: number; can_delete: number; payload: Uint8Array; owner_name: string; owner_avatar: string | null }[];
     return rows
       .map((r) => ({
         owner: r.owner_name,
+        ...(r.owner_avatar ? { ownerAvatar: `/api/avatars/${r.owner_avatar}` } : {}),
         folder: this.cipher.decryptJson<{ folder: string }>(r.payload, `folder_share:${r.id}`).folder,
         canWrite: !!r.can_write,
         canCreate: !!r.can_create,
@@ -327,15 +329,20 @@ export class NoteStore {
     this.ownedRow(userId, noteId);
     const users = this.db
       .prepare(
-        'SELECT users.username, shares.can_write, shares.folder_share_id FROM shares JOIN users ON users.id = shares.user_id WHERE note_id = ? ORDER BY users.username_lower'
+        'SELECT users.username, users.avatar_id, shares.can_write, shares.folder_share_id FROM shares JOIN users ON users.id = shares.user_id WHERE note_id = ? ORDER BY users.username_lower'
       )
-      .all(noteId) as { username: string; can_write: number; folder_share_id: string | null }[];
+      .all(noteId) as { username: string; avatar_id: string | null; can_write: number; folder_share_id: string | null }[];
     const folders = new Map(this.folderSharesOf(userId).map((f) => [f.id, f.folder]));
     const link = this.db.prepare('SELECT token FROM public_links WHERE note_id = ?').get(noteId) as { token: string } | undefined;
     return {
       users: users.map((u): NoteShare => {
         const viaFolder = u.folder_share_id ? folders.get(u.folder_share_id) : undefined;
-        return { username: u.username, canWrite: !!u.can_write, ...(viaFolder ? { viaFolder } : {}) };
+        return {
+          username: u.username,
+          ...(u.avatar_id ? { avatarUrl: `/api/avatars/${u.avatar_id}` } : {}),
+          canWrite: !!u.can_write,
+          ...(viaFolder ? { viaFolder } : {}),
+        };
       }),
       publicToken: link?.token ?? null,
     };
@@ -435,21 +442,42 @@ export class NoteStore {
   /** Who the folder is shared with, and who sees it through a parent folder */
   folderShares(ownerId: string, folder: string): FolderShares {
     const clean = cleanPath(folder);
-    const names = new Map<string, string>();
-    const username = (id: string) => {
-      if (!names.has(id)) names.set(id, (this.db.prepare('SELECT username FROM users WHERE id = ?').get(id) as { username: string }).username);
-      return names.get(id)!;
+    const infos = new Map<string, { username: string; avatar_id: string | null }>();
+    const infoOf = (id: string) => {
+      if (!infos.has(id)) {
+        infos.set(id, this.db.prepare('SELECT username, avatar_id FROM users WHERE id = ?').get(id) as { username: string; avatar_id: string | null });
+      }
+      return infos.get(id)!;
     };
     const list = this.folderSharesOf(ownerId);
     const sort = (a: NoteShare, b: NoteShare) => a.username.localeCompare(b.username, 'de');
     return {
       users: list
         .filter((f) => f.folder === clean)
-        .map((f) => ({ username: username(f.userId), canWrite: f.canWrite, canCreate: f.canCreate, canDelete: f.canDelete }))
+        .map((f) => {
+          const u = infoOf(f.userId);
+          return {
+            username: u.username,
+            ...(u.avatar_id ? { avatarUrl: `/api/avatars/${u.avatar_id}` } : {}),
+            canWrite: f.canWrite,
+            canCreate: f.canCreate,
+            canDelete: f.canDelete,
+          };
+        })
         .sort(sort),
       inherited: list
         .filter((f) => clean.startsWith(`${f.folder}/`))
-        .map((f) => ({ username: username(f.userId), canWrite: f.canWrite, canCreate: f.canCreate, canDelete: f.canDelete, viaFolder: f.folder }))
+        .map((f) => {
+          const u = infoOf(f.userId);
+          return {
+            username: u.username,
+            ...(u.avatar_id ? { avatarUrl: `/api/avatars/${u.avatar_id}` } : {}),
+            canWrite: f.canWrite,
+            canCreate: f.canCreate,
+            canDelete: f.canDelete,
+            viaFolder: f.folder,
+          };
+        })
         .sort(sort),
     };
   }
@@ -533,11 +561,40 @@ export class NoteStore {
 
   publicNote(token: string): PublicNote | null {
     const row = this.db
-      .prepare('SELECT notes.*, users.username AS owner_name FROM public_links JOIN notes ON notes.id = public_links.note_id JOIN users ON users.id = notes.owner_id WHERE token = ? AND notes.deleted = 0')
-      .get(token) as (NoteRow & { owner_name: string }) | undefined;
+      .prepare(
+        'SELECT notes.*, users.username AS owner_name, users.avatar_id AS owner_avatar FROM public_links JOIN notes ON notes.id = public_links.note_id JOIN users ON users.id = notes.owner_id WHERE token = ? AND notes.deleted = 0'
+      )
+      .get(token) as (NoteRow & { owner_name: string; owner_avatar: string | null }) | undefined;
     if (!row) return null;
     const p = this.payload(row);
-    return { path: p.path, content: p.content, owner: row.owner_name, updatedAt: row.updated_at };
+    return {
+      path: p.path,
+      content: p.content,
+      owner: row.owner_name,
+      ...(row.owner_avatar ? { ownerAvatar: `/api/avatars/${row.owner_avatar}` } : {}),
+      updatedAt: row.updated_at,
+    };
+  }
+
+  /** Bumps share sequence numbers and returns recipient user ids when an owner updates or removes their avatar */
+  refreshSharedAvatar(userId: string): string[] {
+    return transaction(this.db, () => {
+      const recipients = this.db
+        .prepare(
+          `SELECT DISTINCT user_id FROM (
+             SELECT shares.user_id AS user_id FROM shares JOIN notes ON notes.id = shares.note_id WHERE notes.owner_id = ? AND notes.deleted = 0
+             UNION
+             SELECT user_id FROM folder_shares WHERE owner_id = ?
+           )`
+        )
+        .all(userId, userId) as { user_id: string }[];
+      if (!recipients.length) return [];
+      const seq = this.nextSeq();
+      this.db
+        .prepare('UPDATE shares SET seq = ? WHERE note_id IN (SELECT id FROM notes WHERE owner_id = ? AND deleted = 0)')
+        .run(seq, userId);
+      return recipients.map((r) => r.user_id);
+    });
   }
 
   /** The user's own live notes with ids and versions (MCP access: only the own space, never shared notes) */

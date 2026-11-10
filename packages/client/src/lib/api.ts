@@ -1,4 +1,4 @@
-import type { AttachmentInfo, DeleteFilesResponse } from '@kladde/shared';
+import type { AttachmentInfo, DeleteFilesResponse, Me } from '@kladde/shared';
 import { t } from './i18n';
 
 export class ApiError extends Error {
@@ -29,6 +29,63 @@ export async function uploadFile(file: File): Promise<{ url: string; name: strin
     body: file,
     headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Filename': encodeURIComponent(file.name) },
   });
+}
+
+async function prepareAvatarPayload(file: File): Promise<{ body: Blob; type: string }> {
+  // Keep animated GIFs as-is and small files untouched unless canvas scaling helps oversized images
+  if (file.type === 'image/gif' || typeof document === 'undefined') {
+    return { body: file, type: file.type || 'image/png' };
+  }
+  try {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error('decode'));
+        el.src = url;
+      });
+      const size = Math.min(512, Math.max(img.naturalWidth, img.naturalHeight));
+      const minSide = Math.min(img.naturalWidth, img.naturalHeight);
+      if (!minSide || (file.size <= 350_000 && Math.max(img.naturalWidth, img.naturalHeight) <= 512)) {
+        return { body: file, type: file.type || 'image/png' };
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return { body: file, type: file.type || 'image/png' };
+      const sx = Math.floor((img.naturalWidth - minSide) / 2);
+      const sy = Math.floor((img.naturalHeight - minSide) / 2);
+      ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+      const outMime = file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, outMime, 0.9));
+      if (blob && blob.size > 0 && blob.size <= 5 * 1024 * 1024) {
+        return { body: blob, type: blob.type || outMime };
+      }
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  } catch {
+    // Fallback to uploading original file and let server validate
+  }
+  return { body: file, type: file.type || 'image/png' };
+}
+
+export async function uploadAvatar(file: File): Promise<Me> {
+  const payload = await prepareAvatarPayload(file);
+  if (payload.body.size > 5 * 1024 * 1024) {
+    throw new ApiError(t('settings.profileTooLarge'), 400);
+  }
+  return api<Me>('/me/avatar', {
+    method: 'POST',
+    body: payload.body,
+    headers: { 'Content-Type': payload.type },
+  });
+}
+
+export function deleteAvatar(): Promise<Me> {
+  return api<Me>('/me/avatar', { method: 'DELETE' });
 }
 
 export function listFiles(): Promise<AttachmentInfo[]> {

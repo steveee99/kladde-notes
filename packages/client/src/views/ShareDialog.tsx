@@ -4,6 +4,7 @@ import type { FolderPermissions, FolderShares, NoteShare, NoteShares } from '@kl
 import { api } from '../lib/api';
 import { folderDisplayName, folderLeafDisplayName, getLang, Lang, tl, useLang } from '../lib/i18n';
 import { useVisualViewport } from '../lib/viewport';
+import { Avatar } from './Avatar';
 
 /** What is shared: one note, or a folder with its subfolders (including notes added later) */
 export type ShareTarget = { note: string } | { folder: string };
@@ -151,14 +152,15 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose:
             u.viaFolder ? (
               <ViaFolder key={u.username} share={u} />
             ) : (
-              <li key={u.username} className="flex flex-wrap items-center gap-2 rounded-xl px-2 py-1.5 anim-fade-up hover:bg-raised">
+              <li key={u.username} className="flex flex-wrap items-center gap-2.5 rounded-xl px-2 py-1.5 anim-fade-up hover:bg-raised">
+                <Avatar name={u.username} avatarUrl={u.avatarUrl} size="sm" />
                 <span className="min-w-0 flex-1 truncate">{u.username}</span>
                 {isNote && <PermissionPicker folder={false} value={permissionsOf(u)} onChange={(p) => void call(ep.set(u.username, p))} />}
                 <button className="btn-icon h-8 w-8" title={tl(lang, 'share.removeTitle')} onClick={() => void call(ep.remove(u.username))}>
                   <Trash2 size={15} />
                 </button>
                 {!isNote && (
-                  <div className="basis-full">
+                  <div className="basis-full pl-8">
                     <PermissionPicker folder value={permissionsOf(u)} onChange={(p) => void call(ep.set(u.username, p))} />
                   </div>
                 )}
@@ -216,8 +218,9 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose:
 function ViaFolder({ share }: { share: NoteShare }) {
   const lang = useLang();
   return (
-    <li className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-muted anim-fade-up" title={tl(lang, 'share.viaFolderTitle')}>
-      <span className="flex-1">{share.username}</span>
+    <li className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-muted anim-fade-up" title={tl(lang, 'share.viaFolderTitle')}>
+      <Avatar name={share.username} avatarUrl={share.avatarUrl} size="sm" />
+      <span className="min-w-0 flex-1 truncate">{share.username}</span>
       <span className="flex min-w-0 items-center gap-1 text-xs text-faint">
         <Folder size={12} className="shrink-0" /> <span className="truncate">{share.viaFolder ? folderDisplayName(share.viaFolder, lang) : ''}</span> ·{' '}
         {describePermissions(permissionsOf(share), lang)}

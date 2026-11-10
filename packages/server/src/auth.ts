@@ -133,6 +133,7 @@ export function authRouter(opts: AuthOptions): express.Router {
       passkeys: users.credentialsOf(user.id).map((c) => ({ id: c.id, name: c.name, createdAt: c.createdAt, lastUsedAt: c.lastUsedAt })),
       hasPassword: user.hasPassword,
       isAdmin: user.isAdmin,
+      avatarUrl: user.avatarUrl,
     };
   };
 

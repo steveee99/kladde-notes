@@ -14,6 +14,8 @@ export interface SyncedNote {
   access: NoteAccess;
   /** Username of the owner (only set for notes shared with the user) */
   owner?: string;
+  /** Avatar URL of the owner (only set when the owner has an avatar and the note is shared) */
+  ownerAvatar?: string | null;
   /** A shared note the user may delete (folder share with delete permission) */
   canDelete?: boolean;
 }
@@ -29,6 +31,7 @@ export interface FolderPermissions {
 /** A folder another user shares with the signed-in user */
 export interface SharedFolder extends FolderPermissions {
   owner: string;
+  ownerAvatar?: string | null;
   folder: string;
 }
 
@@ -73,6 +76,8 @@ export interface Me {
   hasPassword: boolean;
   /** Sees the admin area (accounts, invites, password reset) */
   isAdmin: boolean;
+  /** URL of the user's profile picture, if uploaded */
+  avatarUrl?: string | null;
   /** True when running in single-user desktop/standalone mode (no auth, invites, sharing or admin area) */
   standalone?: boolean;
   /** Local data directory path shown in standalone diagnostics/settings */
@@ -89,6 +94,7 @@ export interface AdminUser {
   bannedAt: number | null;
   isAdmin: boolean;
   hasPassword: boolean;
+  avatarUrl?: string | null;
   passkeys: number;
   notes: number;
   lastSeenAt: number | null;
@@ -122,6 +128,7 @@ export interface AdminStatus {
 
 export interface NoteShare {
   username: string;
+  avatarUrl?: string | null;
   canWrite: boolean;
   /** Set when the access comes from a shared folder (managed there, not on the note) */
   viaFolder?: string;
@@ -161,6 +168,7 @@ export interface PublicNote {
   path: string;
   content: string;
   owner: string;
+  ownerAvatar?: string | null;
   updatedAt: number;
 }
 

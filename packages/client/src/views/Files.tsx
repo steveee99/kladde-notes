@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AttachmentInfo, AttachmentNoteRef, extractMeta } from '@kladde/shared';
+import { AttachmentInfo, AttachmentNoteRef, projectTitleOf } from '@kladde/shared';
 import {
   AlertTriangle,
   Check,
@@ -88,11 +88,12 @@ export function FilesView() {
   // Also cross-check local dirty/cached notes so unsynced note edits still protect attachments immediately
   const localUsage = useMemo(() => {
     const map = new Map<string, AttachmentNoteRef[]>();
+    const rc = vault.roleConfig();
     for (const n of vault.list()) {
       const ids = new Set<string>();
       for (const m of n.content.matchAll(FILE_ID_RE)) ids.add(m[1]);
       if (!ids.size) continue;
-      const title = extractMeta(n.path, n.content).title;
+      const title = projectTitleOf(n.path, n.content, rc);
       for (const fid of ids) {
         let list = map.get(fid);
         if (!list) map.set(fid, (list = []));

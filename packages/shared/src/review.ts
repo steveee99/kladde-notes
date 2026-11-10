@@ -1,6 +1,6 @@
 import { extractMeta, splitPath } from './markdown.js';
 import { LinkIndex, LinkNote } from './links.js';
-import { PARA, RoleFolderMap, roleOfFolder } from './para.js';
+import { PARA, RoleFolderMap, isProjectNote, projectTitleOf, roleOfFolder } from './para.js';
 import { bucketOf, parseTasks } from './tasks.js';
 
 export interface ReviewNote extends LinkNote {
@@ -33,18 +33,18 @@ export interface Review {
 
 const DAY = 86_400_000;
 
-/** Project = a note directly in the projects folder or its subfolders */
+/** Project = a note directly in the projects folder or Home.md directly inside a project subfolder */
 export function projectsOf(notes: ReviewNote[], today = new Date(), config: RoleFolderMap = PARA): ProjectInfo[] {
   if (!config.projects) return [];
   return notes
-    .filter((n) => roleOfFolder(splitPath(n.path).folder, config) === 'projects')
+    .filter((n) => isProjectNote(n.path, config))
     .map((n) => {
       const meta = extractMeta(n.path, n.content);
       const open = parseTasks(n.content, today).filter((t) => !t.done);
       const due = open.map((t) => t.due).filter((d): d is string => !!d).sort();
       return {
         id: n.id,
-        title: meta.title,
+        title: projectTitleOf(n.path, n.content, config),
         folder: meta.folder,
         status: (meta.frontmatter.status ?? 'aktiv').toLowerCase(),
         openTasks: open.length,
@@ -57,7 +57,7 @@ export function projectsOf(notes: ReviewNote[], today = new Date(), config: Role
 
 export function buildReview(notes: ReviewNote[], now = Date.now(), staleDays = 30, config: RoleFolderMap = PARA): Review {
   const today = new Date(now);
-  const index = new LinkIndex(notes);
+  const index = new LinkIndex(notes, config);
   const projects = projectsOf(notes, today, config);
   const areas = new Map<string, number>();
   const areasRoot = config.areas;

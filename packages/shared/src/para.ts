@@ -1,4 +1,4 @@
-import { splitPath } from './markdown.js';
+import { parseFrontmatter, splitPath } from './markdown.js';
 
 /**
  * PARA (Projects, Areas, Resources, Archive) plus Inbox and Zettelkasten. The roots are ordinary
@@ -27,12 +27,21 @@ export const DEFAULT_PARA_FOLDERS = {
 export const DEFAULT_ZETTEL_FOLDER = 'Zettelkasten';
 export const DEFAULT_RECIPE_FOLDER = '3 Ressourcen/Rezepte';
 export const STANDALONE_RECIPE_FOLDER = 'Rezepte';
+export const DEFAULT_DAILY_FOLDER = '0 Daily';
+export const DEFAULT_DAILY_FORMAT = 'YYYY/MM/YYYY-MM-DD.md';
+export const PROJECT_HOME_NAME = 'Home';
 
 export interface ParaFolderSettings {
   projects: string;
   areas: string;
   resources: string;
   archive: string;
+}
+
+export interface DailySettings {
+  enabled: boolean;
+  folder: string;
+  format: string;
 }
 
 export interface FeatureSettings {
@@ -48,6 +57,7 @@ export interface FeatureSettings {
     enabled: boolean;
     folder: string;
   };
+  daily: DailySettings;
 }
 
 /** Configurable folder mapping per role; `null` disables matching for that role */
@@ -62,12 +72,36 @@ export interface RoleFolderMap {
 
 function cleanFeatureFolder(raw: unknown, fallback: string): string {
   if (typeof raw !== 'string') return fallback;
-  const cleaned = raw
+  const parts = raw
     .split('/')
     .map((p) => p.trim().replace(/[\\]/g, '-'))
-    .filter((p) => p && p !== '.' && p !== '..')
-    .join('/');
-  return cleaned || fallback;
+    .filter((p) => p && p !== '.' && p !== '..');
+  if (parts[0]?.toLowerCase() === '.kladde') return fallback;
+  return parts.join('/') || fallback;
+}
+
+/** Daily folder may intentionally be empty (vault root), but never `.kladde` */
+export function cleanDailyFolder(raw: unknown, fallback = DEFAULT_DAILY_FOLDER): string {
+  if (typeof raw !== 'string') return fallback;
+  const parts = raw
+    .replace(/\\/g, '/')
+    .split('/')
+    .map((p) => p.trim())
+    .filter((p) => p && p !== '.' && p !== '..');
+  if (parts[0]?.toLowerCase() === '.kladde') return fallback;
+  return parts.join('/');
+}
+
+/** Daily filename/subfolder pattern (e.g. "YYYY/MM/YYYY-MM-DD.md") */
+export function cleanDailyFormat(raw: unknown, fallback = DEFAULT_DAILY_FORMAT): string {
+  if (typeof raw !== 'string') return fallback;
+  const parts = raw
+    .replace(/\\/g, '/')
+    .split('/')
+    .map((p) => p.trim())
+    .filter((p) => p && p !== '.' && p !== '..');
+  if (!parts.length || parts[0].toLowerCase() === '.kladde') return fallback;
+  return parts.join('/');
 }
 
 function hasFolderPrefix(folders: string[], target: string): boolean {
@@ -77,6 +111,7 @@ function hasFolderPrefix(folders: string[], target: string): boolean {
 /**
  * Normalizes feature opt-in settings. When a flag is missing (upgraded space), pre-enables
  * features whose standard folders already exist in `existingFolders`; new spaces start disabled.
+ * Daily notes default to enabled with "0 Daily/YYYY/MM/YYYY-MM-DD.md" unless explicitly turned off.
  */
 export function normalizeFeatures(raw: unknown, existingFolders: string[] = []): FeatureSettings {
   const obj = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
@@ -87,6 +122,7 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
       : undefined;
   const rawZettel = obj.zettel && typeof obj.zettel === 'object' && !Array.isArray(obj.zettel) ? (obj.zettel as Record<string, unknown>) : undefined;
   const rawRecipe = obj.recipe && typeof obj.recipe === 'object' && !Array.isArray(obj.recipe) ? (obj.recipe as Record<string, unknown>) : undefined;
+  const rawDaily = obj.daily && typeof obj.daily === 'object' && !Array.isArray(obj.daily) ? (obj.daily as Record<string, unknown>) : undefined;
 
   const hasExistingPara = Object.values(DEFAULT_PARA_FOLDERS).some((f) => hasFolderPrefix(existingFolders, f));
   const hasExistingZettel = hasFolderPrefix(existingFolders, DEFAULT_ZETTEL_FOLDER);
@@ -95,6 +131,7 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
   const paraEnabled = typeof rawPara?.enabled === 'boolean' ? rawPara.enabled : hasExistingPara;
   const zettelEnabled = typeof rawZettel?.enabled === 'boolean' ? rawZettel.enabled : hasExistingZettel;
   const recipeEnabled = typeof rawRecipe?.enabled === 'boolean' ? rawRecipe.enabled : hasExistingRecipe;
+  const dailyEnabled = typeof rawDaily?.enabled === 'boolean' ? rawDaily.enabled : true;
 
   const defaultRecipeFolder =
     paraEnabled || hasExistingRecipe || hasFolderPrefix(existingFolders, DEFAULT_PARA_FOLDERS.resources)
@@ -119,7 +156,96 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
       enabled: recipeEnabled,
       folder: cleanFeatureFolder(rawRecipe?.folder, defaultRecipeFolder),
     },
+    daily: {
+      enabled: dailyEnabled,
+      folder: cleanDailyFolder(rawDaily?.folder, DEFAULT_DAILY_FOLDER),
+      format: cleanDailyFormat(rawDaily?.format, DEFAULT_DAILY_FORMAT),
+    },
   };
+}
+
+const MONTHS_DE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+const MONTHS_SHORT_DE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MONTHS_SHORT_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DAYS_DE = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+const DAYS_SHORT_DE = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+const DAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAYS_SHORT_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function isoWeek(d: Date): number {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil(((date.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
+}
+
+/**
+ * Formats a daily note path relative to the vault from folder + pattern.
+ * Supported tokens: YYYY, YY, MMMM, MMM, MM, M, DD, D, dddd, ddd, WW, W, plus [literal] escapes.
+ */
+export function resolveDailyNote(
+  daily: Pick<DailySettings, 'folder' | 'format'>,
+  date = new Date(),
+  lang: 'de' | 'en' = 'de'
+): { path: string; folder: string; name: string } {
+  const folderRoot = cleanDailyFolder(daily.folder, '');
+  const rawFormat = cleanDailyFormat(daily.format, DEFAULT_DAILY_FORMAT);
+  const hadMd = /\.md$/i.test(rawFormat);
+  const stemPattern = hadMd ? rawFormat.slice(0, -3) : rawFormat;
+
+  const year = date.getFullYear();
+  const monthIdx = date.getMonth();
+  const month = monthIdx + 1;
+  const day = date.getDate();
+  const weekday = date.getDay();
+  const week = isoWeek(date);
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  const tokens: Record<string, string> = {
+    YYYY: String(year),
+    YY: String(year).slice(-2),
+    MMMM: (lang === 'en' ? MONTHS_EN : MONTHS_DE)[monthIdx],
+    MMM: (lang === 'en' ? MONTHS_SHORT_EN : MONTHS_SHORT_DE)[monthIdx],
+    MM: pad(month),
+    M: String(month),
+    DD: pad(day),
+    D: String(day),
+    dddd: (lang === 'en' ? DAYS_EN : DAYS_DE)[weekday],
+    ddd: (lang === 'en' ? DAYS_SHORT_EN : DAYS_SHORT_DE)[weekday],
+    WW: pad(week),
+    W: String(week),
+  };
+
+  const formattedStem = stemPattern.replace(
+    /\[([^\]]*)\]|(YYYY|YY|MMMM|MMM|MM|M|DD|D|dddd|ddd|WW|W)/g,
+    (full, literal: string | undefined, tok: string | undefined, offset: number, str: string) => {
+      if (literal !== undefined) return literal;
+      if (!tok) return full;
+      const prev = offset > 0 ? str[offset - 1] : '';
+      const next = offset + full.length < str.length ? str[offset + full.length] : '';
+      const isNonTokenLetter = (ch: string) => !!ch && /\p{L}/u.test(ch) && !/[YMDdW]/.test(ch);
+      if (isNonTokenLetter(prev) || isNonTokenLetter(next)) return full;
+      return tokens[tok] ?? full;
+    }
+  );
+
+  const fallbackName = `${year}-${pad(month)}-${pad(day)}`;
+  const relParts = `${formattedStem}.md`
+    .replace(/\\/g, '/')
+    .split('/')
+    .map((p) => p.trim())
+    .filter((p) => p && p !== '.' && p !== '..');
+
+  const rawFile = relParts.pop() ?? `${fallbackName}.md`;
+  const cleanFileStem = rawFile.replace(/\.md$/i, '').trim() || fallbackName;
+  const allParts = [...(folderRoot ? folderRoot.split('/') : []), ...relParts];
+  if (allParts[0]?.toLowerCase() === '.kladde') allParts[0] = DEFAULT_DAILY_FOLDER;
+
+  const fullPath = `${allParts.length ? `${allParts.join('/')}/` : ''}${cleanFileStem}.md`;
+  const split = splitPath(fullPath);
+  return { path: fullPath, folder: split.folder, name: split.name };
 }
 
 const ROLE_ORDER: ParaRole[] = ['inbox', 'archive', 'projects', 'areas', 'resources', 'zettel'];
@@ -140,6 +266,35 @@ export function roleOfFolder(folder: string, config: RoleFolderMap = PARA): Para
 }
 
 export const roleOfPath = (path: string, config: RoleFolderMap = PARA) => roleOfFolder(splitPath(path).folder, config);
+
+/** Single-file project sitting directly inside the projects root (`<projects>/<Name>.md`) */
+export function isSingleProjectFile(path: string, config: RoleFolderMap = PARA): boolean {
+  if (!config.projects) return false;
+  return splitPath(path).folder === config.projects;
+}
+
+/** Folder-based project represented by `<projects>/<ProjectFolder>/Home.md` (strictly one level deep) */
+export function isFolderProjectHome(path: string, config: RoleFolderMap = PARA): boolean {
+  if (!config.projects) return false;
+  const { folder, name } = splitPath(path);
+  if (name.toLowerCase() !== PROJECT_HOME_NAME.toLowerCase()) return false;
+  const prefix = `${config.projects}/`;
+  return folder.startsWith(prefix) && !folder.slice(prefix.length).includes('/');
+}
+
+/** True only for true project notes (single file in projects root OR `Home.md` in a direct project subfolder) */
+export function isProjectNote(path: string, config: RoleFolderMap = PARA): boolean {
+  return isSingleProjectFile(path, config) || isFolderProjectHome(path, config);
+}
+
+/** Display title for any note, using the project folder name for `<projects>/<Folder>/Home.md` */
+export function projectTitleOf(path: string, content: string, config: RoleFolderMap = PARA): string {
+  const { data } = parseFrontmatter(content);
+  if (data.title) return data.title;
+  const { folder, name } = splitPath(path);
+  if (isFolderProjectHome(path, config)) return folder.split('/').pop() || name;
+  return name;
+}
 
 export type ProjectStatus = 'aktiv' | 'pausiert' | 'fertig';
 export const PROJECT_STATUSES: ProjectStatus[] = ['aktiv', 'pausiert', 'fertig'];

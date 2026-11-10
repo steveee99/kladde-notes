@@ -4,6 +4,7 @@ import path from 'path';
 import type { DatabaseSync } from 'node:sqlite';
 import { APP_VERSION, type Me } from '@kladde/shared';
 import { DataCipher } from './crypto.js';
+import { AvatarStore } from './AvatarStore.js';
 import { UserRecord, UserStore } from './UserStore.js';
 import { NoteStore } from './NoteStore.js';
 import { FileStore } from './FileStore.js';
@@ -38,6 +39,7 @@ export interface KladdeAppContext {
   users: UserStore;
   notes: NoteStore;
   files: FileStore;
+  avatars: AvatarStore;
   audit: AuditLog;
   live: LiveUpdates;
   actions: AdminActions;
@@ -61,6 +63,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
   gitSync = new GitSync(opts.db, cipher, (id) => notes.allOf(id), (id) => users.getUser(id)?.username ?? null, opts.dataDir);
   const files = new FileStore(opts.db, cipher, opts.dataDir);
+  const avatars = new AvatarStore(opts.db, cipher, opts.dataDir);
   const standaloneUser = opts.standalone ? ensureStandaloneUser(users) : undefined;
   const mcp = mcpRouters({
     users,
@@ -134,21 +137,36 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     next();
   });
 
-  if (standaloneUser) {
-    const standaloneAuth = express.Router();
-    standaloneAuth.get('/me', (_req, res) => {
-      const user = users.getUser(standaloneUser.id) ?? standaloneUser;
-      const me: Me = {
+  const meFor = (record: UserRecord): Me => {
+    const user = users.getUser(record.id) ?? record;
+    if (standaloneUser) {
+      return {
         id: user.id,
         username: user.username,
         createdAt: user.createdAt,
         passkeys: [],
         hasPassword: false,
         isAdmin: false,
+        avatarUrl: user.avatarUrl,
         standalone: true,
         dataDir: opts.dataDir,
       };
-      res.json(me);
+    }
+    return {
+      id: user.id,
+      username: user.username,
+      createdAt: user.createdAt,
+      passkeys: users.credentialsOf(user.id).map((c) => ({ id: c.id, name: c.name, createdAt: c.createdAt, lastUsedAt: c.lastUsedAt })),
+      hasPassword: user.hasPassword,
+      isAdmin: user.isAdmin,
+      avatarUrl: user.avatarUrl,
+    };
+  };
+
+  if (standaloneUser) {
+    const standaloneAuth = express.Router();
+    standaloneAuth.get('/me', (_req, res) => {
+      res.json(meFor(standaloneUser));
     });
     standaloneAuth.use((_req, res) => {
       res.status(404).json({ error: 'Im Standalone-Modus nicht verfügbar.' });
@@ -169,12 +187,14 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     );
   }
 
-  app.use('/api', (req, res, next) => (req.path === '/sync' || req.path === '/files' ? next() : express.json({ limit: '256kb' })(req, res, next)));
+  app.use('/api', (req, res, next) =>
+    req.path === '/sync' || req.path === '/files' || req.path === '/me/avatar' ? next() : express.json({ limit: '256kb' })(req, res, next)
+  );
   app.use('/api/mcp', mcp.accountRouter);
   if (!opts.standalone) {
     app.use('/api/admin', adminRouter({ users, audit, status }));
   }
-  app.use('/api', apiRouter(users, notes, files, live, gitSync, { standaloneUser }));
+  app.use('/api', apiRouter(users, notes, files, live, gitSync, { standaloneUser, avatars, meFor }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
   if (opts.seaAssets && opts.seaAssets.size > 0) {
@@ -227,5 +247,5 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     res.status(500).json({ error: 'Serverfehler' });
   });
 
-  return { app, users, notes, files, audit, live, actions, standaloneUser };
+  return { app, users, notes, files, avatars, audit, live, actions, standaloneUser };
 }

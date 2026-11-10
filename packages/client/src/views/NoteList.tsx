@@ -1,6 +1,6 @@
 import { useState, useSyncExternalStore } from 'react';
-import { Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, LayoutGrid, List, Plus, Table2, Users } from 'lucide-react';
-import { INBOX_FOLDER, archiveTarget, excerpt, extractMeta, restoreTarget, splitPath } from '@kladde/shared';
+import { Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, LayoutGrid, List, Plus, Table2 } from 'lucide-react';
+import { INBOX_FOLDER, archiveTarget, excerpt, extractMeta, projectTitleOf, restoreTarget, splitPath } from '@kladde/shared';
 import type { SharedFolder } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
@@ -8,6 +8,7 @@ import { navigate } from '../lib/router';
 import { FolderNameInput, newNote } from './Shell';
 import { dragSource, useDropTarget } from '../lib/dnd';
 import { describePermissions } from './ShareDialog';
+import { Avatar } from './Avatar';
 import { folderDisplayName, folderLeafDisplayName, locale, t, useLang, type I18nKey, type Lang } from '../lib/i18n';
 
 export type NoteViewMode = 'cards' | 'list' | 'table';
@@ -77,6 +78,7 @@ const fmtDate = (ts: number, lang: Lang, long = false) =>
 function NoteRow({ note }: { note: LocalNote }) {
   const lang = useLang();
   const meta = extractMeta(note.path, note.content);
+  const title = projectTitleOf(note.path, note.content, vault.roleConfig());
   return (
     <li
       role="button"
@@ -86,10 +88,10 @@ function NoteRow({ note }: { note: LocalNote }) {
       onKeyDown={(e) => e.key === 'Enter' && navigate(`/n/${note.id}`)}
       className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-raised/60"
     >
-      <span className="min-w-0 flex-1 truncate font-medium">{meta.title}</span>
+      <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
       {note.access !== 'owner' && (
         <span className="chip hidden sm:inline-flex">
-          <Users size={11} /> {note.owner}
+          <Avatar name={note.owner ?? ''} avatarUrl={note.ownerAvatar} size="xs" /> {note.owner}
         </span>
       )}
       {note.dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title={t('list.unsynced')} />}
@@ -101,6 +103,7 @@ function NoteRow({ note }: { note: LocalNote }) {
 
 function NoteTable({ notes }: { notes: LocalNote[] }) {
   const lang = useLang();
+  const rc = vault.roleConfig();
   return (
     <div className="card overflow-x-auto scrollbar-thin">
       <table className="w-full text-sm">
@@ -116,9 +119,10 @@ function NoteTable({ notes }: { notes: LocalNote[] }) {
         <tbody>
           {notes.map((n) => {
             const meta = extractMeta(n.path, n.content);
+            const title = projectTitleOf(n.path, n.content, rc);
             return (
               <tr key={n.id} tabIndex={0} onClick={() => navigate(`/n/${n.id}`)} onKeyDown={(e) => e.key === 'Enter' && navigate(`/n/${n.id}`)} className="cursor-pointer border-t border-line/60 transition-colors hover:bg-raised/60">
-                <td className="max-w-[18rem] truncate px-3 py-2 font-medium">{meta.title}</td>
+                <td className="max-w-[18rem] truncate px-3 py-2 font-medium">{title}</td>
                 <td className="max-w-[12rem] truncate px-3 py-2 text-muted">{meta.folder ? folderDisplayName(meta.folder, lang) : ''}</td>
                 <td className="px-3 py-2">
                   <div className="flex flex-wrap gap-1">
@@ -165,6 +169,7 @@ export function NoteCollection({ notes, cols = 'sm:grid-cols-2 lg:grid-cols-3' }
 export function NoteCard({ note }: { note: LocalNote }) {
   const lang = useLang();
   const meta = extractMeta(note.path, note.content);
+  const title = projectTitleOf(note.path, note.content, vault.roleConfig());
   return (
     <div
       role="button"
@@ -175,10 +180,10 @@ export function NoteCard({ note }: { note: LocalNote }) {
       className="card group w-full min-w-0 cursor-pointer p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40"
     >
       <div className="flex items-center gap-2">
-        <span className="truncate font-medium">{meta.title}</span>
+        <span className="truncate font-medium">{title}</span>
         {note.access !== 'owner' && (
-          <span className="chip">
-            <Users size={11} /> {note.owner}
+          <span className="chip shrink-0">
+            <Avatar name={note.owner ?? ''} avatarUrl={note.ownerAvatar} size="xs" /> {note.owner}
           </span>
         )}
         {note.dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title={t('list.unsynced')} />}
@@ -251,7 +256,7 @@ function SharedFolderSection({ shared, notes }: { shared: SharedFolder; notes: L
           {folderLabel}
         </h2>
         <span className="chip shrink-0">
-          <Users size={11} /> {shared.owner} · {describePermissions(shared)}
+          <Avatar name={shared.owner} avatarUrl={shared.ownerAvatar} size="xs" /> {shared.owner} · {describePermissions(shared)}
         </span>
         {shared.canCreate && !creating && (
           <button className="edit-only btn-ghost ml-auto shrink-0" onClick={() => setCreating(true)}>
@@ -310,11 +315,17 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
   const lang = useLang();
   const [sort, setSort] = useState<'updated' | 'title'>('updated');
   const [creating, setCreating] = useState(false);
+  const rc = vault.roleConfig();
   let notes = vault.list();
   if (mode === 'shared') notes = notes.filter((n) => n.access !== 'owner');
   else notes = notes.filter((n) => n.access === 'owner');
   if (mode === 'folder' && folder !== undefined) notes = notes.filter((n) => splitPath(n.path).folder === folder);
-  notes.sort((a, b) => (sort === 'updated' ? b.updatedAt - a.updatedAt : a.path.localeCompare(b.path, locale(lang), { numeric: true })));
+  notes.sort((a, b) =>
+    sort === 'updated'
+      ? b.updatedAt - a.updatedAt
+      : projectTitleOf(a.path, a.content, rc).localeCompare(projectTitleOf(b.path, b.content, rc), locale(lang), { numeric: true }) ||
+        a.path.localeCompare(b.path, locale(lang), { numeric: true })
+  );
   const subfolders = mode === 'folder' ? vault.folders().filter((f) => f.startsWith(`${folder}/`) && !f.slice(folder!.length + 1).includes('/')) : [];
   // Notes in a folder and all its subfolders (owned ones, like the list itself)
   const countIn = (f: string) => vault.list().filter((n) => n.access === 'owner' && (splitPath(n.path).folder === f || splitPath(n.path).folder.startsWith(`${f}/`))).length;

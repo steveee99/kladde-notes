@@ -1,6 +1,7 @@
 import express, { Response } from 'express';
-import type { AttachmentInfo, DeleteFilesResponse, PushChange } from '@kladde/shared';
+import type { AttachmentInfo, DeleteFilesResponse, Me, PushChange } from '@kladde/shared';
 import { attachmentUsageMap } from './cliActions.js';
+import { AvatarStore, MAX_AVATAR_BYTES } from './AvatarStore.js';
 import { NoteStore } from './NoteStore.js';
 import { FileStore, MAX_FILE_BYTES } from './FileStore.js';
 import { UserRecord, UserStore } from './UserStore.js';
@@ -41,6 +42,8 @@ export class LiveUpdates {
 
 export interface ApiRouterOptions {
   standaloneUser?: UserRecord;
+  avatars?: AvatarStore;
+  meFor?: (user: UserRecord) => Me;
 }
 
 export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, live: LiveUpdates, gitSync?: GitSync, opts: ApiRouterOptions = {}): express.Router {
@@ -72,6 +75,22 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
     res.send(file.data);
   });
+
+  if (opts.avatars) {
+    const avatars = opts.avatars;
+    // Profile pictures use random unguessable ids (also embedded on public links and shares)
+    router.get('/avatars/:id', (req, res) => {
+      const avatar = avatars.load(req.params.id);
+      if (!avatar) {
+        res.status(404).end();
+        return;
+      }
+      res.setHeader('Content-Type', avatar.mime);
+      res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+      res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+      res.send(avatar.data);
+    });
+  }
 
   // ---------------------------------------------------------------- signed in
 
@@ -314,6 +333,47 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       res.json(result);
     })
   );
+
+  if (opts.avatars) {
+    const avatars = opts.avatars;
+    const toMe = (u: UserRecord): Me =>
+      opts.meFor
+        ? opts.meFor(u)
+        : {
+            id: u.id,
+            username: u.username,
+            createdAt: u.createdAt,
+            passkeys: users.credentialsOf(u.id).map((c) => ({ id: c.id, name: c.name, createdAt: c.createdAt, lastUsedAt: c.lastUsedAt })),
+            hasPassword: u.hasPassword,
+            isAdmin: u.isAdmin,
+            avatarUrl: u.avatarUrl,
+            ...(standalone ? { standalone: true } : {}),
+          };
+
+    router.post(
+      '/me/avatar',
+      express.raw({ type: () => true, limit: MAX_AVATAR_BYTES + 1024 }),
+      handle((req, res) => {
+        const mime = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
+        try {
+          avatars.save(req.user!.id, mime, req.body as Buffer);
+          if (!standalone) live.notify(notes.refreshSharedAvatar(req.user!.id));
+          res.json(toMe(users.getUser(req.user!.id) ?? req.user!));
+        } catch (err) {
+          res.status(400).json({ error: (err as Error).message });
+        }
+      })
+    );
+
+    router.delete(
+      '/me/avatar',
+      handle((req, res) => {
+        avatars.remove(req.user!.id);
+        if (!standalone) live.notify(notes.refreshSharedAvatar(req.user!.id));
+        res.json(toMe(users.getUser(req.user!.id) ?? req.user!));
+      })
+    );
+  }
 
   return router;
 }

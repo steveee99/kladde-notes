@@ -1,11 +1,14 @@
 import { useSyncExternalStore } from 'react';
 import {
+  DEFAULT_DAILY_FOLDER,
+  DEFAULT_DAILY_FORMAT,
   DEFAULT_PARA_FOLDERS,
   DEFAULT_ZETTEL_FOLDER,
   FEATURES_SETTING,
   FOLDERS_NOTE_PATH,
   FeatureSettings,
   INBOX_FOLDER,
+  PROJECT_HOME_NAME,
   PullResponse,
   PushResponse,
   RoleFolderMap,
@@ -19,8 +22,13 @@ import {
   archiveTarget,
   excerpt,
   fillTemplate,
+  isFolderProjectHome,
+  isSingleProjectFile,
   normalizeFeatures,
   normalizeTemplates,
+  parseFrontmatter,
+  projectTitleOf,
+  resolveDailyNote,
   templateUsesZettelId,
   TEMPLATES_SETTING,
   joinPath,
@@ -230,7 +238,9 @@ class Vault {
 
   /** Link index over all visible notes, rebuilt lazily after changes */
   links(): LinkIndex {
-    if (!this.indexCache || this.indexCache.version !== this.version) this.indexCache = { version: this.version, index: new LinkIndex(this.list()) };
+    if (!this.indexCache || this.indexCache.version !== this.version) {
+      this.indexCache = { version: this.version, index: new LinkIndex(this.list(), this.roleConfig()) };
+    }
     return this.indexCache.index;
   }
 
@@ -344,14 +354,14 @@ class Vault {
     const note = this.get(noteId);
     const target = this.get(targetId);
     if (!note || !target) return;
-    const full = splitPath(target.path).name;
+    const full = this.links().notes.get(targetId)?.title ?? splitPath(target.path).name;
     for (const name of this.links().mentionNames(targetId)) {
       const content = linkFirstMention(note.content, name, full);
       if (content !== note.content) return this.update(noteId, { content });
     }
   }
 
-  // ------------------------------------------------------------------ PARA, Zettelkasten & Features
+  // ------------------------------------------------------------------ Daily Notes, PARA, Zettelkasten & Features
 
   features(): FeatureSettings {
     return normalizeFeatures(this.setting(FEATURES_SETTING), this.folders());
@@ -369,8 +379,28 @@ class Vault {
     };
   }
 
+  findDailyNote(date = new Date()): LocalNote | undefined {
+    const { daily } = this.features();
+    if (!daily.enabled) return undefined;
+    const resolved = resolveDailyNote(daily, date, getLang());
+    const target = resolved.path.toLowerCase();
+    return this.list().find((n) => n.access === 'owner' && n.path.toLowerCase() === target);
+  }
+
+  async openDailyNote(date = new Date()): Promise<LocalNote> {
+    const { daily } = this.features();
+    const resolved = resolveDailyNote(daily, date, getLang());
+    const target = resolved.path.toLowerCase();
+    const existing = this.list().find((n) => n.access === 'owner' && n.path.toLowerCase() === target);
+    if (existing) return existing;
+    if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    const heading = /^\d{1,2}$/.test(resolved.name) ? toDateString(date) : resolved.name;
+    return this.insert(resolved.folder, resolved.name, `# ${heading}\n\n`);
+  }
+
   async updateFeatures(next: FeatureSettings): Promise<FeatureSettings> {
     if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    const prev = this.features();
     const clean = normalizeFeatures(next, this.folders());
     await this.setSetting(FEATURES_SETTING, clean);
     const needed: string[] = [];
@@ -379,6 +409,9 @@ class Vault {
     }
     if (clean.zettel.enabled) needed.push(clean.zettel.folder);
     if (clean.recipe.enabled) needed.push(clean.recipe.folder);
+    if (clean.daily.enabled && clean.daily.folder && (!prev.daily.enabled || clean.daily.folder !== prev.daily.folder)) {
+      needed.push(clean.daily.folder);
+    }
     const existing = new Set(this.storedFolders());
     const missing = needed.map((f) => cleanFolder(f)).filter((f) => f && !existing.has(f));
     if (missing.length) await this.setFolders([...this.storedFolders(), ...missing]);
@@ -388,6 +421,80 @@ class Vault {
   async setFrontmatter(id: string, updates: Record<string, string | null>) {
     const note = this.get(id);
     if (note) await this.update(id, { content: setFrontmatter(note.content, updates) });
+  }
+
+  /** Converts a single-file project (`<projects>/<Name>.md`) into a folder project (`<projects>/<Name>/Home.md`) */
+  async convertProjectToFolder(id: string): Promise<boolean> {
+    const note = this.get(id);
+    const rc = this.roleConfig();
+    if (!note || note.access !== 'owner' || isReadOnly() || !rc.projects) return false;
+    if (!isSingleProjectFile(note.path, rc)) return false;
+    const { folder, name } = splitPath(note.path);
+    let targetFolder = `${folder}/${name}`;
+    for (
+      let i = 2;
+      [...this.notes.values()].some(
+        (n) => !n.deleted && n.id !== id && n.path.toLowerCase() === `${targetFolder}/${PROJECT_HOME_NAME}.md`.toLowerCase()
+      );
+      i++
+    ) {
+      targetFolder = `${folder}/${name} ${i}`;
+    }
+    const targetPath = this.uniquePath(targetFolder, PROJECT_HOME_NAME, id);
+    await this.put({ ...note, path: targetPath, updatedAt: Date.now(), dirty: true });
+    const existingFolders = new Set(this.storedFolders());
+    if (!existingFolders.has(targetFolder)) await this.setFolders([...existingFolders, targetFolder]);
+    const leaf = targetFolder.split('/').pop()!;
+    if (leaf !== name) await this.relink(id, name, leaf);
+    this.schedule();
+    return true;
+  }
+
+  /** Renames a project note; for folder projects (`Home.md`), renames its folder so the project name and subnotes stay together */
+  async renameProject(id: string, nextTitle: string): Promise<void> {
+    const note = this.get(id);
+    const rc = this.roleConfig();
+    if (!note || note.access !== 'owner' || isReadOnly()) return;
+    const cleanLeaf = nextTitle.trim().replace(/[\\/]/g, '-');
+    if (!cleanLeaf) return;
+    if (!isFolderProjectHome(note.path, rc)) {
+      await this.update(id, { title: cleanLeaf });
+      return;
+    }
+    const { folder } = splitPath(note.path);
+    const parent = folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) : '';
+    const oldTitle = projectTitleOf(note.path, note.content, rc);
+    const desiredBase = parent ? `${parent}/${cleanLeaf}` : cleanLeaf;
+    let targetFolder = desiredBase;
+    if (targetFolder !== folder) {
+      for (let i = 2; this.notesBelow(targetFolder).length > 0; i++) {
+        targetFolder = `${desiredBase} ${i}`;
+      }
+      await this.renameFolder(folder, targetFolder);
+    }
+    const finalLeaf = targetFolder.split('/').pop()!;
+    const updatedNote = this.get(id);
+    if (updatedNote && parseFrontmatter(updatedNote.content).data.title !== undefined) {
+      await this.update(id, { content: setFrontmatter(updatedNote.content, { title: finalLeaf }) });
+    }
+    if (oldTitle.toLowerCase() !== finalLeaf.toLowerCase()) {
+      await this.relink(id, oldTitle, finalLeaf);
+    }
+    this.schedule();
+  }
+
+  /** Completes a project and moves it to the archive (including subnotes for folder projects) */
+  async archiveProject(id: string) {
+    const note = this.get(id);
+    const { para } = this.features();
+    const rc = this.roleConfig();
+    if (!note || note.access !== 'owner' || !para.enabled) return;
+    if (isFolderProjectHome(note.path, rc)) {
+      await this.setFrontmatter(id, { status: 'fertig', abgeschlossen: toDateString(new Date()) });
+      await this.archiveFolder(splitPath(note.path).folder);
+      return;
+    }
+    await this.archiveNote(id, true);
   }
 
   /** Moves a note to "<archive>/<folder>"; a project is marked as done on the way */
@@ -407,9 +514,14 @@ class Vault {
     const note = this.get(id);
     const { para } = this.features();
     if (!note || !para.enabled) return;
-    const target = restoreTarget(splitPath(note.path).folder, para.folders.archive);
+    const { folder, name } = splitPath(note.path);
+    const target = restoreTarget(folder, para.folders.archive);
     if (target === null) return;
     if (/^status:\s*fertig/m.test(note.content)) await this.setFrontmatter(id, { status: 'aktiv', abgeschlossen: null });
+    if (isFolderProjectHome(joinPath(target, name), this.roleConfig())) {
+      await this.restoreFolder(folder);
+      return;
+    }
     await this.update(id, { folder: target });
   }
 
@@ -691,13 +803,14 @@ class Vault {
     this.emit();
   }
 
-  /** First start of a new space: Inbox folder, disabled opt-in features, and a welcome note */
+  /** First start of a new space: Inbox folder, default daily note settings, disabled opt-in features, and welcome notes */
   private async seed() {
     await this.setFolders([...this.storedFolders(), INBOX_FOLDER]);
     await this.setSetting(FEATURES_SETTING, {
       para: { enabled: false, folders: { ...DEFAULT_PARA_FOLDERS } },
       zettel: { enabled: false, folder: DEFAULT_ZETTEL_FOLDER },
       recipe: { enabled: false, folder: STANDALONE_RECIPE_FOLDER },
+      daily: { enabled: true, folder: DEFAULT_DAILY_FOLDER, format: DEFAULT_DAILY_FORMAT },
     } satisfies FeatureSettings);
     for (const w of welcomeNotes(getLang())) await this.insert(w.folder, w.title, w.content);
   }
@@ -796,11 +909,12 @@ class Vault {
 }
 
 function cleanFolder(path: string): string {
-  return path
+  const cleaned = path
     .split('/')
     .map((p) => p.trim().replace(/[\\]/g, '-'))
     .filter((p) => p && p !== '.' && p !== '..')
     .join('/');
+  return cleaned === '.kladde' || cleaned.toLowerCase().startsWith('.kladde/') ? '' : cleaned;
 }
 
 const safeObject = (s: string): Record<string, unknown> => {
