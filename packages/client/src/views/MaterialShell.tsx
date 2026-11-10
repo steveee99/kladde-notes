@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { FileText, Home, Inbox as InboxIcon, Menu, Network, Pencil, Search, Settings } from 'lucide-react';
+import { FileText, Home, Images, Inbox as InboxIcon, Menu, Network, PanelLeftClose, PanelLeftOpen, Pencil, Search, Settings } from 'lucide-react';
 import { excerpt, PARA, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { navigate, usePath } from '../lib/router';
+import { setMaterialSidebarMode, useMaterialSidebarMode } from '../lib/sidebarMode';
 import { Dialogs } from './Dialogs';
 import { QuickCapture } from './QuickCapture';
 import { newNote, ReadOnlyToggle, Sidebar, SyncBadge } from './Shell';
@@ -115,6 +116,8 @@ function ListPane({ noteId }: { noteId: string }) {
 
 export function MaterialShell({ children, isAdmin }: { children: React.ReactNode; isAdmin?: boolean }) {
   useVault();
+  const sidebarMode = useMaterialSidebarMode();
+  const sticky = sidebarMode === 'sticky';
   const [drawer, setDrawer] = useState(false);
   const [capture, setCapture] = useState(false);
   const path = usePath();
@@ -125,36 +128,75 @@ export function MaterialShell({ children, isAdmin }: { children: React.ReactNode
     <div className="flex h-full flex-col bg-bg">
       <div className="sticky top-0 z-20 hidden shrink-0 bg-bg [--pad-top:0.375rem] safe-top [@media(display-mode:standalone)]:md:block" />
       <div className="flex min-h-0 flex-1">
-        <nav aria-label="Hauptnavigation" className="hidden w-[88px] shrink-0 flex-col items-center gap-3 py-4 md:flex">
-          <button className="btn-icon" onClick={() => setDrawer(true)} aria-label="Ordner und Menü">
-            <Menu size={22} />
-          </button>
-          <button
-            className="edit-only mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-container text-on-accent-container shadow-soft transition-transform duration-200 ease-spring hover:scale-105 active:scale-95"
-            onClick={() => newNote()}
-            aria-label="Neue Notiz"
-            title="Neue Notiz"
-          >
-            <Pencil size={22} />
-          </button>
-          <RailItem to="/" Icon={Home} label="Start" />
-          <RailItem to="/inbox" Icon={InboxIcon} label="Inbox" badge={inboxCount} />
-          <RailItem to="/notes" Icon={FileText} label="Notizen" />
-          <RailItem to="/search" Icon={Search} label="Suche" />
-          <RailItem to="/graph" Icon={Network} label="Netz" />
-          <div className="m3-status mt-auto flex flex-col items-center gap-1">
-            <ReadOnlyToggle />
-            <SyncBadge />
-            <RailItem to="/settings" Icon={Settings} label="Optionen" />
-          </div>
-        </nav>
+        {sticky ? (
+          <aside aria-label="Hauptnavigation" className="m3-status hidden w-[284px] shrink-0 py-4 pl-4 pr-3 md:flex lg:w-[304px]">
+            <div className="flex min-h-0 w-full flex-col overflow-hidden rounded-[28px] bg-surface">
+              <Sidebar
+                isAdmin={isAdmin}
+                headerAction={
+                  <button
+                    type="button"
+                    onClick={() => setMaterialSidebarMode('overlay')}
+                    className="btn-icon h-9 w-9"
+                    title="Seitenleiste als Overlay (Schublade) anzeigen"
+                    aria-label="Seitenleiste als Overlay anzeigen"
+                  >
+                    <PanelLeftClose size={18} />
+                  </button>
+                }
+              />
+            </div>
+          </aside>
+        ) : (
+          <nav aria-label="Hauptnavigation" className="hidden w-[88px] shrink-0 flex-col items-center gap-3 overflow-y-auto py-4 scrollbar-thin md:flex">
+            <button className="btn-icon shrink-0" onClick={() => setDrawer(true)} aria-label="Ordner und Menü">
+              <Menu size={22} />
+            </button>
+            <button
+              className="edit-only mb-5 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-accent-container text-on-accent-container shadow-soft transition-transform duration-200 ease-spring hover:scale-105 active:scale-95"
+              onClick={() => newNote()}
+              aria-label="Neue Notiz"
+              title="Neue Notiz"
+            >
+              <Pencil size={22} />
+            </button>
+            <RailItem to="/" Icon={Home} label="Start" />
+            <RailItem to="/inbox" Icon={InboxIcon} label="Inbox" badge={inboxCount} />
+            <RailItem to="/notes" Icon={FileText} label="Notizen" />
+            <RailItem to="/search" Icon={Search} label="Suche" />
+            <RailItem to="/graph" Icon={Network} label="Netz" />
+            <RailItem to="/files" Icon={Images} label="Anhänge" />
+            <div className="m3-status mt-auto flex flex-col items-center gap-1 pt-2">
+              <ReadOnlyToggle />
+              <SyncBadge />
+              <RailItem to="/settings" Icon={Settings} label="Optionen" />
+            </div>
+          </nav>
+        )}
 
         {drawer && (
-          <div className="fixed inset-0 z-40">
+          <div className={`fixed inset-0 z-40 ${sticky ? 'md:hidden' : ''}`}>
             <div className="absolute inset-0 bg-black/50 anim-fade-in" onClick={() => setDrawer(false)} />
             {/* Modal navigation drawer: closes with the scrim, a destination or Escape, as in Material 3 */}
             <aside className="m3-status absolute inset-y-0 left-0 w-[85%] max-w-[360px] rounded-r-2xl bg-surface shadow-soft safe-top safe-bottom" style={{ animation: 'slide-in 300ms var(--ease) both' }} onKeyDown={(e) => e.key === 'Escape' && setDrawer(false)}>
-              <Sidebar isAdmin={isAdmin} onNavigate={() => setDrawer(false)} />
+              <Sidebar
+                isAdmin={isAdmin}
+                onNavigate={() => setDrawer(false)}
+                headerAction={
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMaterialSidebarMode('sticky');
+                      setDrawer(false);
+                    }}
+                    className="btn-icon hidden h-9 w-9 md:inline-flex"
+                    title="Seitenleiste dauerhaft links anzeigen (Sticky)"
+                    aria-label="Seitenleiste anheften"
+                  >
+                    <PanelLeftOpen size={18} />
+                  </button>
+                }
+              />
             </aside>
           </div>
         )}

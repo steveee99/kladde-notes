@@ -1007,3 +1007,68 @@ html[data-readonly] .edit-only {
 [data-theme='material'] .cm-tooltip-autocomplete li[aria-selected] .cm-completionDetail {
   color: rgb(var(--on-accent-container) / 0.75) !important;
 }
+
+/* ------------------------------------------------------------------ Print layout (hides chrome & frontmatter) */
+
+@media print {
+  @page {
+    margin: 16mm;
+  }
+  :root,
+  [data-theme='light'],
+  [data-theme='material'] {
+    --bg: 255 255 255;
+    --surface: 255 255 255;
+    --raised: 245 244 241;
+    --line: 215 212 206;
+    --ink: 20 20 26;
+    --muted: 85 85 95;
+    --faint: 120 120 130;
+    --code-bg: 245 244 241;
+    color-scheme: light;
+  }
+  html,
+  body,
+  #root {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #14141a !important;
+  }
+  /* Undo nested flex/overflow scroll containers so multi-page notes print completely */
+  body > #root > div,
+  body > #root > div > div,
+  main {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+  }
+  nav,
+  aside,
+  header,
+  section[aria-label='Notizliste'],
+  .note-toolbar,
+  .no-print,
+  .wz-edit,
+  .wz-table-bar,
+  .wz-props,
+  .cm-frontmatter,
+  .cm-autolink-btn {
+    display: none !important;
+  }
+  .content-container {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+  .cm-content {
+    padding: 0 !important;
+  }
+  .wz-table,
+  .wz-diagram {
+    break-inside: avoid;
+    border-color: #d7d4ce !important;
+    background: #fff !important;
+  }
+}

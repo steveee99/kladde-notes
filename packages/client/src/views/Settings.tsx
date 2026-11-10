@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
-import { Bot, ChevronRight, Copy, FoldHorizontal, GitBranch, KeyRound, LayoutTemplate, Lock, LogOut, Monitor, Moon, ShieldCheck, Smartphone, Sun, Trash2, UnfoldHorizontal, Zap } from 'lucide-react';
+import { Bot, ChevronRight, Copy, FoldHorizontal, GitBranch, Images, KeyRound, LayoutTemplate, Lock, LogOut, Monitor, Moon, PanelLeft, PanelLeftOpen, ShieldCheck, Smartphone, Sun, Trash2, UnfoldHorizontal, Zap } from 'lucide-react';
 import { APP_VERSION, Me, PASSWORD_MIN_LENGTH } from '@kladde/shared';
 import { api } from '../lib/api';
-import { getTheme, setTheme, ThemeChoice } from '../lib/theme';
+import { getTheme, setTheme, ThemeChoice, useResolvedTheme } from '../lib/theme';
+import { setMaterialSidebarMode, useMaterialSidebarMode } from '../lib/sidebarMode';
 import { DEFAULT_FIXED_WIDTH, MAX_WIDTH, MIN_WIDTH, setWidescreen, useWidescreen } from '../lib/widescreen';
 import { useVault, vault } from '../data/vault';
 import { startupReport, toggleTallPageTest, viewportReport } from '../lib/viewport';
@@ -13,6 +14,8 @@ import { passkeysAvailable } from './Auth';
 export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) => void; onLogout: () => void }) {
   useVault();
   const widescreen = useWidescreen();
+  const resolvedTheme = useResolvedTheme();
+  const sidebarMode = useMaterialSidebarMode();
   const [theme, setThemeState] = useState<ThemeChoice>(getTheme());
   const [link, setLink] = useState<{ code: string; expiresAt: number } | null>(null);
   const [error, setError] = useState('');
@@ -67,6 +70,15 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
         <ChevronRight size={18} className="text-faint" />
       </button>
 
+      <button className="card flex w-full items-center gap-3 p-4 text-left transition-colors hover:border-accent/40 anim-fade-up" onClick={() => navigate('/files')}>
+        <Images size={20} className="text-accent" />
+        <div className="flex-1">
+          <div className="font-semibold">Anhänge</div>
+          <div className="text-sm text-muted">Hochgeladene Bilder und PDFs verwalten und ungenutzte entfernen</div>
+        </div>
+        <ChevronRight size={18} className="text-faint" />
+      </button>
+
       <section className="card p-5 anim-fade-up">
         <h2 className="mb-3 font-semibold">Erscheinungsbild</h2>
         <div className="grid grid-cols-3 gap-2">
@@ -83,6 +95,36 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
             </button>
           ))}
         </div>
+
+        {resolvedTheme === 'material' && (
+          <>
+            <div className="my-5 border-t border-line" />
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold">Seitenleiste (Dunkel-Design)</h3>
+              <p className="text-xs text-muted">Auf Tablet und Desktop als Overlay-Schublade mit schmaler Leiste oder angeheftet (Sticky) als vollständiges Menü.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setMaterialSidebarMode('overlay')}
+                aria-pressed={sidebarMode === 'overlay'}
+                className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-sm transition-all duration-200 ${sidebarMode === 'overlay' ? 'border-accent bg-accent/10 text-accent' : 'border-line text-muted hover:border-faint'}`}
+              >
+                <PanelLeftOpen size={20} />
+                <span className="font-medium">Overlay</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMaterialSidebarMode('sticky')}
+                aria-pressed={sidebarMode === 'sticky'}
+                className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-sm transition-all duration-200 ${sidebarMode === 'sticky' ? 'border-accent bg-accent/10 text-accent' : 'border-line text-muted hover:border-faint'}`}
+              >
+                <PanelLeft size={20} />
+                <span className="font-medium">Sticky</span>
+              </button>
+            </div>
+          </>
+        )}
 
         <div className="my-5 border-t border-line" />
 

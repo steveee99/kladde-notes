@@ -208,3 +208,27 @@ export interface GitSyncSettings {
 }
 
 export const DEFAULT_GIT_MESSAGE = 'Kladde-Sync {date}';
+
+/** A note referencing an attachment */
+export interface AttachmentNoteRef {
+  id: string;
+  path: string;
+  title: string;
+}
+
+/** Server-stored attachment metadata together with note references */
+export interface AttachmentInfo {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  createdAt: number;
+  url: string;
+  usedIn: AttachmentNoteRef[];
+}
+
+export interface DeleteFilesResponse {
+  deleted: string[];
+  skippedUsed: string[];
+  notFound: string[];
+}

@@ -7,6 +7,33 @@ import { DataCipher } from './crypto.js';
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const ALLOWED = /^(image\/(png|jpeg|gif|webp|svg\+xml|avif)|application\/pdf)$/;
 
+export interface StoredFileMeta {
+  id: string;
+  ownerId: string;
+  name: string;
+  mime: string;
+  size: number;
+  createdAt: number;
+}
+
+interface FileRow {
+  id: string;
+  owner_id: string;
+  name: string;
+  mime: string;
+  size: number;
+  created_at: number;
+}
+
+const toMeta = (r: FileRow): StoredFileMeta => ({
+  id: r.id,
+  ownerId: r.owner_id,
+  name: r.name,
+  mime: r.mime,
+  size: r.size,
+  createdAt: r.created_at,
+});
+
 /** Attachments (images, PDFs), encrypted on disk below <data>/files. Ids are random and act as the access key */
 export class FileStore {
   private readonly dir: string;
@@ -40,5 +67,24 @@ export class FileStore {
     } catch {
       return null;
     }
+  }
+
+  listByOwner(ownerId: string): StoredFileMeta[] {
+    const rows = this.db.prepare('SELECT id, owner_id, name, mime, size, created_at FROM files WHERE owner_id = ? ORDER BY created_at DESC').all(ownerId) as unknown as FileRow[];
+    return rows.map(toMeta);
+  }
+
+  getMeta(ownerId: string, id: string): StoredFileMeta | null {
+    if (!/^[A-Za-z0-9_-]{22}$/.test(id)) return null;
+    const row = this.db.prepare('SELECT id, owner_id, name, mime, size, created_at FROM files WHERE id = ? AND owner_id = ?').get(id, ownerId) as FileRow | undefined;
+    return row ? toMeta(row) : null;
+  }
+
+  delete(ownerId: string, id: string): boolean {
+    if (!/^[A-Za-z0-9_-]{22}$/.test(id)) return false;
+    const res = this.db.prepare('DELETE FROM files WHERE id = ? AND owner_id = ?').run(id, ownerId);
+    if (Number(res.changes) === 0) return false;
+    fs.rmSync(path.join(this.dir, id), { force: true });
+    return true;
   }
 }

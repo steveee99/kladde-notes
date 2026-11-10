@@ -6,7 +6,7 @@ export const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 
 const INSTRUCTIONS = [
   'Kladde is the user\'s personal Markdown notes app (PARA folders, Zettelkasten, tasks).',
-  'You only see the notes the user owns. Find notes with search_notes or list_notes, then read_note.',
+  'You only see the notes the user owns. Find notes with semantic_search (conceptual, stemmed, link-aware), search_notes (exact words), or list_notes, then read_note.',
   'Before update_note, read the note and pass its version. Prefer append_to_note for small additions.',
   'Write in the language of the user\'s notes (usually German).',
 ].join(' ');

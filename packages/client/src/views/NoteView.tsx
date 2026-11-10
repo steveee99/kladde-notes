@@ -12,6 +12,7 @@ import { ShareDialog } from './ShareDialog';
 import { HistoryDialog } from './History';
 import { ParaBar } from './ParaBar';
 import { Graph } from './Graph';
+import { ExportMenu } from './ExportMenu';
 
 const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Strg';
 
@@ -120,7 +121,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   return (
     <div className="flex min-h-full flex-col">
       <div className="content-container mx-auto w-full flex-1 px-4 pt-4 sm:px-8 sm:pt-8">
-        <div className="mb-2 flex items-center gap-1 text-sm text-faint anim-fade-in">
+        <div className="no-print mb-2 flex items-center gap-1 text-sm text-faint anim-fade-in">
           <button className="btn-icon -ml-2" onClick={() => history.back()} title="Zurück">
             <ArrowLeft size={18} />
           </button>
@@ -150,6 +151,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 <Lock size={15} className="mr-2" />
               </span>
             )}
+            <ExportMenu title={title || name} content={note.content} />
             <button className="btn-icon" title="Verlauf" onClick={() => setShowHistory(true)}>
               <History size={18} />
             </button>
@@ -176,7 +178,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
         </div>
         <input
           ref={titleRef}
-          className="note-title mb-2 w-full bg-transparent text-3xl font-bold tracking-tight outline-none placeholder:text-faint sm:text-4xl"
+          className="note-title mb-2 w-full bg-transparent text-3xl font-bold tracking-tight outline-none placeholder:text-faint sm:text-4xl print:hidden"
           value={title}
           readOnly={!isOwner}
           placeholder="Titel"
@@ -190,9 +192,10 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             }
           }}
         />
-        {!locked && <ParaBar note={note} />}
+        <h1 className="hidden print:block mb-3 text-3xl font-bold tracking-tight">{title || name}</h1>
+        {!locked && <div className="no-print"><ParaBar note={note} /></div>}
         <Editor docKey={id} value={note.content} readOnly={readOnly} stamp={version} onChange={(content) => void vault.update(id, { content })} onView={setView} />
-        <div className="mb-10 space-y-6 border-t border-line pt-4">
+        <div className="no-print mb-10 space-y-6 border-t border-line pt-4">
           {backlinks.length > 0 && (
             <section className="anim-fade-in">
               <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-faint">Verweise hierher · {backlinks.length}</h2>

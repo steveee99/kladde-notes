@@ -4,6 +4,12 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Im Dunkel-Design (Material) lässt sich die Seitenleiste auf größeren Bildschirmen über Einstellungen → Erscheinungsbild oder direkt im Menü-Kopf zwischen „Overlay“ (schmale Leiste links + Schublade) und „Sticky“ (vollständiges Menü ersetzt die Leiste links dauerhaft) umschalten.
+- Neu: Anhänge verwalten unter „Anhänge“ (Seitenleiste und Einstellungen): Galerie-Grid aller hochgeladenen Bilder und PDFs mit Filter „Nicht in Notizen verwendet“, Notiz-Verweisen, Multiselekt und Löschen mit Bestätigung. Anhänge, die noch in einer Notiz verwendet werden, sind geschützt und können nicht gelöscht werden.
+- Neu (CLI): Erweiterte Server-CLI mit `import <quelle> <ziel>` (einzelne Datei oder rekursiver Ordner inkl. Bildern/PDFs und Obsidian-Links), `export <quelle> <ziel>` (ganzer Space, Ordner oder Einzelnotiz, optional `--strip-frontmatter` / `--with-files`) sowie Hilfsbefehlen (`suche`, `notizen`, `ordner`, `anhaenge`, `anhaenge-bereinigen`, `status`, `backup`, Kontenverwaltung).
+- Neu: Notizen lassen sich direkt als Markdown (`.md`), Word-Dokument (`.docx`), PDF-Datei (`.pdf`) oder über die Druckansicht exportieren – jeweils ohne YAML-Frontmatter.
+- Neu (MCP): Neues Werkzeug `semantic_search` für eine lokale semantische Suche über alle eigenen Notizen – berücksichtigt deutsche und englische Wortstämme, zusammengesetzte Begriffe, themenverwandte Begriffe sowie verknüpfte `[[Links]]`.
+
 ## [0.16.0] – 2026-11-09
 
 - Neu: Automatische Erkennung von Notiznamen im Text: Wird der Titel einer existierenden Notiz im Fließtext erwähnt, wird er in der Live-Vorschau und im Lesemodus automatisch als klickbarer Hyperlink (dezent gepunktet unterstrichen) dargestellt. Ein Klick öffnet sofort die Zielnotiz. Über ein kleines Symbol beim Daraufzeigen (sowie über den neuen Slash-Befehl `/verlinken` für alle Erwähnungen) lässt sich der Treffer mit einem Klick dauerhaft in einen echten [[Wikilink]] umwandeln.

@@ -9,6 +9,7 @@ import {
   normalizeDueWords,
   parseTasks,
   runQuery,
+  semanticSearch,
   splitPath,
   toDateString,
   toggleTask,
@@ -189,6 +190,46 @@ export const TOOLS: ToolDef[] = [
       return {
         total: hits.length,
         results: hits.slice(0, limit).map(({ note }) => ({ ...summary(note), snippet: snippet(note.content, words[0]) })),
+      };
+    },
+  },
+  {
+    name: 'semantic_search',
+    title: 'Semantische Suche',
+    description:
+      'Semantic similarity search over the user\'s own notes. Understands German and English word stems, compound words (e.g. "Reisekosten"), conceptually related topics (e.g. "Urlaub" <-> "Flug", "Wohnung" <-> "Miete"), titles, tags, headings, and [[WikiLink]] graph neighbors. Returns ranked matches with score (0-1), match reasons, snippet and links.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Natural-language search query, topic, or question' },
+        folder: { type: 'string', description: 'Optional: restrict results to this folder and subfolders, e.g. "1 Projekte"' },
+        limit: { type: 'integer', minimum: 1, maximum: 50, default: 10 },
+        min_score: { type: 'number', minimum: 0, maximum: 1, default: 0.05, description: 'Minimum similarity score (0..1)' },
+      },
+      required: ['query'],
+    },
+    write: false,
+    run(args, ctx) {
+      const query = str(args, 'query', true)!;
+      const folder = str(args, 'folder')?.replace(/^\/+|\/+$/g, '');
+      const limit = Math.max(1, int(args, 'limit', 10, 50));
+      let minScore: number | undefined;
+      if (args.min_score !== undefined && args.min_score !== null) {
+        const n = Number(args.min_score);
+        if (!Number.isFinite(n) || n < 0 || n > 1) throw new ToolError('Parameter "min_score" muss zwischen 0 und 1 liegen.');
+        minScore = n;
+      }
+      const hits = semanticSearch(query, space(ctx), { folder, limit, minScore });
+      return {
+        total: hits.length,
+        results: hits.map((h) => ({
+          ...summary(h.note as SyncedNote),
+          score: h.score,
+          reasons: h.reasons,
+          snippet: h.snippet,
+          links: h.links,
+          backlinks: h.backlinks,
+        })),
       };
     },
   },

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronRight, Cloud, CloudOff, CalendarCheck, Inbox as InboxIcon, Network, Folder, FolderOpen, FolderPlus, Pencil, Trash2, Home, ChefHat, Lightbulb, Loader2, Menu, Plus, Search, Settings, Share2, ShieldCheck, AlertTriangle, X, FileText, Lock, LockOpen } from 'lucide-react';
+import { ChevronRight, Cloud, CloudOff, CalendarCheck, Images, Inbox as InboxIcon, Network, Folder, FolderOpen, FolderPlus, Pencil, Trash2, Home, ChefHat, Lightbulb, Loader2, Menu, Plus, Search, Settings, Share2, ShieldCheck, AlertTriangle, X, FileText, Lock, LockOpen } from 'lucide-react';
 import { PARA, splitPath } from '@kladde/shared';
 import { openDialog } from '../lib/dialogs';
 import { Dialogs } from './Dialogs';
@@ -199,7 +199,7 @@ function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNo
   );
 }
 
-export function Sidebar({ onNavigate, isAdmin }: { onNavigate?: () => void; isAdmin?: boolean }) {
+export function Sidebar({ onNavigate, isAdmin, headerAction }: { onNavigate?: () => void; isAdmin?: boolean; headerAction?: React.ReactNode }) {
   useVault();
   const [newRoot, setNewRoot] = useState(false);
   const rootDrop = useDropTarget('');
@@ -226,11 +226,12 @@ export function Sidebar({ onNavigate, isAdmin }: { onNavigate?: () => void; isAd
   return (
     <div className="flex h-full flex-col gap-1 p-3" onClick={(e) => (e.target as HTMLElement).closest('[data-close]') && onNavigate?.()}>
       <div className="mb-3 flex items-center gap-2 px-1.5">
-        <img src="/icons/icon.svg" className="h-7 w-7" alt="" />
+        <img src="/icons/icon.svg" className="h-7 w-7 shrink-0" alt="" />
         <span className="font-semibold tracking-tight">Kladde</span>
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex items-center gap-1">
           <ReadOnlyToggle />
           <SyncBadge />
+          {headerAction}
         </div>
       </div>
       {item('/', Home, 'Start')}
@@ -238,6 +239,7 @@ export function Sidebar({ onNavigate, isAdmin }: { onNavigate?: () => void; isAd
       {item('/inbox', InboxIcon, 'Inbox', inboxCount ? <span className="rounded-full bg-warn/15 px-1.5 text-xs text-warn">{inboxCount}</span> : null)}
       {item('/search', Search, 'Suche')}
       {item('/graph', Network, 'Wissensnetz')}
+      {item('/files', Images, 'Anhänge')}
       {item('/review', CalendarCheck, 'Wochenrückblick', reviewDue() ? <span className="h-2 w-2 rounded-full bg-accent" /> : null)}
       {(shared > 0 || vault.sharedFolders.length > 0) && item('/shared', Share2, 'Mit mir geteilt', <span className="text-xs text-faint">{shared || ''}</span>)}
       <div className="mt-4 mb-1 flex items-center justify-between px-2.5 text-xs font-semibold uppercase tracking-wider text-faint">

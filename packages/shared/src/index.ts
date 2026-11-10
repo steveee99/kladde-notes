@@ -11,3 +11,5 @@ export * from './version.js';
 export * from './recipe.js';
 export * from './diagram.js';
 export * from './diff.js';
+export * from './semantic.js';
+export * from './export.js';

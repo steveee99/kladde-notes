@@ -136,7 +136,9 @@ describe('MCP authentication', () => {
     const flow = await oauthLogin(false);
     const { access_token } = (await (await flow.exchange(flow.verifier)).json()) as { access_token: string };
     const list = await rpc(access_token, 'tools/list');
-    expect(list.body.result.tools.map((t: { name: string }) => t.name)).not.toContain('create_note');
+    const names = list.body.result.tools.map((t: { name: string }) => t.name);
+    expect(names).not.toContain('create_note');
+    expect(names).toContain('semantic_search');
     expect((await call(access_token, 'create_note', { title: 'X' })).isError).toBe(true);
   });
 
@@ -184,6 +186,7 @@ describe('MCP tools', () => {
     expect((await call(token, 'read_note', { id: 'ben-00001' })).isError).toBe(true);
     expect((await call(token, 'read_note', { id: 'anna-0002' })).isError).toBe(true);
     expect((await call(token, 'search_notes', { query: 'Ben' })).structuredContent.total).toBe(0);
+    expect((await call(token, 'semantic_search', { query: 'Ben Tagebuch' })).structuredContent.total).toBe(0);
     expect((await call(token, 'query_notes', { query: 'LIST' })).structuredContent.total).toBe(1);
   });
 
@@ -212,6 +215,20 @@ describe('MCP tools', () => {
     expect(notes.ownedNotes(anna.id).find((n) => n.id === created.id)!.content).toBe('neu\n\n- [ ] Milch\n');
     await call(token, 'append_to_note', { id: created.id, text: '- [ ] Brot' });
     expect(notes.ownedNotes(anna.id).find((n) => n.id === created.id)!.content).toBe('neu\n\n- [ ] Milch\n- [ ] Brot\n');
+  });
+
+  it('runs semantic_search with conceptual matches, folder filters and validation', async () => {
+    const semantic = (await call(token, 'semantic_search', { query: 'neue Wohnung mieten' })).structuredContent;
+    expect(semantic.total).toBeGreaterThan(0);
+    expect(semantic.results[0].id).toBe('anna-0001');
+    expect(semantic.results[0].score).toBeGreaterThan(0.05);
+    expect(Array.isArray(semantic.results[0].reasons)).toBe(true);
+
+    const scoped = (await call(token, 'semantic_search', { query: 'Wohnung Umzug', folder: '0 Inbox' })).structuredContent;
+    expect(scoped.results.every((r: { path: string }) => r.path.startsWith('0 Inbox/'))).toBe(true);
+
+    expect((await call(token, 'semantic_search', { query: 'Umzug', min_score: 2 })).isError).toBe(true);
+    expect((await call(token, 'semantic_search', { query: '' })).isError).toBe(true);
   });
 
   it('lists and ticks off tasks', async () => {

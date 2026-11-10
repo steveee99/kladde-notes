@@ -72,9 +72,12 @@ docker logs kladde   # enthält die erste Einladung
 
 Die App läuft dann auf Port `13002`. **Passkeys brauchen HTTPS** (außer auf localhost) und sind an die Domain aus `PUBLIC_URL` gebunden – betreibe die App hinter einem Reverse-Proxy (Caddy, nginx, Traefik) und setze `TRUST_PROXY=1`. Ohne HTTPS (z. B. direkt über `http://192.168.1.10:13002` im Heimnetz) meldest du dich mit Benutzername und Passwort an.
 
-Einladungen ohne Telegram:
+CLI-Werkzeug (Import/Export, Suche, Anhänge, Sicherung & Verwaltung):
 
 ```bash
+docker exec kladde node packages/server/dist/cli.js hilfe
+docker exec kladde node packages/server/dist/cli.js import /import/ordner Projekte --overwrite
+docker exec kladde node packages/server/dist/cli.js export / /export/space --with-files
 docker exec kladde node packages/server/dist/cli.js einladen Anna
 ```
 
