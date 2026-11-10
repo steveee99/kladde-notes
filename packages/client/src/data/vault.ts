@@ -53,6 +53,8 @@ class Vault {
   message = '';
   lastSync: number | null = null;
   ready = false;
+  /** Running against local standalone desktop server (always reachable even when navigator.onLine is false) */
+  standalone = false;
   /** Folders other users share with this user (from the last pull) */
   sharedFolders: SharedFolder[] = [];
   private userId = '';
@@ -64,6 +66,7 @@ class Vault {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private events: EventSource | null = null;
   onUnauthorized: () => void = () => {};
+  onBeforeFlush: () => void = () => {};
 
   subscribe = (l: () => void) => {
     this.listeners.add(l);
@@ -97,6 +100,8 @@ class Vault {
     this.ready = true;
     this.emit();
     window.addEventListener('online', this.kick);
+    window.addEventListener('pagehide', this.onPageHide);
+    window.addEventListener('beforeunload', this.onPageHide);
     document.addEventListener('visibilitychange', this.onVisible);
     this.interval = setInterval(() => document.visibilityState === 'visible' && this.kick(), 60_000);
     this.connectEvents();
@@ -115,13 +120,56 @@ class Vault {
     this.db = null;
     this.emit();
     window.removeEventListener('online', this.kick);
+    window.removeEventListener('pagehide', this.onPageHide);
+    window.removeEventListener('beforeunload', this.onPageHide);
     document.removeEventListener('visibilitychange', this.onVisible);
   }
 
   private lastSyncStart = 0;
-  /** Coming back to the app syncs, but not more than every 15 s (tab switching would flood the server) */
-  private onVisible = () => document.visibilityState === 'visible' && Date.now() - this.lastSyncStart > 15_000 && this.kick();
+  /** Coming back to the app syncs (and hiding with unsaved edits flushes immediately) */
+  private onVisible = () => {
+    if (document.visibilityState === 'hidden') {
+      if (this.standalone || this.pendingCount() > 0) this.flushKeepalive();
+      return;
+    }
+    if (Date.now() - this.lastSyncStart > 15_000) this.kick();
+  };
+  private onPageHide = () => this.flushKeepalive();
   kick = () => void this.sync();
+
+  /** Flushes dirty notes immediately with keepalive so closing the app window persists edits to SQLite */
+  flushKeepalive() {
+    try {
+      this.onBeforeFlush();
+    } catch {
+      // ignore editor flush issues during unload
+    }
+    const dirty = [...this.notes.values()].filter((n) => n.dirty);
+    if (!dirty.length) return;
+    const changes = dirty.map((n) => ({
+      id: n.id,
+      baseVersion: n.version,
+      path: n.path,
+      content: n.content,
+      deleted: n.deleted,
+      createdAt: n.createdAt,
+      updatedAt: n.updatedAt,
+      ...(n.version === 0 && n.access !== 'owner' && n.owner ? { owner: n.owner } : {}),
+    }));
+    const body = JSON.stringify({ changes });
+    // Fetch keepalive allows up to ~64 KiB; chunk larger payloads cleanly if needed
+    if (body.length <= 60_000 && typeof fetch === 'function') {
+      void fetch('/api/sync', {
+        method: 'POST',
+        keepalive: true,
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      }).catch(() => {});
+    } else {
+      void this.sync();
+    }
+  }
 
   private connectEvents() {
     if (typeof EventSource === 'undefined') return;
@@ -494,7 +542,7 @@ class Vault {
     await this.setFolders([...this.storedFolders().map(swap), target]);
     this.schedule();
     // Folder shares follow the folder (best effort: offline, the notes leave the share until it is set again)
-    void api('/folders/renamed', { method: 'POST', json: { from, to: target } }).catch(() => {});
+    if (!this.standalone) void api('/folders/renamed', { method: 'POST', json: { from, to: target } }).catch(() => {});
   }
 
   isFolderEmpty(folder: string): boolean {
@@ -505,7 +553,7 @@ class Vault {
   async deleteFolder(folder: string): Promise<boolean> {
     if (!this.isFolderEmpty(folder) || isReadOnly()) return false;
     await this.setFolders(this.storedFolders().filter((f) => f !== folder && !f.startsWith(`${folder}/`)));
-    void api('/folders/deleted', { method: 'POST', json: { folder } }).catch(() => {});
+    if (!this.standalone) void api('/folders/deleted', { method: 'POST', json: { folder } }).catch(() => {});
     return true;
   }
 
@@ -554,7 +602,7 @@ class Vault {
   private async runSync(): Promise<void> {
     if (!this.db) return;
     this.lastSyncStart = Date.now();
-    if (!navigator.onLine) {
+    if (!this.standalone && !navigator.onLine) {
       this.setState('offline');
       return;
     }

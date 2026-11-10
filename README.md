@@ -63,6 +63,27 @@ npm run test    # Abfragesprache, Aufgaben, Notiz-/Benutzer-Store
 
 ---
 
+## 🖥️ Standalone Desktop-Modus (Einzeldatei / Windows `.exe`)
+
+Kladde lässt sich ohne Docker und ohne Benutzerverwaltung als eigenständiges Desktop-Programm bauen (**Node.js SEA** + dediziertes Microsoft Edge `--app`-Fenster, alternativ Chrome oder Systembrowser):
+
+```bash
+git clone <repo> && cd kladde
+npm install
+npm run build:desktop   # natives Binary für das aktuelle OS (dist/kladde bzw. dist/kladde.exe)
+npm run build:exe       # Windows-Executable dist/kladde.exe (unter macOS/Linux inkl. Download von node.exe)
+```
+
+- **Kein Login / keine Benutzerverwaltung:** Ein lokaler Einzelbenutzer (`lokal`) wird beim ersten Start automatisch angelegt; Einladungen, Passkeys, Admin-Bereich und Mehrbenutzer-/Link-Freigaben sind deaktiviert.
+- **Lokale Speicherung (außerhalb der `.exe`):**
+  - Windows: `%LOCALAPPDATA%\Kladde\` (`kladde.sqlite`, `secret.key`, `files\`, `backups\`, `kladde.log`)
+  - macOS: `~/Library/Application Support/Kladde/` · Linux: `~/.local/share/kladde/`
+  - **Portabler Modus:** Existiert neben `kladde.exe` ein Ordner `kladde-data` (oder wird `--portable-data` übergeben), landen alle Daten dort statt im Benutzerprofil.
+- **Updates durch Austausch der `.exe`:** Alte `kladde.exe` schließen, neue `kladde.exe` drüberkopieren und starten. Bestehende verschlüsselte Notizen bleiben erhalten; vor Schema-Migrationen wird automatisch ein SQLite-Backup unter `backups\` angelegt.
+- **Optionen:** `--data-dir=<pfad>`, `--portable-data`, `--port=<nr>` (Standard `34172`), `--server-only` (nur lokaler Server ohne Browserfenster).
+
+---
+
 ## 🐳 Betrieb mit Docker
 
 ```bash
@@ -108,7 +129,7 @@ kladde/
 │   ├── shared/   # Typen, Markdown-Metadaten, Aufgaben-Parser (Fälligkeit/Wiederholung), Abfragesprache
 │   ├── server/   # Express + node:sqlite: Passkeys (SimpleWebAuthn), Sync, Freigaben, Dateien, Telegram-Admin
 │   └── client/   # React 18 + Vite + Tailwind + CodeMirror 6, IndexedDB-Sync, PWA
-├── scripts/      # release.mjs, docker-entrypoint.sh
+├── scripts/      # release.mjs, build-desktop.mjs, docker-entrypoint.sh
 ├── Dockerfile
 └── docker-compose.yml
 ```

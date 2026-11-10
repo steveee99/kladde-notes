@@ -291,100 +291,119 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
         </div>
       </section>
 
-      <section className="card p-5 anim-fade-up">
-        <h2 className="mb-1 font-semibold">{tl(lang, 'settings.passkeysTitle', { username: me.username })}</h2>
-        <p className="mb-3 text-sm text-muted">{tl(lang, 'settings.passkeysDesc')}</p>
-        {!me.passkeys.length && <p className="mb-3 text-sm text-faint">{tl(lang, 'settings.passkeysEmpty')}</p>}
-        <ul className="mb-3 divide-y divide-line">
-          {me.passkeys.map((p) => (
-            <li key={p.id} className="flex items-center gap-3 py-2">
-              <KeyRound size={16} className="text-accent" />
-              <div className="flex-1">
-                <div className="text-sm">{p.name}</div>
-                <div className="text-xs text-faint">
-                  {tl(lang, 'settings.passkeyMeta', {
-                    created: new Date(p.createdAt).toLocaleDateString(loc),
-                    last: p.lastUsedAt ? tl(lang, 'settings.passkeyLastUsed', { date: new Date(p.lastUsedAt).toLocaleDateString(loc) }) : '',
-                  })}
-                </div>
+      {!me.standalone && (
+        <>
+          <section className="card p-5 anim-fade-up">
+            <h2 className="mb-1 font-semibold">{tl(lang, 'settings.passkeysTitle', { username: me.username })}</h2>
+            <p className="mb-3 text-sm text-muted">{tl(lang, 'settings.passkeysDesc')}</p>
+            {!me.passkeys.length && <p className="mb-3 text-sm text-faint">{tl(lang, 'settings.passkeysEmpty')}</p>}
+            <ul className="mb-3 divide-y divide-line">
+              {me.passkeys.map((p) => (
+                <li key={p.id} className="flex items-center gap-3 py-2">
+                  <KeyRound size={16} className="text-accent" />
+                  <div className="flex-1">
+                    <div className="text-sm">{p.name}</div>
+                    <div className="text-xs text-faint">
+                      {tl(lang, 'settings.passkeyMeta', {
+                        created: new Date(p.createdAt).toLocaleDateString(loc),
+                        last: p.lastUsedAt ? tl(lang, 'settings.passkeyLastUsed', { date: new Date(p.lastUsedAt).toLocaleDateString(loc) }) : '',
+                      })}
+                    </div>
+                  </div>
+                  {(me.passkeys.length > 1 || me.hasPassword) && (
+                    <button
+                      className="btn-icon h-8 w-8"
+                      onClick={async () => {
+                        if (confirm(tl(lang, 'settings.passkeyRemoveConfirm'))) onMe(await api<Me>(`/auth/passkeys/${encodeURIComponent(p.id)}`, { method: 'DELETE' }));
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="btn-ghost border border-line"
+                disabled={!passkeysAvailable()}
+                title={passkeysAvailable() ? undefined : tl(lang, 'settings.passkeyHttpsOnly')}
+                onClick={async () => {
+                  setError('');
+                  try {
+                    const { flowId, options } = await api<{ flowId: string; options: never }>('/auth/passkeys/options', { method: 'POST', json: {} });
+                    const response = await startRegistration({ optionsJSON: options });
+                    onMe(await api<Me>('/auth/passkeys/verify', { method: 'POST', json: { flowId, response } }));
+                  } catch (e) {
+                    setError((e as Error).message);
+                  }
+                }}
+              >
+                <KeyRound size={16} /> {tl(lang, 'settings.passkeyAddHere')}
+              </button>
+              <button className="btn-ghost border border-line" onClick={async () => setLink(await api('/auth/device-link', { method: 'POST', json: {} }))}>
+                <Smartphone size={16} /> {tl(lang, 'settings.deviceConnect')}
+              </button>
+            </div>
+            {link && (
+              <div className="mt-3 rounded-xl bg-raised p-3 text-sm anim-fade-up">
+                {linkTextParts.map((part, i) =>
+                  part === '{url}' ? (
+                    <b key={i} className="break-all">
+                      {linkUrl}
+                    </b>
+                  ) : part === '{code}' ? (
+                    <b key={i} className="font-mono">
+                      {link.code}
+                    </b>
+                  ) : (
+                    <span key={i}>{part}</span>
+                  )
+                )}
               </div>
-              {(me.passkeys.length > 1 || me.hasPassword) && (
-                <button
-                  className="btn-icon h-8 w-8"
-                  onClick={async () => {
-                    if (confirm(tl(lang, 'settings.passkeyRemoveConfirm'))) onMe(await api<Me>(`/auth/passkeys/${encodeURIComponent(p.id)}`, { method: 'DELETE' }));
-                  }}
-                >
-                  <Trash2 size={15} />
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-        <div className="flex flex-wrap gap-2">
-          <button
-            className="btn-ghost border border-line"
-            disabled={!passkeysAvailable()}
-            title={passkeysAvailable() ? undefined : tl(lang, 'settings.passkeyHttpsOnly')}
-            onClick={async () => {
-              setError('');
-              try {
-                const { flowId, options } = await api<{ flowId: string; options: never }>('/auth/passkeys/options', { method: 'POST', json: {} });
-                const response = await startRegistration({ optionsJSON: options });
-                onMe(await api<Me>('/auth/passkeys/verify', { method: 'POST', json: { flowId, response } }));
-              } catch (e) {
-                setError((e as Error).message);
-              }
-            }}
-          >
-            <KeyRound size={16} /> {tl(lang, 'settings.passkeyAddHere')}
-          </button>
-          <button className="btn-ghost border border-line" onClick={async () => setLink(await api('/auth/device-link', { method: 'POST', json: {} }))}>
-            <Smartphone size={16} /> {tl(lang, 'settings.deviceConnect')}
-          </button>
-        </div>
-        {link && (
-          <div className="mt-3 rounded-xl bg-raised p-3 text-sm anim-fade-up">
-            {linkTextParts.map((part, i) =>
-              part === '{url}' ? (
-                <b key={i} className="break-all">
-                  {linkUrl}
-                </b>
-              ) : part === '{code}' ? (
-                <b key={i} className="font-mono">
-                  {link.code}
-                </b>
-              ) : (
-                <span key={i}>{part}</span>
-              )
             )}
+            {error && <p className="mt-2 text-sm text-danger">{error}</p>}
+          </section>
+
+          <PasswordSection me={me} onMe={onMe} />
+        </>
+      )}
+
+      <section className="card p-5 anim-fade-up">
+        <h2 className="mb-1 font-semibold">{me.standalone ? tl(lang, 'settings.standaloneTitle') : tl(lang, 'settings.syncTitle')}</h2>
+        <p className="text-sm text-muted">
+          {me.standalone
+            ? tl(lang, 'settings.standaloneStats', {
+                notes: vault.list().length,
+                pending: vault.pendingCount(),
+              })
+            : tl(lang, 'settings.syncStats', {
+                notes: vault.list().length,
+                pending: vault.pendingCount(),
+                last: vault.lastSync
+                  ? tl(lang, 'settings.syncLast', { time: new Date(vault.lastSync).toLocaleTimeString(loc, { timeStyle: 'short' }) })
+                  : '',
+              })}
+        </p>
+        {me.standalone && me.dataDir && (
+          <div className="mt-3 space-y-1">
+            <div className="text-xs font-medium text-faint">{tl(lang, 'settings.standaloneDataDir')}</div>
+            <code className="block rounded-xl border border-line bg-raised px-3 py-2 font-mono text-xs break-all text-ink">{me.dataDir}</code>
           </div>
         )}
-        {error && <p className="mt-2 text-sm text-danger">{error}</p>}
-      </section>
-
-      <PasswordSection me={me} onMe={onMe} />
-
-      <section className="card p-5 anim-fade-up">
-        <h2 className="mb-1 font-semibold">{tl(lang, 'settings.syncTitle')}</h2>
-        <p className="text-sm text-muted">
-          {tl(lang, 'settings.syncStats', {
-            notes: vault.list().length,
-            pending: vault.pendingCount(),
-            last: vault.lastSync
-              ? tl(lang, 'settings.syncLast', { time: new Date(vault.lastSync).toLocaleTimeString(loc, { timeStyle: 'short' }) })
-              : '',
-          })}
-        </p>
-        <p className="mt-2 text-xs text-faint">{tl(lang, 'settings.syncOfflineNote')}</p>
+        <p className="mt-2 text-xs text-faint">{me.standalone ? tl(lang, 'settings.standaloneNote') : tl(lang, 'settings.syncOfflineNote')}</p>
       </section>
 
       <Diagnostics />
 
       <div className="flex items-center justify-between">
-        <button className="btn-ghost text-danger" onClick={onLogout}>
-          <LogOut size={16} /> {tl(lang, 'settings.logout')}
-        </button>
+        {!me.standalone ? (
+          <button className="btn-ghost text-danger" onClick={onLogout}>
+            <LogOut size={16} /> {tl(lang, 'settings.logout')}
+          </button>
+        ) : (
+          <span className="text-xs text-faint">Standalone Desktop</span>
+        )}
         <span className="text-xs text-faint">Kladde {APP_VERSION}</span>
       </div>
     </div>

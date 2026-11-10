@@ -254,11 +254,21 @@ export function backupDatabase(db: DatabaseSync, dir: string, keep = 7, now = ne
 }
 
 /** Opens the SQLite file (or ':memory:') shared by all stores and migrates it */
-export function openDatabase(filePath: string): DatabaseSync {
+export function openDatabase(filePath: string, opts?: { backupDir?: string }): DatabaseSync {
+  const existed = filePath !== ':memory:' && fs.existsSync(filePath);
   if (filePath !== ':memory:') fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
   const db = new DatabaseSync(filePath);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 2000; PRAGMA foreign_keys = ON;');
   if (filePath !== ':memory:') restrictFile(filePath);
+  const current = Number((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version);
+  const latest = MIGRATIONS[MIGRATIONS.length - 1]?.version ?? 0;
+  if (existed && current > 0 && current < latest && opts?.backupDir) {
+    try {
+      backupDatabase(db, opts.backupDir);
+    } catch (err) {
+      console.error('Pre-migration backup failed:', err);
+    }
+  }
   const applied = migrate(db);
   if (applied.length > 0 && filePath !== ':memory:') console.log(`Datenbank auf Schema ${applied[applied.length - 1]} gebracht (${filePath})`);
   return db;

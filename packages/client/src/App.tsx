@@ -58,7 +58,7 @@ Object.assign(editorHost, {
   noteTitles: () => vault.list().map((n) => splitPath(n.path).name),
   autoLinkTargets: (excludeId?: string) => vault.links().autoLinkTargets(excludeId),
   upload: (file: File) => {
-    if (!navigator.onLine) return Promise.reject(new Error(t('note.uploadOnlineOnly')));
+    if (!navigator.onLine && !vault.standalone) return Promise.reject(new Error(t('note.uploadOnlineOnly')));
     return uploadFile(file);
   },
 });
@@ -68,11 +68,15 @@ export function App() {
   // The account from the last visit shows the app at once (also after an update reload); /auth/me confirms it below
   const [me, setMe] = useState<Me | null | undefined>(() => {
     const cached = cachedMe();
-    if (cached) void vault.open(cached.id);
+    if (cached) {
+      vault.standalone = !!cached.standalone;
+      void vault.open(cached.id);
+    }
     return cached ?? undefined;
   });
 
   const signedIn = useCallback((user: Me) => {
+    vault.standalone = !!user.standalone;
     try {
       localStorage.setItem(ME_KEY, JSON.stringify(user));
     } catch {
@@ -83,6 +87,7 @@ export function App() {
   }, []);
 
   const signedOut = useCallback(() => {
+    vault.standalone = false;
     try {
       localStorage.removeItem(ME_KEY);
     } catch {
@@ -94,6 +99,10 @@ export function App() {
 
   useEffect(() => {
     vault.onUnauthorized = signedOut;
+    vault.onBeforeFlush = () => {
+      window.dispatchEvent(new CustomEvent('kladde:flush-note'));
+      editorHost.flush();
+    };
     api<Me>('/auth/me').then(signedIn, (err) => {
       // Offline: keep working with the account and notes stored on this device
       const cached = cachedMe();
@@ -104,11 +113,11 @@ export function App() {
 
   // Routes without an account
   const pub = match(path, '/s/:token');
-  if (pub) return <PublicNote token={pub.token} />;
+  if (pub && !me?.standalone) return <PublicNote token={pub.token} />;
   const invite = match(path, '/invite/:code');
-  if (invite) return <Invite code={invite.code} onDone={signedIn} />;
+  if (invite && !me?.standalone) return <Invite code={invite.code} onDone={signedIn} />;
   const link = match(path, '/link/:code');
-  if (link) return <LinkDevice code={link.code} onDone={signedIn} />;
+  if (link && !me?.standalone) return <LinkDevice code={link.code} onDone={signedIn} />;
 
   if (me === undefined) return <div className="flex h-full items-center justify-center text-faint">…</div>;
   if (me === null) return <Login onDone={signedIn} />;
@@ -123,9 +132,9 @@ export function App() {
   else if (path === '/review') page = <ReviewView />;
   else if (path.startsWith('/f/')) page = <NoteList key={path} mode="folder" folder={decodeURIComponent(path.slice(3))} />;
   else if (path === '/notes') page = <NoteList mode="all" />;
-  else if (path === '/shared') page = <NoteList mode="shared" />;
+  else if (path === '/shared' && !me.standalone) page = <NoteList mode="shared" />;
   else if (path === '/search') page = <SearchView />;
-  else if (path === '/admin') page = <AdminView me={me} />;
+  else if (path === '/admin' && !me.standalone) page = <AdminView me={me} />;
   else if (path === '/settings/templates') page = <TemplatesView />;
   else if (path === '/settings/mcp') page = <McpSettingsView />;
   else if (path === '/settings/git') page = <GitSettingsView />;
@@ -144,5 +153,5 @@ export function App() {
     );
   else page = <HomeView />;
 
-  return <Shell isAdmin={me.isAdmin}>{page}</Shell>;
+  return <Shell isAdmin={!me.standalone && me.isAdmin}>{page}</Shell>;
 }

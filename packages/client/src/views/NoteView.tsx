@@ -110,6 +110,7 @@ function NoteOverflowMenu({
   title,
   content,
   isOwner,
+  canShare,
   mayDelete,
   onShare,
   onHistory,
@@ -119,6 +120,7 @@ function NoteOverflowMenu({
   title: string;
   content: string;
   isOwner: boolean;
+  canShare: boolean;
   mayDelete: boolean;
   onShare: () => void;
   onHistory: () => void;
@@ -237,7 +239,7 @@ function NoteOverflowMenu({
             style={{ top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? 'visible' : 'hidden' }}
             className="no-print fixed z-[90] w-60 rounded-2xl border border-line/70 bg-raised p-1.5 shadow-soft anim-fade-in"
           >
-            {isOwner && (
+            {canShare && (
               <button
                 type="button"
                 role="menuitem"
@@ -738,6 +740,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 title={title || name}
                 content={note.content}
                 isOwner={isOwner}
+                canShare={isOwner && !vault.standalone}
                 mayDelete={mayDelete}
                 onShare={() => setSharing(true)}
                 onHistory={() => setShowHistory(true)}

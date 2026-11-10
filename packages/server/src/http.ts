@@ -22,7 +22,13 @@ declare module 'express-serve-static-core' {
   }
 }
 
-export function requireUser(users: UserStore) {
+export function requireUser(users: UserStore, standaloneUser?: UserRecord) {
+  if (standaloneUser) {
+    return (req: Request, _res: Response, next: NextFunction) => {
+      req.user = standaloneUser;
+      next();
+    };
+  }
   return (req: Request, res: Response, next: NextFunction) => {
     const user = users.userForSession(readCookie(req, SESSION_COOKIE));
     if (!user) {

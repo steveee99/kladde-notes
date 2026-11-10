@@ -205,9 +205,11 @@ function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNo
             <button className="rounded-full p-1 hover:bg-surface hover:text-ink" title={t('nav.renameFolder')} onClick={() => setMode('rename')}>
               <Pencil size={13} />
             </button>
-            <button className="rounded-full p-1 hover:bg-surface hover:text-ink" title={t('nav.shareFolder')} onClick={() => setSharing(true)}>
-              <Share2 size={13} />
-            </button>
+            {!vault.standalone && (
+              <button className="rounded-full p-1 hover:bg-surface hover:text-ink" title={t('nav.shareFolder')} onClick={() => setSharing(true)}>
+                <Share2 size={13} />
+              </button>
+            )}
             {empty && (
               <button className="rounded-full p-1 hover:bg-surface hover:text-danger" title={t('nav.deleteEmptyFolder')} onClick={() => void vault.deleteFolder(node.path)}>
                 <Trash2 size={13} />
@@ -368,7 +370,7 @@ export function Sidebar({ onNavigate, isAdmin, headerAction }: { onNavigate?: ()
           {item('/graph', Network, t('nav.graph'))}
           {item('/files', Images, t('nav.files'))}
           {item('/review', CalendarCheck, t('nav.review'), reviewDue() ? <span className="h-2 w-2 rounded-full bg-accent" /> : null)}
-          {(shared > 0 || vault.sharedFolders.length > 0) && item('/shared', Share2, t('nav.sharedWithMe'), <span className="text-xs opacity-75">{shared || ''}</span>)}
+          {(shared > 0 || vault.sharedFolders.length > 0) && !vault.standalone && item('/shared', Share2, t('nav.sharedWithMe'), <span className="text-xs opacity-75">{shared || ''}</span>)}
           <div className="mt-3 mb-1 flex items-center justify-between px-3 text-xs font-semibold uppercase tracking-wider text-faint">
             {t('nav.folders')}
             <button className="edit-only rounded-full p-1 hover:bg-raised hover:text-ink" title={t('nav.newFolder')} onClick={() => setNewRoot(true)}>

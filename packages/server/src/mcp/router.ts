@@ -2,7 +2,7 @@ import express, { NextFunction, Request, Response } from 'express';
 import crypto from 'crypto';
 import type { OAuthRequestInfo } from '@kladde/shared';
 import { NoteStore } from '../NoteStore.js';
-import { AccountError, UserStore } from '../UserStore.js';
+import { AccountError, UserRecord, UserStore } from '../UserStore.js';
 import { AuditLog } from '../security/AuditLog.js';
 import { handle, rateLimit, requireUser } from '../http.js';
 import { McpGrant, McpTokenStore, OAuthClient } from './McpTokenStore.js';
@@ -20,6 +20,8 @@ export interface McpOptions {
   audit: AuditLog;
   /** PUBLIC_URL; otherwise the address the request came in on */
   publicUrl: string | null;
+  /** Single local user in standalone desktop mode */
+  standaloneUser?: UserRecord;
 }
 
 interface PendingCode {
@@ -266,7 +268,7 @@ export function mcpRouters(opts: McpOptions): { publicRouter: express.Router; ac
   // ---------------------------------------------------------------- signed in (Kladde session): consent and settings
 
   const accountRouter = express.Router();
-  accountRouter.use(requireUser(users));
+  accountRouter.use(requireUser(users, opts.standaloneUser));
 
   accountRouter.get('/connections', (req, res) => res.json(tokens.connectionsOf(req.user!.id)));
 

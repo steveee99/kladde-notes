@@ -1,172 +1,205 @@
-import express from 'express';
-import fs from 'fs';
+import http from 'http';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import type express from 'express';
 import { APP_VERSION } from '@kladde/shared';
+import { createKladdeApp } from './app.js';
 import { backupDatabase, openDatabase } from './db.js';
-import { DataCipher } from './crypto.js';
-import { UserStore } from './UserStore.js';
-import { NoteStore } from './NoteStore.js';
-import { FileStore } from './FileStore.js';
-import { GitSync } from './GitSync.js';
-import { ExportMirror } from './ExportMirror.js';
-import { AuditLog } from './security/AuditLog.js';
-import { configuredOrigins, isAllowedOrigin } from './security/origin.js';
-import { authRouter } from './auth.js';
-import { apiRouter, LiveUpdates } from './api.js';
 import { TelegramAdminBot } from './admin/TelegramBot.js';
-import { AdminActions, escapeHtml } from './admin/AdminCommands.js';
-import { adminRouter } from './admin/adminRouter.js';
-import { McpTokenStore } from './mcp/McpTokenStore.js';
-import { mcpRouters } from './mcp/router.js';
+import { escapeHtml } from './admin/AdminCommands.js';
+import { launchDesktopWindow, probeRunningKladde, startDesktopLifecycle } from './desktop.js';
+import {
+  isSeaRuntime,
+  isStandaloneMode,
+  loadSeaClientAssets,
+  moduleDir,
+  resolveDataDir,
+  resolveDbPath,
+  resolveListenPort,
+  setupDesktopLogging,
+  STANDALONE_PORT_SPAN,
+} from './standalone.js';
 
-const env = process.env;
-const PORT = Number(env.PORT ?? 3002);
-const isProduction = env.NODE_ENV === 'production';
-const DB_PATH = path.resolve(env.DB_PATH ?? path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data', 'kladde.sqlite'));
-const DATA_DIR = path.dirname(DB_PATH);
-const PUBLIC_URL = env.PUBLIC_URL?.trim() || null;
-const TRUST_PROXY = env.TRUST_PROXY === '1' || env.TRUST_PROXY === 'true';
-const startedAt = Date.now();
-
-const db = openDatabase(DB_PATH);
-const cipher = DataCipher.fromEnv(DATA_DIR);
-const users = new UserStore(db);
-const audit = new AuditLog(db);
-const live = new LiveUpdates();
-const mirror = ExportMirror.fromEnv((id) => users.getUser(id)?.username ?? null);
-let gitSync: GitSync | undefined;
-const notes = new NoteStore(db, cipher, (event) => {
-  live.notify(event.audience);
-  mirror?.apply(event);
-  gitSync?.touch(event.ownerId);
-});
-gitSync = new GitSync(db, cipher, (id) => notes.allOf(id), (id) => users.getUser(id)?.username ?? null, DATA_DIR);
-const files = new FileStore(db, cipher, DATA_DIR);
-const mcp = mcpRouters({ users, notes, tokens: new McpTokenStore(db), audit, publicUrl: PUBLIC_URL });
-
-if (mirror) for (const u of users.listUsers()) mirror.writeAll(u.id, notes.allOf(u.id));
-
-// ---------------------------------------------------------------- admin
-
-const actions: AdminActions = {
-  createInvite: (note) => users.createInvite(note),
-  listInvites: () => users.listInvites(),
-  deleteInvite: (code) => users.deleteInvite(code),
-  listUsers: () => users.listUsers(),
-  setBanned: (username, banned) => {
-    const u = users.findByUsername(username);
-    return !!u && users.setBanned(u.id, banned);
-  },
-  resetPassword: async (username) => {
-    const u = users.findByUsername(username);
-    return u ? users.resetPassword(u.id) : null;
-  },
-  setAdmin: (username, admin) => {
-    const u = users.findByUsername(username);
-    return !!u && users.setAdmin(u.id, admin);
-  },
-  auditLog: () => audit.recent(25),
-  status: () => ({ version: APP_VERSION, startedAt, users: users.countUsers(), ...notes.counts(), connections: live.connections }),
-};
-const bot = TelegramAdminBot.fromEnv(actions, env, (cmd) =>
-  audit.record('admin_command', { detail: `telegram ${cmd.chatId}: ${cmd.text}` })
-);
-bot?.start();
-
-const inviteUrl = (code: string) => `${(PUBLIC_URL ?? `http://localhost:${isProduction ? PORT : 5174}`).replace(/\/$/, '')}/invite/${code}`;
-// Without users and without a bot there is no other way in: print a first invite
-if (users.countUsers() === 0 && !users.hasOpenInvite()) {
-  const invite = users.createInvite('Erstes Konto');
-  console.log(`\n✉️  Erste Einladung (14 Tage gültig): ${inviteUrl(invite.code)}\n`);
-}
-
-// ---------------------------------------------------------------- http
-
-const app = express();
-app.disable('x-powered-by');
-if (TRUST_PROXY) app.set('trust proxy', 1);
-const allowedOrigins = configuredOrigins(env);
-
-app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Referrer-Policy', 'no-referrer');
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  next();
-});
-
-app.get('/health', (_req, res) => res.json({ ok: true, version: APP_VERSION }));
-// MCP for AI assistants (bearer tokens, so outside the /api origin check)
-app.use(mcp.publicRouter);
-
-app.use('/api', (req, res, next) => {
-  if (req.method !== 'GET' && !isAllowedOrigin(req, allowedOrigins, TRUST_PROXY)) {
-    res.status(403).json({ error: 'Fremde Herkunft' });
-    return;
-  }
-  next();
-});
-app.use('/api/auth', express.json({ limit: '64kb' }), authRouter({
-  users,
-  audit,
-  publicUrl: PUBLIC_URL,
-  secureCookies: isProduction && (PUBLIC_URL?.startsWith('https://') ?? false),
-  devLogin: !isProduction && env.DEV_LOGIN === '1',
-  onRegistered: (user, note) => void bot?.notify(`🆕 Neues Konto: <b>${escapeHtml(user.username)}</b>${note ? ` (Einladung: ${escapeHtml(note)})` : ''}`),
-}));
-app.use('/api', (req, res, next) => (req.path === '/sync' || req.path === '/files' ? next() : express.json({ limit: '256kb' })(req, res, next)));
-app.use('/api/mcp', mcp.accountRouter);
-app.use('/api/admin', adminRouter({ users, audit, status: actions.status }));
-app.use('/api', apiRouter(users, notes, files, live, gitSync));
-
-const clientDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'client', 'dist');
-if (fs.existsSync(clientDist)) {
-  app.use(
-    express.static(clientDist, {
-      index: false,
-      setHeaders: (res, file) => {
-        if (/[\\/]assets[\\/]/.test(file)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-        else res.setHeader('Cache-Control', 'no-cache');
-      },
-    })
-  );
-  // Single-page app: every other route gets index.html
-  app.get(/^\/(?!api\/).*/, (_req, res) => {
-    res.setHeader('Cache-Control', 'no-cache');
-    res.sendFile(path.join(clientDist, 'index.html'));
+function tryListen(server: http.Server, port: number, host?: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const onError = (err: NodeJS.ErrnoException) => {
+      server.removeListener('listening', onListening);
+      reject(err);
+    };
+    const onListening = () => {
+      server.removeListener('error', onError);
+      const addr = server.address();
+      resolve(typeof addr === 'object' && addr ? addr.port : port);
+    };
+    server.once('error', onError);
+    server.once('listening', onListening);
+    if (host) server.listen(port, host);
+    else server.listen(port);
   });
 }
 
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(err);
-  res.status(500).json({ error: 'Serverfehler' });
-});
-
-const server = app.listen(PORT, () => console.log(`📝 Kladde ${APP_VERSION} läuft auf http://localhost:${PORT}`));
-
-// ---------------------------------------------------------------- backups & shutdown
-
-const BACKUP_KEEP = Number(env.BACKUP_KEEP ?? 7);
-const BACKUP_DIR = path.resolve(env.BACKUP_DIR ?? path.join(DATA_DIR, 'backups'));
-if (BACKUP_KEEP > 0 && DB_PATH !== ':memory:') {
-  const runBackup = () => {
+async function bindServer(
+  server: http.Server,
+  requestedPort: number,
+  opts: { host?: string; standalone: boolean; explicitPort: boolean; serverOnly: boolean; dataDir: string }
+): Promise<{ port: number; alreadyRunning: boolean }> {
+  const maxAttempts = opts.standalone && !opts.explicitPort ? STANDALONE_PORT_SPAN + 1 : 1;
+  for (let offset = 0; offset < maxAttempts; offset++) {
+    const candidate = requestedPort === 0 ? 0 : requestedPort + offset;
     try {
-      backupDatabase(db, BACKUP_DIR, BACKUP_KEEP);
-      audit.prune();
+      const boundPort = await tryListen(server, candidate, opts.host);
+      return { port: boundPort, alreadyRunning: false };
     } catch (err) {
-      console.error('Backup failed:', err);
+      const code = (err as NodeJS.ErrnoException).code;
+      if (opts.standalone && code === 'EADDRINUSE' && candidate > 0) {
+        const running = await probeRunningKladde(candidate);
+        if (running?.standalone) {
+          if (!opts.serverOnly) {
+            launchDesktopWindow(`http://127.0.0.1:${candidate}/`, opts.dataDir, { detached: true });
+          }
+          return { port: candidate, alreadyRunning: true };
+        }
+        if (offset + 1 < maxAttempts) continue;
+      }
+      throw err;
     }
-  };
-  setTimeout(runBackup, 60_000).unref();
-  setInterval(runBackup, 24 * 60 * 60 * 1000).unref();
+  }
+  throw new Error(`Kein freier Port ab ${requestedPort} gefunden.`);
 }
 
-const shutdown = () => {
-  bot?.stop();
-  server.close();
-  db.close();
-  process.exit(0);
-};
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+async function main(): Promise<void> {
+  const env = process.env;
+  const argv = process.argv.slice(2);
+  const sea = isSeaRuntime();
+  const standalone = isStandaloneMode(env, argv, sea);
+  const serverOnly = argv.includes('--server-only') || argv.includes('--no-open') || env.KLADDE_NO_OPEN === '1' || env.KLADDE_NO_OPEN === 'true';
+  const isProduction = sea || standalone || env.NODE_ENV === 'production';
+
+  const baseDir = moduleDir(import.meta.url);
+  const DATA_DIR = resolveDataDir({ env, argv, standalone, defaultDir: path.join(baseDir, '..', 'data') });
+  const DB_PATH = resolveDbPath(DATA_DIR, env, argv);
+  const BACKUP_KEEP = Number(env.BACKUP_KEEP ?? 7);
+  const BACKUP_DIR = path.resolve(env.BACKUP_DIR ?? path.join(DATA_DIR, 'backups'));
+
+  if ((sea || standalone) && DB_PATH !== ':memory:') {
+    setupDesktopLogging(DATA_DIR);
+    process.on('uncaughtException', (err) => console.error('Uncaught exception:', err));
+    process.on('unhandledRejection', (reason) => console.error('Unhandled rejection:', reason));
+  }
+
+  const { port: requestedPort, explicit: explicitPort } = resolveListenPort(env, argv, standalone);
+  const host = standalone ? (env.HOST?.trim() || '127.0.0.1') : env.HOST?.trim() || undefined;
+
+  let handler: express.Express | null = null;
+  const server = http.createServer((req, res) => {
+    if (handler) handler(req, res);
+    else {
+      res.statusCode = 503;
+      res.end('Starting...');
+    }
+  });
+
+  // Acquire the port before opening SQLite so a second click attaches to the existing instance without racing the DB
+  const { port, alreadyRunning } = await bindServer(server, requestedPort, {
+    host,
+    standalone,
+    explicitPort,
+    serverOnly,
+    dataDir: DATA_DIR,
+  });
+  if (alreadyRunning) {
+    console.log(`📝 Kladde läuft bereits auf http://127.0.0.1:${port}`);
+    return;
+  }
+
+  const db = openDatabase(DB_PATH, { backupDir: BACKUP_KEEP > 0 ? BACKUP_DIR : undefined });
+  const PUBLIC_URL = standalone ? null : env.PUBLIC_URL?.trim() || null;
+  const TRUST_PROXY = !standalone && (env.TRUST_PROXY === '1' || env.TRUST_PROXY === 'true');
+  const clientDist = path.resolve(baseDir, '..', '..', 'client', 'dist');
+
+  let bot: TelegramAdminBot | null = null;
+  const { app, users, audit, live, actions } = createKladdeApp({
+    db,
+    dataDir: DATA_DIR,
+    env,
+    standalone,
+    isProduction,
+    publicUrl: PUBLIC_URL,
+    trustProxy: TRUST_PROXY,
+    clientDist,
+    seaAssets: loadSeaClientAssets(),
+    onRegistered: (user, note) => void bot?.notify(`🆕 Neues Konto: <b>${escapeHtml(user.username)}</b>${note ? ` (Einladung: ${escapeHtml(note)})` : ''}`),
+  });
+  handler = app;
+
+  if (!standalone) {
+    bot = TelegramAdminBot.fromEnv(actions, env, (cmd) =>
+      audit.record('admin_command', { detail: `telegram ${cmd.chatId}: ${cmd.text}` })
+    );
+    bot?.start();
+
+    const inviteUrl = (code: string) => `${(PUBLIC_URL ?? `http://localhost:${isProduction ? port : 5174}`).replace(/\/$/, '')}/invite/${code}`;
+    // Without users and without a bot there is no other way in: print a first invite
+    if (users.countUsers() === 0 && !users.hasOpenInvite()) {
+      const invite = users.createInvite('Erstes Konto');
+      console.log(`\n✉️  Erste Einladung (14 Tage gültig): ${inviteUrl(invite.code)}\n`);
+    }
+  }
+
+  const localUrl = `http://${host ?? 'localhost'}:${port}`;
+  console.log(`📝 Kladde ${APP_VERSION} läuft auf ${localUrl}${standalone ? ` (Standalone · Daten: ${DATA_DIR})` : ''}`);
+
+  if (BACKUP_KEEP > 0 && DB_PATH !== ':memory:') {
+    const runBackup = () => {
+      try {
+        backupDatabase(db, BACKUP_DIR, BACKUP_KEEP);
+        audit.prune();
+      } catch (err) {
+        console.error('Backup failed:', err);
+      }
+    };
+    setTimeout(runBackup, 60_000).unref();
+    setInterval(runBackup, 24 * 60 * 60 * 1000).unref();
+  }
+
+  let closing = false;
+  const shutdown = () => {
+    if (closing) return;
+    closing = true;
+    bot?.stop();
+    server.closeAllConnections?.();
+    server.close(() => {
+      try {
+        db.close();
+      } catch {
+        // already closed
+      }
+      process.exit(0);
+    });
+    setTimeout(() => {
+      try {
+        db.close();
+      } catch {
+        // already closed
+      }
+      process.exit(0);
+    }, 1500).unref();
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+  process.on('SIGHUP', shutdown);
+  process.on('SIGBREAK', shutdown);
+
+  if (standalone && !serverOnly) {
+    startDesktopLifecycle({
+      url: `http://127.0.0.1:${port}/`,
+      dataDir: DATA_DIR,
+      live,
+      onShutdown: shutdown,
+    });
+  }
+}
+
+void main().catch((err) => {
+  console.error('Start fehlgeschlagen:', err);
+  process.exit(1);
+});

@@ -57,14 +57,30 @@ function runPending() {
   }
 }
 
-async function serverVersion(): Promise<string | undefined> {
+interface HealthInfo {
+  version?: string;
+  standalone?: boolean;
+}
+
+async function serverHealth(): Promise<HealthInfo | undefined> {
   try {
     const res = await fetch('/health', { cache: 'no-store' });
     if (!res.ok) return undefined;
-    return ((await res.json()) as { version?: string }).version;
+    return (await res.json()) as HealthInfo;
   } catch {
     return undefined; // offline: keep the running version
   }
+}
+
+async function serverVersion(): Promise<string | undefined> {
+  return (await serverHealth())?.version;
+}
+
+async function clearServiceWorkers() {
+  const regs = (await navigator.serviceWorker?.getRegistrations()) ?? [];
+  await Promise.all(regs.map((r) => r.unregister()));
+  const keys = 'caches' in window ? await caches.keys() : [];
+  await Promise.all(keys.filter((k) => k !== ATTACHMENT_CACHE).map((k) => caches.delete(k)));
 }
 
 async function hardReset(target: string) {
@@ -75,10 +91,7 @@ async function hardReset(target: string) {
   } catch {
     return;
   }
-  const regs = (await navigator.serviceWorker?.getRegistrations()) ?? [];
-  await Promise.all(regs.map((r) => r.unregister()));
-  const keys = 'caches' in window ? await caches.keys() : [];
-  await Promise.all(keys.filter((k) => k !== ATTACHMENT_CACHE).map((k) => caches.delete(k)));
+  await clearServiceWorkers();
   markUpdated();
   location.reload();
 }
@@ -99,26 +112,34 @@ async function check() {
 
 export function keepUpToDate() {
   if (!('serviceWorker' in navigator)) return;
-  applyUpdate = registerSW({
-    immediate: true,
-    onRegisteredSW(_url, reg) {
-      registration = reg;
-      void check();
-    },
-    // A new version is installed and waiting: take it over (and reload) once that does not disturb
-    onNeedRefresh() {
-      whenCalm(() => {
-        markUpdated();
-        void applyUpdate?.(true);
-      });
-    },
-  });
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') void check();
-    else runPending();
-  });
-  document.addEventListener('focusout', () => setTimeout(runPending, 300));
-  window.addEventListener('online', () => void check());
+  void (async () => {
+    const health = await serverHealth();
+    if (health?.standalone) {
+      // Desktop mode replaces kladde.exe directly: a Service Worker must never cache stale assets across updates
+      await clearServiceWorkers().catch(() => undefined);
+      return;
+    }
+    applyUpdate = registerSW({
+      immediate: true,
+      onRegisteredSW(_url, reg) {
+        registration = reg;
+        void check();
+      },
+      // A new version is installed and waiting: take it over (and reload) once that does not disturb
+      onNeedRefresh() {
+        whenCalm(() => {
+          markUpdated();
+          void applyUpdate?.(true);
+        });
+      },
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') void check();
+      else runPending();
+    });
+    document.addEventListener('focusout', () => setTimeout(runPending, 300));
+    window.addEventListener('online', () => void check());
+  })();
 }
 
 /** True once after a reload for an update: the app then appears without entry animations */

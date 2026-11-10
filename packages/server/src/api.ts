@@ -3,7 +3,7 @@ import type { AttachmentInfo, DeleteFilesResponse, PushChange } from '@kladde/sh
 import { attachmentUsageMap } from './cliActions.js';
 import { NoteStore } from './NoteStore.js';
 import { FileStore, MAX_FILE_BYTES } from './FileStore.js';
-import { UserStore } from './UserStore.js';
+import { UserRecord, UserStore } from './UserStore.js';
 import type { GitSync } from './GitSync.js';
 import { handle, rateLimit, requireUser } from './http.js';
 import { ImportError, importRecipe } from './RecipeImport.js';
@@ -11,12 +11,21 @@ import { ImportError, importRecipe } from './RecipeImport.js';
 /** Open event streams per user: a ping makes every device pull right away */
 export class LiveUpdates {
   private readonly clients = new Map<string, Set<Response>>();
+  private readonly onConnectionChange: (() => void)[] = [];
+
+  onChange(fn: () => void): void {
+    this.onConnectionChange.push(fn);
+  }
 
   add(userId: string, res: Response): void {
     let set = this.clients.get(userId);
     if (!set) this.clients.set(userId, (set = new Set()));
     set.add(res);
-    res.on('close', () => set!.delete(res));
+    this.onConnectionChange.forEach((fn) => fn());
+    res.on('close', () => {
+      set!.delete(res);
+      this.onConnectionChange.forEach((fn) => fn());
+    });
   }
 
   notify(userIds: Iterable<string>): void {
@@ -30,17 +39,24 @@ export class LiveUpdates {
   }
 }
 
-export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, live: LiveUpdates, gitSync?: GitSync): express.Router {
+export interface ApiRouterOptions {
+  standaloneUser?: UserRecord;
+}
+
+export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, live: LiveUpdates, gitSync?: GitSync, opts: ApiRouterOptions = {}): express.Router {
   const router = express.Router();
-  const authed = requireUser(users);
+  const standalone = !!opts.standaloneUser;
+  const authed = requireUser(users, opts.standaloneUser);
 
   // ---------------------------------------------------------------- public (guests)
 
-  router.get('/public/:token', (req, res) => {
-    const note = notes.publicNote(req.params.token);
-    if (!note) res.status(404).json({ error: 'Dieser Link ist ungültig oder wurde zurückgezogen.' });
-    else res.json(note);
-  });
+  if (!standalone) {
+    router.get('/public/:token', (req, res) => {
+      const note = notes.publicNote(req.params.token);
+      if (!note) res.status(404).json({ error: 'Dieser Link ist ungültig oder wurde zurückgezogen.' });
+      else res.json(note);
+    });
+  }
 
   // Files are addressed by a random id (also used from public notes), so no session is needed to read them
   router.get('/files/:id', (req, res) => {
@@ -103,96 +119,98 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     }
   });
 
-  router.get('/notes/:id/shares', (req, res) => {
-    try {
-      res.json(notes.shares(req.user!.id, req.params.id));
-    } catch {
-      notFound(res);
-    }
-  });
-
-  router.put('/notes/:id/shares', (req, res) => {
-    const target = typeof req.body?.username === 'string' ? users.findByUsername(req.body.username) : null;
-    if (!target || target.id === req.user!.id) {
-      res.status(400).json({ error: 'Diesen Benutzer gibt es nicht.' });
-      return;
-    }
-    try {
-      live.notify(notes.share(req.user!.id, req.params.id, target.id, !!req.body.canWrite));
-      res.json(notes.shares(req.user!.id, req.params.id));
-    } catch {
-      notFound(res);
-    }
-  });
-
-  router.delete('/notes/:id/shares/:username', (req, res) => {
-    const target = users.findByUsername(req.params.username);
-    try {
-      if (target) {
-        notes.unshare(req.user!.id, req.params.id, target.id);
-        live.notify([target.id]);
+  if (!standalone) {
+    router.get('/notes/:id/shares', (req, res) => {
+      try {
+        res.json(notes.shares(req.user!.id, req.params.id));
+      } catch {
+        notFound(res);
       }
-      res.json(notes.shares(req.user!.id, req.params.id));
-    } catch {
-      notFound(res);
-    }
-  });
+    });
 
-  // Folder paths contain slashes, so they travel in the query string or body
-  const folderOf = (value: unknown) => (typeof value === 'string' && value.trim() ? value : null);
-  const badFolder = (res: Response) => res.status(400).json({ error: 'Ungültiger Ordner.' });
+    router.put('/notes/:id/shares', (req, res) => {
+      const target = typeof req.body?.username === 'string' ? users.findByUsername(req.body.username) : null;
+      if (!target || target.id === req.user!.id) {
+        res.status(400).json({ error: 'Diesen Benutzer gibt es nicht.' });
+        return;
+      }
+      try {
+        live.notify(notes.share(req.user!.id, req.params.id, target.id, !!req.body.canWrite));
+        res.json(notes.shares(req.user!.id, req.params.id));
+      } catch {
+        notFound(res);
+      }
+    });
 
-  router.get('/folders/shares', (req, res) => {
-    const folder = folderOf(req.query.folder);
-    if (!folder) return void badFolder(res);
-    res.json(notes.folderShares(req.user!.id, folder));
-  });
+    router.delete('/notes/:id/shares/:username', (req, res) => {
+      const target = users.findByUsername(req.params.username);
+      try {
+        if (target) {
+          notes.unshare(req.user!.id, req.params.id, target.id);
+          live.notify([target.id]);
+        }
+        res.json(notes.shares(req.user!.id, req.params.id));
+      } catch {
+        notFound(res);
+      }
+    });
 
-  router.put('/folders/shares', (req, res) => {
-    const folder = folderOf(req.body?.folder);
-    if (!folder) return void badFolder(res);
-    const target = typeof req.body?.username === 'string' ? users.findByUsername(req.body.username) : null;
-    if (!target || target.id === req.user!.id) {
-      res.status(400).json({ error: 'Diesen Benutzer gibt es nicht.' });
-      return;
-    }
-    const { canWrite, canCreate, canDelete } = req.body;
-    live.notify(notes.shareFolder(req.user!.id, folder, target.id, { canWrite: !!canWrite, canCreate: !!canCreate, canDelete: !!canDelete }));
-    res.json(notes.folderShares(req.user!.id, folder));
-  });
+    // Folder paths contain slashes, so they travel in the query string or body
+    const folderOf = (value: unknown) => (typeof value === 'string' && value.trim() ? value : null);
+    const badFolder = (res: Response) => res.status(400).json({ error: 'Ungültiger Ordner.' });
 
-  router.delete('/folders/shares', (req, res) => {
-    const folder = folderOf(req.body?.folder);
-    if (!folder) return void badFolder(res);
-    const target = typeof req.body?.username === 'string' ? users.findByUsername(req.body.username) : null;
-    if (target) live.notify(notes.unshareFolder(req.user!.id, folder, target.id));
-    res.json(notes.folderShares(req.user!.id, folder));
-  });
+    router.get('/folders/shares', (req, res) => {
+      const folder = folderOf(req.query.folder);
+      if (!folder) return void badFolder(res);
+      res.json(notes.folderShares(req.user!.id, folder));
+    });
 
-  // The client renamed/moved or deleted a folder: shares follow (sent along with the note changes)
-  router.post('/folders/renamed', (req, res) => {
-    const from = folderOf(req.body?.from);
-    const to = folderOf(req.body?.to);
-    if (!from || !to) return void badFolder(res);
-    live.notify(notes.renameFolderShares(req.user!.id, from, to));
-    res.json({ ok: true });
-  });
+    router.put('/folders/shares', (req, res) => {
+      const folder = folderOf(req.body?.folder);
+      if (!folder) return void badFolder(res);
+      const target = typeof req.body?.username === 'string' ? users.findByUsername(req.body.username) : null;
+      if (!target || target.id === req.user!.id) {
+        res.status(400).json({ error: 'Diesen Benutzer gibt es nicht.' });
+        return;
+      }
+      const { canWrite, canCreate, canDelete } = req.body;
+      live.notify(notes.shareFolder(req.user!.id, folder, target.id, { canWrite: !!canWrite, canCreate: !!canCreate, canDelete: !!canDelete }));
+      res.json(notes.folderShares(req.user!.id, folder));
+    });
 
-  router.post('/folders/deleted', (req, res) => {
-    const folder = folderOf(req.body?.folder);
-    if (!folder) return void badFolder(res);
-    live.notify(notes.dropFolderShares(req.user!.id, folder));
-    res.json({ ok: true });
-  });
+    router.delete('/folders/shares', (req, res) => {
+      const folder = folderOf(req.body?.folder);
+      if (!folder) return void badFolder(res);
+      const target = typeof req.body?.username === 'string' ? users.findByUsername(req.body.username) : null;
+      if (target) live.notify(notes.unshareFolder(req.user!.id, folder, target.id));
+      res.json(notes.folderShares(req.user!.id, folder));
+    });
 
-  router.put('/notes/:id/public', (req, res) => {
-    try {
-      notes.setPublic(req.user!.id, req.params.id, !!req.body?.enabled);
-      res.json(notes.shares(req.user!.id, req.params.id));
-    } catch {
-      notFound(res);
-    }
-  });
+    // The client renamed/moved or deleted a folder: shares follow (sent along with the note changes)
+    router.post('/folders/renamed', (req, res) => {
+      const from = folderOf(req.body?.from);
+      const to = folderOf(req.body?.to);
+      if (!from || !to) return void badFolder(res);
+      live.notify(notes.renameFolderShares(req.user!.id, from, to));
+      res.json({ ok: true });
+    });
+
+    router.post('/folders/deleted', (req, res) => {
+      const folder = folderOf(req.body?.folder);
+      if (!folder) return void badFolder(res);
+      live.notify(notes.dropFolderShares(req.user!.id, folder));
+      res.json({ ok: true });
+    });
+
+    router.put('/notes/:id/public', (req, res) => {
+      try {
+        notes.setPublic(req.user!.id, req.params.id, !!req.body?.enabled);
+        res.json(notes.shares(req.user!.id, req.params.id));
+      } catch {
+        notFound(res);
+      }
+    });
+  }
 
   // The server fetches the page (the browser cannot read other sites); the client turns it into a note
   router.post(

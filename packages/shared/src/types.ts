@@ -73,6 +73,10 @@ export interface Me {
   hasPassword: boolean;
   /** Sees the admin area (accounts, invites, password reset) */
   isAdmin: boolean;
+  /** True when running in single-user desktop/standalone mode (no auth, invites, sharing or admin area) */
+  standalone?: boolean;
+  /** Local data directory path shown in standalone diagnostics/settings */
+  dataDir?: string;
 }
 
 export const PASSWORD_MIN_LENGTH = 8;

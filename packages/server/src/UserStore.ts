@@ -140,6 +140,12 @@ export class UserStore {
     return (this.db.prepare('SELECT * FROM users ORDER BY username_lower').all() as Row[]).map(toUser);
   }
 
+  /** Oldest account in the database (used by standalone single-user mode) */
+  firstUser(): UserRecord | null {
+    const row = this.db.prepare('SELECT * FROM users ORDER BY created_at ASC, rowid ASC LIMIT 1').get() as Row | undefined;
+    return row ? toUser(row) : null;
+  }
+
   countUsers(): number {
     return Number((this.db.prepare('SELECT COUNT(*) AS n FROM users').get() as { n: number }).n);
   }

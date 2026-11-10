@@ -54,7 +54,7 @@ export function FilesView() {
     setLoading(true);
     setError('');
     try {
-      if (vault.pendingCount() > 0 && navigator.onLine) {
+      if (vault.pendingCount() > 0 && (navigator.onLine || vault.standalone)) {
         await vault.sync();
       }
       const data = await listFiles();
@@ -66,7 +66,7 @@ export function FilesView() {
         return next;
       });
     } catch (e) {
-      setError(navigator.onLine ? (e as Error).message : t('files.onlineOnlyError'));
+      setError(navigator.onLine || vault.standalone ? (e as Error).message : t('files.onlineOnlyError'));
     } finally {
       setLoading(false);
     }

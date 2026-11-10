@@ -9,12 +9,16 @@
   "scripts": {
     "dev": "concurrently -n \"shared,server,client\" -c \"blue,green,magenta\" \"npm run build:watch --workspace=packages/shared\" \"npm run dev --workspace=packages/server\" \"npm run dev --workspace=packages/client\"",
     "build": "npm run build --workspace=packages/shared && npm run build --workspace=packages/server && npm run build --workspace=packages/client",
+    "build:desktop": "node scripts/build-desktop.mjs",
+    "build:exe": "node scripts/build-desktop.mjs --win",
     "test": "npm run test --workspace=packages/shared && npm run test --workspace=packages/server",
     "cli": "node packages/server/dist/cli.js",
     "release": "node scripts/release.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
+    "esbuild": "^0.28.2",
+    "postject": "^1.0.0-alpha.6",
     "typescript": "^5.8.2"
   },
   "overrides": {
