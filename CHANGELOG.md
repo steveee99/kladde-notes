@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.17.0] – 2026-11-10
+
 - Neu: Im Dunkel-Design (Material) lässt sich die Seitenleiste auf größeren Bildschirmen über Einstellungen → Erscheinungsbild oder direkt im Menü-Kopf zwischen „Overlay“ (schmale Leiste links + Schublade) und „Sticky“ (vollständiges Menü ersetzt die Leiste links dauerhaft) umschalten.
 - Neu: Anhänge verwalten unter „Anhänge“ (Seitenleiste und Einstellungen): Galerie-Grid aller hochgeladenen Bilder und PDFs mit Filter „Nicht in Notizen verwendet“, Notiz-Verweisen, Multiselekt und Löschen mit Bestätigung. Anhänge, die noch in einer Notiz verwendet werden, sind geschützt und können nicht gelöscht werden.
 - Neu (CLI): Erweiterte Server-CLI mit `import <quelle> <ziel>` (einzelne Datei oder rekursiver Ordner inkl. Bildern/PDFs und Obsidian-Links), `export <quelle> <ziel>` (ganzer Space, Ordner oder Einzelnotiz, optional `--strip-frontmatter` / `--with-files`) sowie Hilfsbefehlen (`suche`, `notizen`, `ordner`, `anhaenge`, `anhaenge-bereinigen`, `status`, `backup`, Kontenverwaltung).
