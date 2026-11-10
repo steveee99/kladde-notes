@@ -1,4 +1,5 @@
 import type { AttachmentInfo, DeleteFilesResponse } from '@kladde/shared';
+import { t } from './i18n';
 
 export class ApiError extends Error {
   constructor(
@@ -18,7 +19,7 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
     body: json !== undefined ? JSON.stringify(json) : rest.body,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError((data as { error?: string }).error ?? `Fehler ${res.status}`, res.status);
+  if (!res.ok) throw new ApiError((data as { error?: string }).error ?? t('common.errorStatus', { status: res.status }), res.status);
   return data as T;
 }
 

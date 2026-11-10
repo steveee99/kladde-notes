@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Me, PARA, runQuery, splitPath, INBOX_FOLDER } from '@kladde/shared';
 import { api, ApiError, uploadFile } from './lib/api';
+import { t } from './lib/i18n';
 import { match, navigate, usePath } from './lib/router';
 import { vault } from './data/vault';
 import { editorHost } from './editor/host';
@@ -57,7 +58,7 @@ Object.assign(editorHost, {
   noteTitles: () => vault.list().map((n) => splitPath(n.path).name),
   autoLinkTargets: (excludeId?: string) => vault.links().autoLinkTargets(excludeId),
   upload: (file: File) => {
-    if (!navigator.onLine) return Promise.reject(new Error('Hochladen geht nur online.'));
+    if (!navigator.onLine) return Promise.reject(new Error(t('note.uploadOnlineOnly')));
     return uploadFile(file);
   },
 });

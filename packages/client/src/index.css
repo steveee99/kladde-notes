@@ -3,43 +3,10 @@
 @tailwind utilities;
 
 /*
- * Theme tokens. Every color, radius and shadow of the app is a variable; a theme only overrides them.
- * Colors are "R G B" triplets so Tailwind can add alpha (bg-accent/20).
+ * Material 3 theme tokens. Colors are "R G B" triplets so Tailwind can add alpha (bg-accent/20).
+ * Material 3 (dark) is the single canonical theme of the application.
  */
 :root,
-[data-theme='light'] {
-  --bg: 247 246 243;
-  --surface: 255 255 255;
-  --raised: 240 238 234;
-  --line: 226 223 217;
-  --ink: 28 27 34;
-  --muted: 104 102 116;
-  --faint: 160 157 170;
-  --accent: 109 93 252;
-  --on-accent: 255 255 255;
-  --accent2: 20 160 148;
-  --ok: 34 160 90;
-  --warn: 214 130 20;
-  --danger: 220 60 70;
-  --code-bg: 242 240 236;
-  --selection: 109 93 252 / 0.18;
-  --radius: 12px;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.05), 0 8px 24px rgb(0 0 0 / 0.06);
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --ease-spring: cubic-bezier(0.2, 0.9, 0.25, 1.15);
-  --dur: 220ms;
-  /* Container fill for the main action (Material's FAB); other themes use the accent itself */
-  --accent-container: var(--accent);
-  --on-accent-container: var(--on-accent);
-  --font-sans: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --content-width: 1200px;
-  color-scheme: light;
-}
-
-/*
- * Material 3 (dark): neutral near-black surfaces in tonal steps instead of lines and shadows,
- * the blue primary from the M3 baseline scheme, large shape radii and M3 motion curves
- */
 [data-theme='material'] {
   --bg: 14 14 16;
   --surface: 26 26 29;
@@ -54,7 +21,8 @@
   --ok: 133 214 150;
   --warn: 240 190 110;
   --danger: 242 184 181;
-  --code-bg: 22 22 25;
+  --code-bg: 18 19 23;
+  --inline-code-bg: 52 56 70;
   --selection: 168 199 250 / 0.26;
   --radius: 16px;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 3px 1px rgb(0 0 0 / 0.15);
@@ -64,6 +32,7 @@
   --accent-container: 11 61 134;
   --on-accent-container: 211 227 253;
   --font-sans: 'Roboto Flex Variable', Roboto, system-ui, sans-serif;
+  --content-width: 80%;
   color-scheme: dark;
 }
 
@@ -248,9 +217,14 @@ body {
   }
   .content-container {
     width: 100%;
-    max-width: var(--content-width);
+    max-width: var(--content-width, 80%);
     margin-left: auto;
     margin-right: auto;
+  }
+  @media (max-width: 799px) {
+    .content-container {
+      max-width: 100%;
+    }
   }
 }
 
@@ -336,9 +310,11 @@ html[data-readonly] .edit-only {
 .cm-inline-code {
   font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
   font-size: 0.88em;
-  background: rgb(var(--code-bg));
+  background: rgb(var(--inline-code-bg));
+  color: rgb(var(--on-accent-container));
+  border: 1px solid rgb(var(--accent) / 0.24);
   border-radius: 6px;
-  padding: 0.1em 0.35em;
+  padding: 0.08em 0.42em;
 }
 .cm-codeblock {
   font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
@@ -1008,6 +984,54 @@ html[data-readonly] .edit-only {
   color: rgb(var(--on-accent-container) / 0.75) !important;
 }
 
+/* Automatic Table of Contents block (##TOC##) */
+.wz-toc {
+  margin: 8px 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgb(var(--raised));
+  border: 1px solid rgb(var(--line) / 0.7);
+}
+.wz-toc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgb(var(--accent));
+}
+.wz-toc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wz-toc-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 5px 10px;
+  border-radius: 9999px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: rgb(var(--ink));
+  cursor: pointer;
+  transition: background-color 140ms var(--ease), color 140ms var(--ease);
+}
+.wz-toc-item:hover {
+  background: rgb(var(--accent) / 0.12);
+  color: rgb(var(--accent));
+}
+.wz-toc-empty {
+  font-size: 13px;
+  color: rgb(var(--faint));
+  padding: 2px 0;
+}
+
 /* ------------------------------------------------------------------ Print layout (hides chrome & frontmatter) */
 
 @media print {
@@ -1015,7 +1039,6 @@ html[data-readonly] .edit-only {
     margin: 16mm;
   }
   :root,
-  [data-theme='light'],
   [data-theme='material'] {
     --bg: 255 255 255;
     --surface: 255 255 255;
@@ -1025,6 +1048,8 @@ html[data-readonly] .edit-only {
     --muted: 85 85 95;
     --faint: 120 120 130;
     --code-bg: 245 244 241;
+    --inline-code-bg: 238 236 242;
+    --on-accent-container: 20 20 26;
     color-scheme: light;
   }
   html,
@@ -1049,6 +1074,7 @@ html[data-readonly] .edit-only {
   aside,
   header,
   section[aria-label='Notizliste'],
+  section[aria-label='Note list'],
   .note-toolbar,
   .no-print,
   .wz-edit,
@@ -1066,9 +1092,22 @@ html[data-readonly] .edit-only {
     padding: 0 !important;
   }
   .wz-table,
-  .wz-diagram {
+  .wz-diagram,
+  .wz-toc {
     break-inside: avoid;
     border-color: #d7d4ce !important;
     background: #fff !important;
   }
+  .cm-inline-code {
+    border-color: #d7d4ce !important;
+    background: #f2f0ec !important;
+    color: #14141a !important;
+  }
 }
+
+[data-theme='material'] select option,
+[data-theme='material'] select optgroup {
+  background-color: rgb(var(--raised));
+  color: rgb(var(--ink));
+}
+

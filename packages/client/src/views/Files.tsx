@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useVault, vault } from '../data/vault';
 import { deleteFiles, listFiles } from '../lib/api';
+import { locale, t, tl, useLang } from '../lib/i18n';
 import { useReadOnly } from '../lib/readOnly';
 import { navigate } from '../lib/router';
 import { Sheet } from './Dialogs';
@@ -25,7 +26,6 @@ import { Sheet } from './Dialogs';
 type FilterMode = 'all' | 'unused';
 
 const FILE_ID_RE = /\/api\/files\/([A-Za-z0-9_-]{22})/g;
-const dateFmt = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -35,6 +35,9 @@ function formatBytes(bytes: number): string {
 
 export function FilesView() {
   const vaultVersion = useVault();
+  const lang = useLang();
+  const loc = locale(lang);
+  const dateFmt = useMemo(() => new Intl.DateTimeFormat(loc, { day: '2-digit', month: '2-digit', year: 'numeric' }), [loc]);
   const locked = useReadOnly();
   const [items, setItems] = useState<AttachmentInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +66,7 @@ export function FilesView() {
         return next;
       });
     } catch (e) {
-      setError(navigator.onLine ? (e as Error).message : 'Anhänge können nur online geladen und verwaltet werden.');
+      setError(navigator.onLine ? (e as Error).message : t('files.onlineOnlyError'));
     } finally {
       setLoading(false);
     }
@@ -179,9 +182,16 @@ export function FilesView() {
       setConfirmOpen(false);
       await load();
       const parts: string[] = [];
-      if (res.deleted.length > 0) parts.push(`${res.deleted.length} ${res.deleted.length === 1 ? 'Anhang' : 'Anhänge'} gelöscht.`);
+      if (res.deleted.length > 0) {
+        parts.push(
+          tl(lang, 'files.deletedResult', {
+            count: res.deleted.length,
+            unit: res.deleted.length === 1 ? tl(lang, 'files.unitSingle') : tl(lang, 'files.unitPlural'),
+          })
+        );
+      }
       if (res.skippedUsed.length > 0) {
-        parts.push(`${res.skippedUsed.length} geschützt (wird zwischenzeitlich in einer Notiz verwendet).`);
+        parts.push(tl(lang, 'files.skippedUsedResult', { count: res.skippedUsed.length }));
       }
       setNotice(parts.join(' '));
       setSelected(new Set());
@@ -198,36 +208,41 @@ export function FilesView() {
         <div className="min-w-0 flex-1">
           <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight">
             <Images size={24} className="text-accent" />
-            Anhänge
+            {tl(lang, 'files.title')}
           </h1>
           <p className="mt-1 text-sm text-muted">
-            {enriched.length} {enriched.length === 1 ? 'Anhang' : 'Anhänge'} ({formatBytes(totalBytes)}) · {unusedCount} nicht in Notizen verwendet
+            {tl(lang, 'files.summary', {
+              count: enriched.length,
+              unit: enriched.length === 1 ? tl(lang, 'files.unitSingle') : tl(lang, 'files.unitPlural'),
+              size: formatBytes(totalBytes),
+              unused: unusedCount,
+            })}
           </p>
         </div>
-        <button className="btn-ghost border border-line" onClick={() => void load()} disabled={loading} title="Liste aktualisieren">
+        <button className="btn-ghost rounded-full border border-line px-4" onClick={() => void load()} disabled={loading} title={tl(lang, 'files.refreshTitle')}>
           <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          <span className="hidden sm:inline">Aktualisieren</span>
+          <span className="hidden sm:inline">{tl(lang, 'files.refresh')}</span>
         </button>
       </header>
 
       {locked && (
-        <div className="flex items-center gap-2 rounded-xl border border-line bg-raised px-3.5 py-2.5 text-sm text-muted">
+        <div className="flex items-center gap-2 rounded-2xl border border-line bg-raised px-3.5 py-2.5 text-sm text-muted">
           <Lock size={16} className="shrink-0 text-accent" />
-          Lesemodus ist aktiv – Anhänge können im Lesemodus nicht gelöscht werden.
+          {tl(lang, 'files.lockedHint')}
         </div>
       )}
 
       {error && (
-        <div className="flex items-center gap-2 rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
+        <div className="flex items-center gap-2 rounded-2xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
           <AlertTriangle size={16} className="shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {notice && (
-        <div className="flex items-center justify-between gap-2 rounded-xl bg-accent/10 px-3.5 py-2.5 text-sm text-accent">
+        <div className="flex items-center justify-between gap-2 rounded-2xl bg-accent-container/40 px-3.5 py-2.5 text-sm text-on-accent-container">
           <span>{notice}</span>
-          <button className="rounded p-1 hover:bg-accent/15" onClick={() => setNotice('')} aria-label="Hinweis schließen">
+          <button className="rounded-full p-1 hover:bg-accent/15" onClick={() => setNotice('')} aria-label={tl(lang, 'files.closeNotice')}>
             <X size={14} />
           </button>
         </div>
@@ -241,23 +256,23 @@ export function FilesView() {
               type="button"
               onClick={() => setFilter('all')}
               aria-pressed={filter === 'all'}
-              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm font-medium transition-colors ${
-                filter === 'all' ? 'border-accent bg-accent/12 text-accent' : 'border-line text-muted hover:border-faint hover:text-ink'
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                filter === 'all' ? 'border-accent/50 bg-accent-container text-on-accent-container' : 'border-line text-muted hover:border-faint hover:text-ink'
               }`}
             >
-              Alle
-              <span className="rounded-full bg-raised px-1.5 py-0.5 text-xs">{enriched.length}</span>
+              {tl(lang, 'files.filterAll')}
+              <span className="rounded-full bg-bg/40 px-1.5 py-0.5 text-xs tabular-nums">{enriched.length}</span>
             </button>
             <button
               type="button"
               onClick={() => setFilter('unused')}
               aria-pressed={filter === 'unused'}
-              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm font-medium transition-colors ${
-                filter === 'unused' ? 'border-accent bg-accent/12 text-accent' : 'border-line text-muted hover:border-faint hover:text-ink'
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                filter === 'unused' ? 'border-accent/50 bg-accent-container text-on-accent-container' : 'border-line text-muted hover:border-faint hover:text-ink'
               }`}
             >
-              Nicht in Notizen verwendet
-              <span className="rounded-full bg-raised px-1.5 py-0.5 text-xs">{unusedCount}</span>
+              {tl(lang, 'files.filterUnused')}
+              <span className="rounded-full bg-bg/40 px-1.5 py-0.5 text-xs tabular-nums">{unusedCount}</span>
             </button>
           </div>
 
@@ -265,8 +280,8 @@ export function FilesView() {
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
             <input
               type="search"
-              className="input py-1.5 pl-8 text-sm"
-              placeholder="Dateiname oder Notiz filtern …"
+              className="input rounded-full py-1.5 pl-9 text-sm"
+              placeholder={tl(lang, 'files.filterPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -277,16 +292,16 @@ export function FilesView() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              className="btn-ghost border border-line text-xs sm:text-sm"
+              className="btn-ghost rounded-full border border-line px-3.5 text-xs sm:text-sm"
               disabled={locked || visibleUnused.length === 0}
               onClick={toggleSelectAllUnused}
             >
               <CheckSquare size={15} />
-              {allVisibleUnusedSelected ? 'Sichtbare abwählen' : `Ungenutzte auswählen (${visibleUnused.length})`}
+              {allVisibleUnusedSelected ? tl(lang, 'files.deselectVisible') : tl(lang, 'files.selectUnused', { n: visibleUnused.length })}
             </button>
             {selectedItems.length > 0 && (
-              <button type="button" className="btn-ghost text-xs sm:text-sm" onClick={() => setSelected(new Set())}>
-                Auswahl aufheben ({selectedItems.length})
+              <button type="button" className="btn-ghost rounded-full px-3 text-xs sm:text-sm" onClick={() => setSelected(new Set())}>
+                {tl(lang, 'files.clearSelection', { n: selectedItems.length })}
               </button>
             )}
           </div>
@@ -295,10 +310,11 @@ export function FilesView() {
             type="button"
             disabled={locked || selectedItems.length === 0 || deleting}
             onClick={() => setConfirmOpen(true)}
-            className="btn bg-danger text-bg shadow-soft hover:brightness-110 disabled:opacity-40"
+            className="btn rounded-full bg-danger px-4 text-bg shadow-soft hover:brightness-110 disabled:opacity-40"
           >
             <Trash2 size={16} />
-            Löschen{selectedItems.length > 0 ? ` (${selectedItems.length})` : ''}
+            {tl(lang, 'common.delete')}
+            {selectedItems.length > 0 ? ` (${selectedItems.length})` : ''}
           </button>
         </div>
       </div>
@@ -306,15 +322,11 @@ export function FilesView() {
       {/* Gallery Grid */}
       {loading ? (
         <div className="flex items-center justify-center gap-2 py-16 text-muted">
-          <Loader2 size={20} className="animate-spin" /> Anhänge werden geladen …
+          <Loader2 size={20} className="animate-spin" /> {tl(lang, 'files.loading')}
         </div>
       ) : visible.length === 0 ? (
         <div className="card p-10 text-center text-muted">
-          {enriched.length === 0
-            ? 'Es wurden noch keine Bilder oder PDFs hochgeladen.'
-            : filter === 'unused'
-              ? 'Alle Anhänge werden aktuell in mindestens einer Notiz verwendet.'
-              : 'Keine passenden Anhänge gefunden.'}
+          {enriched.length === 0 ? tl(lang, 'files.emptyNone') : filter === 'unused' ? tl(lang, 'files.emptyAllUsed') : tl(lang, 'files.emptyNoMatch')}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -332,7 +344,7 @@ export function FilesView() {
                   used
                     ? 'border-line/90'
                     : isSelected
-                      ? 'cursor-pointer border-accent ring-2 ring-accent/40 bg-accent/5'
+                      ? 'cursor-pointer border-accent ring-2 ring-accent/40 bg-accent-container/15'
                       : locked
                         ? ''
                         : 'cursor-pointer hover:border-accent/50'
@@ -362,9 +374,9 @@ export function FilesView() {
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 rounded-lg bg-surface px-2.5 py-1 text-xs font-medium text-ink shadow-sm hover:text-accent"
+                        className="inline-flex items-center gap-1 rounded-full bg-surface px-3 py-1 text-xs font-medium text-ink shadow-sm hover:text-accent"
                       >
-                        Öffnen <ExternalLink size={12} />
+                        {tl(lang, 'common.open')} <ExternalLink size={12} />
                       </a>
                     </div>
                   )}
@@ -372,11 +384,11 @@ export function FilesView() {
                   {/* Top-left: Selection checkbox (unused) OR Protected Lock badge (used) */}
                   {used ? (
                     <span
-                      title="Wird in Notizen verwendet und kann nicht gelöscht werden"
+                      title={tl(lang, 'files.protectedTitle')}
                       className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-bg/90 px-2 py-1 text-[11px] font-medium text-ink shadow-sm backdrop-blur-sm"
                     >
                       <Lock size={11} className="text-accent" />
-                      Geschützt
+                      {tl(lang, 'files.protectedBadge')}
                     </span>
                   ) : (
                     !locked && (
@@ -384,15 +396,13 @@ export function FilesView() {
                         type="button"
                         role="checkbox"
                         aria-checked={isSelected}
-                        aria-label={`${file.name} auswählen`}
+                        aria-label={tl(lang, 'files.selectAria', { name: file.name })}
                         onClick={(e) => {
                           e.stopPropagation();
                           toggleSelect(file);
                         }}
                         className={`absolute left-2 top-2 flex h-7 w-7 items-center justify-center rounded-lg border transition-colors shadow-sm ${
-                          isSelected
-                            ? 'border-accent bg-accent text-on-accent'
-                            : 'border-line bg-bg/85 text-transparent hover:border-accent backdrop-blur-sm'
+                          isSelected ? 'border-accent bg-accent text-on-accent' : 'border-line bg-bg/85 text-transparent hover:border-accent backdrop-blur-sm'
                         }`}
                       >
                         <Check size={15} strokeWidth={3} />
@@ -404,8 +414,8 @@ export function FilesView() {
                   {isImage && (
                     <button
                       type="button"
-                      title="Vorschau vergrößern"
-                      aria-label={`${file.name} vergrößern`}
+                      title={tl(lang, 'files.enlargeTitle')}
+                      aria-label={tl(lang, 'files.enlargeAria', { name: file.name })}
                       onClick={(e) => {
                         e.stopPropagation();
                         setPreview(file);
@@ -429,7 +439,10 @@ export function FilesView() {
                   {used ? (
                     <div className="mt-auto flex flex-col gap-1 pt-1">
                       <span className="text-[11px] font-medium text-muted">
-                        Verwendet in {file.usedIn.length} {file.usedIn.length === 1 ? 'Notiz' : 'Notizen'}:
+                        {tl(lang, 'files.usedIn', {
+                          count: file.usedIn.length,
+                          unit: file.usedIn.length === 1 ? tl(lang, 'files.noteSingle') : tl(lang, 'files.notePlural'),
+                        })}
                       </span>
                       <div className="flex flex-wrap gap-1">
                         {file.usedIn.slice(0, 2).map((ref) => (
@@ -456,13 +469,13 @@ export function FilesView() {
                             }}
                             className="rounded-md bg-raised px-1.5 py-0.5 text-[11px] text-muted hover:text-ink"
                           >
-                            +{file.usedIn.length - 2} weitere
+                            {tl(lang, 'files.moreRefs', { n: file.usedIn.length - 2 })}
                           </button>
                         )}
                       </div>
                     </div>
                   ) : (
-                    <div className="mt-auto pt-1 text-[11px] font-medium text-warn">Nicht in Notizen verwendet</div>
+                    <div className="mt-auto pt-1 text-[11px] font-medium text-warn">{tl(lang, 'files.unusedBadge')}</div>
                   )}
                 </div>
               </article>
@@ -473,12 +486,13 @@ export function FilesView() {
 
       {/* Confirmation Sheet */}
       {confirmOpen && (
-        <Sheet title="Anhänge endgültig löschen?" onClose={() => !deleting && setConfirmOpen(false)}>
+        <Sheet title={tl(lang, 'files.deleteSheetTitle')} onClose={() => !deleting && setConfirmOpen(false)}>
           <p className="mb-3 text-sm text-muted">
-            Es werden <b>{selectedItems.length}</b> nicht verwendete {selectedItems.length === 1 ? 'Datei' : 'Dateien'} ({formatBytes(selectedBytes)})
-            dauerhaft vom Server gelöscht. Verwendete Anhänge sind geschützt und können nicht gelöscht werden.
+            {tl(lang, 'files.deleteSheetDescBefore')} <b>{selectedItems.length}</b>{' '}
+            {selectedItems.length === 1 ? tl(lang, 'files.deleteSheetFileSingle') : tl(lang, 'files.deleteSheetFilePlural')} ({formatBytes(selectedBytes)}){' '}
+            {tl(lang, 'files.deleteSheetDescAfter')}
           </p>
-          <ul className="mb-4 max-h-48 divide-y divide-line overflow-y-auto rounded-xl border border-line bg-raised/50 px-3 scrollbar-thin">
+          <ul className="mb-4 max-h-48 divide-y divide-line overflow-y-auto rounded-2xl border border-line bg-raised/50 px-3 scrollbar-thin">
             {selectedItems.map((item) => (
               <li key={item.id} className="flex items-center justify-between gap-2 py-2 text-sm">
                 <span className="truncate">{item.name}</span>
@@ -487,17 +501,17 @@ export function FilesView() {
             ))}
           </ul>
           <div className="flex flex-wrap justify-end gap-2">
-            <button type="button" className="btn-ghost" disabled={deleting} onClick={() => setConfirmOpen(false)}>
-              Abbrechen
+            <button type="button" className="btn-ghost rounded-full px-4" disabled={deleting} onClick={() => setConfirmOpen(false)}>
+              {tl(lang, 'common.cancel')}
             </button>
             <button
               type="button"
-              className="btn bg-danger text-bg shadow-soft hover:brightness-110"
+              className="btn rounded-full bg-danger px-4 text-bg shadow-soft hover:brightness-110"
               disabled={deleting}
               onClick={() => void confirmDelete()}
             >
               {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-              {deleting ? 'Lösche …' : 'Endgültig löschen'}
+              {deleting ? tl(lang, 'files.deleting') : tl(lang, 'files.confirmDeleteBtn')}
             </button>
           </div>
         </Sheet>
@@ -508,7 +522,7 @@ export function FilesView() {
         createPortal(
           <div className="wz-lightbox anim-fade-in" onClick={() => setPreview(null)}>
             <div
-              className="flex max-h-[90vh] w-full max-w-3xl cursor-default flex-col gap-3 rounded-2xl bg-surface p-4 text-ink shadow-soft"
+              className="flex max-h-[90vh] w-full max-w-3xl cursor-default flex-col gap-3 rounded-3xl bg-surface p-4 text-ink shadow-soft"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center gap-2">
@@ -518,22 +532,22 @@ export function FilesView() {
                     {formatBytes(preview.size)} · {dateFmt.format(preview.createdAt)} · {preview.mime}
                   </div>
                 </div>
-                <a href={preview.url} target="_blank" rel="noopener noreferrer" className="btn-ghost border border-line text-xs">
-                  <ExternalLink size={14} /> Öffnen
+                <a href={preview.url} target="_blank" rel="noopener noreferrer" className="btn-ghost rounded-full border border-line px-3 text-xs">
+                  <ExternalLink size={14} /> {tl(lang, 'common.open')}
                 </a>
-                <button type="button" className="btn-icon" onClick={() => setPreview(null)} aria-label="Vorschau schließen">
+                <button type="button" className="btn-icon" onClick={() => setPreview(null)} aria-label={tl(lang, 'files.closePreviewAria')}>
                   <X size={18} />
                 </button>
               </div>
               {preview.mime.startsWith('image/') && (
-                <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl bg-raised p-2">
-                  <img src={preview.url} alt={preview.name} className="max-h-[65vh] max-w-full rounded-lg object-contain" />
+                <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl bg-raised p-2">
+                  <img src={preview.url} alt={preview.name} className="max-h-[65vh] max-w-full rounded-xl object-contain" />
                 </div>
               )}
               {preview.usedIn.length > 0 ? (
                 <div className="flex flex-wrap items-center gap-1.5 text-xs">
                   <span className="inline-flex items-center gap-1 text-muted">
-                    <Lock size={12} className="text-accent" /> Verwendet in:
+                    <Lock size={12} className="text-accent" /> {tl(lang, 'files.usedInShort')}
                   </span>
                   {preview.usedIn.map((ref) => (
                     <button
@@ -550,7 +564,7 @@ export function FilesView() {
                   ))}
                 </div>
               ) : (
-                <div className="text-xs text-warn">Dieser Anhang wird aktuell in keiner Notiz verwendet.</div>
+                <div className="text-xs text-warn">{tl(lang, 'files.unusedDetail')}</div>
               )}
             </div>
           </div>,

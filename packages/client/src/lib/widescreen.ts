@@ -1,27 +1,26 @@
 import { useSyncExternalStore } from 'react';
 
-export type WidescreenMode = 'fluid' | 'fixed';
+export const WIDESCREEN_PRESETS = [50, 80, 100] as const;
+export const DEFAULT_PERCENT = 80;
+export const MIN_PERCENT = 35;
+export const MAX_PERCENT = 100;
 
 export interface WidescreenConfig {
-  mode: WidescreenMode;
-  width: number;
+  percent: number;
+  custom: boolean;
 }
 
-export const DEFAULT_FIXED_WIDTH = 1200;
-export const MIN_WIDTH = 480;
-export const MAX_WIDTH = 3840;
-
 export const DEFAULT_WIDESCREEN: WidescreenConfig = {
-  mode: 'fixed',
-  width: DEFAULT_FIXED_WIDTH,
+  percent: DEFAULT_PERCENT,
+  custom: false,
 };
 
 const KEY = 'kladde_widescreen';
 const listeners = new Set<() => void>();
 
-function clampWidth(width: unknown): number {
-  if (typeof width !== 'number' || Number.isNaN(width)) return DEFAULT_FIXED_WIDTH;
-  return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(width)));
+export function clampPercent(percent: unknown): number {
+  if (typeof percent !== 'number' || Number.isNaN(percent)) return DEFAULT_PERCENT;
+  return Math.min(MAX_PERCENT, Math.max(MIN_PERCENT, Math.round(percent)));
 }
 
 export function getWidescreen(): WidescreenConfig {
@@ -29,10 +28,15 @@ export function getWidescreen(): WidescreenConfig {
     if (typeof localStorage === 'undefined') return DEFAULT_WIDESCREEN;
     const raw = localStorage.getItem(KEY);
     if (!raw) return DEFAULT_WIDESCREEN;
-    const parsed = JSON.parse(raw);
-    const mode: WidescreenMode = parsed.mode === 'fluid' ? 'fluid' : 'fixed';
-    const width = clampWidth(parsed.width);
-    return { mode, width };
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (typeof parsed?.percent === 'number') {
+      const percent = clampPercent(parsed.percent);
+      const custom = typeof parsed.custom === 'boolean' ? parsed.custom : !(WIDESCREEN_PRESETS as readonly number[]).includes(percent);
+      return { percent, custom };
+    }
+    // Migrate legacy pixel/fluid config cleanly
+    if (parsed?.mode === 'fluid') return { percent: 100, custom: false };
+    return DEFAULT_WIDESCREEN;
   } catch {
     return DEFAULT_WIDESCREEN;
   }
@@ -44,8 +48,8 @@ export function applyWidescreen(config: WidescreenConfig = current): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
   if (!root) return;
-  root.dataset.widescreen = config.mode;
-  root.style.setProperty('--content-width', config.mode === 'fluid' ? 'none' : `${config.width}px`);
+  root.dataset.widescreen = String(config.percent);
+  root.style.setProperty('--content-width', `${config.percent}%`);
 }
 
 // Initial application on script evaluation
@@ -62,9 +66,10 @@ if (typeof window !== 'undefined') {
 }
 
 export function setWidescreen(next: WidescreenConfig): void {
-  const mode: WidescreenMode = next.mode === 'fluid' ? 'fluid' : 'fixed';
-  const width = clampWidth(next.width);
-  const sanitized: WidescreenConfig = { mode, width };
+  const sanitized: WidescreenConfig = {
+    percent: clampPercent(next.percent),
+    custom: Boolean(next.custom),
+  };
   current = sanitized;
   try {
     if (typeof localStorage !== 'undefined') {

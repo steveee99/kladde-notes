@@ -1,16 +1,17 @@
 import { useSyncExternalStore } from 'react';
 
-export type MaterialSidebarMode = 'overlay' | 'sticky';
+export type MaterialSidebarMode = 'rail' | 'sticky';
 
 const KEY = 'kladde_material_sidebar';
 const listeners = new Set<() => void>();
 
 export function getMaterialSidebarMode(): MaterialSidebarMode {
   try {
-    if (typeof localStorage === 'undefined') return 'overlay';
-    return localStorage.getItem(KEY) === 'sticky' ? 'sticky' : 'overlay';
+    if (typeof localStorage === 'undefined') return 'rail';
+    // Migrate legacy 'overlay' directly to compact 'rail'
+    return localStorage.getItem(KEY) === 'sticky' ? 'sticky' : 'rail';
   } catch {
-    return 'overlay';
+    return 'rail';
   }
 }
 
@@ -26,7 +27,7 @@ if (typeof window !== 'undefined') {
 }
 
 export function setMaterialSidebarMode(mode: MaterialSidebarMode): void {
-  const next: MaterialSidebarMode = mode === 'sticky' ? 'sticky' : 'overlay';
+  const next: MaterialSidebarMode = mode === 'sticky' ? 'sticky' : 'rail';
   if (current === next) return;
   current = next;
   try {
@@ -35,6 +36,10 @@ export function setMaterialSidebarMode(mode: MaterialSidebarMode): void {
     // private mode / storage blocked
   }
   listeners.forEach((l) => l());
+}
+
+export function toggleMaterialSidebarMode(): void {
+  setMaterialSidebarMode(current === 'sticky' ? 'rail' : 'sticky');
 }
 
 function subscribe(l: () => void) {

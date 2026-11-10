@@ -1,32 +1,50 @@
-import { Archive, ArchiveRestore, CheckCircle2, Hash, Lightbulb, Unlink } from 'lucide-react';
-import { PROJECT_STATUSES, ZETTEL_TYPES, extractMeta, restoreTarget, roleOfPath, splitPath } from '@kladde/shared';
+import { Archive, ArchiveRestore, Briefcase, CheckCircle2, Hash, Library, Lightbulb, Target, Unlink } from 'lucide-react';
+import { PARA, PROJECT_STATUSES, ZETTEL_TYPES, extractMeta, restoreTarget, roleOfPath, splitPath } from '@kladde/shared';
 import { vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
-import { SortActions } from './Inbox';
 import { ChipSelect } from './ChipSelect';
+import { folderDisplayName, projectStatusLabel, t, useLang, zettelTypeLabel } from '../lib/i18n';
 
 const STATUS_TONE: Record<string, string> = { aktiv: 'text-ok', pausiert: 'text-warn', fertig: 'text-faint' };
 
-/** Context actions by PARA role: project status, archive/restore, Zettel type, inbox filing */
+/** Context actions by PARA role inside an open note: inbox quick-file, project status, archive/restore, Zettel type */
 export function ParaBar({ note }: { note: LocalNote }) {
+  const lang = useLang();
   if (note.access !== 'owner') return null;
   const role = roleOfPath(note.path);
   const meta = extractMeta(note.path, note.content);
   const folder = splitPath(note.path).folder;
   const archived = restoreTarget(folder) !== null;
+  const restoreDest = restoreTarget(folder);
 
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2 text-sm anim-fade-in">
       {role === 'inbox' && (
         <>
-          <span className="text-xs font-semibold uppercase tracking-wider text-faint">Einsortieren</span>
-          <SortActions note={note} compact />
+          <span className="text-xs font-semibold uppercase tracking-wider text-faint">{t('para.sortLabel')}</span>
+          <div className="edit-only flex flex-wrap items-center gap-1.5">
+            <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.moveNote(note.id, PARA.projects)}>
+              <Briefcase size={13} /> {t('para.projectBadge')}
+            </button>
+            <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.moveNote(note.id, PARA.areas)}>
+              <Target size={13} /> {folderDisplayName(PARA.areas, lang).replace(/^\d+\s+/, '')}
+            </button>
+            <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.moveNote(note.id, PARA.resources)}>
+              <Library size={13} /> {folderDisplayName(PARA.resources, lang).replace(/^\d+\s+/, '')}
+            </button>
+            <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.toZettel(note.id)}>
+              <Lightbulb size={13} /> {t('para.zettelBtn')}
+            </button>
+            <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.archiveNote(note.id)}>
+              <Archive size={13} /> {t('para.archiveBtn')}
+            </button>
+          </div>
         </>
       )}
 
       {role === 'projects' && (
         <>
-          <span className="chip">Projekt</span>
+          <span className="chip">{t('para.projectBadge')}</span>
           <ChipSelect
             className={STATUS_TONE[meta.frontmatter.status ?? 'aktiv'] ?? ''}
             value={meta.frontmatter.status ?? 'aktiv'}
@@ -34,13 +52,13 @@ export function ParaBar({ note }: { note: LocalNote }) {
           >
             {PROJECT_STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {projectStatusLabel(s, lang)}
               </option>
             ))}
           </ChipSelect>
-          {meta.frontmatter.frist && <span className="chip">Frist {meta.frontmatter.frist}</span>}
-          <button className="btn-ghost ml-auto py-1 text-ok" onClick={() => confirm('Projekt abschließen und ins Archiv verschieben?') && void vault.archiveNote(note.id, true)}>
-            <CheckCircle2 size={15} /> Abschließen
+          {meta.frontmatter.frist && <span className="chip">{t('para.deadlineBadge', { date: meta.frontmatter.frist })}</span>}
+          <button className="btn-ghost ml-auto py-1 text-ok" onClick={() => confirm(t('para.finishConfirm')) && void vault.archiveNote(note.id, true)}>
+            <CheckCircle2 size={15} /> {t('para.finishBtn')}
           </button>
         </>
       )}
@@ -48,10 +66,10 @@ export function ParaBar({ note }: { note: LocalNote }) {
       {role === 'zettel' && (
         <>
           <span className="chip">
-            <Lightbulb size={12} /> Zettel
+            <Lightbulb size={12} /> {t('para.zettelBtn')}
           </span>
           {meta.frontmatter.id && (
-            <span className="chip font-mono" title="Feste ID – [[ID]] verlinkt diesen Zettel unabhängig vom Titel">
+            <span className="chip font-mono" title={t('para.zettelIdTitle')}>
               <Hash size={11} />
               {meta.frontmatter.id}
             </span>
@@ -60,16 +78,16 @@ export function ParaBar({ note }: { note: LocalNote }) {
             value={meta.frontmatter.typ ?? ''}
             onChange={(e) => void vault.setFrontmatter(note.id, { typ: e.target.value || null })}
           >
-            <option value="">Typ …</option>
-            {ZETTEL_TYPES.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
+            <option value="">{t('para.typePlaceholder')}</option>
+            {ZETTEL_TYPES.map((zt) => (
+              <option key={zt.id} value={zt.id}>
+                {zettelTypeLabel(zt.id, lang).label}
               </option>
             ))}
           </ChipSelect>
           {vault.links().isOrphan(note.id) && (
-            <span className="chip text-warn" title="Ein Zettel entfaltet seinen Wert erst durch Verbindungen">
-              <Unlink size={12} /> noch nicht verbunden
+            <span className="chip text-warn" title={t('para.zettelOrphanTitle')}>
+              <Unlink size={12} /> {t('para.zettelOrphanBadge')}
             </span>
           )}
         </>
@@ -77,13 +95,13 @@ export function ParaBar({ note }: { note: LocalNote }) {
 
       {archived ? (
         <button className="btn-ghost ml-auto py-1" onClick={() => void vault.restoreNote(note.id)}>
-          <ArchiveRestore size={15} /> Wiederherstellen nach {restoreTarget(folder) || 'oben'}
+          <ArchiveRestore size={15} /> {t('para.restoreToBtn', { folder: restoreDest ? folderDisplayName(restoreDest, lang) : t('common.topLevelPlain') })}
         </button>
       ) : (
         role !== 'inbox' &&
         role !== 'projects' && (
-          <button className="btn-ghost ml-auto py-1 text-faint" onClick={() => void vault.archiveNote(note.id)} title="Ins Archiv verschieben">
-            <Archive size={15} /> Archivieren
+          <button className="btn-ghost ml-auto py-1 text-faint" onClick={() => void vault.archiveNote(note.id)} title={t('para.finishTitle')}>
+            <Archive size={15} /> {t('para.archiveBtn')}
           </button>
         )
       )}

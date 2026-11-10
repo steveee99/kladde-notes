@@ -30,6 +30,7 @@ import {
   setTaskMeta,
 } from '@kladde/shared';
 import { api, ApiError } from '../lib/api';
+import { getLang, locale, t } from '../lib/i18n';
 import { isReadOnly } from '../lib/readOnly';
 import { LocalDb, LocalNote, openLocalDb } from './db';
 import { welcomeNotes } from './welcome';
@@ -167,7 +168,7 @@ class Vault {
       const parts = folder.split('/').filter(Boolean);
       for (let i = 1; i <= parts.length; i++) set.add(parts.slice(0, i).join('/'));
     }
-    return [...set].sort((a, b) => a.localeCompare(b, 'de', { numeric: true }));
+    return [...set].sort((a, b) => a.localeCompare(b, locale(getLang()), { numeric: true }));
   }
 
   private indexCache: { version: number; index: LinkIndex } | null = null;
@@ -203,14 +204,14 @@ class Vault {
 
   /** A note the user creates; blocked in read-only mode */
   async create(folder: string, title: string, content = ''): Promise<LocalNote> {
-    if (isReadOnly()) throw new Error('Der Lesemodus ist aktiv.');
+    if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
     return this.insert(folder, title, content);
   }
 
   /** A note in a folder another user shares with this user: it belongs to them and lives in their space */
   async createShared(shared: SharedFolder, title: string, content = ''): Promise<LocalNote> {
-    if (isReadOnly()) throw new Error('Der Lesemodus ist aktiv.');
-    if (!shared.canCreate) throw new Error('Hier darfst du keine Notizen anlegen.');
+    if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    if (!shared.canCreate) throw new Error(t('vault.sharedNoCreate'));
     const now = Date.now();
     const note: LocalNote = {
       id: newId(),
@@ -340,7 +341,7 @@ class Vault {
   async createZettel(title: string, type: ZettelType, source: string): Promise<LocalNote> {
     const zid = zettelId();
     const fm = setFrontmatter('', { id: zid, typ: type, ...(type === 'literatur' ? { quelle: source } : {}) });
-    const body = type === 'literatur' ? `# ${title}\n\n> Quelle: ${source}\n\n## In eigenen Worten\n\n` : `# ${title}\n\n`;
+    const body = type === 'literatur' ? `# ${title}\n\n> ${t('vault.sourceLabel')}: ${source}\n\n## ${t('vault.inOwnWords')}\n\n` : `# ${title}\n\n`;
     return this.create(PARA.zettel, `${zid} ${title}`.trim(), fm + body);
   }
 
@@ -513,13 +514,13 @@ class Vault {
   async capture(text: string, asTask: boolean): Promise<LocalNote | undefined> {
     if (!asTask) {
       const firstLine = text.split('\n')[0];
-      const title = excerpt(firstLine, 50).replace(/[\\/:#[\]|]/g, ' ').trim() || 'Gedanke';
+      const title = excerpt(firstLine, 50).replace(/[\\/:#[\]|]/g, ' ').trim() || t('home.welcomeDefaultNoteName');
       return this.create(PARA.inbox, title, text.includes('\n') || text.length > 50 ? `${text}\n` : '');
     }
     const line = `- [ ] ${text}`;
     const inbox = this.list().find((n) => n.path === joinPath(DEFAULT_FOLDERS[0], 'Eingang'));
     if (inbox) await this.update(inbox.id, { content: `${inbox.content.replace(/\n*$/, '')}\n${line}\n` });
-    else return this.create(DEFAULT_FOLDERS[0], 'Eingang', `# Eingang\n\n${line}\n`);
+    else return this.create(DEFAULT_FOLDERS[0], 'Eingang', `# ${t('home.inboxTaskHeading')}\n\n${line}\n`);
     return inbox;
   }
 
@@ -532,6 +533,10 @@ class Vault {
   }
 
   sync(): Promise<void> {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
     if (this.syncing) {
       this.again = true;
       return this.syncing;
@@ -564,7 +569,7 @@ class Vault {
       this.setState('idle');
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        this.setState('error', 'Abgemeldet');
+        this.setState('error', t('common.signedOutError'));
         this.onUnauthorized();
       } else if (err instanceof ApiError) this.setState('error', err.message);
       else this.setState('offline');
@@ -580,7 +585,7 @@ class Vault {
   /** First start of a new space: PARA folders, Zettelkasten and a welcome note */
   private async seed() {
     await this.setFolders([...this.storedFolders(), ...DEFAULT_FOLDERS]);
-    for (const w of welcomeNotes()) await this.insert(w.folder, w.title, w.content);
+    for (const w of welcomeNotes(getLang())) await this.insert(w.folder, w.title, w.content);
   }
 
   private async push() {
@@ -671,8 +676,8 @@ class Vault {
     await this.accept(server);
     if (local.deleted || local.content === server.content) return;
     const { folder, name } = splitPath(server.deleted ? local.path : server.path);
-    const stamp = new Date().toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }).replace(/[/:]/g, '-');
-    await this.insert(server.access === 'owner' ? folder : DEFAULT_FOLDERS[0], `${name} (Konflikt ${stamp})`, local.content);
+    const stamp = new Date().toLocaleString(locale(getLang()), { dateStyle: 'short', timeStyle: 'short' }).replace(/[/:]/g, '-');
+    await this.insert(server.access === 'owner' ? folder : DEFAULT_FOLDERS[0], t('vault.conflictCopy', { name, stamp }), local.content);
   }
 }
 

@@ -2,7 +2,8 @@ import { EditorState, Extension, Facet, Range, StateEffect, StateField } from '@
 import { Decoration, DecorationSet, EditorView } from '@codemirror/view';
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
-import { escapeRegExp } from '@kladde/shared';
+import { escapeRegExp, extractHeadings, TOC_ANCHOR_RE, type NoteHeading } from '@kladde/shared';
+import { getLang } from '../lib/i18n';
 import {
   AutoLinkWidget,
   CheckboxWidget,
@@ -18,13 +19,14 @@ import {
   QueryWidget,
   SimpleWidget,
   TableWidget,
+  TocWidget,
   WikiWidget,
 } from './widgets';
 import { editorHost } from './host';
 
 /**
  * Obsidian-style live preview: Markdown syntax is hidden and rendered everywhere except in the
- * lines the cursor is in. Tables, ```query, ```gallery, ```mermaid and ```mindmap blocks become interactive widgets.
+ * lines the cursor is in. Tables, ##TOC##, ```query, ```gallery, ```mermaid and ```mindmap blocks become interactive widgets.
  * Block widgets must come from a StateField (not a view plugin), so all decorations are built here.
  */
 
@@ -32,7 +34,7 @@ import { editorHost } from './host';
 export const previewAll = Facet.define<boolean, boolean>({ combine: (v) => v.some(Boolean) });
 /** Current note id so notes don't autolink to themselves */
 export const noteIdFacet = Facet.define<string, string>({ combine: (v) => v[0] ?? '' });
-/** Re-render widgets that depend on other notes (queries, link targets) */
+/** Re-render widgets that depend on other notes (queries, link targets, language) */
 export const refreshEffect = StateEffect.define<number>();
 const focusEffect = StateEffect.define<boolean>();
 
@@ -85,6 +87,7 @@ function build(state: EditorState): DecorationSet {
   const tree = ensureSyntaxTree(state, doc.length, 300) ?? syntaxTree(state);
   const all = state.facet(previewAll) || !state.field(focusField);
   const stamp = state.field(stampField);
+  const lang = getLang();
   const active = new Set<number>();
   if (!all) {
     for (const r of state.selection.ranges) {
@@ -125,7 +128,7 @@ function build(state: EditorState): DecorationSet {
       if (doc.line(l).text === '---') {
         fmEnd = doc.line(l).to;
         if (isActive(0, fmEnd)) lineClass(0, fmEnd, 'cm-frontmatter');
-        else replace(0, fmEnd, Decoration.replace({ widget: new PropertiesWidget(doc.sliceString(doc.line(2).from, doc.line(l - 1).to)), block: true }));
+        else replace(0, fmEnd, Decoration.replace({ widget: new PropertiesWidget(doc.sliceString(doc.line(2).from, doc.line(l - 1).to), lang), block: true }));
         break;
       }
     }
@@ -194,7 +197,7 @@ function build(state: EditorState): DecorationSet {
           const marks = node.getChildren('LinkMark');
           if (!url || isActive(node.from, node.to)) return false;
           const alt = marks.length >= 2 ? doc.sliceString(marks[0].to, marks[1].from) : '';
-          replace(node.from, node.to, Decoration.replace({ widget: new ImageWidget(doc.sliceString(url.from, url.to), alt) }));
+          replace(node.from, node.to, Decoration.replace({ widget: new ImageWidget(doc.sliceString(url.from, url.to), alt, lang) }));
           return false;
         }
         case 'Blockquote':
@@ -228,25 +231,25 @@ function build(state: EditorState): DecorationSet {
         }
         case 'Table':
           if (!isActive(node.from, node.to)) {
-            blockWidget(node, Decoration.replace({ widget: new TableWidget(text()), block: true }));
+            blockWidget(node, Decoration.replace({ widget: new TableWidget(text(), lang), block: true }));
             return false;
           }
           return;
         case 'FencedCode': {
           const info = node.getChild('CodeInfo');
-          const lang = info ? doc.sliceString(info.from, info.to).trim().toLowerCase() : '';
+          const langInfo = info ? doc.sliceString(info.from, info.to).trim().toLowerCase() : '';
           const firstLine = doc.lineAt(node.from);
           const lastLine = doc.lineAt(node.to);
           const body = firstLine.number < lastLine.number ? doc.sliceString(firstLine.to + 1, lastLine.number > firstLine.number + 1 ? doc.line(lastLine.number - 1).to : firstLine.to + 1) : '';
           for (let l = firstLine.number; l <= lastLine.number; l++) codeLines.add(l);
           const editing = isActive(node.from, node.to);
-          if (!editing && (lang === 'query' || lang === 'gallery')) {
-            const widget = lang === 'query' ? new QueryWidget(body, stamp, state.readOnly) : new GalleryWidget(body);
+          if (!editing && (langInfo === 'query' || langInfo === 'gallery')) {
+            const widget = langInfo === 'query' ? new QueryWidget(body, stamp, state.readOnly, lang) : new GalleryWidget(body, lang);
             blockWidget(node, Decoration.replace({ widget, block: true }));
             return false;
           }
-          if (!editing && (lang === 'mermaid' || lang === 'mindmap')) {
-            blockWidget(node, Decoration.replace({ widget: new DiagramWidget(lang, body), block: true }));
+          if (!editing && (langInfo === 'mermaid' || langInfo === 'mindmap')) {
+            blockWidget(node, Decoration.replace({ widget: new DiagramWidget(langInfo, body, lang), block: true }));
             return false;
           }
           for (let l = firstLine.number; l <= lastLine.number; l++) {
@@ -254,7 +257,7 @@ function build(state: EditorState): DecorationSet {
             decos.push(line(cls).range(doc.line(l).from));
           }
           if (!editing) {
-            replace(firstLine.from, firstLine.to, Decoration.replace({ widget: new CodeHeaderWidget(lang, body) }));
+            replace(firstLine.from, firstLine.to, Decoration.replace({ widget: new CodeHeaderWidget(langInfo, body, lang) }));
             const closing = /^\s*(```|~~~)\s*$/.test(lastLine.text) && lastLine.number > firstLine.number;
             if (closing) replace(lastLine.from, lastLine.to);
           }
@@ -277,11 +280,21 @@ function build(state: EditorState): DecorationSet {
   for (const label of defs.keys()) if (!order.includes(label)) order.push(label);
   const numberOf = (label: string) => order.indexOf(label) + 1;
 
-  // Things the Markdown parser does not know: [[wikilinks]], #tags, due dates and repeat rules
+  // Lazy TOC extraction only when a ##TOC## / [[TOC]] anchor exists on a non-code line
+  let tocHeadings: NoteHeading[] | null = null;
+
+  // Things the Markdown parser does not know: ##TOC##, [[wikilinks]], #tags, due dates and repeat rules
   for (let l = 1; l <= doc.lines; l++) {
     if (codeLines.has(l) || doc.line(l).to <= fmEnd) continue;
     const ln = doc.line(l);
     const lineActive = !all && active.has(l);
+
+    if (!lineActive && TOC_ANCHOR_RE.test(ln.text)) {
+      tocHeadings ??= extractHeadings(doc.toString());
+      replace(ln.from, ln.to, Decoration.replace({ widget: new TocWidget(ln.text, tocHeadings, lang), block: true }));
+      continue;
+    }
+
     for (const m of ln.text.matchAll(/\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g)) {
       const from = ln.from + m.index!;
       const to = from + m[0].length;
@@ -299,7 +312,7 @@ function build(state: EditorState): DecorationSet {
       const to = from + m[0].length;
       protectedRanges.push([from, to]);
       if (lineActive) decos.push(mark('cm-wikilink').range(from, to));
-      else replace(from, to, Decoration.replace({ widget: new FootnoteRefWidget(m[1], numberOf(m[1]), defs.get(m[1])?.text ?? '', defs.get(m[1])?.pos ?? null) }));
+      else replace(from, to, Decoration.replace({ widget: new FootnoteRefWidget(m[1], numberOf(m[1]), defs.get(m[1])?.text ?? '', defs.get(m[1])?.pos ?? null, lang) }));
     }
     for (const m of ln.text.matchAll(/(^|\s)(#[\p{L}\p{N}_/-]*[\p{L}_/-][\p{L}\p{N}_/-]*)/gu)) {
       const from = ln.from + m.index! + m[1].length;
@@ -309,11 +322,11 @@ function build(state: EditorState): DecorationSet {
     if (!lineActive && /^\s*[-*+]\s+\[[ xX]\]/.test(ln.text)) {
       for (const m of ln.text.matchAll(/(?:📅\s*|\bdue:)(\d{4}-\d{2}-\d{2})/g)) {
         const from = ln.from + m.index!;
-        replace(from, from + m[0].length, Decoration.replace({ widget: new DueWidget(m[1], 'due') }));
+        replace(from, from + m[0].length, Decoration.replace({ widget: new DueWidget(m[1], 'due', lang) }));
       }
       for (const m of ln.text.matchAll(/(?:🔁\s*|\bevery:)((?:\d+\s*)?[\p{L},]+)/gu)) {
         const from = ln.from + m.index!;
-        replace(from, from + m[0].length, Decoration.replace({ widget: new DueWidget(m[1], 'repeat') }));
+        replace(from, from + m[0].length, Decoration.replace({ widget: new DueWidget(m[1], 'repeat', lang) }));
       }
       for (const m of ln.text.matchAll(/\s*✅\s*\d{4}-\d{2}-\d{2}/g)) {
         const from = ln.from + m.index!;
@@ -334,7 +347,7 @@ function build(state: EditorState): DecorationSet {
         if (lineActive) {
           decos.push(mark('cm-autolink').range(from, to));
         } else {
-          replace(from, to, Decoration.replace({ widget: new AutoLinkWidget(target, original, from, to) }));
+          replace(from, to, Decoration.replace({ widget: new AutoLinkWidget(target, original, from, to, lang) }));
         }
       }
     }

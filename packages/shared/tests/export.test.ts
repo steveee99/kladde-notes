@@ -76,4 +76,55 @@ describe('note export parser', () => {
       expect(code.code).toBe('graph TD; A-->B;');
     }
   });
+
+  it('extracts headings skipping frontmatter and code fences and emits toc blocks for ##TOC##', async () => {
+    const { extractHeadings } = await import('../src/markdown');
+    const note = [
+      '---',
+      'title: Architektur',
+      '# not a heading: true',
+      '---',
+      '',
+      'Einleitung direkt davor',
+      '##TOC##',
+      'Text direkt danach',
+      '',
+      '# Überblick',
+      '```md',
+      '# Ignoriert im Codeblock',
+      '```',
+      '## **Details** & [[Verlinkung|Link]] `code`',
+      '### Unterpunkt',
+    ].join('\n');
+
+    const headings = extractHeadings(note);
+    expect(headings.map((h) => ({ level: h.level, text: h.text, line: h.line }))).toEqual([
+      { level: 1, text: 'Überblick', line: 10 },
+      { level: 2, text: 'Details & Link code', line: 14 },
+      { level: 3, text: 'Unterpunkt', line: 15 },
+    ]);
+    // Verify character offsets match start of heading lines in original string
+    expect(note.slice(headings[0].from).startsWith('# Überblick')).toBe(true);
+    expect(note.slice(headings[1].from).startsWith('## **Details**')).toBe(true);
+
+    const doc = parseMarkdownForExport('Architektur', note);
+    expect(doc.blocks.map((b) => b.type)).toEqual([
+      'paragraph',
+      'toc',
+      'paragraph',
+      'heading',
+      'code',
+      'heading',
+      'heading',
+    ]);
+    const tocBlock = doc.blocks[1];
+    if (tocBlock.type === 'toc') {
+      expect(tocBlock.items).toEqual([
+        { level: 1, text: 'Überblick' },
+        { level: 2, text: 'Details & Link code' },
+        { level: 3, text: 'Unterpunkt' },
+      ]);
+    }
+  });
 });
+

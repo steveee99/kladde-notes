@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Bot, Check, PenLine, X } from 'lucide-react';
 import type { Me, OAuthRequestInfo } from '@kladde/shared';
 import { api } from '../lib/api';
+import { tl, useLang } from '../lib/i18n';
 import { Frame } from './Auth';
 
 /**
@@ -9,6 +10,7 @@ import { Frame } from './Auth';
  * The server checks the request; on yes it hands out a one-time code and we go back to the app.
  */
 export function OAuthConsent({ me }: { me: Me }) {
+  const lang = useLang();
   const [info, setInfo] = useState<OAuthRequestInfo | null>(null);
   const [error, setError] = useState('');
   const [allowWrite, setAllowWrite] = useState(true);
@@ -38,7 +40,7 @@ export function OAuthConsent({ me }: { me: Me }) {
 
   if (error) {
     return (
-      <Frame title="Verbindung nicht möglich" subtitle="Die Anfrage der App ist ungültig.">
+      <Frame title={tl(lang, 'oauth.errorTitle')} subtitle={tl(lang, 'oauth.errorSubtitle')}>
         <p className="text-sm text-danger">{error}</p>
       </Frame>
     );
@@ -46,36 +48,33 @@ export function OAuthConsent({ me }: { me: Me }) {
   if (!info) return <div className="flex h-full items-center justify-center text-faint">…</div>;
 
   return (
-    <Frame title={`${info.clientName} verbinden?`} subtitle={`Angemeldet als ${me.username}`}>
+    <Frame title={tl(lang, 'oauth.connectTitle', { client: info.clientName })} subtitle={tl(lang, 'oauth.signedInAs', { username: me.username })}>
       <div className="mb-5 space-y-3 text-sm">
         <div className="flex gap-3">
           <Bot size={18} className="mt-0.5 shrink-0 text-accent" />
           <p>
-            <b>{info.clientName}</b> möchte über MCP auf <b>deine eigenen Notizen</b> zugreifen: lesen, durchsuchen und Aufgaben auflisten. Freigaben anderer
-            Personen und deine Einstellungen bleiben außen vor.
+            <b>{info.clientName}</b> {tl(lang, 'oauth.accessPrefix')} <b>{tl(lang, 'oauth.accessTarget')}</b> {tl(lang, 'oauth.accessSuffix')}
           </p>
         </div>
         {info.wantsWrite && (
-          <label className="flex cursor-pointer gap-3 rounded-lg border border-line p-3">
-            <input type="checkbox" className="mt-0.5" checked={allowWrite} onChange={(e) => setAllowWrite(e.target.checked)} />
+          <label className="flex cursor-pointer gap-3 rounded-2xl border border-line p-3">
+            <input type="checkbox" className="mt-0.5 accent-accent" checked={allowWrite} onChange={(e) => setAllowWrite(e.target.checked)} />
             <span>
               <span className="flex items-center gap-1.5 font-medium">
-                <PenLine size={14} /> Auch schreiben erlauben
+                <PenLine size={14} /> {tl(lang, 'oauth.allowWriteTitle')}
               </span>
-              <span className="text-muted">Notizen anlegen, ändern, ergänzen und Aufgaben abhaken. Löschen und Umbenennen geht nicht.</span>
+              <span className="text-muted">{tl(lang, 'oauth.allowWriteDesc')}</span>
             </span>
           </label>
         )}
-        <p className="text-xs text-faint">
-          Danach geht es zurück zu {info.redirectHost}. Die Verbindung entfernst du jederzeit unter Einstellungen → KI-Assistenten.
-        </p>
+        <p className="text-xs text-faint">{tl(lang, 'oauth.redirectHint', { host: info.redirectHost })}</p>
       </div>
       <div className="flex gap-2">
-        <button className="btn-ghost flex-1 border border-line" disabled={busy} onClick={() => answer(false)}>
-          <X size={16} /> Ablehnen
+        <button className="btn-ghost flex-1 rounded-full border border-line" disabled={busy} onClick={() => answer(false)}>
+          <X size={16} /> {tl(lang, 'oauth.deny')}
         </button>
-        <button className="btn-primary flex-1" disabled={busy} onClick={() => answer(true)}>
-          <Check size={16} /> Erlauben
+        <button className="btn-primary flex-1 rounded-full" disabled={busy} onClick={() => answer(true)}>
+          <Check size={16} /> {tl(lang, 'oauth.allow')}
         </button>
       </div>
     </Frame>

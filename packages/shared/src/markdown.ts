@@ -95,3 +95,88 @@ export function mapOutsideCode(content: string, fn: (text: string) => string): s
     .map((part, i) => (i % 2 ? part : fn(part)))
     .join('');
 }
+
+export interface NoteHeading {
+  level: 1 | 2 | 3 | 4 | 5 | 6;
+  text: string;
+  /** 1-based line number */
+  line: number;
+  /** 0-based character offset of the line start in `content` */
+  from: number;
+}
+
+/** Standalone anchor line (`##TOC##` or `[[TOC]]`) that inserts an automatic table of contents */
+export const TOC_ANCHOR_RE = /^\s*(?:##TOC##|\[\[TOC\]\])\s*$/i;
+
+export function cleanHeadingText(raw: string): string {
+  return raw
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g, (_, target: string, alias?: string) => (alias ?? target).trim())
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/(\*\*|__|~~|\*|_)/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Extracts ATX headings (# .. ######) outside frontmatter and fenced code blocks */
+export function extractHeadings(content: string): NoteHeading[] {
+  const lines = content.split('\n');
+  let i = 0;
+  let offset = 0;
+
+  if (lines.length > 1 && lines[0].replace(/\r$/, '') === '---') {
+    let fmOffset = lines[0].length + 1;
+    for (let j = 1; j < lines.length; j++) {
+      if (lines[j].replace(/\r$/, '') === '---') {
+        offset = fmOffset + lines[j].length + 1;
+        i = j + 1;
+        break;
+      }
+      fmOffset += lines[j].length + 1;
+    }
+  }
+
+  const out: NoteHeading[] = [];
+  let inFence = false;
+  let fenceChar = '';
+  let fenceLen = 0;
+
+  for (; i < lines.length; i++) {
+    const raw = lines[i];
+    const lineText = raw.replace(/\r$/, '');
+    const fenceMatch = /^\s*(`{3,}|~{3,})/.exec(lineText);
+    if (fenceMatch) {
+      const ch = fenceMatch[1][0];
+      const len = fenceMatch[1].length;
+      if (!inFence) {
+        inFence = true;
+        fenceChar = ch;
+        fenceLen = len;
+      } else if (ch === fenceChar && len >= fenceLen && /^\s*(`{3,}|~{3,})\s*$/.test(lineText)) {
+        inFence = false;
+      }
+      offset += raw.length + 1;
+      continue;
+    }
+
+    if (!inFence) {
+      const m = /^\s{0,3}(#{1,6})\s+(.+?)(?:\s+#+\s*)?$/.exec(lineText);
+      if (m) {
+        const text = cleanHeadingText(m[2]);
+        if (text) {
+          out.push({
+            level: m[1].length as 1 | 2 | 3 | 4 | 5 | 6,
+            text,
+            line: i + 1,
+            from: offset,
+          });
+        }
+      }
+    }
+    offset += raw.length + 1;
+  }
+
+  return out;
+}
+

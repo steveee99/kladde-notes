@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de">
+<html lang="de" data-theme="material">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
@@ -8,32 +8,34 @@
     <!--
       Opaque status bar on purpose: since iOS 26.1 a home-screen app with "black-translucent" gets a
       blur over the status bar and a viewport that ends short by the bar's height (WebKit bug 301108),
-      so the header sat half under the bar and the bottom nav floated above an empty strip.
+      so the header sat half under the bar and the bottom bar floated above an empty strip.
       iOS keeps the style an app was installed with: remove and re-add the app after changing it.
     -->
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Kladde" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F7F6F3" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0E0E10" />
+    <meta name="theme-color" content="#0E0E10" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="robots" content="noindex, nofollow" />
     <meta name="referrer" content="no-referrer" />
     <title>Kladde</title>
     <script>
-      // Theme and layout width before first paint, so there is no flash
+      // Language, Material 3 theme, and content width percentage before first paint
       try {
-        var t = localStorage.getItem('kladde_theme') || 'system';
-        if (t === 'dark' || t === 'oled') t = 'material';
-        if (t === 'system') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'material' : 'light';
-        document.documentElement.dataset.theme = t;
+        var lang = localStorage.getItem('kladde_lang');
+        if (lang === 'en' || lang === 'de') document.documentElement.lang = lang;
       } catch (e) {}
+      document.documentElement.dataset.theme = 'material';
       try {
         var w = localStorage.getItem('kladde_widescreen');
         var cfg = w ? JSON.parse(w) : null;
-        var mode = (cfg && (cfg.mode === 'fluid' || cfg.mode === 'fixed')) ? cfg.mode : 'fixed';
-        var width = (cfg && typeof cfg.width === 'number' && cfg.width >= 480 && cfg.width <= 3840) ? Math.round(cfg.width) : 1200;
-        document.documentElement.dataset.widescreen = mode;
-        document.documentElement.style.setProperty('--content-width', mode === 'fluid' ? 'none' : width + 'px');
+        var pct = 80;
+        if (cfg && typeof cfg.percent === 'number' && cfg.percent >= 35 && cfg.percent <= 100) {
+          pct = Math.round(cfg.percent);
+        } else if (cfg && cfg.mode === 'fluid') {
+          pct = 100;
+        }
+        document.documentElement.dataset.widescreen = String(pct);
+        document.documentElement.style.setProperty('--content-width', pct + '%');
       } catch (e) {}
     </script>
   </head>

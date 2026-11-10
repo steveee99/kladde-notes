@@ -1,4 +1,4 @@
-import { parseFrontmatter } from './markdown.js';
+import { extractHeadings, parseFrontmatter, TOC_ANCHOR_RE } from './markdown.js';
 
 export type TableAlign = 'left' | 'center' | 'right' | null;
 
@@ -28,6 +28,7 @@ export type ExportBlock =
   | { type: 'table'; headers: ExportInline[][]; align: TableAlign[]; rows: ExportInline[][][] }
   | { type: 'image'; alt: string; url: string }
   | { type: 'hr' }
+  | { type: 'toc'; items: { level: 1 | 2 | 3 | 4 | 5 | 6; text: string }[] }
   | { type: 'footnote'; id: string; inlines: ExportInline[] };
 
 export interface ExportDocument {
@@ -48,14 +49,14 @@ export function stripFrontmatter(content: string): string {
 }
 
 /** Sanitizes a note title for use as a downloadable file name */
-export function safeExportFilename(title: string, ext: string): string {
-  const base = (title || 'Notiz')
+export function safeExportFilename(title: string, ext: string, fallback = 'Notiz'): string {
+  const base = (title || fallback)
     .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '-')
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/^\.+|\.+$/g, '');
   const cleanExt = ext.replace(/^\./, '');
-  return `${base || 'Notiz'}.${cleanExt}`;
+  return `${base || fallback}.${cleanExt}`;
 }
 
 /** Parses inline Markdown formatting (code, bold, italic, strike, links, wikilinks, footnote refs) */
@@ -152,6 +153,7 @@ function parseTableAlignRow(line: string): TableAlign[] | null {
 /** Parses Markdown without frontmatter into structured blocks for Word/PDF export */
 export function parseMarkdownForExport(title: string, content: string): ExportDocument {
   const body = stripFrontmatter(content);
+  const headings = extractHeadings(body).map((h) => ({ level: h.level, text: h.text }));
   const lines = body.split('\n');
   const blocks: ExportBlock[] = [];
 
@@ -192,6 +194,13 @@ export function parseMarkdownForExport(title: string, content: string): ExportDo
       } else {
         blocks.push({ type: 'code', lang, code });
       }
+      continue;
+    }
+
+    // Table of contents anchor (##TOC## / [[TOC]])
+    if (TOC_ANCHOR_RE.test(line)) {
+      blocks.push({ type: 'toc', items: headings });
+      i++;
       continue;
     }
 
@@ -287,6 +296,7 @@ export function parseMarkdownForExport(title: string, content: string): ExportDo
       if (
         !next.trim() ||
         /^\s*(`{3,}|~{3,})/.test(next) ||
+        TOC_ANCHOR_RE.test(next) ||
         /^\s{0,3}#{1,6}\s+/.test(next) ||
         /^\s*(?:[-*_]\s*){3,}$/.test(next) ||
         /^\s{0,3}>\s?/.test(next) ||

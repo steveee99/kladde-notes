@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom';
 import { Download, FileCode, FileSpreadsheet, FileText, Loader2, Printer } from 'lucide-react';
 import { safeExportFilename, stripFrontmatter } from '@kladde/shared';
+import { t, tl, useLang } from '../lib/i18n';
 
 interface ExportMenuProps {
   title: string;
@@ -9,6 +10,7 @@ interface ExportMenuProps {
 }
 
 export function ExportMenu({ title, content }: ExportMenuProps) {
+  const lang = useLang();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<'word' | 'pdf' | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -26,9 +28,7 @@ export function ExportMenu({ title, content }: ExportMenuProps) {
     const menuH = menuRef.current?.offsetHeight || 244;
     const left = Math.max(8, Math.min(rect.right - menuW, vw - menuW - 8));
     const fitsBelow = rect.bottom + gap + menuH <= vh - 8;
-    const top = fitsBelow || rect.top < menuH + gap + 8
-      ? Math.max(8, Math.min(rect.bottom + gap, vh - menuH - 8))
-      : rect.top - gap - menuH;
+    const top = fitsBelow || rect.top < menuH + gap + 8 ? Math.max(8, Math.min(rect.bottom + gap, vh - menuH - 8)) : rect.top - gap - menuH;
     setPos({ top, left });
   }, []);
 
@@ -89,7 +89,7 @@ export function ExportMenu({ title, content }: ExportMenuProps) {
       if (kind === 'word') await mod.exportNoteAsWord(title, content);
       else await mod.exportNoteAsPdf(title, content);
     } catch (err) {
-      alert(`Export fehlgeschlagen: ${(err as Error).message}`);
+      alert(t('export.failed', { error: (err as Error).message }));
     } finally {
       setBusy(null);
     }
@@ -101,7 +101,7 @@ export function ExportMenu({ title, content }: ExportMenuProps) {
         ref={triggerRef}
         type="button"
         className="btn-icon"
-        title="Exportieren"
+        title={tl(lang, 'export.title')}
         aria-haspopup="menu"
         aria-expanded={open}
         disabled={busy !== null}
@@ -117,7 +117,7 @@ export function ExportMenu({ title, content }: ExportMenuProps) {
             style={{ top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? 'visible' : 'hidden' }}
             className="no-print fixed z-50 w-56 rounded-2xl border border-line bg-surface p-1.5 shadow-soft anim-fade-in"
           >
-            <div className="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-faint">Export ohne Frontmatter</div>
+            <div className="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-faint">{tl(lang, 'export.headerNoFrontmatter')}</div>
             <button
               type="button"
               role="menuitem"
@@ -126,8 +126,8 @@ export function ExportMenu({ title, content }: ExportMenuProps) {
             >
               <FileCode size={16} className="shrink-0 text-accent" />
               <div className="min-w-0 flex-1">
-                <div className="font-medium">Markdown (.md)</div>
-                <div className="text-xs text-faint">Reiner Text</div>
+                <div className="font-medium">{tl(lang, 'export.mdTitle')}</div>
+                <div className="text-xs text-faint">{tl(lang, 'export.mdDesc')}</div>
               </div>
             </button>
             <button
@@ -138,8 +138,8 @@ export function ExportMenu({ title, content }: ExportMenuProps) {
             >
               <FileSpreadsheet size={16} className="shrink-0 text-accent" />
               <div className="min-w-0 flex-1">
-                <div className="font-medium">Word (.docx)</div>
-                <div className="text-xs text-faint">Formatiertes Dokument</div>
+                <div className="font-medium">{tl(lang, 'export.wordTitle')}</div>
+                <div className="text-xs text-faint">{tl(lang, 'export.wordDesc')}</div>
               </div>
             </button>
             <button
@@ -150,8 +150,8 @@ export function ExportMenu({ title, content }: ExportMenuProps) {
             >
               <FileText size={16} className="shrink-0 text-accent" />
               <div className="min-w-0 flex-1">
-                <div className="font-medium">PDF (.pdf)</div>
-                <div className="text-xs text-faint">Direkt herunterladen</div>
+                <div className="font-medium">{tl(lang, 'export.pdfTitle')}</div>
+                <div className="text-xs text-faint">{tl(lang, 'export.pdfDesc')}</div>
               </div>
             </button>
             <div className="my-1 border-t border-line" />
@@ -165,7 +165,7 @@ export function ExportMenu({ title, content }: ExportMenuProps) {
               }}
             >
               <Printer size={16} className="shrink-0" />
-              <span>Drucken …</span>
+              <span>{tl(lang, 'export.printAction')}</span>
             </button>
           </div>,
           document.body

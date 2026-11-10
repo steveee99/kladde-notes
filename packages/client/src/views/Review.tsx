@@ -1,6 +1,7 @@
 import { AlertTriangle, Briefcase, CalendarCheck, Check, Inbox, Lightbulb, Target, Unlink } from 'lucide-react';
 import { buildReview, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
+import { locale, tl, useLang } from '../lib/i18n';
 import { navigate } from '../lib/router';
 
 export const REVIEW_KEY = 'lastReview';
@@ -30,7 +31,7 @@ function NoteLinks({ ids }: { ids: string[] }) {
         const n = vault.get(id);
         return n ? (
           <li key={id}>
-            <button className="chip px-2.5 py-1 hover:text-accent" onClick={() => navigate(`/n/${id}`)}>
+            <button className="chip px-3 py-1 hover:text-accent" onClick={() => navigate(`/n/${id}`)}>
               {splitPath(n.path).name}
             </button>
           </li>
@@ -43,59 +44,63 @@ function NoteLinks({ ids }: { ids: string[] }) {
 /** Weekly review (GTD/PARA style): empty the inbox, give every project a next step, look after areas and Zettel */
 export function ReviewView() {
   useVault();
+  const lang = useLang();
+  const loc = locale(lang);
   const r = buildReview(vault.list().filter((n) => n.access === 'owner'));
   const last = vault.setting<number>(REVIEW_KEY);
   return (
-    <div className="content-container mx-auto space-y-4 px-4 py-6 sm:px-8 sm:py-10">
+    <div className="content-container space-y-4 px-4 py-6 sm:px-8 sm:py-10">
       <div className="anim-fade-up">
-        <h1 className="text-2xl font-bold tracking-tight">Wochenrückblick</h1>
-        <p className="mt-1 text-muted">{last ? `Zuletzt am ${new Date(last).toLocaleDateString('de-DE', { dateStyle: 'full' })}.` : 'Noch nie gemacht – ein guter Moment.'}</p>
+        <h1 className="text-2xl font-bold tracking-tight">{tl(lang, 'review.title')}</h1>
+        <p className="mt-1 text-muted">
+          {last ? tl(lang, 'review.lastDone', { date: new Date(last).toLocaleDateString(loc, { dateStyle: 'full' }) }) : tl(lang, 'review.neverDone')}
+        </p>
       </div>
 
-      <Section icon={Inbox} title="Inbox leeren" count={r.inbox.length} ok="Die Inbox ist leer.">
-        <button className="btn-primary" onClick={() => navigate('/inbox')}>
-          {r.inbox.length} Einträge einsortieren
+      <Section icon={Inbox} title={tl(lang, 'review.inboxTitle')} count={r.inbox.length} ok={tl(lang, 'review.inboxOk')}>
+        <button className="btn-primary rounded-full px-4" onClick={() => navigate('/inbox')}>
+          {tl(lang, 'review.inboxAction', { n: r.inbox.length })}
         </button>
       </Section>
 
-      <Section icon={AlertTriangle} title="Überfällige Aufgaben" count={r.overdueTasks} ok="Nichts überfällig.">
-        <button className="btn-ghost border border-line" onClick={() => navigate('/')}>
-          Zu den Aufgaben
+      <Section icon={AlertTriangle} title={tl(lang, 'review.overdueTitle')} count={r.overdueTasks} ok={tl(lang, 'review.overdueOk')}>
+        <button className="btn-ghost rounded-full border border-line px-4" onClick={() => navigate('/')}>
+          {tl(lang, 'review.overdueAction')}
         </button>
       </Section>
 
-      <Section icon={Briefcase} title="Projekte ohne nächsten Schritt" count={r.projectsWithoutNextStep.length} ok="Jedes aktive Projekt hat eine offene Aufgabe.">
-        <p className="mb-2 text-sm text-muted">Was ist jeweils der nächste konkrete Schritt? Oder ist das Projekt fertig oder pausiert?</p>
+      <Section icon={Briefcase} title={tl(lang, 'review.projectsTitle')} count={r.projectsWithoutNextStep.length} ok={tl(lang, 'review.projectsOk')}>
+        <p className="mb-2 text-sm text-muted">{tl(lang, 'review.projectsHint')}</p>
         <NoteLinks ids={r.projectsWithoutNextStep.map((p) => p.id)} />
       </Section>
 
-      <Section icon={Target} title="Bereiche, die länger ruhen" count={r.staleAreas.length} ok="Alle Bereiche wurden in den letzten 30 Tagen angefasst.">
+      <Section icon={Target} title={tl(lang, 'review.areasTitle')} count={r.staleAreas.length} ok={tl(lang, 'review.areasOk')}>
         <ul className="flex flex-wrap gap-1.5">
           {r.staleAreas.map((a) => (
-            <li key={a.name} className="chip px-2.5 py-1">
-              {a.name} · seit {new Date(a.updatedAt).toLocaleDateString('de-DE')}
+            <li key={a.name} className="chip px-3 py-1">
+              {a.name} · {tl(lang, 'review.areasSince', { date: new Date(a.updatedAt).toLocaleDateString(loc) })}
             </li>
           ))}
         </ul>
       </Section>
 
-      <Section icon={Lightbulb} title="Flüchtige Zettel älter als eine Woche" count={r.oldFleeting.length} ok="Keine liegengebliebenen Einfälle.">
-        <p className="mb-2 text-sm text-muted">Ausarbeiten (Typ „dauerhaft“) oder löschen.</p>
+      <Section icon={Lightbulb} title={tl(lang, 'review.fleetingTitle')} count={r.oldFleeting.length} ok={tl(lang, 'review.fleetingOk')}>
+        <p className="mb-2 text-sm text-muted">{tl(lang, 'review.fleetingHint')}</p>
         <NoteLinks ids={r.oldFleeting} />
       </Section>
 
-      <Section icon={Unlink} title="Zettel ohne Verbindung" count={r.orphanZettel.length} ok="Alle Zettel sind vernetzt.">
+      <Section icon={Unlink} title={tl(lang, 'review.orphansTitle')} count={r.orphanZettel.length} ok={tl(lang, 'review.orphansOk')}>
         <NoteLinks ids={r.orphanZettel} />
       </Section>
 
       <button
-        className="btn-primary w-full py-3"
+        className="btn-primary w-full rounded-full py-3"
         onClick={() => {
           void vault.setSetting(REVIEW_KEY, Date.now());
           navigate('/');
         }}
       >
-        <CalendarCheck size={18} /> Rückblick abschließen
+        <CalendarCheck size={18} /> {tl(lang, 'review.finishBtn')}
       </button>
     </div>
   );

@@ -4,14 +4,17 @@ import { diffLines, diffStats, NoteVersion, NoteVersionInfo, splitPath } from '@
 import { api } from '../lib/api';
 import { vault } from '../data/vault';
 import { Editor } from '../editor/Editor';
+import { locale, tl, useLang } from '../lib/i18n';
 import { useVisualViewport } from '../lib/viewport';
 
 type Mode = 'diff' | 'rendered';
 
-const fmt = (t: number) => new Date(t).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
-
 /** Version history of one note: pick a version, see what changed (git-diff style) or the rendered text */
 export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId: string; current: string; canRestore: boolean; onClose: () => void }) {
+  const lang = useLang();
+  const loc = locale(lang);
+  const fmt = (t: number) => new Date(t).toLocaleString(loc, { dateStyle: 'medium', timeStyle: 'short' });
+
   const [versions, setVersions] = useState<NoteVersionInfo[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [loaded, setLoaded] = useState<Record<string, NoteVersion>>({});
@@ -51,7 +54,7 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
   const stats = diffStats(lines);
 
   const restore = () => {
-    if (!version || !confirm(`Notiz auf den Stand vom ${fmt(version.savedAt)} zurücksetzen? Der aktuelle Text bleibt im Verlauf erhalten.`)) return;
+    if (!version || !confirm(tl(lang, 'history.restoreConfirm', { date: fmt(version.savedAt) }))) return;
     void vault.update(noteId, { content: version.content });
     onClose();
   };
@@ -61,38 +64,36 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
   return (
     <div
       className="fixed inset-x-0 z-50 flex items-end justify-center sm:items-center"
-      style={
-        vp
-          ? { top: `${vp.top}px`, height: `${vp.height}px` }
-          : { top: 0, bottom: 0 }
-      }
+      style={vp ? { top: `${vp.top}px`, height: `${vp.height}px` } : { top: 0, bottom: 0 }}
     >
       <div className="fixed inset-0 bg-black/40 anim-fade-in" onClick={onClose} />
       <div className="relative flex h-[min(90vh,100%)] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl bg-surface shadow-soft anim-sheet sm:rounded-3xl">
         <div className="flex items-center gap-2 border-b border-line px-4 py-3">
           {detail && (
-            <button className="btn-icon sm:hidden" onClick={() => setDetail(false)} title="Zurück zur Liste">
+            <button className="btn-icon sm:hidden" onClick={() => setDetail(false)} title={tl(lang, 'history.backToList')}>
               <ArrowLeft size={18} />
             </button>
           )}
-          <h2 className="text-lg font-semibold">Verlauf</h2>
-          <button className="btn-icon ml-auto" onClick={onClose} title="Schließen">
+          <h2 className="text-lg font-semibold">{tl(lang, 'history.title')}</h2>
+          <button className="btn-icon ml-auto" onClick={onClose} title={tl(lang, 'common.close')}>
             <X size={18} />
           </button>
         </div>
         {error ? (
           <div className="p-6 text-center text-danger">{error}</div>
         ) : !versions ? (
-          <div className="p-6 text-center text-faint">Lade …</div>
+          <div className="p-6 text-center text-faint">{tl(lang, 'common.loading')}</div>
         ) : !versions.length ? (
-          <div className="p-6 text-center text-muted">Noch kein Verlauf. Ab jetzt wird jede Änderung festgehalten.</div>
+          <div className="p-6 text-center text-muted">{tl(lang, 'history.empty')}</div>
         ) : (
           <div className="flex min-h-0 flex-1">
             <ul className={`w-full shrink-0 overflow-y-auto border-line sm:block sm:w-64 sm:border-r ${detail ? 'hidden' : ''}`}>
               {versions.map((v, i) => (
                 <li key={v.id}>
                   <button
-                    className={`w-full border-b border-line px-4 py-3 text-left text-sm transition hover:bg-raised ${v.id === selected ? 'bg-raised' : ''}`}
+                    className={`w-full border-b border-line px-4 py-3 text-left text-sm transition hover:bg-raised ${
+                      v.id === selected ? 'bg-accent-container/25 text-ink' : ''
+                    }`}
                     onClick={() => {
                       setSelected(v.id);
                       setDetail(true);
@@ -100,7 +101,7 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
                   >
                     <div className="font-medium">{fmt(v.savedAt)}</div>
                     <div className="truncate text-xs text-faint">
-                      {i === 0 && 'Aktuell · '}
+                      {i === 0 && tl(lang, 'history.currentPrefix')}
                       {splitPath(v.path).name} · {v.size < 1024 ? `${v.size} B` : `${(v.size / 1024).toFixed(1)} KB`}
                     </div>
                   </button>
@@ -109,33 +110,39 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
             </ul>
             <div className={`min-w-0 flex-1 flex-col ${detail ? 'flex' : 'hidden sm:flex'}`}>
               <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2 text-sm">
-                <div className="flex overflow-hidden rounded-lg border border-line">
+                <div className="flex rounded-full border border-line bg-raised p-0.5">
                   {(['diff', 'rendered'] as const).map((m) => (
-                    <button key={m} className={`px-3 py-1 ${mode === m ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-raised'}`} onClick={() => setMode(m)}>
-                      {m === 'diff' ? 'Änderungen' : 'Gerendert'}
+                    <button
+                      key={m}
+                      className={`rounded-full px-3.5 py-1 text-xs font-medium transition-colors ${
+                        mode === m ? 'bg-accent-container text-on-accent-container' : 'text-muted hover:text-ink'
+                      }`}
+                      onClick={() => setMode(m)}
+                    >
+                      {m === 'diff' ? tl(lang, 'history.tabDiff') : tl(lang, 'history.tabRendered')}
                     </button>
                   ))}
                 </div>
                 {ready && mode === 'diff' && (
-                  <span className="text-xs">
+                  <span className="text-xs tabular-nums">
                     <span className="text-ok">+{stats.added}</span> <span className="text-danger">−{stats.removed}</span>
                   </span>
                 )}
                 {canRestore && ready && version!.content !== current && (
-                  <button className="chip ml-auto px-3 py-1 hover:bg-accent/15 hover:text-accent" onClick={restore}>
-                    <RotateCcw size={13} /> Wiederherstellen
+                  <button className="btn-ghost ml-auto rounded-full border border-line px-3.5 py-1 text-xs hover:border-accent/40 hover:text-accent" onClick={restore}>
+                    <RotateCcw size={13} /> {tl(lang, 'common.restore')}
                   </button>
                 )}
               </div>
               <div className="min-h-0 flex-1 overflow-auto">
                 {!ready ? (
-                  <div className="p-6 text-center text-faint">Lade …</div>
+                  <div className="p-6 text-center text-faint">{tl(lang, 'common.loading')}</div>
                 ) : mode === 'rendered' ? (
                   <div className="px-4 py-3 sm:px-8">
                     <Editor docKey={`history:${version!.id}`} value={version!.content} readOnly />
                   </div>
                 ) : !lines.some((l) => l.kind !== 'same') ? (
-                  <div className="p-6 text-center text-muted">Keine Änderungen gegenüber dem Vorgänger.</div>
+                  <div className="p-6 text-center text-muted">{tl(lang, 'history.noChanges')}</div>
                 ) : (
                   <pre className="min-w-full w-max font-mono text-[13px] leading-6">
                     {lines.map((l, i) => (

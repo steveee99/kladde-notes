@@ -4,6 +4,18 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Zweisprachigkeit (Deutsch und Englisch) in der gesamten Oberfläche inklusive Datumsformaten, Startnotizen, Widgets, Slash-Befehlen, Dialogen, Exporten und Anmeldung (umschaltbar unter Einstellungen → Erscheinungsbild sowie direkt auf der Anmeldeseite).
+- Neu: Notizen erhalten eine vollständige Ordner-Breadcrumb-Navigation im Kopf, einen Schnell-Kopieren-Knopf für reines Markdown (ohne YAML-Frontmatter) sowie ein Material-3-Drei-Punkte-Menü (Teilen, Verlauf, Exportieren, Verschieben, Löschen).
+- Neu: Einklappbare rechte Splitview-Seitenleiste in Notizen mit den Tabs „Inhalt“ (Inhaltsverzeichnis), „Verlinkungen“ (Backlinks & Erwähnungen) und „Graph“.
+- Neu: Automatisches Inhaltsverzeichnis per `##TOC##` (oder `[[TOC]]`), über den Slash-Befehl `/toc` und die Werkzeugleiste sowie beim Word- und PDF-Export.
+- Neu: Direkte Suchleiste in der Seitenleiste (und der Material-Listenleiste); der eigene Tab „Suche“ entfällt (`Strg+K` fokussiert weiterhin die Suche).
+- Neu: Opt-in „Inbox Zero“ in den Einstellungen (Standardmäßig aus) – erst bei Aktivierung werden der Zähler an der Inbox und die Meldung „X Nachrichten zum einsortieren“ angezeigt.
+- Neu: Tastenkürzel `Strg+S` (`Cmd+S`) speichert offene Änderungen und synchronisiert sofort mit Status-Meldung.
+- Geändert: Kladde nutzt nun ausschließlich das Material-3-Designsystem (Themes „Hell“ und „System“ wurden entfernt); das Drei-Striche-Menü schaltet direkt zwischen schmaler Leiste und angehefteter Sticky-Leiste um (ohne Desktop-Overlay).
+- Geändert: Widescreen nutzt nun Prozentwerte (`50 %`, `80 %` Standard, `100 %`, Benutzerspezifisch) und gilt nun auch für die Einstellungsseiten; auf Bildschirmen unter `800 px` wird automatisch die volle Breite verwendet.
+- Geändert: Auf der Startseite sind Willkommensgruß, Untertitel und „+ Projekt“-Knopf größer und durch optische Trennlinien gegliedert; in der Inbox stehen pro Kachel rechts nur noch Ordnerauswahl und Löschen; Inline-Code hebt sich farblich deutlicher vom Hintergrund ab.
+- Behoben: Das Kalender-/Fälligkeits-Popover bei Aufgaben wird über ein Portal gerendert, sodass es nicht mehr hinter nachfolgendem Text verschwindet und immer klickbar bleibt.
+
 ## [0.17.1] – 2026-11-10
 
 - Behoben: Das Export-Menü in Notizen (und geteilten Ansichten) wird nun über ein Portal außerhalb der Notiz-Kopfzeile gerendert, sodass auf dem Desktop nachfolgende Ebenen (Metadaten-Leiste, Eigenschaften und Editor) das Menü nicht mehr verdecken und Klicks auf die Export-Optionen wieder zuverlässig ankommen.

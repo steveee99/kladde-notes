@@ -4,19 +4,20 @@ import type { GraphEdge, GraphNode } from '@kladde/shared';
 import { roleOfFolder } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { navigate } from '../lib/router';
+import { t, useLang, type I18nKey } from '../lib/i18n';
 
 interface SimNode extends SimulationNodeDatum, GraphNode {}
 type SimLink = SimulationLinkDatum<SimNode>;
 
 /** Node colour by PARA role, taken from the theme variables */
 const ROLE_VAR: Record<string, string> = { inbox: '--warn', projects: '--accent', areas: '--ok', resources: '--accent2', archive: '--faint', zettel: '--danger' };
-const LEGEND: [string, string][] = [
-  ['projects', 'Projekte'],
-  ['areas', 'Bereiche'],
-  ['resources', 'Ressourcen'],
-  ['zettel', 'Zettel'],
-  ['inbox', 'Inbox'],
-  ['archive', 'Archiv'],
+const LEGEND: [string, I18nKey][] = [
+  ['projects', 'graph.legendProjects'],
+  ['areas', 'graph.legendAreas'],
+  ['resources', 'graph.legendResources'],
+  ['zettel', 'graph.legendZettel'],
+  ['inbox', 'graph.legendInbox'],
+  ['archive', 'graph.legendArchive'],
 ];
 
 function cssColor(name: string, alpha = 1): string {
@@ -50,6 +51,7 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: GraphN
     let panning: { x: number; y: number; vx: number; vy: number } | null = null;
     let moved = false;
     const radius = (n: SimNode) => 4 + Math.sqrt(n.links) * 2.2 + (n.id === focusId ? 3 : 0);
+    const fontFamily = getComputedStyle(document.documentElement).getPropertyValue('--font-sans').trim() || 'Roboto, system-ui, sans-serif';
     const colors = () => ({
       line: cssColor('--line'),
       lineHi: cssColor('--accent', 0.8),
@@ -106,13 +108,13 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: GraphN
       ctx.lineWidth = 1 / view.k;
       for (const l of simLinks) {
         const s = l.source as SimNode;
-        const t = l.target as SimNode;
-        const hi = active && (s.id === active.id || t.id === active.id);
+        const tgt = l.target as SimNode;
+        const hi = active && (s.id === active.id || tgt.id === active.id);
         ctx.strokeStyle = hi ? palette.lineHi : palette.line;
         ctx.globalAlpha = active && !hi ? 0.35 : 1;
         ctx.beginPath();
         ctx.moveTo(s.x!, s.y!);
-        ctx.lineTo(t.x!, t.y!);
+        ctx.lineTo(tgt.x!, tgt.y!);
         ctx.stroke();
       }
       for (const n of simNodes) {
@@ -131,7 +133,7 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: GraphN
         }
         const label = n.id === active?.id || near?.has(n.id) || view.k > 1.4 || n.links >= 4 || simNodes.length < 25;
         if (label && !dim) {
-          ctx.font = `${12 / view.k}px Inter, system-ui, sans-serif`;
+          ctx.font = `${12 / view.k}px ${fontFamily}`;
           ctx.textAlign = 'center';
           ctx.fillStyle = n.id === active?.id ? palette.text : palette.muted;
           const text = n.title.length > 32 ? `${n.title.slice(0, 30)}…` : n.title;
@@ -212,7 +214,6 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: GraphN
     canvas.addEventListener('wheel', onWheel, { passive: false });
     const ro = new ResizeObserver(resize);
     ro.observe(wrap);
-    // Theme switch: re-read the colours
     const mo = new MutationObserver(() => {
       palette = colors();
       draw();
@@ -242,12 +243,13 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: GraphN
 }
 
 export function GraphLegend() {
+  useLang();
   return (
     <div className="flex flex-wrap gap-3 text-xs text-muted">
-      {LEGEND.map(([role, label]) => (
+      {LEGEND.map(([role, labelKey]) => (
         <span key={role} className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full" style={{ background: `rgb(var(${ROLE_VAR[role]}))` }} />
-          {label}
+          {t(labelKey)}
         </span>
       ))}
     </div>
@@ -257,6 +259,7 @@ export function GraphLegend() {
 /** Whole knowledge network */
 export function GraphView() {
   useVault();
+  useLang();
   const [hideArchive, setHideArchive] = useState(true);
   const [onlyLinked, setOnlyLinked] = useState(false);
   const g = vault.links().graph();
@@ -266,15 +269,13 @@ export function GraphView() {
   return (
     <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-8">
       <div className="mb-4 flex flex-wrap items-center gap-3 anim-fade-up">
-        <h1 className="text-2xl font-bold tracking-tight">Wissensnetz</h1>
-        <span className="text-sm text-faint">
-          {nodes.length} Notizen · {edges.length} Verbindungen
-        </span>
+        <h1 className="text-2xl font-bold tracking-tight">{t('graph.title')}</h1>
+        <span className="text-sm text-faint">{t('graph.summary', { nodes: nodes.length, edges: edges.length })}</span>
         <label className="ml-auto flex items-center gap-1.5 text-sm text-muted">
-          <input type="checkbox" checked={hideArchive} onChange={(e) => setHideArchive(e.target.checked)} /> Archiv ausblenden
+          <input type="checkbox" checked={hideArchive} onChange={(e) => setHideArchive(e.target.checked)} /> {t('graph.hideArchive')}
         </label>
         <label className="flex items-center gap-1.5 text-sm text-muted">
-          <input type="checkbox" checked={onlyLinked} onChange={(e) => setOnlyLinked(e.target.checked)} /> Nur verbundene
+          <input type="checkbox" checked={onlyLinked} onChange={(e) => setOnlyLinked(e.target.checked)} /> {t('graph.onlyLinked')}
         </label>
       </div>
       <Graph nodes={nodes} edges={edges} height={Math.max(420, window.innerHeight - 220)} onOpen={(id) => navigate(`/n/${id}`)} />

@@ -1,9 +1,9 @@
 import { mindmapToMermaid } from '@kladde/shared';
+import { t } from '../lib/i18n';
 
 /**
  * Renders ```mermaid and ```mindmap blocks to SVG. Mermaid is large, so it is loaded on first use
- * (the PWA still precaches its chunks, so diagrams work offline). Colors come from the theme
- * variables; when the theme changes, every visible diagram is drawn again.
+ * (the PWA still precaches its chunks, so diagrams work offline). Colors come from the Material 3 theme variables.
  */
 
 export type DiagramKind = 'mermaid' | 'mindmap';
@@ -16,7 +16,7 @@ let counter = 0;
 /** SVG (or error) per theme + source, so re-created widgets show up without a flicker */
 const cache = new Map<string, { svg?: string; error?: string }>();
 
-const themeKey = () => document.documentElement.dataset.theme ?? 'light';
+const themeKey = () => document.documentElement.dataset.theme ?? 'material';
 
 /** "R G B" variable → #rrggbb (Mermaid's color math needs hex) */
 function cssColor(name: string): string {
@@ -40,7 +40,6 @@ function themeVariables() {
     warn: cssColor('--warn'),
     danger: cssColor('--danger'),
   };
-  const dark = themeKey() !== 'light';
   // Mind map branches and pie slices cycle through these
   const scale = [v.accent, v.accent2, v.warn, v.ok, v.danger, v.muted];
   const extra: Record<string, string> = {};
@@ -50,7 +49,7 @@ function themeVariables() {
     extra[`pie${i + 1}`] = scale[i % scale.length];
   }
   return {
-    darkMode: dark,
+    darkMode: true,
     fontFamily: getComputedStyle(document.body).fontFamily,
     fontSize: '14px',
     background: v.surface,
@@ -130,7 +129,7 @@ export async function renderDiagram(kind: DiagramKind, src: string): Promise<{ s
   try {
     const m = await mermaid();
     const code = diagramSource(kind, src);
-    if (!code.trim()) result = { error: 'Leeres Diagramm' };
+    if (!code.trim()) result = { error: t('editor.diagramEmpty') };
     else result = { svg: (await m.render(id, code)).svg };
   } catch (e) {
     result = { error: e instanceof Error ? e.message : String(e) };
@@ -153,7 +152,7 @@ export function drawDiagram(el: HTMLElement, kind: DiagramKind, src: string, don
     else {
       const err = document.createElement('div');
       err.className = 'wz-query-error';
-      err.textContent = `Diagramm-Fehler: ${(r.error ?? '').split('\n')[0]}`;
+      err.textContent = t('editor.diagramError', { error: (r.error ?? '').split('\n')[0] });
       const pre = document.createElement('pre');
       pre.className = 'wz-diagram-src';
       pre.textContent = src;
@@ -166,7 +165,7 @@ export function drawDiagram(el: HTMLElement, kind: DiagramKind, src: string, don
   if (!el.firstChild) {
     const wait = document.createElement('div');
     wait.className = 'wz-diagram-wait';
-    wait.textContent = 'Diagramm wird gezeichnet …';
+    wait.textContent = t('editor.diagramDrawing');
     el.replaceChildren(wait);
   }
   void renderDiagram(kind, src).then((r) => {
@@ -186,10 +185,3 @@ export function openDiagram(svg: string) {
   box.addEventListener('click', () => box.remove());
   document.body.append(box);
 }
-
-// Theme switch: draw every visible diagram with the new colors
-new MutationObserver(() => {
-  for (const el of document.querySelectorAll<HTMLElement>('.wz-diagram[data-src]')) {
-    drawDiagram(el, el.dataset.kind as DiagramKind, el.dataset.src!);
-  }
-}).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });

@@ -11,13 +11,14 @@ import { livePreview, noteIdFacet, previewAll, refreshEffect } from './livePrevi
 import { editorHost } from './host';
 import { slashCompletion } from './slash';
 import { useReadOnly } from '../lib/readOnly';
+import { t as i18n, useLang } from '../lib/i18n';
 
 /** Read-only notes show everything rendered and accept no input */
 const readOnlyExtensions = (on: boolean): Extension => [previewAll.of(on), EditorState.readOnly.of(on), EditorView.editable.of(!on)];
 
-/** CodeMirror's base theme sets a monospace font with high specificity; prose uses the UI font */
+/** CodeMirror's base theme sets a monospace font with high specificity; prose uses Material's Roboto Flex sans variable */
 const proseTheme = EditorView.theme({
-  '.cm-scroller': { fontFamily: 'Inter, system-ui, -apple-system, sans-serif', lineHeight: '1.7' },
+  '.cm-scroller': { fontFamily: 'var(--font-sans)', lineHeight: '1.7' },
 });
 
 const highlight = HighlightStyle.define([
@@ -46,12 +47,12 @@ function wikiCompletion(ctx: CompletionContext) {
 /** Pasted or dropped images and PDFs are uploaded and linked */
 function insertFiles(view: EditorView, files: File[], pos: number) {
   for (const file of files) {
-    const marker = `![Lade ${file.name} …]()`;
+    const marker = `![${i18n('editor.uploading', { name: file.name })}]()`;
     view.dispatch({ changes: { from: pos, insert: marker } });
     editorHost
       .upload(file)
       .then((r) => replaceMarker(view, marker, `![${r.name}](${r.url})`))
-      .catch((err) => replaceMarker(view, marker, `<!-- Upload fehlgeschlagen: ${err.message} -->`));
+      .catch((err) => replaceMarker(view, marker, `<!-- ${i18n('editor.uploadFailed', { error: err.message })} -->`));
   }
 }
 
@@ -80,8 +81,8 @@ function replaceMarker(view: EditorView, marker: string, text: string) {
 }
 
 /**
- * Formatting shortcuts. Mod is Strg, on macOS ⌘; on macOS Strg works as well (it replaces the Emacs-style
- * cursor keys there). Strg/⌘+K for search is global (Shell).
+ * Formatting & save shortcuts. Mod is Strg, on macOS ⌘; on macOS Strg works as well.
+ * Ctrl/⌘+S flushes pending changes immediately and dispatches the global sync shortcut.
  */
 const formatCommands: [string, (v: EditorView) => boolean][] = [
   ['b', (v) => toggleWrap(v, '**')],
@@ -90,10 +91,19 @@ const formatCommands: [string, (v: EditorView) => boolean][] = [
   ['Shift-x', (v) => toggleWrap(v, '~~')],
   ['Shift-l', (v) => (wrapSelection(v, '[[', ']]'), true)],
 ];
-const formatKeymap: KeyBinding[] = formatCommands.flatMap(([key, run]) => [
-  { key: `Mod-${key}`, run, preventDefault: true },
-  { mac: `Ctrl-${key}`, run, preventDefault: true },
-]);
+const saveAction = () => {
+  editorHost.flush();
+  editorHost.requestSave();
+  return true;
+};
+const formatKeymap: KeyBinding[] = [
+  ...formatCommands.flatMap(([key, run]) => [
+    { key: `Mod-${key}`, run, preventDefault: true },
+    { mac: `Ctrl-${key}`, run, preventDefault: true },
+  ]),
+  { key: 'Mod-s', run: saveAction, preventDefault: true },
+  { mac: 'Ctrl-s', run: saveAction, preventDefault: true },
+];
 
 export interface EditorProps {
   docKey: string;
@@ -114,9 +124,12 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   changeRef.current = onChange;
   const lockedEverywhere = useReadOnly();
   const locked = readOnly || lockedEverywhere;
+  const lang = useLang();
   const lockConf = useRef(new Compartment());
+  const placeholderConf = useRef(new Compartment());
   const lockedRef = useRef(locked);
   lockedRef.current = locked;
+  const resolvedPlaceholder = placeholder ?? i18n('editor.placeholder');
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -125,6 +138,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
       timer = null;
       if (view.current) changeRef.current?.(view.current.state.doc.toString());
     };
+    const unregisterFlush = editorHost.registerFlush(flush);
     const v = new EditorView({
       parent: host.current!,
       state: EditorState.create({
@@ -140,7 +154,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           livePreview(),
           lockConf.current.of(readOnlyExtensions(lockedRef.current)),
           EditorView.contentAttributes.of({ spellcheck: 'true', autocapitalize: 'sentences' }),
-          cmPlaceholder(placeholder ?? 'Schreib los …'),
+          placeholderConf.current.of(cmPlaceholder(resolvedPlaceholder)),
           autocompletion({ override: [wikiCompletion, slashCompletion(insertFiles)], icons: false }),
           fileHandlers(),
           EditorView.updateListener.of((u) => {
@@ -159,6 +173,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
       v.dispatch({ selection: { anchor: v.state.doc.length } });
     }
     return () => {
+      unregisterFlush();
       flush();
       onView?.(null);
       v.destroy();
@@ -176,6 +191,13 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
     v.dispatch({ effects: lockConf.current.reconfigure(readOnlyExtensions(locked)) });
   }, [locked]);
 
+  // Reconfigure placeholder cleanly when language or custom placeholder changes
+  useEffect(() => {
+    const v = view.current;
+    if (!v) return;
+    v.dispatch({ effects: placeholderConf.current.reconfigure(cmPlaceholder(resolvedPlaceholder)) });
+  }, [resolvedPlaceholder]);
+
   // Changes from sync (another device) while the note is open
   useEffect(() => {
     const v = view.current;
@@ -187,8 +209,8 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   }, [value]);
 
   useEffect(() => {
-    view.current?.dispatch({ effects: refreshEffect.of(stamp) });
-  }, [stamp]);
+    view.current?.dispatch({ effects: refreshEffect.of(stamp + (lang === 'en' ? 1_000_000 : 0)) });
+  }, [stamp, lang]);
 
   return <div ref={host} className="wz-editor" />;
 }

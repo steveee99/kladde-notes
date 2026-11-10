@@ -1,3 +1,5 @@
+import { getLang, locale, t } from '../lib/i18n';
+
 /** Interactive table (sort by header click, filter field) used for Markdown tables and query results */
 
 export interface DataRow {
@@ -34,7 +36,7 @@ export function dataTable(headers: string[], rows: DataRow[], opts: { align?: ('
   bar.className = 'wz-table-bar';
   const input = document.createElement('input');
   input.type = 'search';
-  input.placeholder = 'Filtern …';
+  input.placeholder = t('editor.tableFilter');
   input.className = 'wz-table-filter';
   const count = document.createElement('span');
   count.className = 'wz-table-count';
@@ -86,8 +88,9 @@ export function dataTable(headers: string[], rows: DataRow[], opts: { align?: ('
   function draw() {
     let list = filter ? rows.filter((r) => r.keys.some((k) => k.toLowerCase().includes(filter))) : rows.slice();
     if (sortCol >= 0) {
+      const loc = locale(getLang());
       list = list.sort((a, b) => {
-        const c = (a.keys[sortCol] ?? '').localeCompare(b.keys[sortCol] ?? '', 'de', { numeric: true, sensitivity: 'base' });
+        const c = (a.keys[sortCol] ?? '').localeCompare(b.keys[sortCol] ?? '', loc, { numeric: true, sensitivity: 'base' });
         return desc ? -c : c;
       });
     }
@@ -108,7 +111,11 @@ export function dataTable(headers: string[], rows: DataRow[], opts: { align?: ('
         return tr;
       })
     );
-    count.textContent = filter ? `${list.length} von ${rows.length}` : `${rows.length} Zeilen`;
+    count.textContent = filter
+      ? t('editor.tableCountFiltered', { shown: list.length, total: rows.length })
+      : rows.length === 1
+        ? t('editor.tableCountRowSingle')
+        : t('editor.tableCountRows', { total: rows.length });
   }
   draw();
   return wrap;

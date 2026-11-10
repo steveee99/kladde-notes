@@ -1,11 +1,32 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
-import { Bot, ChevronRight, Copy, FoldHorizontal, GitBranch, Images, KeyRound, LayoutTemplate, Lock, LogOut, Monitor, Moon, PanelLeft, PanelLeftOpen, ShieldCheck, Smartphone, Sun, Trash2, UnfoldHorizontal, Zap } from 'lucide-react';
+import {
+  Bot,
+  Check,
+  ChevronRight,
+  Copy,
+  GitBranch,
+  Globe,
+  Images,
+  Inbox,
+  Info,
+  KeyRound,
+  LayoutTemplate,
+  Lock,
+  LogOut,
+  Maximize2,
+  Monitor,
+  ShieldCheck,
+  Smartphone,
+  SlidersHorizontal,
+  Trash2,
+  Zap,
+} from 'lucide-react';
 import { APP_VERSION, Me, PASSWORD_MIN_LENGTH } from '@kladde/shared';
 import { api } from '../lib/api';
-import { getTheme, setTheme, ThemeChoice, useResolvedTheme } from '../lib/theme';
-import { setMaterialSidebarMode, useMaterialSidebarMode } from '../lib/sidebarMode';
-import { DEFAULT_FIXED_WIDTH, MAX_WIDTH, MIN_WIDTH, setWidescreen, useWidescreen } from '../lib/widescreen';
+import { Lang, locale, setLang, tl, useLang } from '../lib/i18n';
+import { setInboxZero, useInboxZero } from '../lib/prefs';
+import { DEFAULT_PERCENT, MAX_PERCENT, MIN_PERCENT, setWidescreen, useWidescreen, WIDESCREEN_PRESETS } from '../lib/widescreen';
 import { useVault, vault } from '../data/vault';
 import { startupReport, toggleTallPageTest, viewportReport } from '../lib/viewport';
 import { navigate } from '../lib/router';
@@ -13,193 +34,267 @@ import { passkeysAvailable } from './Auth';
 
 export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) => void; onLogout: () => void }) {
   useVault();
+  const lang = useLang();
+  const loc = locale(lang);
   const widescreen = useWidescreen();
-  const resolvedTheme = useResolvedTheme();
-  const sidebarMode = useMaterialSidebarMode();
-  const [theme, setThemeState] = useState<ThemeChoice>(getTheme());
+  const inboxZero = useInboxZero();
+  const [customInput, setCustomInput] = useState(String(widescreen.percent));
   const [link, setLink] = useState<{ code: string; expiresAt: number } | null>(null);
   const [error, setError] = useState('');
-  const themes: { id: ThemeChoice; label: string; Icon: typeof Sun }[] = [
-    { id: 'system', label: 'System', Icon: Monitor },
-    { id: 'light', label: 'Hell', Icon: Sun },
-    { id: 'material', label: 'Dunkel', Icon: Moon },
-  ];
   const linkUrl = link ? `${location.origin}/link/${link.code}` : '';
 
+  useEffect(() => {
+    setCustomInput(String(widescreen.percent));
+  }, [widescreen.percent]);
+
+  const templatesCount = vault.templates().length;
+  const navCards = [
+    ...(me.isAdmin
+      ? [
+          {
+            path: '/admin',
+            Icon: ShieldCheck,
+            title: tl(lang, 'settings.adminTitle'),
+            desc: tl(lang, 'settings.adminDesc'),
+          },
+        ]
+      : []),
+    {
+      path: '/settings/mcp',
+      Icon: Bot,
+      title: tl(lang, 'settings.mcpTitle'),
+      desc: tl(lang, 'settings.mcpDesc'),
+    },
+    {
+      path: '/settings/git',
+      Icon: GitBranch,
+      title: tl(lang, 'settings.gitTitle'),
+      desc: tl(lang, 'settings.gitDesc'),
+    },
+    {
+      path: '/settings/templates',
+      Icon: LayoutTemplate,
+      title: tl(lang, 'settings.templatesTitle'),
+      desc: templatesCount ? tl(lang, 'settings.templatesDescCount', { n: templatesCount }) : tl(lang, 'settings.templatesDescEmpty'),
+    },
+    {
+      path: '/files',
+      Icon: Images,
+      title: tl(lang, 'settings.filesTitle'),
+      desc: tl(lang, 'settings.filesDesc'),
+    },
+  ];
+
+  const linkTextParts = link
+    ? tl(lang, 'settings.deviceLinkText', {
+        time: new Date(link.expiresAt).toLocaleTimeString(loc, { timeStyle: 'short' }),
+      }).split(/(\{url\}|\{code\})/)
+    : [];
+
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-6 sm:px-8 sm:py-10">
-      <h1 className="text-2xl font-bold tracking-tight anim-fade-up">Einstellungen</h1>
+    <div className="content-container space-y-6 px-4 py-6 sm:px-8 sm:py-10">
+      <h1 className="text-2xl font-bold tracking-tight anim-fade-up">{tl(lang, 'settings.title')}</h1>
 
-      {me.isAdmin && (
-        <button className="card flex w-full items-center gap-3 p-4 text-left transition-colors hover:border-accent/40 anim-fade-up" onClick={() => navigate('/admin')}>
-          <ShieldCheck size={20} className="text-accent" />
-          <div className="flex-1">
-            <div className="font-semibold">Verwaltung</div>
-            <div className="text-sm text-muted">Konten, Einladungen, Passwörter zurücksetzen</div>
-          </div>
-          <ChevronRight size={18} className="text-faint" />
-        </button>
-      )}
+      <div className="space-y-3">
+        {navCards.map(({ path, Icon, title, desc }) => (
+          <button
+            key={path}
+            type="button"
+            className="card flex w-full items-center gap-3.5 p-4 text-left transition-colors hover:border-accent/40 hover:bg-raised/40 anim-fade-up"
+            onClick={() => navigate(path)}
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-container/60 text-accent">
+              <Icon size={20} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold">{title}</div>
+              <div className="text-sm text-muted">{desc}</div>
+            </div>
+            <ChevronRight size={18} className="shrink-0 text-faint" />
+          </button>
+        ))}
+      </div>
 
-      <button className="card flex w-full items-center gap-3 p-4 text-left transition-colors hover:border-accent/40 anim-fade-up" onClick={() => navigate('/settings/mcp')}>
-        <Bot size={20} className="text-accent" />
-        <div className="flex-1">
-          <div className="font-semibold">KI-Assistenten</div>
-          <div className="text-sm text-muted">Claude & Co. per MCP mit deinen Notizen verbinden</div>
-        </div>
-        <ChevronRight size={18} className="text-faint" />
-      </button>
-
-      <button className="card flex w-full items-center gap-3 p-4 text-left transition-colors hover:border-accent/40 anim-fade-up" onClick={() => navigate('/settings/git')}>
-        <GitBranch size={20} className="text-accent" />
-        <div className="flex-1">
-          <div className="font-semibold">Git-Sync</div>
-          <div className="text-sm text-muted">Deine Notizen automatisch in ein Git-Repository übertragen</div>
-        </div>
-        <ChevronRight size={18} className="text-faint" />
-      </button>
-
-      <button className="card flex w-full items-center gap-3 p-4 text-left transition-colors hover:border-accent/40 anim-fade-up" onClick={() => navigate('/settings/templates')}>
-        <LayoutTemplate size={20} className="text-accent" />
-        <div className="flex-1">
-          <div className="font-semibold">Vorlagen</div>
-          <div className="text-sm text-muted">
-            {vault.templates().length ? `${vault.templates().length} eigene Vorlagen für neue Notizen` : 'Eigene Vorlagen für Projekte, Besprechungen und mehr'}
-          </div>
-        </div>
-        <ChevronRight size={18} className="text-faint" />
-      </button>
-
-      <button className="card flex w-full items-center gap-3 p-4 text-left transition-colors hover:border-accent/40 anim-fade-up" onClick={() => navigate('/files')}>
-        <Images size={20} className="text-accent" />
-        <div className="flex-1">
-          <div className="font-semibold">Anhänge</div>
-          <div className="text-sm text-muted">Hochgeladene Bilder und PDFs verwalten und ungenutzte entfernen</div>
-        </div>
-        <ChevronRight size={18} className="text-faint" />
-      </button>
-
+      {/* Layout, Language, Inbox Zero & Widescreen (Material 3) */}
       <section className="card p-5 anim-fade-up">
-        <h2 className="mb-3 font-semibold">Erscheinungsbild</h2>
-        <div className="grid grid-cols-3 gap-2">
-          {themes.map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              onClick={() => {
-                setTheme(id);
-                setThemeState(id);
-              }}
-              className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-sm transition-all duration-200 ${theme === id ? 'border-accent bg-accent/10 text-accent' : 'border-line text-muted hover:border-faint'}`}
+        <h2 className="mb-4 text-base font-semibold">{tl(lang, 'settings.appearanceTitle')}</h2>
+
+        {/* Language selector (M3 Segmented Pill Button) */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-2.5">
+            <Globe size={18} className="mt-0.5 shrink-0 text-accent" />
+            <div>
+              <div className="text-sm font-semibold">{tl(lang, 'common.language')}</div>
+              <div className="text-xs text-muted">{tl(lang, 'common.languageDesc')}</div>
+            </div>
+          </div>
+          <div className="inline-flex rounded-full border border-line bg-raised p-1 shrink-0" role="group" aria-label={tl(lang, 'common.language')}>
+            {(['de', 'en'] as Lang[]).map((code) => {
+              const active = lang === code;
+              const label = code === 'de' ? tl(lang, 'common.langDe') : tl(lang, 'common.langEn');
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setLang(code)}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    active ? 'bg-accent-container text-on-accent-container shadow-sm' : 'text-muted hover:text-ink'
+                  }`}
+                >
+                  {active && <Check size={14} strokeWidth={2.5} />}
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <hr className="my-5 border-line" />
+
+        {/* Inbox Zero opt-in (M3 Switch) */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-start gap-2.5">
+            <Inbox size={18} className="mt-0.5 shrink-0 text-accent" />
+            <div>
+              <label htmlFor="inbox-zero-switch" className="cursor-pointer text-sm font-semibold">
+                {tl(lang, 'settings.inboxZeroTitle')}
+              </label>
+              <p className="text-xs text-muted">{tl(lang, 'settings.inboxZeroDesc')}</p>
+            </div>
+          </div>
+          <button
+            id="inbox-zero-switch"
+            type="button"
+            role="switch"
+            aria-checked={inboxZero}
+            aria-label={tl(lang, 'settings.inboxZeroLabel')}
+            onClick={() => setInboxZero(!inboxZero)}
+            className={`relative inline-flex h-8 w-[52px] shrink-0 cursor-pointer items-center rounded-full border-2 p-0.5 transition-colors ${
+              inboxZero ? 'border-accent bg-accent' : 'border-faint/60 bg-raised'
+            }`}
+          >
+            <span
+              className={`flex h-6 w-6 items-center justify-center rounded-full transition-transform duration-150 ${
+                inboxZero ? 'translate-x-5 bg-on-accent text-accent' : 'translate-x-0 scale-75 bg-muted text-surface'
+              }`}
             >
-              <Icon size={20} /> {label}
-            </button>
-          ))}
-        </div>
-
-        {resolvedTheme === 'material' && (
-          <>
-            <div className="my-5 border-t border-line" />
-            <div className="mb-3">
-              <h3 className="text-sm font-semibold">Seitenleiste (Dunkel-Design)</h3>
-              <p className="text-xs text-muted">Auf Tablet und Desktop als Overlay-Schublade mit schmaler Leiste oder angeheftet (Sticky) als vollständiges Menü.</p>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setMaterialSidebarMode('overlay')}
-                aria-pressed={sidebarMode === 'overlay'}
-                className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-sm transition-all duration-200 ${sidebarMode === 'overlay' ? 'border-accent bg-accent/10 text-accent' : 'border-line text-muted hover:border-faint'}`}
-              >
-                <PanelLeftOpen size={20} />
-                <span className="font-medium">Overlay</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setMaterialSidebarMode('sticky')}
-                aria-pressed={sidebarMode === 'sticky'}
-                className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-sm transition-all duration-200 ${sidebarMode === 'sticky' ? 'border-accent bg-accent/10 text-accent' : 'border-line text-muted hover:border-faint'}`}
-              >
-                <PanelLeft size={20} />
-                <span className="font-medium">Sticky</span>
-              </button>
-            </div>
-          </>
-        )}
-
-        <div className="my-5 border-t border-line" />
-
-        <div className="mb-3">
-          <h3 className="font-semibold text-sm">Widescreen</h3>
-          <p className="text-xs text-muted">Breite von Notizen und Übersichten auf größeren Bildschirmen.</p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => setWidescreen({ ...widescreen, mode: 'fixed' })}
-            className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-sm transition-all duration-200 ${widescreen.mode === 'fixed' ? 'border-accent bg-accent/10 text-accent' : 'border-line text-muted hover:border-faint'}`}
-          >
-            <FoldHorizontal size={20} />
-            <span className="font-medium">Feste Breite</span>
-          </button>
-          <button
-            onClick={() => setWidescreen({ ...widescreen, mode: 'fluid' })}
-            className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-sm transition-all duration-200 ${widescreen.mode === 'fluid' ? 'border-accent bg-accent/10 text-accent' : 'border-line text-muted hover:border-faint'}`}
-          >
-            <UnfoldHorizontal size={20} />
-            <span className="font-medium">Fluid (ganze Breite)</span>
+              {inboxZero && <Check size={14} strokeWidth={3} />}
+            </span>
           </button>
         </div>
 
-        {widescreen.mode === 'fixed' && (
-          <div className="mt-4 space-y-3 rounded-xl bg-raised/50 p-3 anim-fade-in">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted">Maximale Breite</span>
-              <div className="flex items-center gap-1">
+        <hr className="my-5 border-line" />
+
+        {/* Widescreen percentage options (50%, 80% Default, 100%, Custom) */}
+        <div className="mb-3 flex items-start gap-2.5">
+          <Maximize2 size={18} className="mt-0.5 shrink-0 text-accent" />
+          <div>
+            <h3 className="text-sm font-semibold">{tl(lang, 'settings.widescreenTitle')}</h3>
+            <p className="text-xs text-muted">{tl(lang, 'settings.widescreenDesc')}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {WIDESCREEN_PRESETS.map((pct) => {
+            const active = !widescreen.custom && widescreen.percent === pct;
+            return (
+              <button
+                key={pct}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setWidescreen({ percent: pct, custom: false })}
+                className={`flex flex-col items-center justify-center gap-0.5 rounded-2xl border px-3 py-3 text-sm transition-all ${
+                  active
+                    ? 'border-accent/60 bg-accent-container text-on-accent-container shadow-sm'
+                    : 'border-line bg-raised/30 text-muted hover:border-faint hover:text-ink'
+                }`}
+              >
+                <span className="font-semibold tabular-nums">{pct} %</span>
+                {pct === DEFAULT_PERCENT && (
+                  <span className={`text-[11px] ${active ? 'text-on-accent-container/80' : 'text-faint'}`}>
+                    {tl(lang, 'settings.widescreenDefaultTag')}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            aria-pressed={widescreen.custom}
+            onClick={() => setWidescreen({ percent: widescreen.percent, custom: true })}
+            className={`flex flex-col items-center justify-center gap-0.5 rounded-2xl border px-3 py-3 text-sm transition-all ${
+              widescreen.custom
+                ? 'border-accent/60 bg-accent-container text-on-accent-container shadow-sm'
+                : 'border-line bg-raised/30 text-muted hover:border-faint hover:text-ink'
+            }`}
+          >
+            <span className="inline-flex items-center gap-1.5 font-semibold">
+              <SlidersHorizontal size={14} />
+              {tl(lang, 'settings.widescreenCustom')}
+            </span>
+            {widescreen.custom && <span className="text-[11px] tabular-nums text-on-accent-container/80">{widescreen.percent} %</span>}
+          </button>
+        </div>
+
+        {widescreen.custom && (
+          <div className="mt-3 space-y-3 rounded-2xl border border-line bg-raised/50 p-4 anim-fade-in">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-muted">{tl(lang, 'settings.widescreenCustom')}</span>
+              <div className="flex items-center gap-1.5">
                 <input
                   type="number"
-                  min={MIN_WIDTH}
-                  max={MAX_WIDTH}
-                  step={20}
-                  value={widescreen.width}
+                  min={MIN_PERCENT}
+                  max={MAX_PERCENT}
+                  step={1}
+                  value={customInput}
                   onChange={(e) => {
-                    const val = Number(e.target.value);
-                    if (val > 0) setWidescreen({ ...widescreen, width: val });
+                    const raw = e.target.value;
+                    setCustomInput(raw);
+                    const n = Number(raw);
+                    if (Number.isFinite(n) && n >= MIN_PERCENT && n <= MAX_PERCENT) {
+                      setWidescreen({ percent: Math.round(n), custom: true });
+                    }
                   }}
-                  className="input h-8 w-24 py-1 text-right font-mono text-sm"
-                  aria-label="Maximale Breite in Pixeln"
+                  onBlur={() => {
+                    const n = Number(customInput);
+                    const clamped = Number.isFinite(n) ? Math.min(MAX_PERCENT, Math.max(MIN_PERCENT, Math.round(n))) : DEFAULT_PERCENT;
+                    setWidescreen({ percent: clamped, custom: true });
+                    setCustomInput(String(clamped));
+                  }}
+                  className="input h-8 w-20 py-1 text-right font-mono text-sm tabular-nums"
+                  aria-label={tl(lang, 'settings.widescreenCustomAria')}
                 />
-                <span className="text-xs text-muted">px</span>
+                <span className="text-sm font-medium text-muted">%</span>
               </div>
             </div>
             <input
               type="range"
-              min={768}
-              max={2560}
-              step={20}
-              value={widescreen.width}
-              onChange={(e) => setWidescreen({ ...widescreen, width: Number(e.target.value) })}
-              className="w-full accent-accent cursor-pointer"
-              aria-label="Breite regeln"
+              min={MIN_PERCENT}
+              max={MAX_PERCENT}
+              step={1}
+              value={widescreen.percent}
+              onChange={(e) => setWidescreen({ percent: Number(e.target.value), custom: true })}
+              className="w-full cursor-pointer accent-accent"
+              aria-label={tl(lang, 'settings.widescreenSliderAria')}
             />
-            <div className="flex flex-wrap items-center gap-1.5">
-              {[768, 1000, 1200, 1400, 1600].map((px) => (
-                <button
-                  key={px}
-                  onClick={() => setWidescreen({ ...widescreen, width: px })}
-                  className={`chip text-xs transition-colors ${widescreen.width === px ? 'border border-accent bg-accent/15 text-accent' : 'hover:text-ink'}`}
-                >
-                  {px} px{px === DEFAULT_FIXED_WIDTH ? ' (Standard)' : px === 768 ? ' (Kompakt)' : ''}
-                </button>
-              ))}
+            <div className="flex justify-between text-[11px] text-faint tabular-nums">
+              <span>{MIN_PERCENT} %</span>
+              <span>{MAX_PERCENT} %</span>
             </div>
           </div>
         )}
+
+        <div className="mt-3 flex items-start gap-2 rounded-xl bg-raised/60 px-3.5 py-2.5 text-xs text-muted">
+          <Info size={15} className="mt-0.5 shrink-0 text-accent" />
+          <span>{tl(lang, 'settings.widescreenSmallScreenHint')}</span>
+        </div>
       </section>
 
       <section className="card p-5 anim-fade-up">
-        <h2 className="mb-1 font-semibold">Passkeys von {me.username}</h2>
-        <p className="mb-3 text-sm text-muted">Jedes Gerät meldet sich mit seinem eigenen Passkey an (oder einem, den dein Passwort-Manager synchronisiert).</p>
-        {!me.passkeys.length && <p className="mb-3 text-sm text-faint">Noch kein Passkey – du meldest dich mit deinem Passwort an.</p>}
+        <h2 className="mb-1 font-semibold">{tl(lang, 'settings.passkeysTitle', { username: me.username })}</h2>
+        <p className="mb-3 text-sm text-muted">{tl(lang, 'settings.passkeysDesc')}</p>
+        {!me.passkeys.length && <p className="mb-3 text-sm text-faint">{tl(lang, 'settings.passkeysEmpty')}</p>}
         <ul className="mb-3 divide-y divide-line">
           {me.passkeys.map((p) => (
             <li key={p.id} className="flex items-center gap-3 py-2">
@@ -207,15 +302,17 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
               <div className="flex-1">
                 <div className="text-sm">{p.name}</div>
                 <div className="text-xs text-faint">
-                  angelegt {new Date(p.createdAt).toLocaleDateString('de-DE')}
-                  {p.lastUsedAt ? ` · zuletzt ${new Date(p.lastUsedAt).toLocaleDateString('de-DE')}` : ''}
+                  {tl(lang, 'settings.passkeyMeta', {
+                    created: new Date(p.createdAt).toLocaleDateString(loc),
+                    last: p.lastUsedAt ? tl(lang, 'settings.passkeyLastUsed', { date: new Date(p.lastUsedAt).toLocaleDateString(loc) }) : '',
+                  })}
                 </div>
               </div>
               {(me.passkeys.length > 1 || me.hasPassword) && (
                 <button
                   className="btn-icon h-8 w-8"
                   onClick={async () => {
-                    if (confirm('Diesen Passkey entfernen?')) onMe(await api<Me>(`/auth/passkeys/${encodeURIComponent(p.id)}`, { method: 'DELETE' }));
+                    if (confirm(tl(lang, 'settings.passkeyRemoveConfirm'))) onMe(await api<Me>(`/auth/passkeys/${encodeURIComponent(p.id)}`, { method: 'DELETE' }));
                   }}
                 >
                   <Trash2 size={15} />
@@ -228,7 +325,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
           <button
             className="btn-ghost border border-line"
             disabled={!passkeysAvailable()}
-            title={passkeysAvailable() ? undefined : 'Passkeys gehen nur über HTTPS'}
+            title={passkeysAvailable() ? undefined : tl(lang, 'settings.passkeyHttpsOnly')}
             onClick={async () => {
               setError('');
               try {
@@ -240,16 +337,27 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
               }
             }}
           >
-            <KeyRound size={16} /> Passkey hier hinzufügen
+            <KeyRound size={16} /> {tl(lang, 'settings.passkeyAddHere')}
           </button>
           <button className="btn-ghost border border-line" onClick={async () => setLink(await api('/auth/device-link', { method: 'POST', json: {} }))}>
-            <Smartphone size={16} /> Neues Gerät verbinden
+            <Smartphone size={16} /> {tl(lang, 'settings.deviceConnect')}
           </button>
         </div>
         {link && (
           <div className="mt-3 rounded-xl bg-raised p-3 text-sm anim-fade-up">
-            Öffne auf dem neuen Gerät <b className="break-all">{linkUrl}</b> oder gib dort den Code <b className="font-mono">{link.code}</b> ein. Gültig bis{' '}
-            {new Date(link.expiresAt).toLocaleTimeString('de-DE', { timeStyle: 'short' })}.
+            {linkTextParts.map((part, i) =>
+              part === '{url}' ? (
+                <b key={i} className="break-all">
+                  {linkUrl}
+                </b>
+              ) : part === '{code}' ? (
+                <b key={i} className="font-mono">
+                  {link.code}
+                </b>
+              ) : (
+                <span key={i}>{part}</span>
+              )
+            )}
           </div>
         )}
         {error && <p className="mt-2 text-sm text-danger">{error}</p>}
@@ -258,21 +366,24 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
       <PasswordSection me={me} onMe={onMe} />
 
       <section className="card p-5 anim-fade-up">
-        <h2 className="mb-1 font-semibold">Synchronisierung</h2>
+        <h2 className="mb-1 font-semibold">{tl(lang, 'settings.syncTitle')}</h2>
         <p className="text-sm text-muted">
-          {vault.list().length} Notizen auf diesem Gerät · {vault.pendingCount()} noch nicht hochgeladen
-          {vault.lastSync ? ` · zuletzt ${new Date(vault.lastSync).toLocaleTimeString('de-DE', { timeStyle: 'short' })}` : ''}
+          {tl(lang, 'settings.syncStats', {
+            notes: vault.list().length,
+            pending: vault.pendingCount(),
+            last: vault.lastSync
+              ? tl(lang, 'settings.syncLast', { time: new Date(vault.lastSync).toLocaleTimeString(loc, { timeStyle: 'short' }) })
+              : '',
+          })}
         </p>
-        <p className="mt-2 text-xs text-faint">
-          Alles funktioniert offline; Änderungen werden übertragen, sobald du wieder online bist. Auf dem Server liegen die Notizen verschlüsselt.
-        </p>
+        <p className="mt-2 text-xs text-faint">{tl(lang, 'settings.syncOfflineNote')}</p>
       </section>
 
       <Diagnostics />
 
       <div className="flex items-center justify-between">
         <button className="btn-ghost text-danger" onClick={onLogout}>
-          <LogOut size={16} /> Abmelden
+          <LogOut size={16} /> {tl(lang, 'settings.logout')}
         </button>
         <span className="text-xs text-faint">Kladde {APP_VERSION}</span>
       </div>
@@ -282,6 +393,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
 
 /** Optional password: for devices on a plain-HTTP home network, where passkeys do not work */
 function PasswordSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
+  const lang = useLang();
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -295,7 +407,7 @@ function PasswordSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
     setMessage(null);
     try {
       onMe(await api<Me>('/auth/password', { method: 'POST', json: { currentPassword: current, newPassword: next } }));
-      setMessage({ ok: true, text: me.hasPassword ? 'Passwort geändert. Andere Geräte sind abgemeldet.' : 'Passwort gesetzt.' });
+      setMessage({ ok: true, text: me.hasPassword ? tl(lang, 'settings.passwordChanged') : tl(lang, 'settings.passwordCreated') });
       setOpen(false);
       setCurrent('');
       setNext('');
@@ -309,11 +421,9 @@ function PasswordSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
 
   return (
     <section className="card p-5 anim-fade-up">
-      <h2 className="mb-1 font-semibold">Passwort</h2>
+      <h2 className="mb-1 font-semibold">{tl(lang, 'settings.passwordTitle')}</h2>
       <p className="mb-3 text-sm text-muted">
-        {me.hasPassword
-          ? 'Du kannst dich auch mit Benutzername und Passwort anmelden.'
-          : 'Optional: Mit einem Passwort meldest du dich auch dort an, wo Passkeys nicht gehen (Kladde ohne HTTPS im lokalen Netz).'}
+        {me.hasPassword ? tl(lang, 'settings.passwordHasHint') : tl(lang, 'settings.passwordNoHint')}
       </p>
       {open ? (
         <form
@@ -326,39 +436,60 @@ function PasswordSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
           {/* Hidden username field so password managers file the password under the right account */}
           <input type="text" className="hidden" autoComplete="username" value={me.username} readOnly />
           {me.hasPassword && (
-            <input className="input" type="password" placeholder="Aktuelles Passwort" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+            <input
+              className="input"
+              type="password"
+              placeholder={tl(lang, 'settings.passwordCurrent')}
+              autoComplete="current-password"
+              value={current}
+              onChange={(e) => setCurrent(e.target.value)}
+            />
           )}
-          <input className="input" type="password" placeholder={`Neues Passwort (mind. ${PASSWORD_MIN_LENGTH} Zeichen)`} autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
-          <input className="input" type="password" placeholder="Neues Passwort wiederholen" autoComplete="new-password" value={repeat} onChange={(e) => setRepeat(e.target.value)} />
-          {mismatch && <p className="text-sm text-danger">Die Passwörter sind nicht gleich.</p>}
+          <input
+            className="input"
+            type="password"
+            placeholder={tl(lang, 'settings.passwordNew', { min: PASSWORD_MIN_LENGTH })}
+            autoComplete="new-password"
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
+          />
+          <input
+            className="input"
+            type="password"
+            placeholder={tl(lang, 'settings.passwordRepeat')}
+            autoComplete="new-password"
+            value={repeat}
+            onChange={(e) => setRepeat(e.target.value)}
+          />
+          {mismatch && <p className="text-sm text-danger">{tl(lang, 'settings.passwordMismatch')}</p>}
           <div className="flex gap-2">
             <button className="btn-primary" disabled={busy || next.length < PASSWORD_MIN_LENGTH || next !== repeat || (me.hasPassword && !current)}>
-              Speichern
+              {tl(lang, 'common.save')}
             </button>
             <button type="button" className="btn-ghost" onClick={() => setOpen(false)}>
-              Abbrechen
+              {tl(lang, 'common.cancel')}
             </button>
           </div>
         </form>
       ) : (
         <div className="flex flex-wrap gap-2">
           <button className="btn-ghost border border-line" onClick={() => setOpen(true)}>
-            <Lock size={16} /> {me.hasPassword ? 'Passwort ändern' : 'Passwort festlegen'}
+            <Lock size={16} /> {me.hasPassword ? tl(lang, 'settings.passwordChange') : tl(lang, 'settings.passwordSet')}
           </button>
           {me.hasPassword && me.passkeys.length > 0 && (
             <button
               className="btn-ghost text-danger"
               onClick={async () => {
-                if (!confirm('Passwort entfernen? Danach meldest du dich nur noch mit Passkey an.')) return;
+                if (!confirm(tl(lang, 'settings.passwordRemoveConfirm'))) return;
                 try {
                   onMe(await api<Me>('/auth/password', { method: 'DELETE' }));
-                  setMessage({ ok: true, text: 'Passwort entfernt.' });
+                  setMessage({ ok: true, text: tl(lang, 'settings.passwordRemoved') });
                 } catch (e) {
                   setMessage({ ok: false, text: (e as Error).message });
                 }
               }}
             >
-              <Trash2 size={16} /> Entfernen
+              <Trash2 size={16} /> {tl(lang, 'common.remove')}
             </button>
           )}
         </div>
@@ -370,18 +501,19 @@ function PasswordSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
 
 /** Layout measurements for support: the iOS home-screen app has no Web Inspector at hand */
 function Diagnostics() {
+  const lang = useLang();
   const [text, setText] = useState('');
   const [copied, setCopied] = useState(false);
   const [tall, setTall] = useState(false);
   const measure = () => setText(JSON.stringify({ version: APP_VERSION, now: viewportReport(), atStart: startupReport }, null, 2));
   return (
     <details className="card p-5 anim-fade-up" onToggle={(e) => (e.currentTarget.open ? measure() : setText(''))}>
-      <summary className="cursor-pointer font-semibold">Diagnose</summary>
-      <p className="mt-2 text-sm text-muted">Messwerte zur Bildschirmdarstellung. Zum Weitergeben kopieren.</p>
+      <summary className="cursor-pointer font-semibold">{tl(lang, 'settings.diagTitle')}</summary>
+      <p className="mt-2 text-sm text-muted">{tl(lang, 'settings.diagDesc')}</p>
       <pre className="mt-3 max-h-80 overflow-auto rounded-xl bg-raised p-3 font-mono text-xs leading-snug whitespace-pre-wrap break-all">{text}</pre>
       <div className="mt-3 flex flex-wrap gap-2">
         <button className="btn-ghost border border-line" onClick={measure}>
-          <Zap size={16} /> Neu messen
+          <Zap size={16} /> {tl(lang, 'settings.diagRemeasure')}
         </button>
         <button
           className="btn-ghost border border-line"
@@ -390,7 +522,7 @@ function Diagnostics() {
             setTimeout(measure, 400);
           }}
         >
-          <Monitor size={16} /> {tall ? 'Test beenden' : 'Test: volle Höhe'}
+          <Monitor size={16} /> {tall ? tl(lang, 'settings.diagStopTest') : tl(lang, 'settings.diagStartTest')}
         </button>
         <button
           className="btn-ghost border border-line"
@@ -404,7 +536,7 @@ function Diagnostics() {
             }
           }}
         >
-          <Copy size={16} /> {copied ? 'Kopiert' : 'Kopieren'}
+          <Copy size={16} /> {copied ? tl(lang, 'common.copied') : tl(lang, 'common.copy')}
         </button>
       </div>
     </details>

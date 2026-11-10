@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-// Every color is a CSS variable (see src/index.css), so the themes (light, Material) only swap variables
+// Every color is a CSS variable (see src/index.css) styled with Material 3 tokens
 const v = (name) => `rgb(var(--${name}) / <alpha-value>)`;
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],

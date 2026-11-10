@@ -25,6 +25,7 @@ import {
   type TableAlign,
 } from '@kladde/shared';
 import { renderDiagram, type DiagramKind } from '../editor/diagram';
+import { t } from './i18n';
 
 interface LoadedImage {
   bytes: Uint8Array;
@@ -50,7 +51,7 @@ function downloadBlob(blob: Blob, filename: string) {
 export function exportNoteAsMarkdown(title: string, content: string): void {
   const body = stripFrontmatter(content);
   const finalText = body && !body.endsWith('\n') ? `${body}\n` : body;
-  downloadBlob(new Blob([finalText], { type: 'text/markdown;charset=utf-8' }), safeExportFilename(title, 'md'));
+  downloadBlob(new Blob([finalText], { type: 'text/markdown;charset=utf-8' }), safeExportFilename(title, 'md', t('export.fallbackName')));
 }
 
 // ------------------------------------------------------------------ Image & Diagram loading
@@ -450,7 +451,7 @@ export async function exportNoteAsWord(title: string, content: string): Promise<
             );
           }
         } else {
-          const label = block.alt ? `Anhang: ${block.alt}` : `Anhang: ${block.url}`;
+          const label = block.alt ? `${t('export.docAttachment')}: ${block.alt}` : `${t('export.docAttachment')}: ${block.url}`;
           children.push(
             new Paragraph({
               spacing: { after: 120 },
@@ -471,6 +472,33 @@ export async function exportNoteAsWord(title: string, content: string): Promise<
         );
         break;
 
+      case 'toc':
+        children.push(
+          new Paragraph({
+            spacing: { before: 120, after: 80 },
+            children: [new TextRun({ text: t('export.docTocTitle'), bold: true, size: 22, color: '4F46E5' })],
+          })
+        );
+        if (!block.items.length) {
+          children.push(
+            new Paragraph({
+              spacing: { after: 120 },
+              children: [new TextRun({ text: t('export.docTocEmpty'), italics: true, size: 19, color: '686674' })],
+            })
+          );
+        } else {
+          for (const item of block.items) {
+            children.push(
+              new Paragraph({
+                indent: { left: Math.max(0, item.level - 1) * 280 + 160 },
+                spacing: { after: 40 },
+                children: [new TextRun({ text: item.text, size: 20, bold: item.level === 1, color: item.level <= 2 ? '1C1B22' : '555462' })],
+              })
+            );
+          }
+        }
+        break;
+
       case 'footnote':
         children.push(
           new Paragraph({
@@ -486,7 +514,7 @@ export async function exportNoteAsWord(title: string, content: string): Promise<
   }
 
   const doc = new Document({
-    title: title || 'Notiz',
+    title: title || t('export.fallbackName'),
     numbering: {
       config: [
         {
@@ -513,7 +541,7 @@ export async function exportNoteAsWord(title: string, content: string): Promise<
   });
 
   const blob = await Packer.toBlob(doc);
-  downloadBlob(blob, safeExportFilename(title, 'docx'));
+  downloadBlob(blob, safeExportFilename(title, 'docx', t('export.fallbackName')));
 }
 
 // ------------------------------------------------------------------ PDF Export
@@ -914,7 +942,9 @@ export async function exportNoteAsPdf(title: string, content: string): Promise<v
             y += 16;
           }
         } else {
-          const label = pdfSafeText(block.alt ? `[Anhang: ${block.alt}]` : `[Anhang: ${block.url}]`);
+          const label = pdfSafeText(
+            block.alt ? `[${t('export.docAttachment')}: ${block.alt}]` : `[${t('export.docAttachment')}: ${block.url}]`
+          );
           ensureSpace(16);
           pdf.setFont('helvetica', 'italic');
           pdf.setFontSize(9.5);
@@ -932,6 +962,39 @@ export async function exportNoteAsPdf(title: string, content: string): Promise<v
         pdf.line(marginX, y + 4, marginX + contentW, y + 4);
         y += 14;
         break;
+
+      case 'toc': {
+        ensureSpace(34);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(10.5);
+        pdf.setTextColor(79, 70, 229);
+        pdf.text(pdfSafeText(t('export.docTocTitle')), marginX, y);
+        y += 16;
+        if (!block.items.length) {
+          ensureSpace(15);
+          pdf.setFont('helvetica', 'italic');
+          pdf.setFontSize(9.5);
+          pdf.setTextColor(104, 102, 116);
+          pdf.text(pdfSafeText(t('export.docTocEmpty')), marginX, y);
+          y += 16;
+        } else {
+          for (const item of block.items) {
+            const indent = marginX + Math.min(4, Math.max(0, item.level - 1)) * 12;
+            const segs: PdfSeg[] = [
+              {
+                text: pdfSafeText(item.text),
+                font: 'helvetica',
+                style: item.level === 1 ? 'bold' : 'normal',
+                color: item.level <= 2 ? [28, 27, 34] : [85, 84, 98],
+              },
+            ];
+            const lines = wrapPdfSegs(pdf, segs, 10, pageW - marginX - indent);
+            drawWrappedLines(lines, indent, 10, 14);
+          }
+          y += 6;
+        }
+        break;
+      }
 
       case 'footnote': {
         const segs: PdfSeg[] = [
@@ -953,9 +1016,9 @@ export async function exportNoteAsPdf(title: string, content: string): Promise<v
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(8.5);
     pdf.setTextColor(150, 148, 158);
-    const label = pdfSafeText(`${title || 'Notiz'} - Seite ${p} / ${totalPages}`);
+    const label = pdfSafeText(`${title || t('export.fallbackName')} - ${t('export.docPages', { current: p, total: totalPages })}`);
     pdf.text(label, pageW - marginX - pdf.getTextWidth(label), pageH - 24);
   }
 
-  pdf.save(safeExportFilename(title, 'pdf'));
+  pdf.save(safeExportFilename(title, 'pdf', t('export.fallbackName')));
 }

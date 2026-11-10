@@ -1,15 +1,15 @@
 import { EditorView, WidgetType } from '@codemirror/view';
-import { formatValue, parseDate, toDateString, toggleTask } from '@kladde/shared';
-import type { QueryResult } from '@kladde/shared';
+import { formatValue, parseDate, toDateString, toggleTask, type NoteHeading, type QueryResult } from '@kladde/shared';
+import { getLang, locale, tl, type Lang } from '../lib/i18n';
 import { dataTable, parseMarkdownTable, stripInline } from './datatable';
 import { editorHost } from './host';
 import { DiagramKind, drawDiagram, openDiagram } from './diagram';
 
 /** Moves the cursor into a block so it shows its source (the "✎" button of block widgets) */
-function editButton(view: EditorView, pos: () => number): HTMLElement {
+function editButton(view: EditorView, pos: () => number, lang: Lang): HTMLElement {
   const b = document.createElement('button');
   b.className = 'wz-edit';
-  b.title = 'Bearbeiten';
+  b.title = tl(lang, 'common.edit');
   b.textContent = '✎';
   b.addEventListener('mousedown', (e) => {
     e.preventDefault();
@@ -20,7 +20,10 @@ function editButton(view: EditorView, pos: () => number): HTMLElement {
 }
 
 abstract class BlockWidget extends WidgetType {
-  constructor(readonly src: string) {
+  constructor(
+    readonly src: string,
+    readonly lang: Lang = getLang()
+  ) {
     super();
   }
   ignoreEvent() {
@@ -31,7 +34,7 @@ abstract class BlockWidget extends WidgetType {
     wrap.className = 'wz-block';
     wrap.append(inner);
     if (view.state.facet(EditorView.editable)) {
-      wrap.append(editButton(view, () => view.posAtDOM(wrap)));
+      wrap.append(editButton(view, () => view.posAtDOM(wrap), this.lang));
     }
     return wrap;
   }
@@ -39,7 +42,7 @@ abstract class BlockWidget extends WidgetType {
 
 export class TableWidget extends BlockWidget {
   eq(other: TableWidget) {
-    return other.src === this.src;
+    return other.src === this.src && other.lang === this.lang;
   }
   toDOM(view: EditorView) {
     const t = parseMarkdownTable(this.src);
@@ -55,23 +58,91 @@ export class TableWidget extends BlockWidget {
   }
 }
 
+export class TocWidget extends BlockWidget {
+  readonly key: string;
+  constructor(
+    src: string,
+    readonly headings: NoteHeading[],
+    lang: Lang = getLang()
+  ) {
+    super(src, lang);
+    this.key = headings.map((h) => `${h.level}:${h.line}:${h.from}:${h.text}`).join('\n');
+  }
+  eq(other: TocWidget) {
+    return other.src === this.src && other.key === this.key && other.lang === this.lang;
+  }
+  toDOM(view: EditorView) {
+    const box = document.createElement('div');
+    box.className = 'cm-block-widget wz-toc';
+
+    const head = document.createElement('div');
+    head.className = 'wz-toc-head';
+    head.innerHTML =
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>';
+    const title = document.createElement('span');
+    title.textContent = tl(this.lang, 'editor.tocWidgetTitle');
+    head.append(title);
+    box.append(head);
+
+    if (!this.headings.length) {
+      const empty = document.createElement('div');
+      empty.className = 'wz-toc-empty';
+      empty.textContent = tl(this.lang, 'editor.tocWidgetEmpty');
+      box.append(empty);
+      return this.frame(view, box);
+    }
+
+    const list = document.createElement('div');
+    list.className = 'wz-toc-list';
+    const minLevel = Math.min(...this.headings.map((h) => h.level));
+    for (const h of this.headings) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'wz-toc-item';
+      const depth = Math.max(0, Math.min(4, h.level - minLevel));
+      btn.style.paddingLeft = `${10 + depth * 16}px`;
+      btn.title = tl(this.lang, 'note.tocJumpHint', { text: h.text });
+
+      const bullet = document.createElement('span');
+      bullet.className = 'text-faint text-xs shrink-0';
+      bullet.textContent = depth === 0 ? '•' : '◦';
+
+      const textSpan = document.createElement('span');
+      textSpan.className = depth === 0 ? 'font-medium truncate' : 'truncate';
+      textSpan.textContent = h.text;
+
+      btn.append(bullet, textSpan);
+      btn.addEventListener('mousedown', (e) => e.preventDefault());
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const pos = Math.min(h.from, view.state.doc.length);
+        view.dispatch({ effects: EditorView.scrollIntoView(pos, { y: 'start', yMargin: 72 }) });
+      });
+      list.append(btn);
+    }
+    box.append(list);
+    return this.frame(view, box);
+  }
+}
+
 export class QueryWidget extends BlockWidget {
   constructor(
     src: string,
     readonly stamp: number,
-    readonly locked = false
+    readonly locked = false,
+    lang: Lang = getLang()
   ) {
-    super(src);
+    super(src, lang);
   }
   eq(other: QueryWidget) {
-    return other.src === this.src && other.stamp === this.stamp && other.locked === this.locked;
+    return other.src === this.src && other.stamp === this.stamp && other.locked === this.locked && other.lang === this.lang;
   }
   toDOM(view: EditorView) {
     const result = editorHost.runQuery(this.src);
     if ('error' in result) {
       const err = document.createElement('div');
       err.className = 'cm-block-widget wz-query-error';
-      err.textContent = `Abfrage-Fehler: ${result.error}`;
+      err.textContent = tl(this.lang, 'editor.queryError', { error: result.error });
       return this.frame(view, err);
     }
     if (result.lanes) return this.frame(view, this.kanban(result, view));
@@ -98,7 +169,7 @@ export class QueryWidget extends BlockWidget {
           }
           const a = document.createElement('a');
           a.className = 'cm-link';
-          a.textContent = formatValue(v) || '(ohne Titel)';
+          a.textContent = formatValue(v) || `(${tl(this.lang, 'common.unnamed').toLowerCase()})`;
           a.addEventListener('click', (e) => {
             e.preventDefault();
             editorHost.openNote(row.noteId);
@@ -110,7 +181,16 @@ export class QueryWidget extends BlockWidget {
       });
       return { cells, keys: result.columns.map((c) => (typeof row.values[c] === 'number' ? String(row.values[c]).padStart(15, '0') : formatValue(row.values[c]))) };
     });
-    const label = { title: 'Titel', updated: 'Geändert', created: 'Erstellt', folder: 'Ordner', tags: 'Tags', text: 'Aufgabe', due: 'Fällig', note: 'Notiz' } as Record<string, string>;
+    const label = {
+      title: tl(this.lang, 'list.colTitle'),
+      updated: tl(this.lang, 'list.colUpdated'),
+      created: tl(this.lang, 'list.colCreated'),
+      folder: tl(this.lang, 'list.colFolder'),
+      tags: tl(this.lang, 'list.colTags'),
+      text: tl(this.lang, 'quick.taskBtn'),
+      due: this.lang === 'en' ? 'Due' : 'Fällig',
+      note: this.lang === 'en' ? 'Note' : 'Notiz',
+    } as Record<string, string>;
     return this.frame(view, dataTable(result.columns.map((c) => label[c] ?? c), rows, { caption: `⚡ ${result.query.mode.toUpperCase()}` }));
   }
 
@@ -124,7 +204,7 @@ export class QueryWidget extends BlockWidget {
       col.className = 'wz-lane';
       const head = document.createElement('div');
       head.className = 'wz-lane-head';
-      head.textContent = lane.value || `Ohne ${field}`;
+      head.textContent = lane.value || (this.lang === 'en' ? `No ${field}` : `Ohne ${field}`);
       const n = document.createElement('span');
       n.textContent = String(lane.rows.length);
       head.append(n);
@@ -133,7 +213,7 @@ export class QueryWidget extends BlockWidget {
         const card = document.createElement('div');
         card.className = 'wz-card';
         card.draggable = !this.locked;
-        card.textContent = formatValue(row.values.title) || '(ohne Titel)';
+        card.textContent = formatValue(row.values.title) || `(${tl(this.lang, 'common.unnamed').toLowerCase()})`;
         card.addEventListener('click', () => editorHost.openNote(row.noteId));
         card.addEventListener('dragstart', (e) => {
           e.dataTransfer?.setData('application/x-kladde-card', row.noteId);
@@ -160,7 +240,7 @@ export class QueryWidget extends BlockWidget {
       }
       board.append(col);
     }
-    if (!result.lanes!.length) board.textContent = 'Keine Notizen.';
+    if (!result.lanes!.length) board.textContent = tl(this.lang, 'nav.listEmpty');
     void view;
     return board;
   }
@@ -168,7 +248,7 @@ export class QueryWidget extends BlockWidget {
 
 export class GalleryWidget extends BlockWidget {
   eq(other: GalleryWidget) {
-    return other.src === this.src;
+    return other.src === this.src && other.lang === this.lang;
   }
   toDOM(view: EditorView) {
     const grid = document.createElement('div');
@@ -189,12 +269,13 @@ export class GalleryWidget extends BlockWidget {
 export class DiagramWidget extends BlockWidget {
   constructor(
     readonly kind: DiagramKind,
-    src: string
+    src: string,
+    lang: Lang = getLang()
   ) {
-    super(src);
+    super(src, lang);
   }
   eq(other: DiagramWidget) {
-    return other.kind === this.kind && other.src === this.src;
+    return other.kind === this.kind && other.src === this.src && other.lang === this.lang;
   }
   get estimatedHeight() {
     return 240;
@@ -225,12 +306,13 @@ export function openLightbox(url: string) {
 export class CodeHeaderWidget extends WidgetType {
   constructor(
     readonly lang: string,
-    readonly code: string
+    readonly code: string,
+    readonly uiLang: Lang = getLang()
   ) {
     super();
   }
   eq(other: CodeHeaderWidget) {
-    return other.lang === this.lang && other.code === this.code;
+    return other.lang === this.lang && other.code === this.code && other.uiLang === this.uiLang;
   }
   toDOM() {
     const el = document.createElement('span');
@@ -238,12 +320,12 @@ export class CodeHeaderWidget extends WidgetType {
     const lang = document.createElement('span');
     lang.textContent = this.lang || 'code';
     const copy = document.createElement('button');
-    copy.textContent = 'Kopieren';
+    copy.textContent = tl(this.uiLang, 'editor.codeCopy');
     copy.addEventListener('mousedown', (e) => {
       e.preventDefault();
       void navigator.clipboard?.writeText(this.code).then(() => {
-        copy.textContent = 'Kopiert ✓';
-        setTimeout(() => (copy.textContent = 'Kopieren'), 1200);
+        copy.textContent = tl(this.uiLang, 'editor.codeCopied');
+        setTimeout(() => (copy.textContent = tl(this.uiLang, 'editor.codeCopy')), 1200);
       });
     });
     el.append(lang, copy);
@@ -324,18 +406,19 @@ export class FootnoteRefWidget extends WidgetType {
     readonly label: string,
     readonly number: number,
     readonly text: string,
-    readonly defPos: number | null
+    readonly defPos: number | null,
+    readonly lang: Lang = getLang()
   ) {
     super();
   }
   eq(o: FootnoteRefWidget) {
-    return o.label === this.label && o.number === this.number && o.text === this.text && o.defPos === this.defPos;
+    return o.label === this.label && o.number === this.number && o.text === this.text && o.defPos === this.defPos && o.lang === this.lang;
   }
   toDOM(view: EditorView) {
     const s = document.createElement('sup');
     s.className = `cm-footnote-ref${this.defPos === null ? ' cm-missing' : ''}`;
     s.textContent = String(this.number);
-    s.title = this.defPos === null ? `Fußnote „${this.label}“ ist nicht definiert` : this.text;
+    s.title = this.defPos === null ? tl(this.lang, 'editor.footnoteMissingTitle', { id: this.label }) : this.text;
     s.addEventListener('mousedown', (e) => {
       e.preventDefault();
       if (this.defPos === null) return;
@@ -395,19 +478,20 @@ export class AutoLinkWidget extends WidgetType {
     readonly target: string,
     readonly original: string,
     readonly from: number,
-    readonly to: number
+    readonly to: number,
+    readonly lang: Lang = getLang()
   ) {
     super();
   }
 
   eq(o: AutoLinkWidget) {
-    return o.target === this.target && o.original === this.original && o.from === this.from && o.to === this.to;
+    return o.target === this.target && o.original === this.original && o.from === this.from && o.to === this.to && o.lang === this.lang;
   }
 
   toDOM(view: EditorView) {
     const s = document.createElement('span');
     s.className = 'cm-autolink cm-autolink-widget';
-    s.title = `Notiz „${this.target}“ (Klick zum Öffnen)`;
+    s.title = this.lang === 'en' ? `Note “${this.target}” (click to open)` : `Notiz „${this.target}“ (Klick zum Öffnen)`;
 
     const text = document.createElement('span');
     text.className = 'cm-autolink-text';
@@ -422,8 +506,8 @@ export class AutoLinkWidget extends WidgetType {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'cm-autolink-btn';
-      btn.title = `Als [[${this.target}]] verlinken`;
-      btn.setAttribute('aria-label', `Als [[${this.target}]] verlinken`);
+      btn.title = tl(this.lang, 'editor.autolinkTitle', { target: this.target });
+      btn.setAttribute('aria-label', tl(this.lang, 'editor.autolinkTitle', { target: this.target }));
       btn.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>`;
 
       btn.addEventListener('mousedown', (e) => {
@@ -462,12 +546,13 @@ export class AutoLinkWidget extends WidgetType {
 export class ImageWidget extends WidgetType {
   constructor(
     readonly url: string,
-    readonly alt: string
+    readonly alt: string,
+    readonly lang: Lang = getLang()
   ) {
     super();
   }
   eq(o: ImageWidget) {
-    return o.url === this.url;
+    return o.url === this.url && o.alt === this.alt && o.lang === this.lang;
   }
   toDOM() {
     if (/\.pdf($|\?)/i.test(this.url) || /\.pdf$/i.test(this.alt)) {
@@ -481,7 +566,7 @@ export class ImageWidget extends WidgetType {
       link.href = this.url;
       link.target = '_blank';
       link.className = 'cm-link text-sm';
-      link.textContent = `📄 ${this.alt || 'PDF öffnen'}`;
+      link.textContent = `📄 ${this.alt || (this.lang === 'en' ? 'Open PDF' : 'PDF öffnen')}`;
       wrap.append(link, obj);
       return wrap;
     }
@@ -501,12 +586,13 @@ export class ImageWidget extends WidgetType {
 export class DueWidget extends WidgetType {
   constructor(
     readonly date: string,
-    readonly kind: 'due' | 'repeat'
+    readonly kind: 'due' | 'repeat',
+    readonly lang: Lang = getLang()
   ) {
     super();
   }
   eq(o: DueWidget) {
-    return o.date === this.date && o.kind === this.kind;
+    return o.date === this.date && o.kind === this.kind && o.lang === this.lang;
   }
   toDOM() {
     const s = document.createElement('span');
@@ -517,20 +603,21 @@ export class DueWidget extends WidgetType {
     }
     const today = toDateString(new Date());
     s.className = `cm-due${this.date < today ? ' overdue' : this.date === today ? ' today' : ''}`;
-    s.textContent = `📅 ${formatDue(this.date)}`;
+    s.textContent = `📅 ${formatDue(this.date, this.lang)}`;
     return s;
   }
 }
 
-export function formatDue(date: string): string {
+export function formatDue(date: string, lang: Lang = getLang()): string {
   const d = parseDate(date);
   const today = parseDate(toDateString(new Date()));
   const diff = Math.round((d.getTime() - today.getTime()) / 86_400_000);
-  if (diff === 0) return 'Heute';
-  if (diff === 1) return 'Morgen';
-  if (diff === -1) return 'Gestern';
-  if (diff > 1 && diff < 7) return d.toLocaleDateString('de-DE', { weekday: 'long' });
-  return d.toLocaleDateString('de-DE', { day: 'numeric', month: 'short', ...(d.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {}) });
+  if (diff === 0) return tl(lang, 'home.taskToday');
+  if (diff === 1) return tl(lang, 'home.taskTomorrow');
+  if (diff === -1) return lang === 'en' ? 'Yesterday' : 'Gestern';
+  const loc = locale(lang);
+  if (diff > 1 && diff < 7) return d.toLocaleDateString(loc, { weekday: 'long' });
+  return d.toLocaleDateString(loc, { day: 'numeric', month: 'short', ...(d.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {}) });
 }
 
 export class SimpleWidget extends WidgetType {
@@ -550,11 +637,14 @@ export class SimpleWidget extends WidgetType {
 
 /** Frontmatter as a compact row of properties (shown when the cursor is outside it) */
 export class PropertiesWidget extends WidgetType {
-  constructor(readonly src: string) {
+  constructor(
+    readonly src: string,
+    readonly lang: Lang = getLang()
+  ) {
     super();
   }
   eq(o: PropertiesWidget) {
-    return o.src === this.src;
+    return o.src === this.src && o.lang === this.lang;
   }
   toDOM(view: EditorView) {
     const wrap = document.createElement('div');
@@ -574,7 +664,7 @@ export class PropertiesWidget extends WidgetType {
       wrap.append(item);
     }
     if (view.state.facet(EditorView.editable)) {
-      wrap.title = 'Eigenschaften bearbeiten';
+      wrap.title = tl(this.lang, 'editor.propertiesLabel');
       wrap.addEventListener('mousedown', (e) => {
         e.preventDefault();
         view.dispatch({ selection: { anchor: 4 } });
