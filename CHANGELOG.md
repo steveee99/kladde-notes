@@ -4,6 +4,15 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Externe Links (`[Text](https://…)`, `<https://…>` und nackte URLs) erscheinen im Editor als Material-3-Chip mit dem Favicon der Seite (Globus als Ersatz, offline oder ohne Icon) und dem Linktext bzw. einer gekürzten URL.
+- Neu: Slash-Befehl `/carousel` mit Block ` ```carousel ` (gleiche Syntax wie die Galerie, ein Bild pro Zeile) als Material-3-Karussell: horizontal wischbar mit Einrasten, großes Bild mit angeschnittenem nächsten, Beschriftung aus dem Alt-Text, Vor/Zurück-Knöpfe am Desktop, Klick öffnet die Vollbildansicht.
+- Neu: „+ Neue Notiz“ in der Seitenleiste ist ein Split-Button; das Menü daneben enthält „Zettel“ und „Rezept aus URL“ (statt eigener Knöpfe), sofern die Funktionen aktiviert sind.
+- Geändert: Die Galerie (` ```gallery `) zeigt Bilder in zwei Spalten (bei schmalen Notizen in einer).
+- Geändert: „Verwaltung“ ist aus der Seitenleiste entfernt; sie bleibt über die Einstellungen erreichbar.
+- Behoben: Icons in den Einstellungen (u. a. „Funktionen & Struktur“) sind vertikal mit Titel und Beschreibung zentriert.
+- Neu: Eine eingefügte URL wird zu `[Titel](url)`, wenn die Zwischenablage einen Linktext mitliefert (z. B. „Link kopieren“ auf Webseiten oder Adressleiste in Edge/Safari); mit markiertem Text wird die Markierung zum Linktext.
+- Behoben: Der Slash-Befehl `/link` (Web-Link) fügte nichts ein, weil der leere Linktext der Vorlage `[](https://)` die Live-Vorschau abstürzen ließ.
+
 ## [0.22.0] – 2026-11-10
 
 - Neu: Alle nativen `<select>`-Auswahlfelder durch Material-3-konforme Dropdown-Menüs (schwebendes Listen-Menü per Portal) ersetzt.

@@ -167,7 +167,7 @@ export function parseMarkdownForExport(title: string, content: string): ExportDo
       continue;
     }
 
-    // Fenced code block (including mermaid, mindmap, gallery, query)
+    // Fenced code block (including mermaid, mindmap, gallery, carousel, query)
     const fence = /^\s*(`{3,}|~{3,})(.*)$/.exec(line);
     if (fence) {
       const marker = fence[1][0];
@@ -184,7 +184,7 @@ export function parseMarkdownForExport(title: string, content: string): ExportDo
         i++;
       }
       const code = codeLines.join('\n');
-      if (lang === 'gallery') {
+      if (lang === 'gallery' || lang === 'carousel') {
         for (const gLine of codeLines) {
           const mdImg = /^\s*!\[([^\]]*)\]\(([^)\s]+)\)\s*$/.exec(gLine);
           const bareUrl = /^\s*(https?:\/\/\S+|\/api\/files\/\S+)\s*$/.exec(gLine);

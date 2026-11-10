@@ -251,7 +251,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
 
         {/* Language selector (M3 Segmented Pill Button) */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-2.5">
+          <div className="flex items-center gap-2.5">
             <Globe size={18} className="mt-0.5 shrink-0 text-accent" />
             <div>
               <div className="text-sm font-semibold">{tl(lang, 'common.language')}</div>
@@ -284,7 +284,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
 
         {/* Inbox Zero opt-in (M3 Switch) */}
         <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
             <Inbox size={18} className="mt-0.5 shrink-0 text-accent" />
             <div className="min-w-0 flex-1">
               <label htmlFor="inbox-zero-switch" className="cursor-pointer text-sm font-semibold">
@@ -304,7 +304,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
         <hr className="my-5 border-line" />
 
         {/* Widescreen percentage options (50%, 80% Default, 100%, Custom) */}
-        <div className="mb-3 flex items-start gap-2.5">
+        <div className="mb-3 flex items-center gap-2.5">
           <Maximize2 size={18} className="mt-0.5 shrink-0 text-accent" />
           <div>
             <h3 className="text-sm font-semibold">{tl(lang, 'settings.widescreenTitle')}</h3>
@@ -757,7 +757,7 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
       {/* Daily Notes */}
       <div>
         <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
             <CalendarDays size={18} className="mt-0.5 shrink-0 text-accent" />
             <div className="min-w-0 flex-1">
               <label htmlFor="feature-daily-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
@@ -839,7 +839,7 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
       {/* Calendar Heatmap opt-in */}
       <div>
         <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
             <CalendarRange size={18} className="mt-0.5 shrink-0 text-ok" />
             <div className="min-w-0 flex-1">
               <label htmlFor="feature-heatmap-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
@@ -863,7 +863,7 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
       {/* PARA method opt-in */}
       <div>
         <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
             <FolderKanban size={18} className="mt-0.5 shrink-0 text-accent" />
             <div className="min-w-0 flex-1">
               <label htmlFor="feature-para-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
@@ -923,7 +923,7 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
       {/* Zettelkasten opt-in */}
       <div>
         <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
             <Lightbulb size={18} className="mt-0.5 shrink-0 text-accent" />
             <div className="min-w-0 flex-1">
               <label htmlFor="feature-zettel-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
@@ -959,7 +959,7 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
       {/* Recipe import opt-in */}
       <div>
         <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
             <ChefHat size={18} className="mt-0.5 shrink-0 text-accent" />
             <div className="min-w-0 flex-1">
               <label htmlFor="feature-recipe-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>

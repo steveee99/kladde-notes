@@ -6,6 +6,7 @@ import { escapeRegExp, extractHeadings, TOC_ANCHOR_RE, type NoteHeading } from '
 import { getLang } from '../lib/i18n';
 import {
   AutoLinkWidget,
+  CarouselWidget,
   CheckboxWidget,
   CodeHeaderWidget,
   DiagramWidget,
@@ -26,7 +27,7 @@ import { editorHost } from './host';
 
 /**
  * Obsidian-style live preview: Markdown syntax is hidden and rendered everywhere except in the
- * lines the cursor is in. Tables, ##TOC##, ```query, ```gallery, ```mermaid and ```mindmap blocks become interactive widgets.
+ * lines the cursor is in. Tables, ##TOC##, ```query, ```gallery, ```carousel, ```mermaid and ```mindmap blocks become interactive widgets.
  * Block widgets must come from a StateField (not a view plugin), so all decorations are built here.
  */
 
@@ -185,11 +186,29 @@ function build(state: EditorState): DecorationSet {
           const url = node.getChild('URL');
           if (marks.length < 2 || !url || doc.sliceString(node.from, node.from + 2) === '[[') return;
           if (isActive(node.from, node.to)) {
-            decos.push(mark('cm-link').range(marks[0].to, marks[1].from));
+            // "[](url)" (e.g. fresh from /link) has no text: an empty mark decoration would throw
+            if (marks[1].from > marks[0].to) decos.push(mark('cm-link').range(marks[0].to, marks[1].from));
             return;
           }
           replace(node.from, node.to, Decoration.replace({ widget: new LinkWidget(doc.sliceString(marks[0].to, marks[1].from), doc.sliceString(url.from, url.to)) }));
           return false;
+        }
+        case 'Autolink': {
+          // <https://…>
+          protectedRanges.push([node.from, node.to]);
+          const url = node.getChild('URL');
+          if (!url || isActive(node.from, node.to)) return false;
+          replace(node.from, node.to, Decoration.replace({ widget: new LinkWidget('', doc.sliceString(url.from, url.to)) }));
+          return false;
+        }
+        case 'URL': {
+          // Bare URLs (GFM autolink); URLs inside [text](url) and images are handled by their parent
+          if (node.parent && /^(Link|Image|Autolink|LinkReference)$/.test(node.parent.name)) return;
+          protectedRanges.push([node.from, node.to]);
+          const url = text();
+          if (!/^https?:\/\//i.test(url) || isActive(node.from, node.to)) return;
+          replace(node.from, node.to, Decoration.replace({ widget: new LinkWidget('', url) }));
+          return;
         }
         case 'Image': {
           protectedRanges.push([node.from, node.to]);
@@ -243,8 +262,9 @@ function build(state: EditorState): DecorationSet {
           const body = firstLine.number < lastLine.number ? doc.sliceString(firstLine.to + 1, lastLine.number > firstLine.number + 1 ? doc.line(lastLine.number - 1).to : firstLine.to + 1) : '';
           for (let l = firstLine.number; l <= lastLine.number; l++) codeLines.add(l);
           const editing = isActive(node.from, node.to);
-          if (!editing && (langInfo === 'query' || langInfo === 'gallery')) {
-            const widget = langInfo === 'query' ? new QueryWidget(body, stamp, state.readOnly, lang) : new GalleryWidget(body, lang);
+          if (!editing && (langInfo === 'query' || langInfo === 'gallery' || langInfo === 'carousel')) {
+            const widget =
+              langInfo === 'query' ? new QueryWidget(body, stamp, state.readOnly, lang) : langInfo === 'carousel' ? new CarouselWidget(body, lang) : new GalleryWidget(body, lang);
             blockWidget(node, Decoration.replace({ widget, block: true }));
             return false;
           }

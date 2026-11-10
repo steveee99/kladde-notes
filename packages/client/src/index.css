@@ -353,6 +353,78 @@ html[data-readonly] .edit-only {
   text-decoration-color: rgb(var(--accent) / 0.35);
   text-underline-offset: 3px;
 }
+/*
+ * External links as Material 3 assist chips: 8px corners, outline, label-large text, a leading icon
+ * (the site's favicon) and an on-surface state layer. Height is reduced from 32px so the chip fits the line.
+ */
+.cm-link-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  max-width: min(100%, 28em);
+  padding: 0 10px 0 6px;
+  margin: 0 2px;
+  vertical-align: middle;
+  border: 1px solid rgb(var(--faint) / 0.6);
+  border-radius: 8px;
+  background: transparent;
+  color: rgb(var(--ink));
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  line-height: 20px;
+  text-decoration: none;
+  cursor: pointer;
+  overflow: hidden;
+  isolation: isolate;
+}
+/* State layer */
+.cm-link-pill::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgb(var(--ink));
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+.cm-link-pill:hover::before {
+  opacity: 0.08;
+}
+.cm-link-pill:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
+}
+.cm-link-pill:focus-visible::before,
+.cm-link-pill:active::before {
+  opacity: 0.1;
+}
+.cm-link-pill-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  color: rgb(var(--accent));
+}
+.cm-link-pill-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.cm-link-pill-icon img {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  object-fit: contain;
+}
+.cm-link-pill-text {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .cm-wikilink.cm-missing {
   color: rgb(var(--muted));
   text-decoration-style: dashed;
@@ -709,21 +781,126 @@ html[data-readonly] .edit-only {
 .wz-card.dragging {
   opacity: 0.4;
 }
+/* ```gallery: two columns, one on narrow notes (container query: the note width counts, not the window) */
+.wz-gallery-wrap {
+  container-type: inline-size;
+}
 .wz-gallery {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+@container (max-width: 360px) {
+  .wz-gallery {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .wz-gallery img {
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: 4 / 3;
   object-fit: cover;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: zoom-in;
   transition: transform 200ms var(--ease);
 }
 .wz-gallery img:hover {
-  transform: scale(1.02);
+  transform: scale(1.015);
+}
+
+/*
+ * ```carousel: Material 3 hero carousel. A large item snaps to the start, the next one peeks in at the
+ * edge; 28px corners, label on the image, previous/next buttons on devices with a pointer.
+ */
+.wz-carousel {
+  position: relative;
+  container-type: inline-size;
+}
+.wz-carousel-track {
+  display: flex;
+  gap: 8px;
+  height: clamp(180px, 42cqw, 320px);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.wz-carousel-track::-webkit-scrollbar {
+  display: none;
+}
+.wz-carousel-item {
+  position: relative;
+  flex: 0 0 auto;
+  width: 82%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 28px;
+  background: rgb(var(--raised));
+  scroll-snap-align: start;
+  cursor: zoom-in;
+}
+@container (min-width: 640px) {
+  .wz-carousel-item {
+    width: 62%;
+  }
+}
+.wz-carousel-item:last-child {
+  scroll-snap-align: end;
+}
+.wz-carousel-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.wz-carousel-item figcaption {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+}
+.wz-carousel-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-top: -20px;
+  border-radius: 999px;
+  background: rgb(var(--surface) / 0.9);
+  color: rgb(var(--ink));
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transition: opacity 150ms var(--ease);
+}
+.wz-carousel-nav.prev {
+  left: 8px;
+}
+.wz-carousel-nav.next {
+  right: 8px;
+}
+.wz-carousel:hover .wz-carousel-nav:not(:disabled),
+.wz-carousel-nav:focus-visible {
+  opacity: 1;
+}
+.wz-carousel-nav:disabled {
+  pointer-events: none;
+}
+@media (hover: none) {
+  .wz-carousel-nav {
+    display: none;
+  }
 }
 .wz-lightbox {
   position: fixed;

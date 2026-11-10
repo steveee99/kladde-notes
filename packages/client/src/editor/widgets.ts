@@ -251,17 +251,79 @@ export class GalleryWidget extends BlockWidget {
     return other.src === this.src && other.lang === this.lang;
   }
   toDOM(view: EditorView) {
+    const wrap = document.createElement('div');
+    wrap.className = 'cm-block-widget wz-gallery-wrap';
     const grid = document.createElement('div');
-    grid.className = 'cm-block-widget wz-gallery';
-    const urls = [...this.src.matchAll(/!\[[^\]]*\]\(([^)\s]+)\)|^(https?:\/\/\S+|\/api\/files\/\S+)$/gm)].map((m) => m[1] ?? m[2]);
-    for (const url of urls) {
+    grid.className = 'wz-gallery';
+    for (const { url, alt } of blockImages(this.src)) {
       const img = document.createElement('img');
       img.src = url;
+      img.alt = alt;
       img.loading = 'lazy';
       img.addEventListener('click', () => openLightbox(url));
       grid.append(img);
     }
-    return this.frame(view, grid);
+    wrap.append(grid);
+    return this.frame(view, wrap);
+  }
+}
+
+/** Images of a ```gallery / ```carousel block: one per line, as ![alt](url) or a bare URL */
+function blockImages(src: string): { url: string; alt: string }[] {
+  return [...src.matchAll(/!\[([^\]]*)\]\(([^)\s]+)\)|^\s*(https?:\/\/\S+|\/api\/files\/\S+)\s*$/gm)].map((m) => ({ url: m[2] ?? m[3], alt: m[1] ?? '' }));
+}
+
+const chevron = (d: string) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
+
+/** ```carousel: Material 3 hero carousel (horizontal, snapping, large item + peek, label from the alt text) */
+export class CarouselWidget extends BlockWidget {
+  eq(other: CarouselWidget) {
+    return other.src === this.src && other.lang === this.lang;
+  }
+  toDOM(view: EditorView) {
+    const box = document.createElement('div');
+    box.className = 'cm-block-widget wz-carousel';
+    box.setAttribute('role', 'region');
+    box.setAttribute('aria-roledescription', 'carousel');
+    const track = document.createElement('div');
+    track.className = 'wz-carousel-track';
+    track.tabIndex = 0;
+    for (const { url, alt } of blockImages(this.src)) {
+      const item = document.createElement('figure');
+      item.className = 'wz-carousel-item';
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = alt;
+      img.loading = 'lazy';
+      img.draggable = false;
+      item.append(img);
+      if (alt) item.append(Object.assign(document.createElement('figcaption'), { textContent: alt }));
+      item.addEventListener('click', () => openLightbox(url));
+      track.append(item);
+    }
+    const nav = (dir: -1 | 1) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `wz-carousel-nav ${dir < 0 ? 'prev' : 'next'}`;
+      btn.setAttribute('aria-label', tl(this.lang, dir < 0 ? 'editor.carouselPrev' : 'editor.carouselNext'));
+      btn.innerHTML = chevron(dir < 0 ? 'm15 18-6-6 6-6' : 'm9 18 6-6-6-6');
+      btn.addEventListener('mousedown', (e) => e.preventDefault());
+      btn.addEventListener('click', () => {
+        const step = (track.firstElementChild as HTMLElement | null)?.offsetWidth ?? track.clientWidth;
+        track.scrollBy({ left: dir * (step + 8), behavior: 'smooth' });
+      });
+      return btn;
+    };
+    const prev = nav(-1);
+    const next = nav(1);
+    const sync = () => {
+      prev.disabled = track.scrollLeft <= 2;
+      next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 2;
+    };
+    track.addEventListener('scroll', sync, { passive: true });
+    requestAnimationFrame(sync);
+    box.append(prev, track, next);
+    return this.frame(view, box);
   }
 }
 
@@ -375,6 +437,55 @@ export function toggleLine(view: EditorView, lineIndex: number) {
   view.dispatch({ changes: { from: line.from, to: line.to, insert: newLines.slice(lineIndex, lineIndex + 1 + added).join('\n') } });
 }
 
+function externalUrl(url: string): URL | null {
+  if (!/^https?:\/\//i.test(url)) return null;
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+}
+
+/** "github.com/user/repo" instead of the full URL; long paths are cut by CSS */
+function shortUrl(url: URL): string {
+  const host = url.hostname.replace(/^www\./, '');
+  let path = url.pathname;
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    // keep it encoded
+  }
+  return host + path.replace(/\/$/, '');
+}
+
+const GLOBE_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';
+/** Origins whose favicon failed (offline, none): they get the globe right away instead of flickering */
+const missingIcons = new Set<string>();
+
+/** The site's own /favicon.ico (no third-party icon service sees the note's links), a globe as fallback */
+function siteIcon(url: URL): HTMLElement {
+  const box = document.createElement('span');
+  box.className = 'cm-link-pill-icon';
+  box.setAttribute('aria-hidden', 'true');
+  if (missingIcons.has(url.origin)) {
+    box.innerHTML = GLOBE_ICON;
+    return box;
+  }
+  const img = document.createElement('img');
+  img.alt = '';
+  img.loading = 'lazy';
+  img.decoding = 'async';
+  img.referrerPolicy = 'no-referrer';
+  img.src = `${url.origin}/favicon.ico`;
+  img.onerror = () => {
+    missingIcons.add(url.origin);
+    box.innerHTML = GLOBE_ICON;
+  };
+  box.append(img);
+  return box;
+}
+
 export class LinkWidget extends WidgetType {
   constructor(
     readonly text: string,
@@ -387,12 +498,20 @@ export class LinkWidget extends WidgetType {
   }
   toDOM() {
     const a = document.createElement('a');
-    a.className = 'cm-link';
-    a.textContent = stripInline(this.text) || this.url;
     a.href = this.url;
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
     a.addEventListener('mousedown', (e) => e.preventDefault());
+    const external = externalUrl(this.url);
+    if (!external) {
+      a.className = 'cm-link';
+      a.textContent = stripInline(this.text) || this.url;
+      return a;
+    }
+    // External links are pills: site icon + link text (or a short form of the URL)
+    a.className = 'cm-link-pill';
+    a.title = this.url;
+    a.append(siteIcon(external), Object.assign(document.createElement('span'), { className: 'cm-link-pill-text', textContent: stripInline(this.text).trim() || shortUrl(external) }));
     return a;
   }
   ignoreEvent() {

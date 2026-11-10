@@ -4,7 +4,8 @@ import { EditorView, KeyBinding, keymap, placeholder as cmPlaceholder } from '@c
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
+import type { SyntaxNode } from '@lezer/common';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 import { tags as t } from '@lezer/highlight';
 import { livePreview, noteIdFacet, previewAll, refreshEffect } from './livePreview';
@@ -56,11 +57,47 @@ function insertFiles(view: EditorView, files: File[], pos: number) {
   }
 }
 
+/**
+ * The text the source attached to a copied link: browsers put `<a href="url">Page title</a>` next to the
+ * plain URL (address bar "friendly links", "copy link" on a page). null when there is no such text.
+ */
+export function linkTitleFromHtml(html: string, url: string): string | null {
+  if (!html) return null;
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const anchors = [...doc.querySelectorAll('a[href]')];
+  if (anchors.length !== 1) return null;
+  const href = anchors[0].getAttribute('href') ?? '';
+  const same = (a: string, b: string) => a.replace(/\/$/, '') === b.replace(/\/$/, '');
+  if (!same(href, url)) return null;
+  const title = (anchors[0].textContent ?? '').replace(/\s+/g, ' ').trim();
+  return title && !same(title, url) ? title : null;
+}
+
+const URL_ONLY = /^https?:\/\/[^\s<>]+$/i;
+
+/** A pasted URL becomes [title](url): with the copied link text, or around the selected text */
+function pasteLink(e: ClipboardEvent, view: EditorView): boolean {
+  const url = e.clipboardData?.getData('text/plain').trim() ?? '';
+  if (!URL_ONLY.test(url)) return false;
+  const { from, to } = view.state.selection.main;
+  // Code stays verbatim
+  for (let node: SyntaxNode | null = syntaxTree(view.state).resolveInner(from, -1); node; node = node.parent) {
+    if (/Code|URL|Link|Image/.test(node.name)) return false;
+  }
+  const selected = view.state.sliceDoc(from, to);
+  const label = selected && !selected.includes('\n') && !URL_ONLY.test(selected.trim()) ? selected : linkTitleFromHtml(e.clipboardData?.getData('text/html') ?? '', url);
+  if (!label) return false;
+  const insert = `[${label.replace(/([[\]\\])/g, '\\$1')}](${url})`;
+  e.preventDefault();
+  view.dispatch({ changes: { from, to, insert }, selection: { anchor: from + insert.length }, userEvent: 'input.paste', scrollIntoView: true });
+  return true;
+}
+
 function fileHandlers() {
   return EditorView.domEventHandlers({
     paste(e, view) {
       const files = [...(e.clipboardData?.files ?? [])].filter((f) => /^(image\/|application\/pdf)/.test(f.type));
-      if (!files.length) return false;
+      if (!files.length) return pasteLink(e, view);
       e.preventDefault();
       insertFiles(view, files, view.state.selection.main.head);
       return true;

@@ -6,6 +6,7 @@ import {
   CalendarRange,
   CheckCircle2,
   ChefHat,
+  ChevronDown,
   ChevronRight,
   Cloud,
   CloudOff,
@@ -26,7 +27,6 @@ import {
   Plus,
   Search,
   Share2,
-  ShieldCheck,
   Trash2,
   X,
 } from 'lucide-react';
@@ -57,6 +57,96 @@ export function importRecipe(url?: string) {
 
 export function newZettel() {
   openDialog({ kind: 'zettel' });
+}
+
+/**
+ * "+ New note" as a Material 3 split button: the main part creates a note, the chevron opens a menu
+ * with the other ways to start one (Zettel, recipe from a URL) when those features are on.
+ */
+function NewNoteButton({ zettel, recipe, onNavigate }: { zettel: boolean; recipe: boolean; onNavigate?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ left: number; bottom: number; width: number } | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const extra = zettel || recipe;
+
+  useEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const r = wrapRef.current?.getBoundingClientRect();
+      if (r) setPos({ left: r.left, bottom: window.innerHeight - r.top + 6, width: r.width });
+    };
+    place();
+    const onDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (!menuRef.current?.contains(target) && !wrapRef.current?.contains(target)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    window.addEventListener('resize', place);
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    requestAnimationFrame(() => menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus());
+    return () => {
+      window.removeEventListener('resize', place);
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const run = (action: () => void) => {
+    setOpen(false);
+    action();
+    onNavigate?.();
+  };
+  const menuItem = (Icon: typeof Plus, label: string, action: () => void, title?: string) => (
+    <button type="button" role="menuitem" className="m3-menu-item w-full text-left" title={title} onClick={() => run(action)}>
+      <Icon size={18} className="shrink-0 text-muted" />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+    </button>
+  );
+
+  return (
+    <div ref={wrapRef} className="edit-only mt-2 flex shrink-0 gap-0.5">
+      <button className={`btn-primary min-w-0 flex-1 ${extra ? '!rounded-r-md' : ''}`} onClick={() => run(() => newNote())}>
+        <Plus size={16} /> <span className="truncate">{t('nav.newNote')}</span>
+      </button>
+      {extra && (
+        <button
+          type="button"
+          className="btn-primary !rounded-l-md !px-2.5"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={t('nav.newNoteMore')}
+          title={t('nav.newNoteMore')}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <ChevronDown size={18} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        </button>
+      )}
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            aria-label={t('nav.newNoteMore')}
+            style={{ left: pos?.left ?? 0, bottom: pos?.bottom ?? 0, minWidth: pos?.width ?? 0, visibility: pos ? 'visible' : 'hidden' }}
+            className="m3-menu anim-m3-menu fixed z-[90]"
+            onKeyDown={(e) => {
+              if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+              e.preventDefault();
+              const items = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])];
+              const i = items.indexOf(document.activeElement as HTMLButtonElement);
+              items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
+            }}
+          >
+            {menuItem(FileText, t('nav.newNoteShort'), () => newNote())}
+            {zettel && menuItem(Lightbulb, 'Zettel', newZettel, t('nav.zettelTitle'))}
+            {recipe && menuItem(ChefHat, t('nav.recipe'), () => importRecipe(), t('quick.recipeTitle'))}
+          </div>,
+          document.body
+        )}
+    </div>
+  );
 }
 
 /** Opens today's daily note (or navigates to `/daily` if Daily Notes are turned off) */
@@ -699,25 +789,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
               </div>
             </li>
           </ul>
-          <div className="edit-only mt-2 grid shrink-0 grid-cols-2 gap-2">
-            <button
-              className={`btn-primary ${features.zettel.enabled ? '' : 'col-span-2'}`}
-              onClick={() => (newNote(), onNavigate?.())}
-            >
-              <Plus size={16} /> {features.zettel.enabled ? t('nav.newNoteShort') : t('nav.newNote')}
-            </button>
-            {features.zettel.enabled && (
-              <button className="btn-ghost border border-line" onClick={() => (newZettel(), onNavigate?.())} title={t('nav.zettelTitle')}>
-                <Lightbulb size={16} /> Zettel
-              </button>
-            )}
-            {features.recipe.enabled && (
-              <button className="btn-ghost col-span-2 border border-line" onClick={() => (importRecipe(), onNavigate?.())} title={t('quick.recipeTitle')}>
-                <ChefHat size={16} /> {t('nav.recipe')}
-              </button>
-            )}
-          </div>
-          {isAdmin && item('/admin', ShieldCheck, t('nav.admin'))}
+          <NewNoteButton zettel={features.zettel.enabled} recipe={features.recipe.enabled} onNavigate={onNavigate} />
           <button
             type="button"
             onClick={() => nav('/settings')}
