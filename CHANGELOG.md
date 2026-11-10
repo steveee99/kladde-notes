@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu (MCP): Neues Werkzeug `semantic_search` für eine lokale semantische Suche über alle eigenen Notizen – berücksichtigt deutsche und englische Wortstämme, zusammengesetzte Begriffe, themenverwandte Begriffe sowie verknüpfte `[[Links]]`.
+
 ## [0.16.0] – 2026-11-09
 
 - Neu: Automatische Erkennung von Notiznamen im Text: Wird der Titel einer existierenden Notiz im Fließtext erwähnt, wird er in der Live-Vorschau und im Lesemodus automatisch als klickbarer Hyperlink (dezent gepunktet unterstrichen) dargestellt. Ein Klick öffnet sofort die Zielnotiz. Über ein kleines Symbol beim Daraufzeigen (sowie über den neuen Slash-Befehl `/verlinken` für alle Erwähnungen) lässt sich der Treffer mit einem Klick dauerhaft in einen echten [[Wikilink]] umwandeln.
