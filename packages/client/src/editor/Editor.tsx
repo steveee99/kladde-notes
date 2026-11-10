@@ -9,6 +9,7 @@ import type { SyntaxNode } from '@lezer/common';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 import { tags as t } from '@lezer/highlight';
 import { livePreview, noteIdFacet, previewAll, refreshEffect } from './livePreview';
+import { sourceHighlight } from './sourceHighlight';
 import { editorHost } from './host';
 import { slashCompletion } from './slash';
 import { useReadOnly } from '../lib/readOnly';
@@ -17,12 +18,18 @@ import { t as i18n, useLang } from '../lib/i18n';
 /** Read-only notes show everything rendered and accept no input */
 const readOnlyExtensions = (on: boolean): Extension => [previewAll.of(on), EditorState.readOnly.of(on), EditorView.editable.of(!on)];
 
-/** Code view: plain Markdown in a monospace font instead of the live preview */
-const sourceTheme = EditorView.theme({
-  // "&.cm-editor" beats the prose theme's ".cm-scroller" rule regardless of mount order
-  '&.cm-editor .cm-scroller': { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: '0.92em' },
-});
-const previewExtensions = (source: boolean): Extension => (source ? sourceTheme : livePreview());
+/** Code view: raw Markdown in a monospace font with syntax highlighting instead of the live preview */
+const sourceTheme = [
+  EditorView.editorAttributes.of({ class: 'cm-source' }),
+  EditorView.theme({
+    // "&.cm-editor" beats the prose theme's ".cm-scroller" rule regardless of mount order
+    '&.cm-editor .cm-scroller': {
+      fontFamily: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+      fontSize: '0.92em',
+      lineHeight: '1.65',
+    },
+  }),
+];
 
 /** CodeMirror's base theme sets a monospace font with high specificity; prose uses Material's Roboto Flex sans variable */
 const proseTheme = EditorView.theme({
@@ -40,6 +47,25 @@ const highlight = HighlightStyle.define([
   { tag: t.processingInstruction, color: 'rgb(var(--faint))' },
   { tag: t.url, color: 'rgb(var(--muted))' },
 ]);
+
+const sourceCodeHighlight = HighlightStyle.define([
+  { tag: [t.keyword, t.modifier, t.controlKeyword, t.operatorKeyword], color: 'rgb(var(--accent))' },
+  { tag: [t.string, t.special(t.string), t.regexp], color: 'rgb(var(--accent2))' },
+  { tag: [t.number, t.bool, t.null, t.atom], color: 'rgb(var(--warn))' },
+  { tag: [t.comment, t.meta], color: 'rgb(var(--faint))', fontStyle: 'italic' },
+  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: 'rgb(var(--ok))' },
+  { tag: [t.typeName, t.className, t.tagName], color: 'rgb(var(--danger))' },
+  { tag: [t.propertyName, t.definition(t.propertyName)], color: 'rgb(var(--on-accent-container))' },
+  { tag: t.attributeName, color: 'rgb(var(--warn))' },
+  { tag: t.attributeValue, color: 'rgb(var(--ok))' },
+  { tag: [t.operator, t.punctuation], color: 'rgb(var(--muted))' },
+  { tag: [t.escape, t.character], color: 'rgb(var(--warn))' },
+  { tag: [t.angleBracket, t.processingInstruction], color: 'rgb(var(--faint))' },
+  { tag: t.url, color: 'rgb(var(--accent2))' },
+]);
+
+const previewExtensions = (source: boolean): Extension =>
+  source ? [sourceTheme, syntaxHighlighting(sourceCodeHighlight), sourceHighlight()] : [syntaxHighlighting(highlight), livePreview()];
 
 /** [[ opens a list of note titles */
 function wikiCompletion(ctx: CompletionContext) {
@@ -196,7 +222,6 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           history(),
           keymap.of([...formatKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
           markdown({ base: markdownLanguage, codeLanguages: languages }),
-          syntaxHighlighting(highlight),
           proseTheme,
           EditorView.lineWrapping,
           noteIdFacet.of(docKey),

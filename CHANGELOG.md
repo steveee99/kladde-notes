@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Farbiges Syntax-Highlighting in der Markdown-Code-Ansicht (Überschriften, Formatierungen, Links/Bilder, Codeblöcke inkl. `query`/`mermaid`/`mindmap`/`gallery`/`carousel`, YAML-Frontmatter, `[[Wikilinks]]`, `#Tags`, Fußnoten, `##TOC##` und Aufgaben-Metadaten).
+
 ## [0.24.0] – 2026-11-10
 
 - Neu: Code-Ansicht – ein Knopf im Notizkopf schaltet den Editor auf reines Markdown (ohne Live-Vorschau, Monospace-Schrift); die Wahl wird pro Gerät gemerkt.
