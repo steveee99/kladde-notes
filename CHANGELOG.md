@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.23.0] – 2026-11-10
+
 - Neu: Externe Links (`[Text](https://…)`, `<https://…>` und nackte URLs) erscheinen im Editor als Material-3-Chip mit dem Favicon der Seite (Globus als Ersatz, offline oder ohne Icon) und dem Linktext bzw. einer gekürzten URL.
 - Neu: Slash-Befehl `/carousel` mit Block ` ```carousel ` (gleiche Syntax wie die Galerie, ein Bild pro Zeile) als Material-3-Karussell: horizontal wischbar mit Einrasten, großes Bild mit angeschnittenem nächsten, Beschriftung aus dem Alt-Text, Vor/Zurück-Knöpfe am Desktop, Klick öffnet die Vollbildansicht.
 - Neu: „+ Neue Notiz“ in der Seitenleiste ist ein Split-Button; das Menü daneben enthält „Zettel“ und „Rezept aus URL“ (statt eigener Knöpfe), sofern die Funktionen aktiviert sind.
