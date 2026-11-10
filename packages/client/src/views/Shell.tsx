@@ -199,7 +199,7 @@ function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNo
   );
 }
 
-export function Sidebar({ onNavigate, isAdmin }: { onNavigate?: () => void; isAdmin?: boolean }) {
+export function Sidebar({ onNavigate, isAdmin, headerAction }: { onNavigate?: () => void; isAdmin?: boolean; headerAction?: React.ReactNode }) {
   useVault();
   const [newRoot, setNewRoot] = useState(false);
   const rootDrop = useDropTarget('');
@@ -226,11 +226,12 @@ export function Sidebar({ onNavigate, isAdmin }: { onNavigate?: () => void; isAd
   return (
     <div className="flex h-full flex-col gap-1 p-3" onClick={(e) => (e.target as HTMLElement).closest('[data-close]') && onNavigate?.()}>
       <div className="mb-3 flex items-center gap-2 px-1.5">
-        <img src="/icons/icon.svg" className="h-7 w-7" alt="" />
+        <img src="/icons/icon.svg" className="h-7 w-7 shrink-0" alt="" />
         <span className="font-semibold tracking-tight">Kladde</span>
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex items-center gap-1">
           <ReadOnlyToggle />
           <SyncBadge />
+          {headerAction}
         </div>
       </div>
       {item('/', Home, 'Start')}
