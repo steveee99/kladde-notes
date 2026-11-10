@@ -1,5 +1,6 @@
 import express, { Response } from 'express';
-import type { PushChange } from '@kladde/shared';
+import type { AttachmentInfo, DeleteFilesResponse, PushChange } from '@kladde/shared';
+import { attachmentUsageMap } from './cliActions.js';
 import { NoteStore } from './NoteStore.js';
 import { FileStore, MAX_FILE_BYTES } from './FileStore.js';
 import { UserStore } from './UserStore.js';
@@ -220,6 +221,23 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     router.post('/git/sync', authed, rateLimit(20, 10 * 60_000), handle(async (req, res) => res.json(await gitSync.run(req.user!.id))));
   }
 
+  router.get(
+    '/files',
+    handle((req, res) => {
+      const usage = attachmentUsageMap(notes, req.user!.id);
+      const list: AttachmentInfo[] = files.listByOwner(req.user!.id).map((f) => ({
+        id: f.id,
+        name: f.name,
+        mime: f.mime,
+        size: f.size,
+        createdAt: f.createdAt,
+        url: `/api/files/${f.id}`,
+        usedIn: usage.get(f.id) ?? [],
+      }));
+      res.json(list);
+    })
+  );
+
   router.post(
     '/files',
     express.raw({ type: () => true, limit: MAX_FILE_BYTES }),
@@ -232,6 +250,50 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       } catch (err) {
         res.status(400).json({ error: (err as Error).message });
       }
+    })
+  );
+
+  router.delete(
+    '/files/:id',
+    handle((req, res) => {
+      const id = String(req.params.id ?? '');
+      const meta = files.getMeta(req.user!.id, id);
+      if (!meta) {
+        res.status(404).json({ error: 'Anhang nicht gefunden.' });
+        return;
+      }
+      const usedIn = attachmentUsageMap(notes, req.user!.id).get(id) ?? [];
+      if (usedIn.length > 0) {
+        res.status(409).json({ error: 'Anhang wird noch in Notizen verwendet und kann nicht gelöscht werden.', usedIn });
+        return;
+      }
+      files.delete(req.user!.id, id);
+      res.json({ ok: true, id });
+    })
+  );
+
+  router.post(
+    '/files/delete',
+    express.json({ limit: '64kb' }),
+    handle((req, res) => {
+      const rawIds: unknown[] = Array.isArray(req.body?.ids) ? req.body.ids : [];
+      const ids: string[] = [...new Set(rawIds.filter((v): v is string => typeof v === 'string'))].slice(0, 500);
+      const usage = attachmentUsageMap(notes, req.user!.id);
+      const result: DeleteFilesResponse = { deleted: [], skippedUsed: [], notFound: [] };
+      for (const id of ids) {
+        const meta = files.getMeta(req.user!.id, id);
+        if (!meta) {
+          result.notFound.push(id);
+          continue;
+        }
+        if ((usage.get(id)?.length ?? 0) > 0) {
+          result.skippedUsed.push(id);
+          continue;
+        }
+        if (files.delete(req.user!.id, id)) result.deleted.push(id);
+        else result.notFound.push(id);
+      }
+      res.json(result);
     })
   );
 

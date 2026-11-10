@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Home, Inbox as InboxIcon, Menu, Network, Pencil, Search, Settings } from 'lucide-react';
+import { FileText, Home, Images, Inbox as InboxIcon, Menu, Network, Pencil, Search, Settings } from 'lucide-react';
 import { excerpt, PARA, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { navigate, usePath } from '../lib/router';
@@ -125,12 +125,12 @@ export function MaterialShell({ children, isAdmin }: { children: React.ReactNode
     <div className="flex h-full flex-col bg-bg">
       <div className="sticky top-0 z-20 hidden shrink-0 bg-bg [--pad-top:0.375rem] safe-top [@media(display-mode:standalone)]:md:block" />
       <div className="flex min-h-0 flex-1">
-        <nav aria-label="Hauptnavigation" className="hidden w-[88px] shrink-0 flex-col items-center gap-3 py-4 md:flex">
-          <button className="btn-icon" onClick={() => setDrawer(true)} aria-label="Ordner und Menü">
+        <nav aria-label="Hauptnavigation" className="hidden w-[88px] shrink-0 flex-col items-center gap-3 overflow-y-auto py-4 scrollbar-thin md:flex">
+          <button className="btn-icon shrink-0" onClick={() => setDrawer(true)} aria-label="Ordner und Menü">
             <Menu size={22} />
           </button>
           <button
-            className="edit-only mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-container text-on-accent-container shadow-soft transition-transform duration-200 ease-spring hover:scale-105 active:scale-95"
+            className="edit-only mb-5 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-accent-container text-on-accent-container shadow-soft transition-transform duration-200 ease-spring hover:scale-105 active:scale-95"
             onClick={() => newNote()}
             aria-label="Neue Notiz"
             title="Neue Notiz"
@@ -142,7 +142,8 @@ export function MaterialShell({ children, isAdmin }: { children: React.ReactNode
           <RailItem to="/notes" Icon={FileText} label="Notizen" />
           <RailItem to="/search" Icon={Search} label="Suche" />
           <RailItem to="/graph" Icon={Network} label="Netz" />
-          <div className="m3-status mt-auto flex flex-col items-center gap-1">
+          <RailItem to="/files" Icon={Images} label="Anhänge" />
+          <div className="m3-status mt-auto flex flex-col items-center gap-1 pt-2">
             <ReadOnlyToggle />
             <SyncBadge />
             <RailItem to="/settings" Icon={Settings} label="Optionen" />

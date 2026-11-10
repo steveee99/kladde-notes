@@ -1,3 +1,5 @@
+import type { AttachmentInfo, DeleteFilesResponse } from '@kladde/shared';
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -26,4 +28,16 @@ export async function uploadFile(file: File): Promise<{ url: string; name: strin
     body: file,
     headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Filename': encodeURIComponent(file.name) },
   });
+}
+
+export function listFiles(): Promise<AttachmentInfo[]> {
+  return api<AttachmentInfo[]>('/files');
+}
+
+export function deleteFile(id: string): Promise<{ ok: true; id: string }> {
+  return api(`/files/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export function deleteFiles(ids: string[]): Promise<DeleteFilesResponse> {
+  return api<DeleteFilesResponse>('/files/delete', { method: 'POST', json: { ids } });
 }

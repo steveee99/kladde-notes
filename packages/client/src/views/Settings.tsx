@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
-import { Bot, ChevronRight, Copy, FoldHorizontal, GitBranch, KeyRound, LayoutTemplate, Lock, LogOut, Monitor, Moon, ShieldCheck, Smartphone, Sun, Trash2, UnfoldHorizontal, Zap } from 'lucide-react';
+import { Bot, ChevronRight, Copy, FoldHorizontal, GitBranch, Images, KeyRound, LayoutTemplate, Lock, LogOut, Monitor, Moon, ShieldCheck, Smartphone, Sun, Trash2, UnfoldHorizontal, Zap } from 'lucide-react';
 import { APP_VERSION, Me, PASSWORD_MIN_LENGTH } from '@kladde/shared';
 import { api } from '../lib/api';
 import { getTheme, setTheme, ThemeChoice } from '../lib/theme';
@@ -63,6 +63,15 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
           <div className="text-sm text-muted">
             {vault.templates().length ? `${vault.templates().length} eigene Vorlagen für neue Notizen` : 'Eigene Vorlagen für Projekte, Besprechungen und mehr'}
           </div>
+        </div>
+        <ChevronRight size={18} className="text-faint" />
+      </button>
+
+      <button className="card flex w-full items-center gap-3 p-4 text-left transition-colors hover:border-accent/40 anim-fade-up" onClick={() => navigate('/files')}>
+        <Images size={20} className="text-accent" />
+        <div className="flex-1">
+          <div className="font-semibold">Anhänge</div>
+          <div className="text-sm text-muted">Hochgeladene Bilder und PDFs verwalten und ungenutzte entfernen</div>
         </div>
         <ChevronRight size={18} className="text-faint" />
       </button>
