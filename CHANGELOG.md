@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.17.1] – 2026-11-10
+
 - Behoben: Das Export-Menü in Notizen (und geteilten Ansichten) wird nun über ein Portal außerhalb der Notiz-Kopfzeile gerendert, sodass auf dem Desktop nachfolgende Ebenen (Metadaten-Leiste, Eigenschaften und Editor) das Menü nicht mehr verdecken und Klicks auf die Export-Optionen wieder zuverlässig ankommen.
 
 ## [0.17.0] – 2026-11-10
