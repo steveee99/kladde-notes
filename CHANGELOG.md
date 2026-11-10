@@ -4,6 +4,14 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Code-Ansicht – ein Knopf im Notizkopf schaltet den Editor auf reines Markdown (ohne Live-Vorschau, Monospace-Schrift); die Wahl wird pro Gerät gemerkt.
+- Behoben: Bilder springen beim Bearbeiten nicht mehr zwischen Bild und Markdown hin und her; sie bleiben sichtbar, und ihr Markdown erscheint nur, wenn der Cursor direkt am Bild steht (dann oberhalb des Bildes).
+- Behoben: Hochkant-Bilder im Karussell werden hochkant dargestellt statt beschnitten.
+
+## [0.23.1] – 2026-11-10
+
+- Behoben: `/carousel` fehlte im Slash-Menü.
+
 ## [0.23.0] – 2026-11-10
 
 - Neu: Externe Links (`[Text](https://…)`, `<https://…>` und nackte URLs) erscheinen im Editor als Material-3-Chip mit dem Favicon der Seite (Globus als Ersatz, offline oder ohne Icon) und dem Linktext bzw. einer gekürzten URL.

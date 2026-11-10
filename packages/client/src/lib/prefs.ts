@@ -5,6 +5,7 @@ export type NoteSplitTab = 'toc' | 'links' | 'graph';
 const INBOX_ZERO_KEY = 'kladde_inbox_zero';
 const SPLIT_OPEN_KEY = 'kladde_note_split_open';
 const SPLIT_TAB_KEY = 'kladde_note_split_tab';
+const SOURCE_MODE_KEY = 'kladde_source_mode';
 
 const listeners = new Set<() => void>();
 
@@ -32,6 +33,7 @@ function readSplitTab(): NoteSplitTab {
 let inboxZero = readBool(INBOX_ZERO_KEY, false);
 let splitOpen = readBool(SPLIT_OPEN_KEY, false);
 let splitTab: NoteSplitTab = readSplitTab();
+let sourceMode = readBool(SOURCE_MODE_KEY, false);
 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
@@ -44,6 +46,9 @@ if (typeof window !== 'undefined') {
       changed = true;
     } else if (e.key === SPLIT_TAB_KEY) {
       splitTab = readSplitTab();
+      changed = true;
+    } else if (e.key === SOURCE_MODE_KEY) {
+      sourceMode = readBool(SOURCE_MODE_KEY, false);
       changed = true;
     }
     if (changed) listeners.forEach((l) => l());
@@ -110,4 +115,20 @@ export function setNoteSplitTab(tab: NoteSplitTab): void {
 
 export function useNoteSplitTab(): NoteSplitTab {
   return useSyncExternalStore(subscribe, () => splitTab);
+}
+
+/** Code view: notes are edited as plain Markdown without live preview (per device) */
+export function setSourceMode(on: boolean): void {
+  if (sourceMode === on) return;
+  sourceMode = on;
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(SOURCE_MODE_KEY, on ? '1' : '0');
+  } catch {
+    // ignore
+  }
+  listeners.forEach((l) => l());
+}
+
+export function useSourceMode(): boolean {
+  return useSyncExternalStore(subscribe, () => sourceMode);
 }

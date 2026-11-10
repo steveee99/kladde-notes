@@ -101,6 +101,9 @@ function build(state: EditorState): DecorationSet {
     return false;
   };
 
+  /** The selection touches [from, to] (finer than isActive, which works per line) */
+  const touches = (from: number, to: number) => !all && state.selection.ranges.some((r) => r.from <= to && r.to >= from);
+
   const decos: Range<Decoration>[] = [];
   /** Replaced ranges: nothing else may be replaced inside them */
   const replaced: [number, number][] = [];
@@ -214,9 +217,13 @@ function build(state: EditorState): DecorationSet {
           protectedRanges.push([node.from, node.to]);
           const url = node.getChild('URL');
           const marks = node.getChildren('LinkMark');
-          if (!url || isActive(node.from, node.to)) return false;
+          if (!url) return false;
           const alt = marks.length >= 2 ? doc.sliceString(marks[0].to, marks[1].from) : '';
-          replace(node.from, node.to, Decoration.replace({ widget: new ImageWidget(doc.sliceString(url.from, url.to), alt, lang) }));
+          const widget = new ImageWidget(doc.sliceString(url.from, url.to), alt, lang);
+          // The image stays visible: its Markdown only shows (above it) while the cursor is inside the
+          // image syntax itself, not anywhere on the line, so the layout does not jump while editing nearby
+          if (touches(node.from, node.to)) decos.push(Decoration.widget({ widget, side: 1 }).range(node.to));
+          else replace(node.from, node.to, Decoration.replace({ widget }));
           return false;
         }
         case 'Blockquote':

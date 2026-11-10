@@ -296,6 +296,13 @@ export class CarouselWidget extends BlockWidget {
       img.alt = alt;
       img.loading = 'lazy';
       img.draggable = false;
+      // Portrait images stay portrait: the card takes the image's aspect ratio instead of cropping it
+      img.addEventListener('load', () => {
+        if (img.naturalHeight > img.naturalWidth * 1.05) {
+          item.classList.add('is-portrait');
+          item.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
+        }
+      });
       item.append(img);
       if (alt) item.append(Object.assign(document.createElement('figcaption'), { textContent: alt }));
       item.addEventListener('click', () => openLightbox(url));

@@ -17,6 +17,13 @@ import { t as i18n, useLang } from '../lib/i18n';
 /** Read-only notes show everything rendered and accept no input */
 const readOnlyExtensions = (on: boolean): Extension => [previewAll.of(on), EditorState.readOnly.of(on), EditorView.editable.of(!on)];
 
+/** Code view: plain Markdown in a monospace font instead of the live preview */
+const sourceTheme = EditorView.theme({
+  // "&.cm-editor" beats the prose theme's ".cm-scroller" rule regardless of mount order
+  '&.cm-editor .cm-scroller': { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: '0.92em' },
+});
+const previewExtensions = (source: boolean): Extension => (source ? sourceTheme : livePreview());
+
 /** CodeMirror's base theme sets a monospace font with high specificity; prose uses Material's Roboto Flex sans variable */
 const proseTheme = EditorView.theme({
   '.cm-scroller': { fontFamily: 'var(--font-sans)', lineHeight: '1.7' },
@@ -152,9 +159,11 @@ export interface EditorProps {
   onView?: (view: EditorView | null) => void;
   placeholder?: string;
   autoFocus?: boolean;
+  /** Code view: raw Markdown without live preview */
+  source?: boolean;
 }
 
-export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus }: EditorProps) {
+export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const changeRef = useRef(onChange);
@@ -164,8 +173,11 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   const lang = useLang();
   const lockConf = useRef(new Compartment());
   const placeholderConf = useRef(new Compartment());
+  const previewConf = useRef(new Compartment());
   const lockedRef = useRef(locked);
   lockedRef.current = locked;
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
   const resolvedPlaceholder = placeholder ?? i18n('editor.placeholder');
 
   useEffect(() => {
@@ -188,7 +200,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           proseTheme,
           EditorView.lineWrapping,
           noteIdFacet.of(docKey),
-          livePreview(),
+          previewConf.current.of(previewExtensions(sourceRef.current)),
           lockConf.current.of(readOnlyExtensions(lockedRef.current)),
           EditorView.contentAttributes.of({ spellcheck: 'true', autocapitalize: 'sentences' }),
           placeholderConf.current.of(cmPlaceholder(resolvedPlaceholder)),
@@ -227,6 +239,11 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
     if (locked) v.contentDOM.blur();
     v.dispatch({ effects: lockConf.current.reconfigure(readOnlyExtensions(locked)) });
   }, [locked]);
+
+  // Code view on/off without rebuilding the editor (undo history and cursor stay)
+  useEffect(() => {
+    view.current?.dispatch({ effects: previewConf.current.reconfigure(previewExtensions(source)) });
+  }, [source]);
 
   // Reconfigure placeholder cleanly when language or custom placeholder changes
   useEffect(() => {

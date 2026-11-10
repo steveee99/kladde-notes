@@ -63,7 +63,7 @@ import { Graph, GraphLegend } from './Graph';
 import { Sheet } from './Dialogs';
 import { Avatar } from './Avatar';
 import { folderDisplayName, t, useLang, type Lang } from '../lib/i18n';
-import { setNoteSplitOpen, setNoteSplitTab, useNoteSplitOpen, useNoteSplitTab, type NoteSplitTab } from '../lib/prefs';
+import { setNoteSplitOpen, setNoteSplitTab, setSourceMode, useNoteSplitOpen, useNoteSplitTab, useSourceMode, type NoteSplitTab } from '../lib/prefs';
 import { isCoarsePointer } from '../lib/viewport';
 import { useRightPaneHost } from './MaterialShell';
 import { DailyNoteBar } from './DailyNoteBar';
@@ -707,6 +707,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const [moving, setMoving] = useState(false);
   const [showGraph, setShowGraph] = useState(true);
   const splitOpen = useNoteSplitOpen();
+  const sourceMode = useSourceMode();
   const splitTab = useNoteSplitTab();
   const rightHost = useRightPaneHost();
   const [copiedMd, setCopiedMd] = useState(false);
@@ -896,6 +897,18 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               >
                 {copiedMd ? <Check size={18} /> : <Copy size={18} />}
               </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => setSourceMode(!sourceMode)}
+                  aria-pressed={sourceMode}
+                  className={`btn-icon rounded-full transition-colors ${sourceMode ? 'bg-accent-container text-on-accent-container' : ''}`}
+                  title={sourceMode ? t('note.sourceModeOff') : t('note.sourceModeOn')}
+                  aria-label={t('note.sourceMode')}
+                >
+                  <FileCode size={18} />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setNoteSplitOpen(!splitOpen)}
@@ -958,7 +971,15 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               <ParaBar note={note} />
             </div>
           )}
-          <Editor docKey={id} value={note.content} readOnly={readOnly} stamp={version} onChange={(content) => void vault.update(id, { content })} onView={setView} />
+          <Editor
+            docKey={id}
+            value={note.content}
+            readOnly={readOnly}
+            source={sourceMode && !readOnly}
+            stamp={version}
+            onChange={(content) => void vault.update(id, { content })}
+            onView={setView}
+          />
 
           {/* Bottom links/graph overview remains visible when the right split pane is collapsed */}
           {!splitOpen && (backlinks.length > 0 || mentions.length > 0 || local.nodes.length > 1) && (
