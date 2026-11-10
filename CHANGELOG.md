@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.21.0] – 2026-11-10
+
 - Neu: **Tagesnotizen (Daily Notes)** mit einstellbarem Zielordner (auch oberste Ebene) und frei definierbarem Namensschema inklusive Datums-Platzhaltern und Live-Vorschau unter **Einstellungen → Funktionen & Struktur** (Standard: `0 Daily/YYYY/MM/YYYY-MM-DD.md`), sowie Direktzugriff über Startseite und Seitenleiste.
 - Neu: **Projekte-Logik & Umwandlung in Projektordner**: Nicht mehr jede Notiz unter dem Projekte-Ordner zählt automatisch als Projektnotiz – nur direkte Projektdateien (`<Projekte>/<Name>.md`) oder eine `Home.md` direkt in einem Projektunterordner (`<Projekte>/<Ordner>/Home.md`). Über den neuen Knopf **„Zu einem Projektordner wandeln“** in einer einzelnen Projektnotiz wird diese inklusive Erhalt bestehender `[[Links]]` in einen eigenen Projektordner (`Home.md`) überführt.
 - Neu: **Profilbilder (Avatare)** im Material-3-Design: Hochladen, Ändern und Entfernen unter Einstellungen, Anzeige beim Teilen von Notizen und Ordnern, auf öffentlichen Links sowie in der Seitenleiste bzw. mobil unten rechts (ein Klick öffnet direkt die Einstellungen).
