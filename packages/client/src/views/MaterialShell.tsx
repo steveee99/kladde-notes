@@ -1,20 +1,26 @@
-import { useEffect, useState } from 'react';
-import { FileText, Home, Images, Inbox as InboxIcon, Menu, Network, Pencil, Search, Settings, X } from 'lucide-react';
-import { excerpt, PARA, splitPath } from '@kladde/shared';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { FileText, Home, Images, Inbox as InboxIcon, Menu, Network, Pencil, Settings, X } from 'lucide-react';
+import { INBOX_FOLDER, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { navigate, usePath } from '../lib/router';
 import { toggleMaterialSidebarMode, useMaterialSidebarMode } from '../lib/sidebarMode';
 import { Dialogs } from './Dialogs';
 import { QuickCapture } from './QuickCapture';
 import { newNote, ReadOnlyToggle, Sidebar, SyncBadge } from './Shell';
-import { folderDisplayName, folderLeafDisplayName, locale, t, useLang, type Lang } from '../lib/i18n';
+import { t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
 
 /*
  * Shell of Kladde (Material 3): a navigation rail or sticky navigation drawer on tablet and desktop
- * (toggled cleanly via the 3-line Menu icon), optional folder list pane beside open notes, content on a
- * rounded M3 surface container, and a navigation bar + modal drawer on mobile viewports (< md).
+ * (toggled cleanly via the 3-line Menu icon), content on a rounded M3 surface container, an optional
+ * detached right inspector surface for open notes, and a navigation bar + modal drawer on mobile (< md).
  */
+
+const RightPaneHostContext = createContext<HTMLDivElement | null>(null);
+
+export function useRightPaneHost(): HTMLDivElement | null {
+  return useContext(RightPaneHostContext);
+}
 
 type Icon = typeof Home;
 
@@ -46,101 +52,6 @@ function BarItem({ to, Icon, label, badge }: { to: string; Icon: Icon; label: st
   );
 }
 
-function when(ts: number, lang: Lang): string {
-  const loc = locale(lang);
-  const d = new Date(ts);
-  if (d.toDateString() === new Date().toDateString()) {
-    return new Intl.DateTimeFormat(loc, { hour: '2-digit', minute: '2-digit' }).format(d);
-  }
-  return new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'short' }).format(d);
-}
-
-/** List pane beside an open note: the notes of its folder (or all), with live inline filtering */
-function ListPane({ noteId }: { noteId: string }) {
-  useVault();
-  const lang = useLang();
-  const [all, setAll] = useState(false);
-  const [filter, setFilter] = useState('');
-  const note = vault.get(noteId);
-  const folder = note ? splitPath(note.path).folder : '';
-  const terms = filter.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const notes = vault
-    .list()
-    .filter((n) => (all ? n.access === 'owner' : splitPath(n.path).folder === folder))
-    .filter((n) => {
-      if (!terms.length) return true;
-      const hay = `${n.path}\n${n.content}`.toLowerCase();
-      return terms.every((term) => hay.includes(term));
-    })
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-    .slice(0, 200);
-  const folderName = folder ? folderLeafDisplayName(folder, lang) : t('common.topLevelPlain');
-  return (
-    <section aria-label={t('nav.noteListLabel')} className="no-print hidden w-[320px] shrink-0 flex-col gap-4 xl:flex">
-      <div className="flex h-12 shrink-0 items-center gap-3 rounded-full border border-line/60 bg-raised px-4 transition-colors focus-within:border-accent">
-        <Search size={18} className="shrink-0 text-muted" />
-        <input
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          onKeyDown={(e) => e.key === 'Escape' && setFilter('')}
-          placeholder={t('search.listFilterPlaceholder')}
-          aria-label={t('search.listFilterPlaceholder')}
-          className="min-w-0 flex-1 bg-transparent text-sm text-ink placeholder:text-faint outline-none"
-        />
-        {filter && (
-          <button type="button" onClick={() => setFilter('')} aria-label={t('search.clear')} className="rounded-full p-0.5 text-muted hover:bg-surface hover:text-ink">
-            <X size={15} />
-          </button>
-        )}
-      </div>
-      <div role="group" aria-label={t('common.filter')} className="flex flex-wrap gap-2">
-        {[
-          [false, folderName],
-          [true, t('nav.allNotes')],
-        ].map(([value, label]) => (
-          <button
-            key={String(value)}
-            aria-pressed={all === value}
-            onClick={() => setAll(value as boolean)}
-            className={`h-8 rounded-lg px-4 text-sm font-medium transition-colors ${all === value ? 'bg-accent/20 text-accent' : 'border border-faint/60 text-muted hover:text-ink'}`}
-          >
-            {label as string}
-          </button>
-        ))}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-2xl scrollbar-thin">
-        <div className="flex flex-col gap-0.5">
-          {notes.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-muted">{terms.length ? t('search.noResults') : t('nav.listEmpty')}</div>
-          ) : (
-            notes.map((n) => {
-              const { folder: nFolder, name } = splitPath(n.path);
-              const active = n.id === noteId;
-              return (
-                <button
-                  key={n.id}
-                  onClick={() => navigate(`/n/${n.id}`)}
-                  aria-current={active ? 'true' : undefined}
-                  className={`flex items-center gap-4 px-4 py-3 text-left transition-colors ${active ? 'bg-accent/15' : 'bg-surface hover:bg-raised'}`}
-                >
-                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-semibold ${active ? 'bg-accent-container text-on-accent-container' : 'bg-raised text-ink'}`}>
-                    {(name.replace(/^\d{12}\s*/, '')[0] ?? '?').toUpperCase()}
-                  </span>
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-base">{name}</span>
-                    <span className="truncate text-sm text-muted">{excerpt(n.content, 80) || (all ? folderDisplayName(nFolder, lang) : t('common.empty'))}</span>
-                  </span>
-                  <span className="shrink-0 self-start pt-0.5 text-xs text-muted">{when(n.updatedAt, lang)}</span>
-                </button>
-              );
-            })
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 export function MaterialShell({ children, isAdmin }: { children: React.ReactNode; isAdmin?: boolean }) {
   useVault();
   useLang();
@@ -149,9 +60,10 @@ export function MaterialShell({ children, isAdmin }: { children: React.ReactNode
   const inboxZero = useInboxZero();
   const [drawer, setDrawer] = useState(false);
   const [capture, setCapture] = useState(false);
+  const [rightHost, setRightHost] = useState<HTMLDivElement | null>(null);
   const path = usePath();
   const noteId = path.startsWith('/n/') ? decodeURIComponent(path.slice(3)) : null;
-  const inboxCount = vault.list().filter((n) => n.access === 'owner' && splitPath(n.path).folder === PARA.inbox).length;
+  const inboxCount = vault.list().filter((n) => n.access === 'owner' && splitPath(n.path).folder === INBOX_FOLDER).length;
   const inboxBadge = inboxZero && inboxCount > 0 ? inboxCount : undefined;
 
   useEffect(() => {
@@ -259,8 +171,10 @@ export function MaterialShell({ children, isAdmin }: { children: React.ReactNode
             </div>
           </header>
           <div className="flex min-h-0 flex-1 md:gap-3">
-            {noteId && <ListPane noteId={noteId} />}
-            <main className="vt-main min-h-0 flex-1 overflow-y-auto scrollbar-thin md:rounded-[28px] md:bg-surface">{children}</main>
+            <RightPaneHostContext.Provider value={rightHost}>
+              <main className="vt-main min-h-0 flex-1 overflow-y-auto scrollbar-thin md:rounded-[28px] md:bg-surface">{children}</main>
+            </RightPaneHostContext.Provider>
+            <div ref={setRightHost} className="no-print hidden shrink-0 lg:flex empty:hidden" />
           </div>
           <nav aria-label={t('nav.navigationLabel')} className="grid grid-cols-4 bg-surface safe-bottom safe-x md:hidden">
             <BarItem to="/" Icon={Home} label={t('nav.home')} />

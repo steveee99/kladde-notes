@@ -1,48 +1,70 @@
 import { Archive, ArchiveRestore, Briefcase, CheckCircle2, Hash, Library, Lightbulb, Target, Unlink } from 'lucide-react';
-import { PARA, PROJECT_STATUSES, ZETTEL_TYPES, extractMeta, restoreTarget, roleOfPath, splitPath } from '@kladde/shared';
-import { vault } from '../data/vault';
+import { DEFAULT_PARA_FOLDERS, PROJECT_STATUSES, ZETTEL_TYPES, extractMeta, restoreTarget, roleOfPath, splitPath } from '@kladde/shared';
+import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { ChipSelect } from './ChipSelect';
-import { folderDisplayName, projectStatusLabel, t, useLang, zettelTypeLabel } from '../lib/i18n';
+import { folderDisplayName, folderLeafDisplayName, projectStatusLabel, t, useLang, zettelTypeLabel } from '../lib/i18n';
 
 const STATUS_TONE: Record<string, string> = { aktiv: 'text-ok', pausiert: 'text-warn', fertig: 'text-faint' };
 
 /** Context actions by PARA role inside an open note: inbox quick-file, project status, archive/restore, Zettel type */
 export function ParaBar({ note }: { note: LocalNote }) {
+  useVault();
   const lang = useLang();
   if (note.access !== 'owner') return null;
-  const role = roleOfPath(note.path);
+  const features = vault.features();
+  const role = roleOfPath(note.path, vault.roleConfig());
   const meta = extractMeta(note.path, note.content);
   const folder = splitPath(note.path).folder;
-  const archived = restoreTarget(folder) !== null;
-  const restoreDest = restoreTarget(folder);
+  const archiveRoot = features.para.folders.archive;
+  const restoreDest = features.para.enabled ? restoreTarget(folder, archiveRoot) : null;
+  const archived = restoreDest !== null;
+
+  const showInboxActions = role === 'inbox' && (features.para.enabled || features.zettel.enabled);
+  const showProjectControls = role === 'projects' && features.para.enabled;
+  const showZettelControls = role === 'zettel' && features.zettel.enabled;
+  const showRestoreBtn = archived;
+  const showArchiveBtn = !archived && features.para.enabled && role !== 'inbox' && role !== 'projects' && role !== 'archive' && folder !== archiveRoot;
+
+  if (!showInboxActions && !showProjectControls && !showZettelControls && !showRestoreBtn && !showArchiveBtn) return null;
+
+  const shortLabel = (f: string) => folderLeafDisplayName(f, lang).replace(/^\d+\s+/, '') || folderLeafDisplayName(f, lang);
+  const projectsLabel = features.para.folders.projects === DEFAULT_PARA_FOLDERS.projects ? t('para.projectBadge') : shortLabel(features.para.folders.projects);
 
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2 text-sm anim-fade-in">
-      {role === 'inbox' && (
+      {showInboxActions && (
         <>
           <span className="text-xs font-semibold uppercase tracking-wider text-faint">{t('para.sortLabel')}</span>
           <div className="edit-only flex flex-wrap items-center gap-1.5">
-            <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.moveNote(note.id, PARA.projects)}>
-              <Briefcase size={13} /> {t('para.projectBadge')}
-            </button>
-            <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.moveNote(note.id, PARA.areas)}>
-              <Target size={13} /> {folderDisplayName(PARA.areas, lang).replace(/^\d+\s+/, '')}
-            </button>
-            <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.moveNote(note.id, PARA.resources)}>
-              <Library size={13} /> {folderDisplayName(PARA.resources, lang).replace(/^\d+\s+/, '')}
-            </button>
-            <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.toZettel(note.id)}>
-              <Lightbulb size={13} /> {t('para.zettelBtn')}
-            </button>
-            <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.archiveNote(note.id)}>
-              <Archive size={13} /> {t('para.archiveBtn')}
-            </button>
+            {features.para.enabled && (
+              <>
+                <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.moveNote(note.id, features.para.folders.projects)}>
+                  <Briefcase size={13} /> {projectsLabel}
+                </button>
+                <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.moveNote(note.id, features.para.folders.areas)}>
+                  <Target size={13} /> {shortLabel(features.para.folders.areas)}
+                </button>
+                <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.moveNote(note.id, features.para.folders.resources)}>
+                  <Library size={13} /> {shortLabel(features.para.folders.resources)}
+                </button>
+              </>
+            )}
+            {features.zettel.enabled && (
+              <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.toZettel(note.id)}>
+                <Lightbulb size={13} /> {t('para.zettelBtn')}
+              </button>
+            )}
+            {features.para.enabled && (
+              <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.archiveNote(note.id)}>
+                <Archive size={13} /> {t('para.archiveBtn')}
+              </button>
+            )}
           </div>
         </>
       )}
 
-      {role === 'projects' && (
+      {showProjectControls && (
         <>
           <span className="chip">{t('para.projectBadge')}</span>
           <ChipSelect
@@ -63,7 +85,7 @@ export function ParaBar({ note }: { note: LocalNote }) {
         </>
       )}
 
-      {role === 'zettel' && (
+      {showZettelControls && (
         <>
           <span className="chip">
             <Lightbulb size={12} /> {t('para.zettelBtn')}
@@ -93,13 +115,12 @@ export function ParaBar({ note }: { note: LocalNote }) {
         </>
       )}
 
-      {archived ? (
+      {showRestoreBtn ? (
         <button className="btn-ghost ml-auto py-1" onClick={() => void vault.restoreNote(note.id)}>
           <ArchiveRestore size={15} /> {t('para.restoreToBtn', { folder: restoreDest ? folderDisplayName(restoreDest, lang) : t('common.topLevelPlain') })}
         </button>
       ) : (
-        role !== 'inbox' &&
-        role !== 'projects' && (
+        showArchiveBtn && (
           <button className="btn-ghost ml-auto py-1 text-faint" onClick={() => void vault.archiveNote(note.id)} title={t('para.finishTitle')}>
             <Archive size={15} /> {t('para.archiveBtn')}
           </button>

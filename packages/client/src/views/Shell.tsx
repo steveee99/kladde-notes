@@ -28,19 +28,20 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { excerpt, PARA, splitPath } from '@kladde/shared';
+import { excerpt, INBOX_FOLDER, splitPath } from '@kladde/shared';
 import { createPortal } from 'react-dom';
 import { openDialog } from '../lib/dialogs';
 import { Dialogs } from './Dialogs';
 import { reviewDue } from './Review';
 import { useVault, vault } from '../data/vault';
+import type { LocalNote } from '../data/db';
 import { navigate, usePath } from '../lib/router';
 import { dragSource, useDropTarget } from '../lib/dnd';
 import { isReadOnly, setReadOnly, useReadOnly } from '../lib/readOnly';
 import { ShareDialog } from './ShareDialog';
 import { MaterialShell } from './MaterialShell';
 import { editorHost } from '../editor/host';
-import { folderDisplayName, t, useLang } from '../lib/i18n';
+import { folderDisplayName, locale, t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
 import { setMaterialSidebarMode } from '../lib/sidebarMode';
 
@@ -146,9 +147,61 @@ export function FolderNameInput({ initial = '', placeholder, onDone }: { initial
   );
 }
 
-function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNode; current: string; counts: Map<string, number>; depth: number; onNavigate?: () => void }) {
+function SidebarNoteRow({ note, active, depth, onNavigate }: { note: LocalNote; active: boolean; depth: number; onNavigate?: () => void }) {
+  const name = splitPath(note.path).name;
+  const openNote = () => {
+    navigate(`/n/${note.id}`);
+    onNavigate?.();
+  };
+  return (
+    <li style={{ paddingLeft: depth * 14 }}>
+      {/* Not a <button>: browsers do not start a drag on buttons */}
+      <div
+        role="button"
+        tabIndex={0}
+        aria-current={active ? 'page' : undefined}
+        title={name}
+        {...dragSource({ kind: 'note', id: note.id })}
+        onClick={openNote}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openNote();
+          }
+        }}
+        className={`group flex cursor-pointer items-center gap-2 rounded-full py-1.5 pl-[26px] pr-3 text-left text-sm transition-colors ${
+          active ? 'bg-accent-container text-on-accent-container font-medium' : 'text-muted hover:bg-raised hover:text-ink'
+        }`}
+      >
+        <FileText size={14} className={`shrink-0 ${active ? 'text-on-accent-container' : 'text-faint group-hover:text-muted'}`} />
+        <span className="min-w-0 flex-1 truncate">{name}</span>
+      </div>
+    </li>
+  );
+}
+
+function FolderItem({
+  node,
+  current,
+  activeFolder,
+  activeNoteId,
+  notesByFolder,
+  depth,
+  onNavigate,
+}: {
+  node: TreeNode;
+  current: string;
+  activeFolder: string | null;
+  activeNoteId: string | null;
+  notesByFolder: Map<string, LocalNote[]>;
+  depth: number;
+  onNavigate?: () => void;
+}) {
   const lang = useLang();
-  const [open, setOpen] = useState(decodeURIComponent(current).startsWith(`/f/${node.path}`));
+  const folderNotes = notesByFolder.get(node.path) ?? [];
+  const hasChildren = node.children.length > 0 || folderNotes.length > 0;
+  const containsActive = activeFolder !== null && (activeFolder === node.path || activeFolder.startsWith(`${node.path}/`));
+  const [open, setOpen] = useState(containsActive);
   const [mode, setMode] = useState<'idle' | 'new' | 'rename'>('idle');
   const [sharing, setSharing] = useState(false);
   const drop = useDropTarget(node.path, () => setOpen(true));
@@ -156,7 +209,18 @@ function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNo
   const empty = vault.isFolderEmpty(node.path);
   const locked = useReadOnly();
   const indent = { paddingLeft: depth * 14 };
-  const displayName = depth === 0 ? folderDisplayName(node.name, lang) : node.name;
+  const displayName = folderDisplayName(node.name, lang);
+
+  useEffect(() => {
+    if (containsActive) setOpen(true);
+  }, [current, containsActive]);
+
+  const openFolder = () => {
+    setOpen(true);
+    navigate(`/f/${encodeURIComponent(node.path)}`);
+    onNavigate?.();
+  };
+
   return (
     <li>
       {mode === 'rename' ? (
@@ -180,7 +244,16 @@ function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNo
           className={`drop-target group flex items-center rounded-full pr-1.5 text-sm transition-colors ${drop.over ? 'drop-over' : active ? 'bg-accent-container text-on-accent-container font-medium' : 'text-muted hover:bg-raised hover:text-ink'}`}
           style={indent}
         >
-          <button className={`p-1.5 transition-transform duration-200 ${node.children.length ? '' : 'invisible'} ${open ? 'rotate-90' : ''}`} onClick={() => setOpen(!open)} aria-label={displayName}>
+          <button
+            type="button"
+            className={`p-1.5 transition-transform duration-200 ${hasChildren ? '' : 'invisible'} ${open ? 'rotate-90' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen((v) => !v);
+            }}
+            aria-label={displayName}
+            aria-expanded={hasChildren ? open : undefined}
+          >
             <ChevronRight size={14} />
           </button>
           {/* Not a <button>: browsers do not start a drag on buttons */}
@@ -188,14 +261,16 @@ function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNo
             role="button"
             tabIndex={0}
             className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 py-1.5 text-left"
-            onClick={() => {
-              navigate(`/f/${encodeURIComponent(node.path)}`);
-              onNavigate?.();
+            onClick={openFolder}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openFolder();
+              }
             }}
-            onKeyDown={(e) => e.key === 'Enter' && navigate(`/f/${encodeURIComponent(node.path)}`)}
             onDoubleClick={() => !isReadOnly() && setMode('rename')}
           >
-            {open && node.children.length ? <FolderOpen size={15} className="shrink-0" /> : <Folder size={15} className="shrink-0" />}
+            {open && hasChildren ? <FolderOpen size={15} className="shrink-0" /> : <Folder size={15} className="shrink-0" />}
             <span className="truncate">{displayName}</span>
           </div>
           <span className="edit-only flex items-center opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100">
@@ -216,12 +291,12 @@ function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNo
               </button>
             )}
           </span>
-          <span className={`w-5 text-right text-xs text-faint ${locked ? '' : 'group-hover:hidden [@media(hover:none)]:hidden'}`}>{counts.get(node.path) || ''}</span>
+          <span className={`w-5 text-right text-xs text-faint ${locked ? '' : 'group-hover:hidden [@media(hover:none)]:hidden'}`}>{folderNotes.length || ''}</span>
         </div>
       )}
       {/* Portal: the sidebar may be transformed (mobile drawer), which would trap a fixed overlay */}
       {sharing && createPortal(<ShareDialog target={{ folder: node.path }} onClose={() => setSharing(false)} />, document.body)}
-      {open && (node.children.length > 0 || mode === 'new') && (
+      {open && (hasChildren || mode === 'new') && (
         <ul className="anim-fade-in">
           {mode === 'new' && (
             <li style={{ paddingLeft: (depth + 1) * 14 }} className="pl-6">
@@ -235,7 +310,19 @@ function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNo
             </li>
           )}
           {node.children.map((c) => (
-            <FolderItem key={c.path} node={c} current={current} counts={counts} depth={depth + 1} onNavigate={onNavigate} />
+            <FolderItem
+              key={c.path}
+              node={c}
+              current={current}
+              activeFolder={activeFolder}
+              activeNoteId={activeNoteId}
+              notesByFolder={notesByFolder}
+              depth={depth + 1}
+              onNavigate={onNavigate}
+            />
+          ))}
+          {folderNotes.map((n) => (
+            <SidebarNoteRow key={n.id} note={n} active={activeNoteId === n.id} depth={depth + 1} onNavigate={onNavigate} />
           ))}
         </ul>
       )}
@@ -246,6 +333,7 @@ function FolderItem({ node, current, counts, depth, onNavigate }: { node: TreeNo
 export function Sidebar({ onNavigate, isAdmin, headerAction }: { onNavigate?: () => void; isAdmin?: boolean; headerAction?: React.ReactNode }) {
   const version = useVault();
   const lang = useLang();
+  const loc = locale(lang);
   const inboxZero = useInboxZero();
   const [newRoot, setNewRoot] = useState(false);
   const [query, setQuery] = useState('');
@@ -253,10 +341,34 @@ export function Sidebar({ onNavigate, isAdmin, headerAction }: { onNavigate?: ()
   const path = usePath();
   const folders = vault.folders();
   const notes = vault.list();
-  const counts = new Map<string, number>();
-  for (const n of notes) if (n.access === 'owner') counts.set(splitPath(n.path).folder, (counts.get(splitPath(n.path).folder) ?? 0) + 1);
+  const features = vault.features();
+  const activeNoteId = path.startsWith('/n/') ? decodeURIComponent(path.slice(3)) : null;
+  const activeNote = activeNoteId ? vault.get(activeNoteId) : undefined;
+  const activeFolder = path.startsWith('/f/')
+    ? decodeURIComponent(path.slice(3))
+    : activeNote && activeNote.access === 'owner'
+      ? splitPath(activeNote.path).folder
+      : null;
+
+  const notesByFolder = useMemo(() => {
+    const map = new Map<string, LocalNote[]>();
+    for (const n of notes) {
+      if (n.access !== 'owner') continue;
+      const f = splitPath(n.path).folder;
+      const list = map.get(f);
+      if (list) list.push(n);
+      else map.set(f, [n]);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => splitPath(a.path).name.localeCompare(splitPath(b.path).name, loc, { numeric: true }));
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version, loc]);
+  const rootNotes = notesByFolder.get('') ?? [];
+
   const shared = notes.filter((n) => n.access !== 'owner').length;
-  const inboxCount = notes.filter((n) => n.access === 'owner' && splitPath(n.path).folder === PARA.inbox).length;
+  const inboxCount = (notesByFolder.get(INBOX_FOLDER) ?? []).length;
 
   const terms = useMemo(() => query.trim().toLowerCase().split(/\s+/).filter(Boolean), [query]);
   const searchResults = useMemo(() => {
@@ -390,7 +502,19 @@ export function Sidebar({ onNavigate, isAdmin, headerAction }: { onNavigate?: ()
               </li>
             )}
             {buildTree(folders).map((n) => (
-              <FolderItem key={n.path} node={n} current={path} counts={counts} depth={0} onNavigate={onNavigate} />
+              <FolderItem
+                key={n.path}
+                node={n}
+                current={path}
+                activeFolder={activeFolder}
+                activeNoteId={activeNoteId}
+                notesByFolder={notesByFolder}
+                depth={0}
+                onNavigate={onNavigate}
+              />
+            ))}
+            {rootNotes.map((n) => (
+              <SidebarNoteRow key={n.id} note={n} active={activeNoteId === n.id} depth={0} onNavigate={onNavigate} />
             ))}
             <li className="edit-only mt-1">
               <div {...rootDrop.props} className={`drop-target drop-zone-root rounded-xl border border-dashed border-line px-3 py-2 text-xs text-faint ${rootDrop.over ? 'drop-over' : ''}`}>
@@ -399,15 +523,22 @@ export function Sidebar({ onNavigate, isAdmin, headerAction }: { onNavigate?: ()
             </li>
           </ul>
           <div className="edit-only mt-2 grid grid-cols-2 gap-2">
-            <button className="btn-primary" onClick={() => (newNote(), onNavigate?.())}>
-              <Plus size={16} /> {t('nav.newNoteShort')}
+            <button
+              className={`btn-primary ${features.zettel.enabled ? '' : 'col-span-2'}`}
+              onClick={() => (newNote(), onNavigate?.())}
+            >
+              <Plus size={16} /> {features.zettel.enabled ? t('nav.newNoteShort') : t('nav.newNote')}
             </button>
-            <button className="btn-ghost border border-line" onClick={() => (newZettel(), onNavigate?.())} title={t('nav.zettelTitle')}>
-              <Lightbulb size={16} /> Zettel
-            </button>
-            <button className="btn-ghost col-span-2 border border-line" onClick={() => (importRecipe(), onNavigate?.())} title={t('quick.recipeTitle')}>
-              <ChefHat size={16} /> {t('nav.recipe')}
-            </button>
+            {features.zettel.enabled && (
+              <button className="btn-ghost border border-line" onClick={() => (newZettel(), onNavigate?.())} title={t('nav.zettelTitle')}>
+                <Lightbulb size={16} /> Zettel
+              </button>
+            )}
+            {features.recipe.enabled && (
+              <button className="btn-ghost col-span-2 border border-line" onClick={() => (importRecipe(), onNavigate?.())} title={t('quick.recipeTitle')}>
+                <ChefHat size={16} /> {t('nav.recipe')}
+              </button>
+            )}
           </div>
           {isAdmin && item('/admin', ShieldCheck, t('nav.admin'))}
           {item('/settings', Settings, t('nav.settings'))}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Inbox as InboxIcon, Trash2 } from 'lucide-react';
-import { PARA, excerpt, splitPath } from '@kladde/shared';
+import { INBOX_FOLDER, excerpt, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { navigate } from '../lib/router';
@@ -42,7 +42,7 @@ function InboxItem({ note }: { note: LocalNote }) {
           <option value="__root__">{t('common.topLevel')}</option>
           {vault
             .folders()
-            .filter((f) => f !== PARA.inbox)
+            .filter((f) => f !== INBOX_FOLDER)
             .map((f) => (
               <option key={f} value={f}>
                 {folderDisplayName(f, lang)}
@@ -73,7 +73,7 @@ export function InboxView() {
   const inboxZero = useInboxZero();
   const items = vault
     .list()
-    .filter((n) => n.access === 'owner' && splitPath(n.path).folder === PARA.inbox)
+    .filter((n) => n.access === 'owner' && splitPath(n.path).folder === INBOX_FOLDER)
     .sort((a, b) => a.createdAt - b.createdAt);
 
   const subtitle = inboxZero

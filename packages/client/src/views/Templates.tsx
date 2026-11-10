@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, FilePlus2, LayoutTemplate, Pencil, Trash2 } from 'lucide-react';
-import { PARA, Template, TEMPLATE_PLACEHOLDERS } from '@kladde/shared';
+import { INBOX_FOLDER, Template, TEMPLATE_PLACEHOLDERS } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { folderDisplayName, tl, useLang } from '../lib/i18n';
 import { navigate } from '../lib/router';
@@ -67,7 +67,7 @@ export function TemplatesView() {
               setEditing({
                 id: newId(),
                 label: '',
-                folder: PARA.inbox,
+                folder: INBOX_FOLDER,
                 content: '# {{title}}\n\n',
               })
             }
@@ -85,7 +85,7 @@ function TemplateEditor({ template, isNew, onDone }: { template: Template; isNew
   const [label, setLabel] = useState(template.label);
   const [folder, setFolder] = useState(template.folder);
   const [content, setContent] = useState(template.content);
-  const folders = [...new Set([folder, ...vault.folders()])];
+  const folders = [...new Set([folder, ...vault.folders(), ''])];
 
   const placeholderLabel = (token: string, fallback: string) => {
     if (token === '{{title}}') return tl(lang, 'templates.placeholder.title');

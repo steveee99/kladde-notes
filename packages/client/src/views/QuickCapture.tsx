@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { ChefHat, CheckSquare, FileText, Send } from 'lucide-react';
-import { vault } from '../data/vault';
+import { useVault, vault } from '../data/vault';
 import { tl, useLang } from '../lib/i18n';
 import { useVisualViewport } from '../lib/viewport';
 import { importRecipe, newNote } from './Shell';
 
 /** Bottom sheet for one-handed input on the phone: a thought or a task into the inbox, in two taps */
 export function QuickCapture({ onClose }: { onClose: () => void }) {
+  useVault();
   const lang = useLang();
+  const recipeEnabled = vault.features().recipe.enabled;
   const [text, setText] = useState('');
   const [asTask, setAsTask] = useState(true);
   const vp = useVisualViewport();
@@ -53,16 +55,18 @@ export function QuickCapture({ onClose }: { onClose: () => void }) {
           >
             <FileText size={16} /> {tl(lang, 'quick.fullNoteBtn')}
           </button>
-          <button
-            className="btn-ghost rounded-full px-3"
-            title={tl(lang, 'quick.recipeTitle')}
-            onClick={() => {
-              onClose();
-              importRecipe(/^https?:\/\/\S+$/.test(text.trim()) ? text.trim() : undefined);
-            }}
-          >
-            <ChefHat size={16} /> {tl(lang, 'quick.recipeBtn')}
-          </button>
+          {recipeEnabled && (
+            <button
+              className="btn-ghost rounded-full px-3"
+              title={tl(lang, 'quick.recipeTitle')}
+              onClick={() => {
+                onClose();
+                importRecipe(/^https?:\/\/\S+$/.test(text.trim()) ? text.trim() : undefined);
+              }}
+            >
+              <ChefHat size={16} /> {tl(lang, 'quick.recipeBtn')}
+            </button>
+          )}
           <button className="btn-primary ml-auto rounded-full px-4" onClick={save}>
             <Send size={16} /> {tl(lang, 'quick.saveBtn')}
           </button>

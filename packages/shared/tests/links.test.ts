@@ -2,7 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { LinkIndex, hasPlainMention, linkFirstMention, renameWikiLinks, linkAllMentions } from '../src/links';
 import { setFrontmatter, extractMeta, excerpt } from '../src/markdown';
 import { buildReview } from '../src/review';
-import { archiveTarget, restoreTarget, roleOfPath } from '../src/para';
+import {
+  DEFAULT_PARA_FOLDERS,
+  DEFAULT_RECIPE_FOLDER,
+  DEFAULT_ZETTEL_FOLDER,
+  STANDALONE_RECIPE_FOLDER,
+  archiveTarget,
+  normalizeFeatures,
+  restoreTarget,
+  roleOfFolder,
+  roleOfPath,
+} from '../src/para';
 
 const note = (id: string, path: string, content: string, updatedAt = 0, createdAt = 0) => ({ id, path, content, updatedAt, createdAt });
 
@@ -74,11 +84,52 @@ describe('frontmatter, PARA, templates', () => {
 
   it('maps archive paths both ways', () => {
     expect(archiveTarget('1 Projekte/Haus')).toBe('4 Archiv/1 Projekte/Haus');
+    expect(archiveTarget('')).toBe('4 Archiv');
     expect(restoreTarget('4 Archiv/1 Projekte/Haus')).toBe('1 Projekte/Haus');
     expect(restoreTarget('1 Projekte')).toBeNull();
     expect(roleOfPath('1 Projekte/Haus/Plan.md')).toBe('projects');
+
+    expect(archiveTarget('Work/Project A', 'Vault/Archive')).toBe('Vault/Archive/Work/Project A');
+    expect(restoreTarget('Vault/Archive/Work/Project A', 'Vault/Archive')).toBe('Work/Project A');
   });
 
+  it('resolves custom nested folders and disabled roles', () => {
+    const cfg = {
+      inbox: '0 Inbox',
+      projects: 'Work/Projects',
+      areas: 'Areas',
+      resources: 'Resources',
+      archive: 'Work/Projects/Archive',
+      zettel: null,
+    };
+    expect(roleOfFolder('Work/Projects/Alpha', cfg)).toBe('projects');
+    expect(roleOfFolder('Work/Projects/Archive/Old', cfg)).toBe('archive');
+    expect(roleOfFolder('Zettelkasten', cfg)).toBeNull();
+  });
+
+  it('normalizes feature settings for new vs upgraded spaces', () => {
+    const fresh = normalizeFeatures(undefined, ['0 Inbox']);
+    expect(fresh).toEqual({
+      para: { enabled: false, folders: DEFAULT_PARA_FOLDERS },
+      zettel: { enabled: false, folder: DEFAULT_ZETTEL_FOLDER },
+      recipe: { enabled: false, folder: STANDALONE_RECIPE_FOLDER },
+    });
+
+    const upgraded = normalizeFeatures(undefined, ['0 Inbox', '1 Projekte', 'Zettelkasten', '3 Ressourcen/Rezepte']);
+    expect(upgraded).toEqual({
+      para: { enabled: true, folders: DEFAULT_PARA_FOLDERS },
+      zettel: { enabled: true, folder: DEFAULT_ZETTEL_FOLDER },
+      recipe: { enabled: true, folder: DEFAULT_RECIPE_FOLDER },
+    });
+
+    const explicitDisabled = normalizeFeatures(
+      { para: { enabled: false }, zettel: { enabled: false, folder: 'Notes/Zettel' }, recipe: { enabled: true, folder: 'Küche/Rezepte' } },
+      ['1 Projekte', 'Zettelkasten']
+    );
+    expect(explicitDisabled.para.enabled).toBe(false);
+    expect(explicitDisabled.zettel).toEqual({ enabled: false, folder: 'Notes/Zettel' });
+    expect(explicitDisabled.recipe).toEqual({ enabled: true, folder: 'Küche/Rezepte' });
+  });
 });
 
 describe('review', () => {
@@ -102,5 +153,30 @@ describe('review', () => {
     expect(r.staleAreas.map((a) => a.name)).toEqual(['Gesundheit']);
     expect(r.orphanZettel).toEqual(['z1']);
     expect(r.oldFleeting).toEqual(['z1']);
+  });
+
+  it('respects disabled roles and custom target folders in review', () => {
+    const now = new Date(2026, 10, 8).getTime();
+    const day = 86_400_000;
+    const notes = [
+      note('p1', 'Work/Projects/A.md', '', now, now),
+      note('i1', '0 Inbox/X.md', '', now, now),
+      note('ar', 'Life/Areas/Sport/Run.md', '', now - 40 * day, 0),
+      note('z1', 'Zettelkasten/1 Z.md', '---\ntyp: flüchtig\n---\n', now, now - 10 * day),
+    ];
+
+    const custom = buildReview(notes, now, 30, {
+      inbox: '0 Inbox',
+      projects: 'Work/Projects',
+      areas: 'Life/Areas',
+      resources: 'Resources',
+      archive: 'Archive',
+      zettel: null,
+    });
+    expect(custom.inbox).toEqual(['i1']);
+    expect(custom.projects.map((p) => p.id)).toEqual(['p1']);
+    expect(custom.staleAreas.map((a) => a.name)).toEqual(['Sport']);
+    expect(custom.orphanZettel).toEqual([]);
+    expect(custom.oldFleeting).toEqual([]);
   });
 });

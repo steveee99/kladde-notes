@@ -170,8 +170,8 @@ export const USERNAME_PATTERN = /^[A-Za-z0-9_.-]{3,20}$/;
 export const SYSTEM_PREFIX = '.kladde/';
 export const FOLDERS_NOTE_PATH = '.kladde/folders.json';
 
-/** Default folder structure (PARA + Zettelkasten) for new spaces */
-export const DEFAULT_FOLDERS = ['0 Inbox', '1 Projekte', '2 Bereiche', '3 Ressourcen', '4 Archiv', 'Zettelkasten'];
+/** Default folder structure for new spaces (PARA and Zettelkasten are opt-in in settings) */
+export const DEFAULT_FOLDERS = ['0 Inbox'];
 export const INBOX_FOLDER = '0 Inbox';
 export const ZETTEL_FOLDER = 'Zettelkasten';
 

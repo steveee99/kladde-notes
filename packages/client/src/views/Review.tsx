@@ -46,7 +46,8 @@ export function ReviewView() {
   useVault();
   const lang = useLang();
   const loc = locale(lang);
-  const r = buildReview(vault.list().filter((n) => n.access === 'owner'));
+  const features = vault.features();
+  const r = buildReview(vault.list().filter((n) => n.access === 'owner'), Date.now(), 30, vault.roleConfig());
   const last = vault.setting<number>(REVIEW_KEY);
   return (
     <div className="content-container space-y-4 px-4 py-6 sm:px-8 sm:py-10">
@@ -69,29 +70,37 @@ export function ReviewView() {
         </button>
       </Section>
 
-      <Section icon={Briefcase} title={tl(lang, 'review.projectsTitle')} count={r.projectsWithoutNextStep.length} ok={tl(lang, 'review.projectsOk')}>
-        <p className="mb-2 text-sm text-muted">{tl(lang, 'review.projectsHint')}</p>
-        <NoteLinks ids={r.projectsWithoutNextStep.map((p) => p.id)} />
-      </Section>
+      {features.para.enabled && (
+        <>
+          <Section icon={Briefcase} title={tl(lang, 'review.projectsTitle')} count={r.projectsWithoutNextStep.length} ok={tl(lang, 'review.projectsOk')}>
+            <p className="mb-2 text-sm text-muted">{tl(lang, 'review.projectsHint')}</p>
+            <NoteLinks ids={r.projectsWithoutNextStep.map((p) => p.id)} />
+          </Section>
 
-      <Section icon={Target} title={tl(lang, 'review.areasTitle')} count={r.staleAreas.length} ok={tl(lang, 'review.areasOk')}>
-        <ul className="flex flex-wrap gap-1.5">
-          {r.staleAreas.map((a) => (
-            <li key={a.name} className="chip px-3 py-1">
-              {a.name} · {tl(lang, 'review.areasSince', { date: new Date(a.updatedAt).toLocaleDateString(loc) })}
-            </li>
-          ))}
-        </ul>
-      </Section>
+          <Section icon={Target} title={tl(lang, 'review.areasTitle')} count={r.staleAreas.length} ok={tl(lang, 'review.areasOk')}>
+            <ul className="flex flex-wrap gap-1.5">
+              {r.staleAreas.map((a) => (
+                <li key={a.name} className="chip px-3 py-1">
+                  {a.name} · {tl(lang, 'review.areasSince', { date: new Date(a.updatedAt).toLocaleDateString(loc) })}
+                </li>
+              ))}
+            </ul>
+          </Section>
+        </>
+      )}
 
-      <Section icon={Lightbulb} title={tl(lang, 'review.fleetingTitle')} count={r.oldFleeting.length} ok={tl(lang, 'review.fleetingOk')}>
-        <p className="mb-2 text-sm text-muted">{tl(lang, 'review.fleetingHint')}</p>
-        <NoteLinks ids={r.oldFleeting} />
-      </Section>
+      {features.zettel.enabled && (
+        <>
+          <Section icon={Lightbulb} title={tl(lang, 'review.fleetingTitle')} count={r.oldFleeting.length} ok={tl(lang, 'review.fleetingOk')}>
+            <p className="mb-2 text-sm text-muted">{tl(lang, 'review.fleetingHint')}</p>
+            <NoteLinks ids={r.oldFleeting} />
+          </Section>
 
-      <Section icon={Unlink} title={tl(lang, 'review.orphansTitle')} count={r.orphanZettel.length} ok={tl(lang, 'review.orphansOk')}>
-        <NoteLinks ids={r.orphanZettel} />
-      </Section>
+          <Section icon={Unlink} title={tl(lang, 'review.orphansTitle')} count={r.orphanZettel.length} ok={tl(lang, 'review.orphansOk')}>
+            <NoteLinks ids={r.orphanZettel} />
+          </Section>
+        </>
+      )}
 
       <button
         className="btn-primary w-full rounded-full py-3"

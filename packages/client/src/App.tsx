@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Me, PARA, runQuery, splitPath, INBOX_FOLDER } from '@kladde/shared';
+import { INBOX_FOLDER, Me, runQuery, splitPath } from '@kladde/shared';
 import { api, ApiError, uploadFile } from './lib/api';
 import { t } from './lib/i18n';
 import { match, navigate, usePath } from './lib/router';
@@ -127,7 +127,7 @@ export function App() {
   let page: React.ReactNode;
   const note = match(path, '/n/:id');
   if (note) page = <NoteView key={note.id} id={note.id} isNew={location.search.includes('new=1')} />;
-  else if (path === '/inbox' || path === `/f/${encodeURIComponent(PARA.inbox)}`) page = <InboxView />;
+  else if (path === '/inbox' || path === `/f/${encodeURIComponent(INBOX_FOLDER)}`) page = <InboxView />;
   else if (path === '/graph') page = <GraphView />;
   else if (path === '/review') page = <ReviewView />;
   else if (path.startsWith('/f/')) page = <NoteList key={path} mode="folder" folder={decodeURIComponent(path.slice(3))} />;

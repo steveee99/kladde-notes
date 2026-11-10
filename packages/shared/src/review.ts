@@ -1,6 +1,6 @@
 import { extractMeta, splitPath } from './markdown.js';
 import { LinkIndex, LinkNote } from './links.js';
-import { PARA, roleOfFolder } from './para.js';
+import { PARA, RoleFolderMap, roleOfFolder } from './para.js';
 import { bucketOf, parseTasks } from './tasks.js';
 
 export interface ReviewNote extends LinkNote {
@@ -24,7 +24,7 @@ export interface Review {
   projects: ProjectInfo[];
   /** Active projects without an open task: what is the next step? */
   projectsWithoutNextStep: ProjectInfo[];
-  /** Areas (top-level entries below "2 Bereiche") not touched for `staleDays` */
+  /** Areas (top-level entries below configured areas folder) not touched for `staleDays` */
   staleAreas: { name: string; updatedAt: number }[];
   orphanZettel: string[];
   /** Fleeting notes older than a week: work them out or let them go */
@@ -33,10 +33,11 @@ export interface Review {
 
 const DAY = 86_400_000;
 
-/** Project = a note directly in "1 Projekte", or the main note of a project folder (most recently changed one) */
-export function projectsOf(notes: ReviewNote[], today = new Date()): ProjectInfo[] {
+/** Project = a note directly in the projects folder or its subfolders */
+export function projectsOf(notes: ReviewNote[], today = new Date(), config: RoleFolderMap = PARA): ProjectInfo[] {
+  if (!config.projects) return [];
   return notes
-    .filter((n) => roleOfFolder(splitPath(n.path).folder) === 'projects')
+    .filter((n) => roleOfFolder(splitPath(n.path).folder, config) === 'projects')
     .map((n) => {
       const meta = extractMeta(n.path, n.content);
       const open = parseTasks(n.content, today).filter((t) => !t.done);
@@ -54,22 +55,25 @@ export function projectsOf(notes: ReviewNote[], today = new Date()): ProjectInfo
     .filter((p) => p.status !== 'fertig');
 }
 
-export function buildReview(notes: ReviewNote[], now = Date.now(), staleDays = 30): Review {
+export function buildReview(notes: ReviewNote[], now = Date.now(), staleDays = 30, config: RoleFolderMap = PARA): Review {
   const today = new Date(now);
   const index = new LinkIndex(notes);
-  const projects = projectsOf(notes, today);
+  const projects = projectsOf(notes, today, config);
   const areas = new Map<string, number>();
-  for (const n of notes) {
-    const folder = splitPath(n.path).folder;
-    if (roleOfFolder(folder) !== 'areas') continue;
-    const rest = folder === PARA.areas ? splitPath(n.path).name : folder.slice(PARA.areas.length + 1).split('/')[0];
-    areas.set(rest, Math.max(areas.get(rest) ?? 0, n.updatedAt));
+  const areasRoot = config.areas;
+  if (areasRoot) {
+    for (const n of notes) {
+      const folder = splitPath(n.path).folder;
+      if (roleOfFolder(folder, config) !== 'areas') continue;
+      const rest = folder === areasRoot ? splitPath(n.path).name : folder.slice(areasRoot.length + 1).split('/')[0];
+      areas.set(rest, Math.max(areas.get(rest) ?? 0, n.updatedAt));
+    }
   }
   let overdue = 0;
   for (const n of notes) for (const t of parseTasks(n.content, today)) if (!t.done && bucketOf(t, today) === 'overdue') overdue++;
-  const zettel = notes.filter((n) => roleOfFolder(splitPath(n.path).folder) === 'zettel');
+  const zettel = config.zettel ? notes.filter((n) => roleOfFolder(splitPath(n.path).folder, config) === 'zettel') : [];
   return {
-    inbox: notes.filter((n) => roleOfFolder(splitPath(n.path).folder) === 'inbox').map((n) => n.id),
+    inbox: notes.filter((n) => roleOfFolder(splitPath(n.path).folder, config) === 'inbox').map((n) => n.id),
     overdueTasks: overdue,
     projects,
     projectsWithoutNextStep: projects.filter((p) => p.status === 'aktiv' && p.openTasks === 0),

@@ -1,6 +1,6 @@
 import { useState, useSyncExternalStore } from 'react';
 import { Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, LayoutGrid, List, Plus, Table2, Users } from 'lucide-react';
-import { PARA, archiveTarget, excerpt, extractMeta, restoreTarget, splitPath } from '@kladde/shared';
+import { INBOX_FOLDER, archiveTarget, excerpt, extractMeta, restoreTarget, splitPath } from '@kladde/shared';
 import type { SharedFolder } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
@@ -320,7 +320,17 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
   const countIn = (f: string) => vault.list().filter((n) => n.access === 'owner' && (splitPath(n.path).folder === f || splitPath(n.path).folder.startsWith(`${f}/`))).length;
   const parent = mode === 'folder' && folder ? (folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) : '') : null;
   const title = mode === 'all' ? t('list.allNotes') : mode === 'shared' ? t('list.sharedWithMe') : folder ? folderLeafDisplayName(folder, lang) : t('list.parentLevel');
-  const restoreDest = mode === 'folder' && folder ? restoreTarget(folder) : null;
+  const features = vault.features();
+  const archiveRoot = features.para.folders.archive;
+  const restoreDest = mode === 'folder' && folder && features.para.enabled ? restoreTarget(folder, archiveRoot) : null;
+  const protectedFolders = new Set<string>([INBOX_FOLDER]);
+  if (features.para.enabled) {
+    protectedFolders.add(features.para.folders.projects);
+    protectedFolders.add(features.para.folders.areas);
+    protectedFolders.add(features.para.folders.resources);
+    protectedFolders.add(features.para.folders.archive);
+  }
+  if (features.zettel.enabled) protectedFolders.add(features.zettel.folder);
 
   return (
     <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
@@ -337,21 +347,24 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
         <button className="btn-icon" title={t('list.sortTooltip')} onClick={() => setSort(sort === 'updated' ? 'title' : 'updated')}>
           {sort === 'updated' ? <Clock size={18} /> : <ArrowDownAZ size={18} />}
         </button>
-        {mode === 'folder' && folder && folder !== PARA.archive && (
+        {mode === 'folder' && folder && features.para.enabled && folder !== archiveRoot && (
           restoreDest !== null ? (
             <button
               className="edit-only btn-ghost"
-              title={t('para.restoreTitle', { folder: folderDisplayName(restoreDest, lang) })}
-              onClick={() => void vault.restoreFolder(folder).then(() => navigate(`/f/${encodeURIComponent(restoreDest)}`, true))}
+              title={t('para.restoreTitle', { folder: restoreDest ? folderDisplayName(restoreDest, lang) : t('common.topLevelPlain') })}
+              onClick={() => void vault.restoreFolder(folder).then(() => navigate(restoreDest ? `/f/${encodeURIComponent(restoreDest)}` : '/notes', true))}
             >
               <ArchiveRestore size={16} /> <span className="hidden sm:inline">{t('para.restoreBtn')}</span>
             </button>
           ) : (
-            !Object.values(PARA).includes(folder as never) && (
+            !protectedFolders.has(folder) && (
               <button
                 className="edit-only btn-ghost"
                 title={t('list.archiveFolderTitle')}
-                onClick={() => confirm(t('list.archiveFolderConfirm', { folder })) && void vault.archiveFolder(folder).then(() => navigate(`/f/${encodeURIComponent(archiveTarget(folder))}`, true))}
+                onClick={() =>
+                  confirm(t('list.archiveFolderConfirm', { folder: folderDisplayName(folder, lang) })) &&
+                  void vault.archiveFolder(folder).then(() => navigate(`/f/${encodeURIComponent(archiveTarget(folder, archiveRoot))}`, true))
+                }
               >
                 <Archive size={16} /> <span className="hidden sm:inline">{t('para.archiveBtn')}</span>
               </button>

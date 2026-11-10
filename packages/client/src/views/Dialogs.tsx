@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChefHat, ClipboardPaste, FileText, Lightbulb, Loader2, X } from 'lucide-react';
-import { PARA, Recipe, RECIPE_FOLDER, recipeNoteTitle, recipeToMarkdown, Template, ZETTEL_TYPES, ZettelType } from '@kladde/shared';
+import { INBOX_FOLDER, Recipe, recipeNoteTitle, recipeToMarkdown, Template, ZETTEL_TYPES, ZettelType } from '@kladde/shared';
 import { api } from '../lib/api';
 import { vault } from '../data/vault';
 import { closeDialog, useDialog } from '../lib/dialogs';
@@ -34,7 +34,7 @@ function NewNoteDialog({ folder }: { folder?: string }) {
   const templates: Template[] = vault.templates();
   const [template, setTemplate] = useState<Template | null>(null);
   const [title, setTitle] = useState('');
-  const [target, setTarget] = useState(folder ?? PARA.inbox);
+  const [target, setTarget] = useState(folder ?? INBOX_FOLDER);
   const folders = vault.folders();
   const choose = (t: Template | null) => {
     setTemplate(t);
@@ -74,7 +74,7 @@ function NewNoteDialog({ folder }: { folder?: string }) {
       <label className="mb-4 flex items-center gap-2 text-sm text-muted">
         {tl(lang, 'dialogs.newNoteFolder')}
         <select className="input py-1.5" value={target} onChange={(e) => setTarget(e.target.value)}>
-          {[...new Set([target, ...folders])].map((f) => (
+          {[...new Set([target, ...folders, ''])].map((f) => (
             <option key={f} value={f}>
               {folderDisplayName(f, lang)}
             </option>
@@ -105,6 +105,7 @@ function ZettelDialog() {
   const [title, setTitle] = useState('');
   const [type, setType] = useState<ZettelType>('flüchtig');
   const [source, setSource] = useState('');
+  const targetFolder = vault.features().zettel.folder;
   const create = async () => {
     if (!title.trim()) return;
     const note = await vault.createZettel(title.trim(), type, source.trim());
@@ -151,6 +152,7 @@ function ZettelDialog() {
         <Lightbulb size={16} /> {tl(lang, 'dialogs.zettelCreate')}
       </button>
       <p className="mt-3 text-xs text-faint">{tl(lang, 'dialogs.zettelIdHint')}</p>
+      <p className="mt-1 text-xs text-faint">{tl(lang, 'dialogs.zettelSavedIn', { folder: folderDisplayName(targetFolder, lang) })}</p>
     </Sheet>
   );
 }
@@ -161,6 +163,7 @@ function RecipeDialog({ initialUrl = '' }: { initialUrl?: string }) {
   const [url, setUrl] = useState(initialUrl);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const targetFolder = vault.features().recipe.folder;
   const link = url.trim();
   const existing = link ? vault.list().find((n) => n.content.includes(`\nquelle: ${link}\n`)) : undefined;
   const paste = async () => {
@@ -182,7 +185,7 @@ function RecipeDialog({ initialUrl = '' }: { initialUrl?: string }) {
         method: 'POST',
         json: { url: /^https?:\/\//i.test(link) ? link : `https://${link}` },
       });
-      const note = await vault.create(RECIPE_FOLDER, recipeNoteTitle(recipe), recipeToMarkdown(recipe));
+      const note = await vault.create(targetFolder, recipeNoteTitle(recipe), recipeToMarkdown(recipe));
       closeDialog();
       navigate(`/n/${note.id}`);
     } catch (err) {
@@ -219,7 +222,7 @@ function RecipeDialog({ initialUrl = '' }: { initialUrl?: string }) {
       <button className="btn-primary w-full rounded-full py-2.5" disabled={!link || busy} onClick={run}>
         {busy ? <Loader2 size={16} className="animate-spin" /> : <ChefHat size={16} />} {busy ? tl(lang, 'dialogs.recipeImporting') : tl(lang, 'dialogs.recipeImport')}
       </button>
-      <p className="mt-3 text-xs text-faint">{tl(lang, 'dialogs.recipeHint', { folder: folderDisplayName(RECIPE_FOLDER, lang) })}</p>
+      <p className="mt-3 text-xs text-faint">{tl(lang, 'dialogs.recipeHint', { folder: folderDisplayName(targetFolder, lang) })}</p>
     </Sheet>
   );
 }

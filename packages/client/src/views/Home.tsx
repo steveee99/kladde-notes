@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlignJustify, Briefcase, CalendarCheck, CalendarClock, Inbox as InboxIcon, List, Plus, Repeat, X } from 'lucide-react';
-import { PARA, Task, TaskBucket, bucketOf, parseTasks, shortcutDate, projectsOf, splitPath } from '@kladde/shared';
+import { INBOX_FOLDER, Task, TaskBucket, bucketOf, parseTasks, shortcutDate, projectsOf, splitPath } from '@kladde/shared';
 import { openDialog } from '../lib/dialogs';
 import { reviewDue } from './Review';
 import { useVault, vault } from '../data/vault';
@@ -279,8 +279,12 @@ export function HomeView() {
   }, [version]);
 
   const own = notes.filter((n) => n.access === 'owner');
-  const projects = projectsOf(own).sort((a, b) => (a.status === b.status ? b.updatedAt - a.updatedAt : a.status === 'aktiv' ? -1 : 1));
-  const inboxCount = own.filter((n) => splitPath(n.path).folder === PARA.inbox).length;
+  const features = vault.features();
+  const roleConfig = vault.roleConfig();
+  const projects = features.para.enabled
+    ? projectsOf(own, new Date(), roleConfig).sort((a, b) => (a.status === b.status ? b.updatedAt - a.updatedAt : a.status === 'aktiv' ? -1 : 1))
+    : [];
+  const inboxCount = own.filter((n) => splitPath(n.path).folder === INBOX_FOLDER).length;
   const recent = [...notes].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6);
   const hour = new Date().getHours();
   const greeting = hour < 11 ? t('home.greetingMorning') : hour < 18 ? t('home.greetingDay') : t('home.greetingEvening');
@@ -294,7 +298,7 @@ export function HomeView() {
         <p className="text-base font-medium text-muted sm:text-lg">{new Date().toLocaleDateString(locale(lang), { weekday: 'long', day: 'numeric', month: 'long' })}</p>
         <h1 className="mt-1 text-4xl font-semibold tracking-tight leading-tight sm:text-5xl">{greeting} 👋</h1>
         <p className="mt-3 text-lg font-medium text-ink/90 sm:text-xl">{openCountText}</p>
-        <p className="mt-1 text-base text-muted sm:text-lg">{t('home.subtitle')}</p>
+        <p className="mt-1 text-base text-muted sm:text-lg">{t(features.para.enabled ? 'home.subtitle' : 'home.subtitleNoPara')}</p>
       </header>
 
       {((inboxZero && inboxCount > 0) || reviewDue()) && (
@@ -379,44 +383,48 @@ export function HomeView() {
         </div>
       </section>
 
-      <hr className="my-8 border-0 border-t border-line/80" />
+      {features.para.enabled && (
+        <>
+          <hr className="my-8 border-0 border-t border-line/80" />
 
-      <section aria-labelledby="home-projects-heading" className="anim-fade-up">
-        <div className="mb-4 flex items-center gap-3 px-1">
-          <h2 id="home-projects-heading" className="text-xs font-semibold uppercase tracking-wider text-faint">
-            {t('home.projectsTitle')}
-          </h2>
-          <button
-            className="edit-only ml-auto inline-flex items-center gap-2 rounded-full bg-accent-container px-5 py-2.5 text-sm font-medium text-on-accent-container shadow-soft transition-all hover:brightness-110 active:scale-[0.98]"
-            onClick={() => openDialog({ kind: 'note', folder: PARA.projects })}
-          >
-            <Plus size={18} /> {t('home.addProject')}
-          </button>
-        </div>
-        {projects.length === 0 ? (
-          <p className="px-1 text-sm text-faint">{t('home.noProjectsYet')}</p>
-        ) : (
-          <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {projects.map((p) => (
-              <button key={p.id} onClick={() => navigate(`/n/${p.id}`)} className="card min-w-0 p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40">
-                <div className="flex items-center gap-2">
-                  <Briefcase size={15} className="shrink-0 text-accent" />
-                  <span className="truncate font-medium">{p.title}</span>
-                  {p.status === 'pausiert' && <span className="chip text-warn">{t('home.statusPaused')}</span>}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
-                  {p.openTasks ? (
-                    <span className="chip">{t('home.projectOpenTasks', { n: p.openTasks })}</span>
-                  ) : (
-                    <span className="chip text-warn">{t('home.projectNoNextStep')}</span>
-                  )}
-                  {p.nextDue && <span className="cm-due">📅 {formatDue(p.nextDue)}</span>}
-                </div>
+          <section aria-labelledby="home-projects-heading" className="anim-fade-up">
+            <div className="mb-4 flex items-center gap-3 px-1">
+              <h2 id="home-projects-heading" className="text-xs font-semibold uppercase tracking-wider text-faint">
+                {t('home.projectsTitle')}
+              </h2>
+              <button
+                className="edit-only ml-auto inline-flex items-center gap-2 rounded-full bg-accent-container px-5 py-2.5 text-sm font-medium text-on-accent-container shadow-soft transition-all hover:brightness-110 active:scale-[0.98]"
+                onClick={() => openDialog({ kind: 'note', folder: features.para.folders.projects })}
+              >
+                <Plus size={18} /> {t('home.addProject')}
               </button>
-            ))}
-          </div>
-        )}
-      </section>
+            </div>
+            {projects.length === 0 ? (
+              <p className="px-1 text-sm text-faint">{t('home.noProjectsYet')}</p>
+            ) : (
+              <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {projects.map((p) => (
+                  <button key={p.id} onClick={() => navigate(`/n/${p.id}`)} className="card min-w-0 p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40">
+                    <div className="flex items-center gap-2">
+                      <Briefcase size={15} className="shrink-0 text-accent" />
+                      <span className="truncate font-medium">{p.title}</span>
+                      {p.status === 'pausiert' && <span className="chip text-warn">{t('home.statusPaused')}</span>}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+                      {p.openTasks ? (
+                        <span className="chip">{t('home.projectOpenTasks', { n: p.openTasks })}</span>
+                      ) : (
+                        <span className="chip text-warn">{t('home.projectNoNextStep')}</span>
+                      )}
+                      {p.nextDue && <span className="cm-due">📅 {formatDue(p.nextDue)}</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      )}
 
       <hr className="my-8 border-0 border-t border-line/80" />
 

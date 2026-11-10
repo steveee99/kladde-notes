@@ -3,8 +3,11 @@ import { startRegistration } from '@simplewebauthn/browser';
 import {
   Bot,
   Check,
+  ChefHat,
   ChevronRight,
   Copy,
+  FolderKanban,
+  FolderPlus,
   GitBranch,
   Globe,
   Images,
@@ -12,6 +15,7 @@ import {
   Info,
   KeyRound,
   LayoutTemplate,
+  Lightbulb,
   Lock,
   LogOut,
   Maximize2,
@@ -20,12 +24,14 @@ import {
   Smartphone,
   SlidersHorizontal,
   Trash2,
+  X,
   Zap,
 } from 'lucide-react';
-import { APP_VERSION, Me, PASSWORD_MIN_LENGTH } from '@kladde/shared';
+import { APP_VERSION, DEFAULT_RECIPE_FOLDER, FeatureSettings, Me, PASSWORD_MIN_LENGTH, STANDALONE_RECIPE_FOLDER } from '@kladde/shared';
 import { api } from '../lib/api';
-import { Lang, locale, setLang, tl, useLang } from '../lib/i18n';
+import { folderDisplayName, Lang, locale, setLang, tl, useLang } from '../lib/i18n';
 import { setInboxZero, useInboxZero } from '../lib/prefs';
+import { useReadOnly } from '../lib/readOnly';
 import { DEFAULT_PERCENT, MAX_PERCENT, MIN_PERCENT, setWidescreen, useWidescreen, WIDESCREEN_PRESETS } from '../lib/widescreen';
 import { useVault, vault } from '../data/vault';
 import { startupReport, toggleTallPageTest, viewportReport } from '../lib/viewport';
@@ -38,6 +44,9 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
   const loc = locale(lang);
   const widescreen = useWidescreen();
   const inboxZero = useInboxZero();
+  const locked = useReadOnly();
+  const features = vault.features();
+  const folders = vault.folders();
   const [customInput, setCustomInput] = useState(String(widescreen.percent));
   const [link, setLink] = useState<{ code: string; expiresAt: number } | null>(null);
   const [error, setError] = useState('');
@@ -163,25 +172,12 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
               <p className="text-xs text-muted">{tl(lang, 'settings.inboxZeroDesc')}</p>
             </div>
           </div>
-          <button
+          <Switch
             id="inbox-zero-switch"
-            type="button"
-            role="switch"
-            aria-checked={inboxZero}
-            aria-label={tl(lang, 'settings.inboxZeroLabel')}
-            onClick={() => setInboxZero(!inboxZero)}
-            className={`relative inline-flex h-8 w-[52px] shrink-0 cursor-pointer items-center rounded-full border-2 p-0.5 transition-colors ${
-              inboxZero ? 'border-accent bg-accent' : 'border-faint/60 bg-raised'
-            }`}
-          >
-            <span
-              className={`flex h-6 w-6 items-center justify-center rounded-full transition-transform duration-150 ${
-                inboxZero ? 'translate-x-5 bg-on-accent text-accent' : 'translate-x-0 scale-75 bg-muted text-surface'
-              }`}
-            >
-              {inboxZero && <Check size={14} strokeWidth={3} />}
-            </span>
-          </button>
+            checked={inboxZero}
+            label={tl(lang, 'settings.inboxZeroLabel')}
+            onChange={setInboxZero}
+          />
         </div>
 
         <hr className="my-5 border-line" />
@@ -290,6 +286,8 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
           <span>{tl(lang, 'settings.widescreenSmallScreenHint')}</span>
         </div>
       </section>
+
+      <FeaturesSection features={features} folders={folders} locked={locked} />
 
       {!me.standalone && (
         <>
@@ -407,6 +405,322 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
         <span className="text-xs text-faint">Kladde {APP_VERSION}</span>
       </div>
     </div>
+  );
+}
+
+function Switch({
+  id,
+  checked,
+  disabled,
+  label,
+  onChange,
+}: {
+  id: string;
+  checked: boolean;
+  disabled?: boolean;
+  label: string;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <button
+      id={id}
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => !disabled && onChange(!checked)}
+      className={`relative inline-flex h-8 w-[52px] shrink-0 items-center rounded-full border-2 p-0.5 transition-colors ${
+        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+      } ${checked ? 'border-accent bg-accent' : 'border-faint/60 bg-raised'}`}
+    >
+      <span
+        className={`flex h-6 w-6 items-center justify-center rounded-full transition-transform duration-150 ${
+          checked ? 'translate-x-5 bg-on-accent text-accent' : 'translate-x-0 scale-75 bg-muted text-surface'
+        }`}
+      >
+        {checked && <Check size={14} strokeWidth={3} />}
+      </span>
+    </button>
+  );
+}
+
+function FolderPicker({
+  id,
+  label,
+  value,
+  folders,
+  disabled,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  folders: string[];
+  disabled?: boolean;
+  onChange: (folder: string) => void;
+}) {
+  const lang = useLang();
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState('');
+  const options = (folders.includes(value) ? folders : [value, ...folders]).filter(Boolean);
+  const isCreating = creating && !disabled;
+
+  const createFolder = async () => {
+    const cleaned = draft
+      .split('/')
+      .map((p) => p.trim().replace(/[\\]/g, '-'))
+      .filter((p) => p && p !== '.' && p !== '..')
+      .join('/');
+    if (!cleaned) {
+      setCreating(false);
+      setDraft('');
+      return;
+    }
+    const created = await vault.addFolder(cleaned);
+    setCreating(false);
+    setDraft('');
+    if (created) onChange(created);
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={id} className="block text-xs font-medium text-muted">
+        {label}
+      </label>
+      {isCreating ? (
+        <div className="flex items-center gap-1.5">
+          <input
+            id={id}
+            autoFocus
+            className="input h-9 flex-1 py-1 text-sm"
+            placeholder={tl(lang, 'settings.newFolderPlaceholder')}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void createFolder();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                setCreating(false);
+                setDraft('');
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="btn-icon h-9 w-9 shrink-0 rounded-xl border border-line text-accent hover:bg-accent/10"
+            title={tl(lang, 'common.create')}
+            aria-label={tl(lang, 'common.create')}
+            onClick={() => void createFolder()}
+          >
+            <Check size={16} />
+          </button>
+          <button
+            type="button"
+            className="btn-icon h-9 w-9 shrink-0 rounded-xl border border-line"
+            title={tl(lang, 'common.cancel')}
+            aria-label={tl(lang, 'common.cancel')}
+            onClick={() => {
+              setCreating(false);
+              setDraft('');
+            }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1.5">
+          <select
+            id={id}
+            disabled={disabled}
+            className="input h-9 flex-1 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+          >
+            {options.map((f) => (
+              <option key={f} value={f}>
+                {folderDisplayName(f, lang)}
+              </option>
+            ))}
+          </select>
+          {!disabled && (
+            <button
+              type="button"
+              className="btn-icon h-9 w-9 shrink-0 rounded-xl border border-line"
+              title={tl(lang, 'settings.newFolderBtnTitle')}
+              aria-label={tl(lang, 'settings.newFolderBtnTitle')}
+              onClick={() => setCreating(true)}
+            >
+              <FolderPlus size={16} />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Synced per-account workflow opt-ins (PARA, Zettelkasten, Recipe import) with configurable target folders */
+function FeaturesSection({ features, folders, locked }: { features: FeatureSettings; folders: string[]; locked: boolean }) {
+  const lang = useLang();
+  const save = (next: FeatureSettings) => {
+    void vault.updateFeatures(next).catch(() => {});
+  };
+
+  return (
+    <section className="card p-5 anim-fade-up">
+      <h2 className="text-base font-semibold">{tl(lang, 'settings.featuresTitle')}</h2>
+      <p className="mb-5 mt-1 text-xs text-muted">{tl(lang, 'settings.featuresDesc')}</p>
+
+      {locked && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl bg-raised/60 px-3.5 py-2.5 text-xs text-muted">
+          <Lock size={14} className="mt-0.5 shrink-0 text-accent" />
+          <span>{tl(lang, 'settings.featuresReadOnlyHint')}</span>
+        </div>
+      )}
+
+      {/* PARA method opt-in */}
+      <div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-start gap-2.5">
+            <FolderKanban size={18} className="mt-0.5 shrink-0 text-accent" />
+            <div>
+              <label htmlFor="feature-para-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
+                {tl(lang, 'settings.paraTitle')}
+              </label>
+              <p className="text-xs text-muted">{tl(lang, 'settings.paraDesc')}</p>
+            </div>
+          </div>
+          <Switch
+            id="feature-para-switch"
+            checked={features.para.enabled}
+            disabled={locked}
+            label={tl(lang, 'settings.paraToggleLabel')}
+            onChange={(enabled) => save({ ...features, para: { ...features.para, enabled } })}
+          />
+        </div>
+        {features.para.enabled && (
+          <div className="mt-3 grid grid-cols-1 gap-3 rounded-2xl border border-line bg-raised/50 p-4 sm:grid-cols-2 anim-fade-in">
+            <FolderPicker
+              id="para-folder-projects"
+              label={tl(lang, 'settings.paraFolderProjects')}
+              value={features.para.folders.projects}
+              folders={folders}
+              disabled={locked}
+              onChange={(projects) => save({ ...features, para: { ...features.para, folders: { ...features.para.folders, projects } } })}
+            />
+            <FolderPicker
+              id="para-folder-areas"
+              label={tl(lang, 'settings.paraFolderAreas')}
+              value={features.para.folders.areas}
+              folders={folders}
+              disabled={locked}
+              onChange={(areas) => save({ ...features, para: { ...features.para, folders: { ...features.para.folders, areas } } })}
+            />
+            <FolderPicker
+              id="para-folder-resources"
+              label={tl(lang, 'settings.paraFolderResources')}
+              value={features.para.folders.resources}
+              folders={folders}
+              disabled={locked}
+              onChange={(resources) => save({ ...features, para: { ...features.para, folders: { ...features.para.folders, resources } } })}
+            />
+            <FolderPicker
+              id="para-folder-archive"
+              label={tl(lang, 'settings.paraFolderArchive')}
+              value={features.para.folders.archive}
+              folders={folders}
+              disabled={locked}
+              onChange={(archive) => save({ ...features, para: { ...features.para, folders: { ...features.para.folders, archive } } })}
+            />
+          </div>
+        )}
+      </div>
+
+      <hr className="my-5 border-line" />
+
+      {/* Zettelkasten opt-in */}
+      <div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-start gap-2.5">
+            <Lightbulb size={18} className="mt-0.5 shrink-0 text-accent" />
+            <div>
+              <label htmlFor="feature-zettel-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
+                {tl(lang, 'settings.zettelTitle')}
+              </label>
+              <p className="text-xs text-muted">{tl(lang, 'settings.zettelDesc')}</p>
+            </div>
+          </div>
+          <Switch
+            id="feature-zettel-switch"
+            checked={features.zettel.enabled}
+            disabled={locked}
+            label={tl(lang, 'settings.zettelToggleLabel')}
+            onChange={(enabled) => save({ ...features, zettel: { ...features.zettel, enabled } })}
+          />
+        </div>
+        {features.zettel.enabled && (
+          <div className="mt-3 rounded-2xl border border-line bg-raised/50 p-4 anim-fade-in">
+            <FolderPicker
+              id="zettel-target-folder"
+              label={tl(lang, 'settings.targetFolderLabel')}
+              value={features.zettel.folder}
+              folders={folders}
+              disabled={locked}
+              onChange={(folder) => save({ ...features, zettel: { ...features.zettel, folder } })}
+            />
+          </div>
+        )}
+      </div>
+
+      <hr className="my-5 border-line" />
+
+      {/* Recipe import opt-in */}
+      <div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-start gap-2.5">
+            <ChefHat size={18} className="mt-0.5 shrink-0 text-accent" />
+            <div>
+              <label htmlFor="feature-recipe-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
+                {tl(lang, 'settings.recipeTitle')}
+              </label>
+              <p className="text-xs text-muted">{tl(lang, 'settings.recipeDesc')}</p>
+            </div>
+          </div>
+          <Switch
+            id="feature-recipe-switch"
+            checked={features.recipe.enabled}
+            disabled={locked}
+            label={tl(lang, 'settings.recipeToggleLabel')}
+            onChange={(enabled) => {
+              let recipeFolder = features.recipe.folder;
+              if (enabled) {
+                if (features.para.enabled && recipeFolder === STANDALONE_RECIPE_FOLDER && !folders.includes(STANDALONE_RECIPE_FOLDER)) {
+                  recipeFolder = `${features.para.folders.resources}/Rezepte`;
+                } else if (!features.para.enabled && recipeFolder === DEFAULT_RECIPE_FOLDER && !folders.includes(DEFAULT_RECIPE_FOLDER)) {
+                  recipeFolder = STANDALONE_RECIPE_FOLDER;
+                }
+              }
+              save({ ...features, recipe: { ...features.recipe, enabled, folder: recipeFolder } });
+            }}
+          />
+        </div>
+        {features.recipe.enabled && (
+          <div className="mt-3 rounded-2xl border border-line bg-raised/50 p-4 anim-fade-in">
+            <FolderPicker
+              id="recipe-target-folder"
+              label={tl(lang, 'settings.targetFolderLabel')}
+              value={features.recipe.folder}
+              folders={folders}
+              disabled={locked}
+              onChange={(folder) => save({ ...features, recipe: { ...features.recipe, folder } })}
+            />
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 

@@ -26,9 +26,12 @@ function cssColor(name: string, alpha = 1): string {
 }
 
 export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: GraphNode[]; edges: GraphEdge[]; focusId?: string; height: number; onOpen: (id: string) => void }) {
+  useVault();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [hoverTitle, setHoverTitle] = useState<string | null>(null);
+  const roleConfig = vault.roleConfig();
+  const roleConfigKey = JSON.stringify(roleConfig);
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -118,7 +121,7 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: GraphN
         ctx.stroke();
       }
       for (const n of simNodes) {
-        const role = roleOfFolder(n.folder);
+        const role = roleOfFolder(n.folder, roleConfig);
         const dim = active && n.id !== active.id && !near!.has(n.id);
         ctx.globalAlpha = dim ? 0.25 : 1;
         ctx.fillStyle = (role && palette.role[role]) || palette.other;
@@ -232,7 +235,7 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: GraphN
     };
     // Rebuild only when the structure changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(nodes.map((n) => [n.id, n.title, n.folder, n.links])), JSON.stringify(edges), focusId, height]);
+  }, [JSON.stringify(nodes.map((n) => [n.id, n.title, n.folder, n.links])), JSON.stringify(edges), roleConfigKey, focusId, height]);
 
   return (
     <div ref={wrapRef} className="relative w-full touch-none select-none overflow-hidden rounded-2xl border border-line bg-surface">
@@ -243,10 +246,17 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: GraphN
 }
 
 export function GraphLegend() {
+  useVault();
   useLang();
+  const { para, zettel } = vault.features();
+  const visible = LEGEND.filter(([role]) => {
+    if (role === 'inbox') return true;
+    if (role === 'zettel') return zettel.enabled;
+    return para.enabled;
+  });
   return (
     <div className="flex flex-wrap gap-3 text-xs text-muted">
-      {LEGEND.map(([role, labelKey]) => (
+      {visible.map(([role, labelKey]) => (
         <span key={role} className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full" style={{ background: `rgb(var(${ROLE_VAR[role]}))` }} />
           {t(labelKey)}
@@ -262,8 +272,10 @@ export function GraphView() {
   useLang();
   const [hideArchive, setHideArchive] = useState(true);
   const [onlyLinked, setOnlyLinked] = useState(false);
+  const { para } = vault.features();
+  const roleConfig = vault.roleConfig();
   const g = vault.links().graph();
-  const nodes = g.nodes.filter((n) => (!hideArchive || roleOfFolder(n.folder) !== 'archive') && (!onlyLinked || n.links > 0));
+  const nodes = g.nodes.filter((n) => (!para.enabled || !hideArchive || roleOfFolder(n.folder, roleConfig) !== 'archive') && (!onlyLinked || n.links > 0));
   const ids = new Set(nodes.map((n) => n.id));
   const edges = g.edges.filter((e) => ids.has(e.source) && ids.has(e.target));
   return (
@@ -271,10 +283,12 @@ export function GraphView() {
       <div className="mb-4 flex flex-wrap items-center gap-3 anim-fade-up">
         <h1 className="text-2xl font-bold tracking-tight">{t('graph.title')}</h1>
         <span className="text-sm text-faint">{t('graph.summary', { nodes: nodes.length, edges: edges.length })}</span>
-        <label className="ml-auto flex items-center gap-1.5 text-sm text-muted">
-          <input type="checkbox" checked={hideArchive} onChange={(e) => setHideArchive(e.target.checked)} /> {t('graph.hideArchive')}
-        </label>
-        <label className="flex items-center gap-1.5 text-sm text-muted">
+        {para.enabled && (
+          <label className="ml-auto flex items-center gap-1.5 text-sm text-muted">
+            <input type="checkbox" checked={hideArchive} onChange={(e) => setHideArchive(e.target.checked)} /> {t('graph.hideArchive')}
+          </label>
+        )}
+        <label className={`${para.enabled ? '' : 'ml-auto '}flex items-center gap-1.5 text-sm text-muted`}>
           <input type="checkbox" checked={onlyLinked} onChange={(e) => setOnlyLinked(e.target.checked)} /> {t('graph.onlyLinked')}
         </label>
       </div>

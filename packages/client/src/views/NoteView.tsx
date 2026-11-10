@@ -52,6 +52,7 @@ import { Sheet } from './Dialogs';
 import { folderDisplayName, t, useLang, type Lang } from '../lib/i18n';
 import { setNoteSplitOpen, setNoteSplitTab, useNoteSplitOpen, useNoteSplitTab, type NoteSplitTab } from '../lib/prefs';
 import { isCoarsePointer } from '../lib/viewport';
+import { useRightPaneHost } from './MaterialShell';
 
 const IS_APPLE = /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -570,6 +571,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const [showGraph, setShowGraph] = useState(true);
   const splitOpen = useNoteSplitOpen();
   const splitTab = useNoteSplitTab();
+  const rightHost = useRightPaneHost();
   const [copiedMd, setCopiedMd] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [title, setTitle] = useState('');
@@ -668,7 +670,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col lg:flex-row print:block print:h-auto print:overflow-visible">
+    <div className="flex h-full min-h-0 flex-col print:block print:h-auto print:overflow-visible">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto scrollbar-thin print:block print:h-auto print:overflow-visible">
         <div className="content-container mx-auto w-full flex-1 px-4 pt-4 sm:px-8 sm:pt-8">
           <div className="no-print mb-3 flex items-center gap-2 text-sm text-faint anim-fade-in">
@@ -821,22 +823,28 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
         {!readOnly && <Toolbar view={view} lang={lang} />}
       </div>
 
-      {/* Desktop right Splitview Supporting Pane (lg+) */}
-      {splitOpen && (
-        <aside aria-label={t('note.paneTitle')} className="no-print hidden w-80 shrink-0 flex-col border-l border-line/70 bg-surface p-4 lg:flex xl:w-96 anim-fade-in">
-          <NoteInspectorPane
-            noteId={id}
-            headings={headings}
-            backlinks={backlinks}
-            mentions={mentions}
-            local={local}
-            tab={splitTab}
-            setTab={setNoteSplitTab}
-            onJump={(pos) => jumpToPos(pos, false)}
-            onClose={() => setNoteSplitOpen(false)}
-          />
-        </aside>
-      )}
+      {/* Desktop right Splitview Supporting Pane (lg+, detached card like the left sidebar) */}
+      {splitOpen &&
+        rightHost &&
+        createPortal(
+          <aside
+            aria-label={t('note.paneTitle')}
+            className="flex min-h-0 w-80 flex-col overflow-hidden rounded-[28px] bg-surface p-4 xl:w-96 anim-fade-in"
+          >
+            <NoteInspectorPane
+              noteId={id}
+              headings={headings}
+              backlinks={backlinks}
+              mentions={mentions}
+              local={local}
+              tab={splitTab}
+              setTab={setNoteSplitTab}
+              onJump={(pos) => jumpToPos(pos, false)}
+              onClose={() => setNoteSplitOpen(false)}
+            />
+          </aside>,
+          rightHost
+        )}
 
       {/* Tablet / Mobile Splitview Slide-over Sheet (< lg) */}
       {splitOpen && (

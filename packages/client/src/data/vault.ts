@@ -1,12 +1,17 @@
 import { useSyncExternalStore } from 'react';
 import {
-  DEFAULT_FOLDERS,
+  DEFAULT_PARA_FOLDERS,
+  DEFAULT_ZETTEL_FOLDER,
+  FEATURES_SETTING,
   FOLDERS_NOTE_PATH,
+  FeatureSettings,
+  INBOX_FOLDER,
   PullResponse,
   PushResponse,
+  RoleFolderMap,
+  STANDALONE_RECIPE_FOLDER,
   SharedFolder,
   LinkIndex,
-  PARA,
   SYSTEM_PREFIX,
   SyncedNote,
   Template,
@@ -14,6 +19,7 @@ import {
   archiveTarget,
   excerpt,
   fillTemplate,
+  normalizeFeatures,
   normalizeTemplates,
   templateUsesZettelId,
   TEMPLATES_SETTING,
@@ -201,20 +207,21 @@ class Vault {
 
   folders(): string[] {
     const set = new Set<string>();
+    const addWithParents = (folder: string) => {
+      const parts = folder.split('/').filter(Boolean);
+      for (let i = 1; i <= parts.length; i++) set.add(parts.slice(0, i).join('/'));
+    };
     const note = this.notes.get(this.foldersNoteId());
     if (note) {
       try {
-        for (const f of JSON.parse(note.content) as string[]) set.add(f);
+        for (const f of JSON.parse(note.content) as string[]) addWithParents(f);
       } catch {
         // broken system note: folders still come from the notes
       }
     }
     for (const n of this.list()) {
       if (n.access !== 'owner') continue;
-      const { folder } = splitPath(n.path);
-      // Parents too, so "a/b/c" shows a, a/b and a/b/c
-      const parts = folder.split('/').filter(Boolean);
-      for (let i = 1; i <= parts.length; i++) set.add(parts.slice(0, i).join('/'));
+      addWithParents(splitPath(n.path).folder);
     }
     return [...set].sort((a, b) => a.localeCompare(b, locale(getLang()), { numeric: true }));
   }
@@ -344,53 +351,104 @@ class Vault {
     }
   }
 
-  // ------------------------------------------------------------------ PARA & Zettelkasten
+  // ------------------------------------------------------------------ PARA, Zettelkasten & Features
+
+  features(): FeatureSettings {
+    return normalizeFeatures(this.setting(FEATURES_SETTING), this.folders());
+  }
+
+  roleConfig(): RoleFolderMap {
+    const f = this.features();
+    return {
+      inbox: INBOX_FOLDER,
+      projects: f.para.enabled ? f.para.folders.projects : null,
+      areas: f.para.enabled ? f.para.folders.areas : null,
+      resources: f.para.enabled ? f.para.folders.resources : null,
+      archive: f.para.enabled ? f.para.folders.archive : null,
+      zettel: f.zettel.enabled ? f.zettel.folder : null,
+    };
+  }
+
+  async updateFeatures(next: FeatureSettings): Promise<FeatureSettings> {
+    if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    const clean = normalizeFeatures(next, this.folders());
+    await this.setSetting(FEATURES_SETTING, clean);
+    const needed: string[] = [];
+    if (clean.para.enabled) {
+      needed.push(clean.para.folders.projects, clean.para.folders.areas, clean.para.folders.resources, clean.para.folders.archive);
+    }
+    if (clean.zettel.enabled) needed.push(clean.zettel.folder);
+    if (clean.recipe.enabled) needed.push(clean.recipe.folder);
+    const existing = new Set(this.storedFolders());
+    const missing = needed.map((f) => cleanFolder(f)).filter((f) => f && !existing.has(f));
+    if (missing.length) await this.setFolders([...this.storedFolders(), ...missing]);
+    return clean;
+  }
 
   async setFrontmatter(id: string, updates: Record<string, string | null>) {
     const note = this.get(id);
     if (note) await this.update(id, { content: setFrontmatter(note.content, updates) });
   }
 
-  /** Moves a note to "4 Archiv/<folder>"; a project is marked as done on the way */
+  /** Moves a note to "<archive>/<folder>"; a project is marked as done on the way */
   async archiveNote(id: string, complete = false) {
     const note = this.get(id);
-    if (!note || note.access !== 'owner') return;
+    const { para } = this.features();
+    if (!note || note.access !== 'owner' || !para.enabled) return;
+    const archive = para.folders.archive;
     if (complete) await this.setFrontmatter(id, { status: 'fertig', abgeschlossen: toDateString(new Date()) });
     const { folder } = splitPath(note.path);
-    if (!restoreTarget(folder) && folder !== PARA.archive) await this.update(id, { folder: archiveTarget(folder) });
+    if (!restoreTarget(folder, archive) && folder !== archive) {
+      await this.update(id, { folder: archiveTarget(folder, archive) });
+    }
   }
 
   async restoreNote(id: string) {
     const note = this.get(id);
-    const target = note ? restoreTarget(splitPath(note.path).folder) : null;
-    if (!note || target === null) return;
+    const { para } = this.features();
+    if (!note || !para.enabled) return;
+    const target = restoreTarget(splitPath(note.path).folder, para.folders.archive);
+    if (target === null) return;
     if (/^status:\s*fertig/m.test(note.content)) await this.setFrontmatter(id, { status: 'aktiv', abgeschlossen: null });
     await this.update(id, { folder: target });
   }
 
   async archiveFolder(folder: string) {
-    if (!restoreTarget(folder)) await this.renameFolder(folder, archiveTarget(folder));
+    const { para } = this.features();
+    if (!para.enabled) return;
+    const archive = para.folders.archive;
+    if (!restoreTarget(folder, archive) && folder !== archive) {
+      await this.renameFolder(folder, archiveTarget(folder, archive));
+    }
   }
 
   async restoreFolder(folder: string) {
-    const target = restoreTarget(folder);
+    const { para } = this.features();
+    if (!para.enabled) return;
+    const target = restoreTarget(folder, para.folders.archive);
     if (target) await this.renameFolder(folder, target);
   }
 
   /** Inbox item becomes a fleeting Zettel: id in front of the title and in the frontmatter */
   async toZettel(id: string) {
     const note = this.get(id);
-    if (!note) return;
+    const { zettel } = this.features();
+    if (!note || !zettel.enabled) return;
     const zid = zettelId(new Date(note.createdAt));
     const { name } = splitPath(note.path);
-    await this.update(id, { content: setFrontmatter(note.content, { id: zid, typ: 'flüchtig' }), folder: PARA.zettel, title: /^\d{12}/.test(name) ? name : `${zid} ${name}` });
+    await this.update(id, {
+      content: setFrontmatter(note.content, { id: zid, typ: 'flüchtig' }),
+      folder: zettel.folder,
+      title: /^\d{12}/.test(name) ? name : `${zid} ${name}`,
+    });
   }
 
   async createZettel(title: string, type: ZettelType, source: string): Promise<LocalNote> {
+    const { zettel } = this.features();
     const zid = zettelId();
     const fm = setFrontmatter('', { id: zid, typ: type, ...(type === 'literatur' ? { quelle: source } : {}) });
     const body = type === 'literatur' ? `# ${title}\n\n> ${t('vault.sourceLabel')}: ${source}\n\n## ${t('vault.inOwnWords')}\n\n` : `# ${title}\n\n`;
-    return this.create(PARA.zettel, `${zid} ${title}`.trim(), fm + body);
+    return this.create(zettel.folder, `${zid} ${title}`.trim(), fm + body);
   }
 
   async createFromTemplate(template: Template | null, title: string, folder: string): Promise<LocalNote> {
@@ -563,12 +621,12 @@ class Vault {
     if (!asTask) {
       const firstLine = text.split('\n')[0];
       const title = excerpt(firstLine, 50).replace(/[\\/:#[\]|]/g, ' ').trim() || t('home.welcomeDefaultNoteName');
-      return this.create(PARA.inbox, title, text.includes('\n') || text.length > 50 ? `${text}\n` : '');
+      return this.create(INBOX_FOLDER, title, text.includes('\n') || text.length > 50 ? `${text}\n` : '');
     }
     const line = `- [ ] ${text}`;
-    const inbox = this.list().find((n) => n.path === joinPath(DEFAULT_FOLDERS[0], 'Eingang'));
+    const inbox = this.list().find((n) => n.path === joinPath(INBOX_FOLDER, 'Eingang'));
     if (inbox) await this.update(inbox.id, { content: `${inbox.content.replace(/\n*$/, '')}\n${line}\n` });
-    else return this.create(DEFAULT_FOLDERS[0], 'Eingang', `# ${t('home.inboxTaskHeading')}\n\n${line}\n`);
+    else return this.create(INBOX_FOLDER, 'Eingang', `# ${t('home.inboxTaskHeading')}\n\n${line}\n`);
     return inbox;
   }
 
@@ -612,6 +670,9 @@ class Vault {
       const firstPull = (await this.db.get('meta', 'cursor')) === undefined;
       await this.pull();
       if (firstPull && !this.notes.has(this.foldersNoteId())) await this.seed();
+      else if (this.notes.has(this.foldersNoteId()) && this.setting(FEATURES_SETTING) === undefined && !isReadOnly()) {
+        await this.setSetting(FEATURES_SETTING, this.features());
+      }
       if (this.pendingCount() > 0) await this.push();
       this.lastSync = Date.now();
       this.setState('idle');
@@ -630,9 +691,14 @@ class Vault {
     this.emit();
   }
 
-  /** First start of a new space: PARA folders, Zettelkasten and a welcome note */
+  /** First start of a new space: Inbox folder, disabled opt-in features, and a welcome note */
   private async seed() {
-    await this.setFolders([...this.storedFolders(), ...DEFAULT_FOLDERS]);
+    await this.setFolders([...this.storedFolders(), INBOX_FOLDER]);
+    await this.setSetting(FEATURES_SETTING, {
+      para: { enabled: false, folders: { ...DEFAULT_PARA_FOLDERS } },
+      zettel: { enabled: false, folder: DEFAULT_ZETTEL_FOLDER },
+      recipe: { enabled: false, folder: STANDALONE_RECIPE_FOLDER },
+    } satisfies FeatureSettings);
     for (const w of welcomeNotes(getLang())) await this.insert(w.folder, w.title, w.content);
   }
 
@@ -671,7 +737,7 @@ class Vault {
       } else if (current.version === 0 && current.access !== 'owner' && !current.deleted) {
         // Creating in a shared folder is no longer allowed: the text stays, as an own note in the inbox
         const { owner: _owner, canDelete: _canDelete, ...rest } = current;
-        await this.put({ ...rest, access: 'owner', path: this.uniquePath(PARA.inbox, splitPath(current.path).name, current.id), dirty: true });
+        await this.put({ ...rest, access: 'owner', path: this.uniquePath(INBOX_FOLDER, splitPath(current.path).name, current.id), dirty: true });
       } else if (current.deleted && current.access !== 'owner') {
         // Deleting is not (or no longer) allowed: the note comes back
         await this.put({ ...current, deleted: false, canDelete: false, dirty: false });
@@ -725,7 +791,7 @@ class Vault {
     if (local.deleted || local.content === server.content) return;
     const { folder, name } = splitPath(server.deleted ? local.path : server.path);
     const stamp = new Date().toLocaleString(locale(getLang()), { dateStyle: 'short', timeStyle: 'short' }).replace(/[/:]/g, '-');
-    await this.insert(server.access === 'owner' ? folder : DEFAULT_FOLDERS[0], t('vault.conflictCopy', { name, stamp }), local.content);
+    await this.insert(server.access === 'owner' ? folder : INBOX_FOLDER, t('vault.conflictCopy', { name, stamp }), local.content);
   }
 }
 
