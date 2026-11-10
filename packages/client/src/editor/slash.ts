@@ -69,6 +69,7 @@ function commands(insertFiles: FileInserter, lang: Lang): SlashCommand[] {
     { label: tl(lang, 'editor.slash.sequence'), detail: 'mermaid', keywords: 'mermaid sequence diagramm ablauf sequenz', template: '```mermaid\nsequenceDiagram\n  Anna->>Ben: |Hello\n  Ben-->>Anna: Hi!\n```', block: true },
     { label: tl(lang, 'editor.slash.pie'), detail: 'mermaid', keywords: 'mermaid pie chart torte kreisdiagramm', template: '```mermaid\npie title |Share\n  "A" : 40\n  "B" : 35\n  "C" : 25\n```', block: true },
     { label: tl(lang, 'editor.slash.gallery'), detail: 'gallery', keywords: 'gallery bilder images galerie', template: '```gallery\n|\n```', block: true },
+    { label: tl(lang, 'editor.slash.carousel'), detail: 'carousel', keywords: 'carousel karussell slider slideshow bilder images', template: '```carousel\n|\n```', block: true },
     { label: tl(lang, 'editor.slash.wikiLink'), detail: '[[ ]]', keywords: 'link wiki verweis notiz', template: '[[|]]', openCompletions: true },
     {
       label: tl(lang, 'editor.slash.linkAll'),
