@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.24.0] – 2026-11-10
+
 - Neu: Code-Ansicht – ein Knopf im Notizkopf schaltet den Editor auf reines Markdown (ohne Live-Vorschau, Monospace-Schrift); die Wahl wird pro Gerät gemerkt.
 - Behoben: Bilder springen beim Bearbeiten nicht mehr zwischen Bild und Markdown hin und her; sie bleiben sichtbar, und ihr Markdown erscheint nur, wenn der Cursor direkt am Bild steht (dann oberhalb des Bildes).
 - Behoben: Hochkant-Bilder im Karussell werden hochkant dargestellt statt beschnitten.
