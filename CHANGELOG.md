@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.18.0] – 2026-11-10
+
 - Neu: Zweisprachigkeit (Deutsch und Englisch) in der gesamten Oberfläche inklusive Datumsformaten, Startnotizen, Widgets, Slash-Befehlen, Dialogen, Exporten und Anmeldung (umschaltbar unter Einstellungen → Erscheinungsbild sowie direkt auf der Anmeldeseite).
 - Neu: Notizen erhalten eine vollständige Ordner-Breadcrumb-Navigation im Kopf, einen Schnell-Kopieren-Knopf für reines Markdown (ohne YAML-Frontmatter) sowie ein Material-3-Drei-Punkte-Menü (Teilen, Verlauf, Exportieren, Verschieben, Löschen).
 - Neu: Einklappbare rechte Splitview-Seitenleiste in Notizen mit den Tabs „Inhalt“ (Inhaltsverzeichnis), „Verlinkungen“ (Backlinks & Erwähnungen) und „Graph“.
