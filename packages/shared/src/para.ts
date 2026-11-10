@@ -58,6 +58,9 @@ export interface FeatureSettings {
     folder: string;
   };
   daily: DailySettings;
+  heatmap: {
+    enabled: boolean;
+  };
 }
 
 /** Configurable folder mapping per role; `null` disables matching for that role */
@@ -123,6 +126,8 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
   const rawZettel = obj.zettel && typeof obj.zettel === 'object' && !Array.isArray(obj.zettel) ? (obj.zettel as Record<string, unknown>) : undefined;
   const rawRecipe = obj.recipe && typeof obj.recipe === 'object' && !Array.isArray(obj.recipe) ? (obj.recipe as Record<string, unknown>) : undefined;
   const rawDaily = obj.daily && typeof obj.daily === 'object' && !Array.isArray(obj.daily) ? (obj.daily as Record<string, unknown>) : undefined;
+  const rawHeatmap =
+    obj.heatmap && typeof obj.heatmap === 'object' && !Array.isArray(obj.heatmap) ? (obj.heatmap as Record<string, unknown>) : undefined;
 
   const hasExistingPara = Object.values(DEFAULT_PARA_FOLDERS).some((f) => hasFolderPrefix(existingFolders, f));
   const hasExistingZettel = hasFolderPrefix(existingFolders, DEFAULT_ZETTEL_FOLDER);
@@ -160,6 +165,9 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
       enabled: dailyEnabled,
       folder: cleanDailyFolder(rawDaily?.folder, DEFAULT_DAILY_FOLDER),
       format: cleanDailyFormat(rawDaily?.format, DEFAULT_DAILY_FORMAT),
+    },
+    heatmap: {
+      enabled: rawHeatmap?.enabled === true,
     },
   };
 }

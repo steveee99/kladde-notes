@@ -143,7 +143,7 @@ export function GitSettingsView() {
       </form>
 
       {current && (
-        <p className={`text-sm anim-fade-up ${current.lastStatus === 'error' ? 'text-danger' : 'text-muted'}`}>
+        <p className={`break-words text-sm anim-fade-up ${current.lastStatus === 'error' ? 'text-danger' : 'text-muted'}`}>
           {tl(lang, 'git.lastRun', { when: when(current.lastRunAt) })}
           {current.lastStatus === 'ok' && tl(lang, 'git.statusOk')}
           {current.lastStatus === 'unchanged' && tl(lang, 'git.statusUnchanged')}

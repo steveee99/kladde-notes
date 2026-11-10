@@ -73,7 +73,8 @@ export function ParaBar({ note }: { note: LocalNote }) {
           <ChipSelect
             className={STATUS_TONE[meta.frontmatter.status ?? 'aktiv'] ?? ''}
             value={meta.frontmatter.status ?? 'aktiv'}
-            onChange={(e) => void vault.setFrontmatter(note.id, { status: e.target.value })}
+            aria-label={t('para.projectStatusLabel')}
+            onChange={(val) => void vault.setFrontmatter(note.id, { status: val })}
           >
             {PROJECT_STATUSES.map((s) => (
               <option key={s} value={s}>
@@ -111,7 +112,8 @@ export function ParaBar({ note }: { note: LocalNote }) {
           )}
           <ChipSelect
             value={meta.frontmatter.typ ?? ''}
-            onChange={(e) => void vault.setFrontmatter(note.id, { typ: e.target.value || null })}
+            aria-label={t('para.zettelTypeLabel')}
+            onChange={(val) => void vault.setFrontmatter(note.id, { typ: val || null })}
           >
             <option value="">{t('para.typePlaceholder')}</option>
             {ZETTEL_TYPES.map((zt) => (

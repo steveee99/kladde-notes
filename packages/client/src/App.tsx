@@ -22,6 +22,8 @@ import { McpSettingsView } from './views/McpSettings';
 import { GitSettingsView } from './views/GitSettings';
 import { OAuthConsent } from './views/OAuthConsent';
 import { FilesView } from './views/Files';
+import { DailyNoteEmptyView } from './views/DailyNoteBar';
+import { CalendarView } from './views/ActivityHeatmap';
 
 const ME_KEY = 'kladde_me';
 
@@ -129,7 +131,11 @@ export function App() {
 
   let page: React.ReactNode;
   const note = match(path, '/n/:id');
+  const dailyDate = match(path, '/daily/:date');
   if (note) page = <NoteView key={note.id} id={note.id} isNew={location.search.includes('new=1')} />;
+  else if (path === '/daily') page = <DailyNoteEmptyView key="today" />;
+  else if (dailyDate) page = <DailyNoteEmptyView key={dailyDate.date} date={dailyDate.date} />;
+  else if (path === '/calendar') page = <CalendarView />;
   else if (path === '/inbox' || path === `/f/${encodeURIComponent(INBOX_FOLDER)}`) page = <InboxView />;
   else if (path === '/graph') page = <GraphView />;
   else if (path === '/review') page = <ReviewView />;

@@ -90,7 +90,7 @@ function NoteRow({ note }: { note: LocalNote }) {
     >
       <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
       {note.access !== 'owner' && (
-        <span className="chip hidden sm:inline-flex">
+        <span className="chip hidden shrink-0 sm:inline-flex">
           <Avatar name={note.owner ?? ''} avatarUrl={note.ownerAvatar} size="xs" /> {note.owner}
         </span>
       )}
@@ -180,10 +180,10 @@ export function NoteCard({ note }: { note: LocalNote }) {
       className="card group w-full min-w-0 cursor-pointer p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40"
     >
       <div className="flex items-center gap-2">
-        <span className="truncate font-medium">{title}</span>
+        <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
         {note.access !== 'owner' && (
-          <span className="chip shrink-0">
-            <Avatar name={note.owner ?? ''} avatarUrl={note.ownerAvatar} size="xs" /> {note.owner}
+          <span className="chip max-w-[55%] shrink-0">
+            <Avatar name={note.owner ?? ''} avatarUrl={note.ownerAvatar} size="xs" /> <span className="truncate">{note.owner}</span>
           </span>
         )}
         {note.dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title={t('list.unsynced')} />}
@@ -250,16 +250,19 @@ function SharedFolderSection({ shared, notes }: { shared: SharedFolder; notes: L
   const folderLabel = shared.folder.split('/').pop() ?? shared.folder;
   return (
     <section className="anim-fade-up">
-      <div className="mb-2 flex items-center gap-2">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <Folder size={16} className="shrink-0 text-accent" />
         <h2 className="min-w-0 truncate font-semibold" title={shared.folder}>
           {folderLabel}
         </h2>
-        <span className="chip shrink-0">
-          <Avatar name={shared.owner} avatarUrl={shared.ownerAvatar} size="xs" /> {shared.owner} · {describePermissions(shared)}
+        <span className="chip min-w-0 max-w-full">
+          <Avatar name={shared.owner} avatarUrl={shared.ownerAvatar} size="xs" />
+          <span className="truncate">
+            {shared.owner} · {describePermissions(shared)}
+          </span>
         </span>
         {shared.canCreate && !creating && (
-          <button className="edit-only btn-ghost ml-auto shrink-0" onClick={() => setCreating(true)}>
+          <button className="edit-only btn-ghost ml-auto shrink-0 max-sm:!px-2.5" onClick={() => setCreating(true)}>
             <Plus size={16} /> <span className="hidden sm:inline">{t('nav.newNote')}</span>
           </button>
         )}
@@ -345,8 +348,8 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
 
   return (
     <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
-      <div className="mb-6 flex items-center gap-2 anim-fade-up">
-        <div className="min-w-0 flex-1">
+      <div className="mb-6 flex flex-wrap items-center gap-2 anim-fade-up">
+        <div className="min-w-0 flex-1 basis-40">
           {mode === 'folder' && folder && folder.includes('/') && (
             <p className="truncate text-sm text-faint">
               {folderDisplayName(folder.split('/').slice(0, -1).join('/'), lang).replace(/\//g, ' / ')}
@@ -354,39 +357,41 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
           )}
           <h1 className="truncate text-2xl font-bold tracking-tight">{title}</h1>
         </div>
-        <ViewSwitch />
-        <button className="btn-icon" title={t('list.sortTooltip')} onClick={() => setSort(sort === 'updated' ? 'title' : 'updated')}>
-          {sort === 'updated' ? <Clock size={18} /> : <ArrowDownAZ size={18} />}
-        </button>
-        {mode === 'folder' && folder && features.para.enabled && folder !== archiveRoot && (
-          restoreDest !== null ? (
-            <button
-              className="edit-only btn-ghost"
-              title={t('para.restoreTitle', { folder: restoreDest ? folderDisplayName(restoreDest, lang) : t('common.topLevelPlain') })}
-              onClick={() => void vault.restoreFolder(folder).then(() => navigate(restoreDest ? `/f/${encodeURIComponent(restoreDest)}` : '/notes', true))}
-            >
-              <ArchiveRestore size={16} /> <span className="hidden sm:inline">{t('para.restoreBtn')}</span>
-            </button>
-          ) : (
-            !protectedFolders.has(folder) && (
-              <button
-                className="edit-only btn-ghost"
-                title={t('list.archiveFolderTitle')}
-                onClick={() =>
-                  confirm(t('list.archiveFolderConfirm', { folder: folderDisplayName(folder, lang) })) &&
-                  void vault.archiveFolder(folder).then(() => navigate(`/f/${encodeURIComponent(archiveTarget(folder, archiveRoot))}`, true))
-                }
-              >
-                <Archive size={16} /> <span className="hidden sm:inline">{t('para.archiveBtn')}</span>
-              </button>
-            )
-          )
-        )}
-        {mode !== 'shared' && (
-          <button className="edit-only btn-primary rounded-full px-4" onClick={() => newNote(folder)}>
-            <Plus size={16} /> {t('list.newBtn')}
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          <ViewSwitch />
+          <button className="btn-icon shrink-0" title={t('list.sortTooltip')} onClick={() => setSort(sort === 'updated' ? 'title' : 'updated')}>
+            {sort === 'updated' ? <Clock size={18} /> : <ArrowDownAZ size={18} />}
           </button>
-        )}
+          {mode === 'folder' && folder && features.para.enabled && folder !== archiveRoot && (
+            restoreDest !== null ? (
+              <button
+                className="edit-only btn-ghost shrink-0 max-sm:!px-2.5"
+                title={t('para.restoreTitle', { folder: restoreDest ? folderDisplayName(restoreDest, lang) : t('common.topLevelPlain') })}
+                onClick={() => void vault.restoreFolder(folder).then(() => navigate(restoreDest ? `/f/${encodeURIComponent(restoreDest)}` : '/notes', true))}
+              >
+                <ArchiveRestore size={16} /> <span className="hidden sm:inline">{t('para.restoreBtn')}</span>
+              </button>
+            ) : (
+              !protectedFolders.has(folder) && (
+                <button
+                  className="edit-only btn-ghost shrink-0 max-sm:!px-2.5"
+                  title={t('list.archiveFolderTitle')}
+                  onClick={() =>
+                    confirm(t('list.archiveFolderConfirm', { folder: folderDisplayName(folder, lang) })) &&
+                    void vault.archiveFolder(folder).then(() => navigate(`/f/${encodeURIComponent(archiveTarget(folder, archiveRoot))}`, true))
+                  }
+                >
+                  <Archive size={16} /> <span className="hidden sm:inline">{t('para.archiveBtn')}</span>
+                </button>
+              )
+            )
+          )}
+          {mode !== 'shared' && (
+            <button className="edit-only btn-primary shrink-0 rounded-full px-4 max-sm:!px-3.5" onClick={() => newNote(folder)}>
+              <Plus size={16} /> {t('list.newBtn')}
+            </button>
+          )}
+        </div>
       </div>
       {mode === 'folder' && (
         <ul className="card mb-6 divide-y divide-line/60 p-1 anim-fade-up">

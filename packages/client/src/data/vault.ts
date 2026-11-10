@@ -26,6 +26,7 @@ import {
   isSingleProjectFile,
   normalizeFeatures,
   normalizeTemplates,
+  parseDate,
   parseFrontmatter,
   projectTitleOf,
   resolveDailyNote,
@@ -379,22 +380,24 @@ class Vault {
     };
   }
 
-  findDailyNote(date = new Date()): LocalNote | undefined {
+  findDailyNote(date: Date | string = new Date()): LocalNote | undefined {
     const { daily } = this.features();
     if (!daily.enabled) return undefined;
-    const resolved = resolveDailyNote(daily, date, getLang());
+    const dateObj = typeof date === 'string' ? parseDate(date) : date;
+    const resolved = resolveDailyNote(daily, dateObj, getLang());
     const target = resolved.path.toLowerCase();
     return this.list().find((n) => n.access === 'owner' && n.path.toLowerCase() === target);
   }
 
-  async openDailyNote(date = new Date()): Promise<LocalNote> {
+  async openDailyNote(date: Date | string = new Date()): Promise<LocalNote> {
     const { daily } = this.features();
-    const resolved = resolveDailyNote(daily, date, getLang());
+    const dateObj = typeof date === 'string' ? parseDate(date) : date;
+    const resolved = resolveDailyNote(daily, dateObj, getLang());
     const target = resolved.path.toLowerCase();
     const existing = this.list().find((n) => n.access === 'owner' && n.path.toLowerCase() === target);
     if (existing) return existing;
     if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
-    const heading = /^\d{1,2}$/.test(resolved.name) ? toDateString(date) : resolved.name;
+    const heading = /^\d{1,2}$/.test(resolved.name) ? toDateString(dateObj) : resolved.name;
     return this.insert(resolved.folder, resolved.name, `# ${heading}\n\n`);
   }
 
@@ -811,6 +814,7 @@ class Vault {
       zettel: { enabled: false, folder: DEFAULT_ZETTEL_FOLDER },
       recipe: { enabled: false, folder: STANDALONE_RECIPE_FOLDER },
       daily: { enabled: true, folder: DEFAULT_DAILY_FOLDER, format: DEFAULT_DAILY_FORMAT },
+      heatmap: { enabled: false },
     } satisfies FeatureSettings);
     for (const w of welcomeNotes(getLang())) await this.insert(w.folder, w.title, w.content);
   }

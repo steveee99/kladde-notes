@@ -23,18 +23,18 @@ export function SearchView() {
     : [];
   return (
     <div className="content-container px-4 py-6 sm:px-8 sm:py-10">
-      <div className="card mb-6 flex items-center gap-2 rounded-full px-4 anim-fade-up">
-        <SearchIcon size={18} className="text-faint" />
+      <div className="card mb-6 flex min-w-0 items-center gap-2 rounded-full px-4 anim-fade-up">
+        <SearchIcon size={18} className="shrink-0 text-faint" />
         <input
           autoFocus
           data-search-input
-          className="w-full bg-transparent py-3 text-base outline-none placeholder:text-faint"
+          className="min-w-0 flex-1 bg-transparent py-3 text-base outline-none placeholder:text-faint"
           placeholder={tl(lang, 'search.placeholder')}
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
       </div>
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between gap-2">
         <p className="text-sm text-faint">{terms.length > 0 ? tl(lang, 'search.resultsCount', { n: results.length }) : ''}</p>
         <ViewSwitch />
       </div>

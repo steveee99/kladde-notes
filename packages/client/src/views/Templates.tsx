@@ -5,6 +5,7 @@ import { useVault, vault } from '../data/vault';
 import { folderDisplayName, tl, useLang } from '../lib/i18n';
 import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
+import { Dropdown } from './Dropdown';
 
 const newId = () => `tpl-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
@@ -46,11 +47,11 @@ export function TemplatesView() {
                   <div className="truncate font-medium">{t.label}</div>
                   <div className="truncate text-xs text-faint">{folderDisplayName(t.folder, lang)}</div>
                 </div>
-                <button className="btn-icon h-8 w-8" disabled={readOnly} title={tl(lang, 'common.edit')} onClick={() => setEditing(t)}>
+                <button className="btn-icon h-8 w-8 shrink-0" disabled={readOnly} title={tl(lang, 'common.edit')} onClick={() => setEditing(t)}>
                   <Pencil size={15} />
                 </button>
                 <button
-                  className="btn-icon h-8 w-8"
+                  className="btn-icon h-8 w-8 shrink-0"
                   disabled={readOnly}
                   title={tl(lang, 'common.delete')}
                   onClick={() => confirm(tl(lang, 'templates.deleteConfirm', { label: t.label })) && void vault.removeTemplate(t.id)}
@@ -114,16 +115,19 @@ function TemplateEditor({ template, isNew, onDone }: { template: Template; isNew
     >
       <h2 className="font-semibold">{isNew ? tl(lang, 'templates.createTitle') : tl(lang, 'templates.editTitle')}</h2>
       <input autoFocus={isNew} className="input" placeholder={tl(lang, 'templates.namePlaceholder')} value={label} onChange={(e) => setLabel(e.target.value)} />
-      <label className="flex flex-wrap items-center gap-2 text-sm text-muted">
-        <span>{tl(lang, 'templates.folderLabel')}</span>
-        <select className="input w-auto min-w-[12rem] py-1.5" value={folder} onChange={(e) => setFolder(e.target.value)}>
-          {folders.map((f) => (
-            <option key={f} value={f}>
-              {folderDisplayName(f, lang)}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="flex flex-col gap-1.5 text-sm text-muted sm:flex-row sm:items-center sm:gap-2">
+        <span className="shrink-0">{tl(lang, 'templates.folderLabel')}</span>
+        <Dropdown
+          value={folder}
+          onChange={setFolder}
+          aria-label={tl(lang, 'templates.folderLabel')}
+          className="sm:w-auto sm:min-w-[14rem]"
+          options={folders.map((f) => ({
+            value: f,
+            label: folderDisplayName(f, lang),
+          }))}
+        />
+      </div>
       <textarea
         className="input min-h-[16rem] font-mono text-sm leading-relaxed"
         spellCheck={false}

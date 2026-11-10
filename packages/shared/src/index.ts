@@ -3,6 +3,7 @@ export * from './markdown.js';
 export * from './tasks.js';
 export * from './query.js';
 export * from './para.js';
+export * from './daily.js';
 export * from './links.js';
 export * from './templates.js';
 export * from './review.js';

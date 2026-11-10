@@ -26,17 +26,17 @@ function InboxItem({ note }: { note: LocalNote }) {
   return (
     <li className={`card flex flex-col gap-3 p-4 transition-all duration-300 sm:flex-row sm:items-center sm:justify-between ${leaving ? 'translate-x-8 opacity-0' : ''}`}>
       <button className="block min-w-0 flex-1 text-left" onClick={() => navigate(`/n/${note.id}`)}>
-        <div className="font-medium">{name}</div>
-        {excerpt(note.content) && <div className="mt-1 line-clamp-3 text-sm text-muted">{excerpt(note.content, 240)}</div>}
+        <div className="break-words font-medium">{name}</div>
+        {excerpt(note.content) && <div className="mt-1 line-clamp-3 break-words text-sm text-muted">{excerpt(note.content, 240)}</div>}
         <div className="mt-1 text-xs text-faint">{new Date(note.createdAt).toLocaleString(locale(lang), { dateStyle: 'medium', timeStyle: 'short' })}</div>
       </button>
-      <div className="edit-only ml-auto flex shrink-0 items-center justify-end gap-2">
+      <div className="edit-only ml-auto flex max-w-full shrink-0 items-center justify-end gap-2">
         <ChipSelect
-          className="max-w-[11rem] shrink-0 text-xs"
+          className="max-w-[11rem] min-w-0 text-xs"
           value=""
           aria-label={t('inbox.folderAria')}
           onClick={(e) => e.stopPropagation()}
-          onChange={(e) => move(e.target.value)}
+          onChange={(val) => move(val)}
         >
           <option value="">{t('inbox.folderPlaceholder')}</option>
           <option value="__root__">{t('common.topLevel')}</option>

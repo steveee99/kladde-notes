@@ -4,6 +4,12 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Alle nativen `<select>`-Auswahlfelder durch Material-3-konforme Dropdown-Menüs (schwebendes Listen-Menü per Portal) ersetzt.
+- Neu: Button im Menübaum (Kopfzeile „Ordner“ sowie Suchergebnis-Kopf der Seitenleiste) zum Fokussieren, automatischen Aufklappen übergeordneter Ordner und Hervorheben der aktuell geöffneten Notiz.
+- Neu: Tastenkürzel `Strg+Shift+D` / `⌘+Shift+D` öffnet von überall (auch direkt aus dem Editor) die heutige Tagesnotiz; Datumsleiste `<-- | Datepicker | -->` oberhalb von Tagesnotizen mit Material-3-Kalender-Popover und eigener Tagesansicht (`/daily`, `/daily/:date`).
+- Neu: Opt-in-Kalenderansicht im GitHub-Heat-Map-Stil auf der Startseite und unter `/calendar` (unter **Einstellungen → Funktionen & Struktur** aktivierbar); Klicks auf Tageskacheln öffnen oder erstellen Tagesnotizen nur bei aktivierten Daily Notes und sind sonst inaktiv.
+- Behoben: Mobile Ansichten, Dialoge, Editor-Toolbar (ab `320 px` Breite), Splitview-Tabs, Eigenschaften-Chips und Navigationsleisten (inkl. angepinnter Seitenleisten-Kopfzeile und unterem Abstand über dem „Erfassen“-Button) gegen abgeschnittene Elemente überarbeitet sowie mobile Modals/Drawers/Sheets per Portal über die Kopfzeile gehoben.
+
 ## [0.21.0] – 2026-11-10
 
 - Neu: **Tagesnotizen (Daily Notes)** mit einstellbarem Zielordner (auch oberste Ebene) und frei definierbarem Namensschema inklusive Datums-Platzhaltern und Live-Vorschau unter **Einstellungen → Funktionen & Struktur** (Standard: `0 Daily/YYYY/MM/YYYY-MM-DD.md`), sowie Direktzugriff über Startseite und Seitenleiste.

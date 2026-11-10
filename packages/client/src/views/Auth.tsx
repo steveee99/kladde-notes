@@ -153,8 +153,8 @@ export function Login({ onDone }: { onDone: (me: Me) => void }) {
           if (code.trim()) navigate(`/link/${encodeURIComponent(code.trim())}`);
         }}
       >
-        <input className="input" placeholder={tl(lang, 'auth.deviceCodePlaceholder')} value={code} onChange={(e) => setCode(e.target.value)} />
-        <button className="btn-ghost rounded-xl border border-line" type="submit">
+        <input className="input min-w-0 flex-1" placeholder={tl(lang, 'auth.deviceCodePlaceholder')} value={code} onChange={(e) => setCode(e.target.value)} />
+        <button className="btn-ghost shrink-0 rounded-xl border border-line" type="submit">
           <Smartphone size={16} />
         </button>
       </form>

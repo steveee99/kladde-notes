@@ -1,17 +1,56 @@
-import type { SelectHTMLAttributes } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { Children, isValidElement, type ReactNode } from 'react';
+import { Dropdown, type DropdownOption } from './Dropdown';
+
+export interface ChipSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  children?: ReactNode;
+  options?: DropdownOption[];
+  className?: string;
+  placeholder?: string;
+  disabled?: boolean;
+  title?: string;
+  'aria-label'?: string;
+  onClick?: (e: React.MouseEvent) => void;
+}
 
 /**
- * A <select> styled as a chip. The native control draws its own arrow (on iOS outside the rounded
- * background); here it is hidden and a chevron sits inside the chip instead.
+ * Material 3 styled filter/select chip with an exposed listbox menu instead of a native `<select>`.
  */
-export function ChipSelect({ className = '', children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+export function ChipSelect({
+  value,
+  onChange,
+  children,
+  options,
+  className = '',
+  placeholder,
+  disabled,
+  title,
+  'aria-label': ariaLabel,
+  onClick,
+}: ChipSelectProps) {
+  const resolvedOptions: DropdownOption[] =
+    options ??
+    Children.toArray(children)
+      .filter((child): child is React.ReactElement<{ value?: string; disabled?: boolean; children?: ReactNode }> => isValidElement(child))
+      .map((el) => ({
+        value: String(el.props.value ?? ''),
+        label: Children.toArray(el.props.children).map(String).join(''),
+        disabled: el.props.disabled,
+      }));
+
   return (
-    <span className={`chip relative cursor-pointer gap-0 p-0 overflow-hidden focus-within:ring-2 focus-within:ring-accent/25 ${className}`}>
-      <select {...props} className="w-full max-w-full min-w-0 cursor-pointer appearance-none truncate rounded-full bg-transparent py-1 pl-2.5 pr-6 leading-tight text-inherit outline-none">
-        {children}
-      </select>
-      <ChevronDown size={12} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2" />
-    </span>
+    <Dropdown
+      variant="chip"
+      value={value}
+      options={resolvedOptions}
+      onChange={onChange}
+      className={className}
+      placeholder={placeholder}
+      disabled={disabled}
+      title={title}
+      aria-label={ariaLabel}
+      onClick={onClick}
+    />
   );
 }

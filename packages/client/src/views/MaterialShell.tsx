@@ -1,12 +1,12 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { CalendarDays, FileText, Home, Images, Inbox as InboxIcon, Menu, Network, Pencil, X } from 'lucide-react';
+import { CalendarDays, CalendarRange, FileText, Home, Images, Inbox as InboxIcon, Menu, Network, Pencil, X } from 'lucide-react';
 import { INBOX_FOLDER, Me, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { navigate, usePath } from '../lib/router';
 import { toggleMaterialSidebarMode, useMaterialSidebarMode } from '../lib/sidebarMode';
 import { Dialogs } from './Dialogs';
 import { QuickCapture } from './QuickCapture';
-import { newNote, ReadOnlyToggle, Sidebar, SyncBadge } from './Shell';
+import { newNote, openTodayDailyNote, ReadOnlyToggle, Sidebar, SyncBadge } from './Shell';
 import { Avatar } from './Avatar';
 import { t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
@@ -35,7 +35,7 @@ function RailItem({ to, Icon, label, badge }: { to: string; Icon: Icon; label: s
         <Icon size={22} />
         {!!badge && <span className="absolute right-2.5 top-0 min-w-4 rounded-full bg-danger px-1 text-center text-[11px] font-semibold leading-4 text-bg">{badge}</span>}
       </span>
-      {label}
+      <span className="max-w-full truncate px-1">{label}</span>
     </button>
   );
 }
@@ -44,12 +44,12 @@ function BarItem({ to, Icon, label, badge }: { to: string; Icon: Icon; label: st
   const path = usePath();
   const active = path === to;
   return (
-    <button onClick={() => navigate(to)} aria-current={active ? 'page' : undefined} className={`flex flex-col items-center gap-1 pb-4 pt-3 text-xs font-medium ${active ? 'text-ink' : 'text-muted'}`}>
-      <span className={`relative flex h-8 w-16 items-center justify-center rounded-full transition-colors duration-200 ${active ? 'bg-accent/20 text-accent' : ''}`}>
+    <button onClick={() => navigate(to)} aria-current={active ? 'page' : undefined} className={`flex min-w-0 flex-col items-center gap-1 px-1 pb-4 pt-3 text-xs font-medium ${active ? 'text-ink' : 'text-muted'}`}>
+      <span className={`relative flex h-8 w-14 max-w-full items-center justify-center rounded-full transition-colors duration-200 sm:w-16 ${active ? 'bg-accent/20 text-accent' : ''}`}>
         <Icon size={22} />
-        {!!badge && <span className="absolute right-3.5 top-0 min-w-4 rounded-full bg-danger px-1 text-center text-[11px] font-semibold leading-4 text-bg">{badge}</span>}
+        {!!badge && <span className="absolute right-2.5 top-0 min-w-4 rounded-full bg-danger px-1 text-center text-[11px] font-semibold leading-4 text-bg sm:right-3.5">{badge}</span>}
       </span>
-      {label}
+      <span className="max-w-full truncate">{label}</span>
     </button>
   );
 }
@@ -70,7 +70,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
   const inboxBadge = inboxZero && inboxCount > 0 ? inboxCount : undefined;
   const features = vault.features();
   const dailyNote = features.daily.enabled ? vault.findDailyNote() : undefined;
-  const dailyActive = !!dailyNote && noteId === dailyNote.id;
+  const dailyActive = path === '/daily' || path.startsWith('/daily/') || (!!dailyNote && noteId === dailyNote.id);
   const showDailyRail = features.daily.enabled && (!locked || !!dailyNote);
   const settingsActive = path === '/settings' || path.startsWith('/settings/');
 
@@ -88,7 +88,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
   return (
     <div className="flex h-full flex-col bg-bg">
       <div className="sticky top-0 z-20 hidden shrink-0 bg-bg [--pad-top:0.375rem] safe-top [@media(display-mode:standalone)]:md:block" />
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 min-w-0 flex-1">
         {sticky ? (
           <aside aria-label={t('nav.navigationLabel')} className="m3-status hidden w-[292px] shrink-0 py-4 pl-4 pr-3 md:flex lg:w-[308px]">
             <div className="flex min-h-0 w-full flex-col overflow-hidden rounded-[28px] bg-surface">
@@ -132,17 +132,18 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
             {showDailyRail && (
               <button
                 type="button"
-                onClick={() => void vault.openDailyNote().then((n) => navigate(`/n/${n.id}`))}
+                onClick={() => void openTodayDailyNote()}
                 aria-current={dailyActive ? 'page' : undefined}
-                title={t('daily.navLabel')}
+                title={t('daily.todayBtn')}
                 className={`flex w-20 flex-col items-center gap-1 text-xs font-medium ${dailyActive ? 'text-ink' : 'text-muted hover:text-ink'}`}
               >
                 <span className={`relative flex h-8 w-14 items-center justify-center rounded-full transition-colors duration-200 ${dailyActive ? 'bg-accent/20 text-accent' : 'hover:bg-raised'}`}>
                   <CalendarDays size={22} />
                 </span>
-                {t('daily.navShort')}
+                <span className="max-w-full truncate px-1">{t('daily.navShort')}</span>
               </button>
             )}
+            {features.heatmap.enabled && <RailItem to="/calendar" Icon={CalendarRange} label={t('nav.calendar')} />}
             <RailItem to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} />
             <RailItem to="/notes" Icon={FileText} label={t('nav.notes')} />
             <RailItem to="/graph" Icon={Network} label={t('nav.graphShort')} />
@@ -196,19 +197,21 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
         )}
 
         <div className="flex min-w-0 flex-1 flex-col md:py-4 md:pr-4">
-          <header className="sticky top-0 z-20 flex items-center gap-1 bg-bg pb-1 [--pad-top:0.5rem] [--pad-x:0.25rem] safe-top safe-x md:hidden">
-            <button className="btn-icon" onClick={() => setDrawer(true)} aria-label={t('nav.openMenu')}>
+          <header className="sticky top-0 z-20 flex min-w-0 items-center gap-1 bg-bg pb-1 [--pad-top:0.5rem] [--pad-x:0.25rem] safe-top safe-x md:hidden">
+            <button className="btn-icon shrink-0" onClick={() => setDrawer(true)} aria-label={t('nav.openMenu')}>
               <Menu size={22} />
             </button>
-            <span className="text-[22px]">Kladde</span>
-            <div className="m3-status ml-auto flex items-center gap-1 pr-2">
+            <span className="min-w-0 truncate text-[22px]">Kladde</span>
+            <div className="m3-status ml-auto flex shrink-0 items-center gap-1 pr-2">
               <ReadOnlyToggle />
               <SyncBadge />
             </div>
           </header>
-          <div className="flex min-h-0 flex-1 md:gap-3">
+          <div className="flex min-h-0 min-w-0 flex-1 md:gap-3">
             <RightPaneHostContext.Provider value={rightHost}>
-              <main className="vt-main min-h-0 flex-1 overflow-y-auto scrollbar-thin md:rounded-[28px] md:bg-surface">{children}</main>
+              <main className={`vt-main min-h-0 min-w-0 flex-1 overflow-y-auto scrollbar-thin md:rounded-[28px] md:bg-surface ${!noteId ? 'pb-24' : ''}`}>
+                {children}
+              </main>
             </RightPaneHostContext.Provider>
             <div ref={setRightHost} className="no-print hidden shrink-0 lg:flex empty:hidden" />
           </div>
@@ -222,12 +225,12 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
               aria-current={settingsActive ? 'page' : undefined}
               aria-label={t('nav.settings')}
               title={me.username}
-              className={`flex flex-col items-center gap-1 pb-4 pt-3 text-xs font-medium ${settingsActive ? 'text-ink' : 'text-muted'}`}
+              className={`flex min-w-0 flex-col items-center gap-1 px-1 pb-4 pt-3 text-xs font-medium ${settingsActive ? 'text-ink' : 'text-muted'}`}
             >
-              <span className={`relative flex h-8 w-16 items-center justify-center rounded-full transition-colors duration-200 ${settingsActive ? 'bg-accent/20' : ''}`}>
+              <span className={`relative flex h-8 w-14 max-w-full items-center justify-center rounded-full transition-colors duration-200 sm:w-16 ${settingsActive ? 'bg-accent/20' : ''}`}>
                 <Avatar name={me.username} avatarUrl={me.avatarUrl} size="sm" active={settingsActive} />
               </span>
-              {t('nav.options')}
+              <span className="max-w-full truncate">{t('nav.options')}</span>
             </button>
           </nav>
         </div>

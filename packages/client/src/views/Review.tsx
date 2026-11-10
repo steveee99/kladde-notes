@@ -16,8 +16,9 @@ function Section({ icon: Icon, title, count, ok, children }: { icon: typeof Inbo
   return (
     <section className="card p-5 anim-fade-up">
       <h2 className="mb-2 flex items-center gap-2 font-semibold">
-        <Icon size={18} className={count ? 'text-warn' : 'text-ok'} /> {title}
-        <span className={`ml-auto chip ${count ? 'text-warn' : 'text-ok'}`}>{count || <Check size={12} />}</span>
+        <Icon size={18} className={`shrink-0 ${count ? 'text-warn' : 'text-ok'}`} />
+        <span className="min-w-0 flex-1">{title}</span>
+        <span className={`chip ml-auto shrink-0 ${count ? 'text-warn' : 'text-ok'}`}>{count || <Check size={12} />}</span>
       </h2>
       {count ? children : <p className="text-sm text-muted">{ok}</p>}
     </section>
@@ -31,9 +32,9 @@ function NoteLinks({ ids }: { ids: string[] }) {
       {ids.map((id) => {
         const n = vault.get(id);
         return n ? (
-          <li key={id}>
-            <button className="chip px-3 py-1 hover:text-accent" onClick={() => navigate(`/n/${id}`)}>
-              {projectTitleOf(n.path, n.content, rc)}
+          <li key={id} className="max-w-full">
+            <button className="chip max-w-full px-3 py-1 hover:text-accent" onClick={() => navigate(`/n/${id}`)}>
+              <span className="truncate">{projectTitleOf(n.path, n.content, rc)}</span>
             </button>
           </li>
         ) : null;
@@ -81,8 +82,8 @@ export function ReviewView() {
           <Section icon={Target} title={tl(lang, 'review.areasTitle')} count={r.staleAreas.length} ok={tl(lang, 'review.areasOk')}>
             <ul className="flex flex-wrap gap-1.5">
               {r.staleAreas.map((a) => (
-                <li key={a.name} className="chip px-3 py-1">
-                  {a.name} · {tl(lang, 'review.areasSince', { date: new Date(a.updatedAt).toLocaleDateString(loc) })}
+                <li key={a.name} className="chip max-w-full px-3 py-1">
+                  <span className="truncate">{a.name} · {tl(lang, 'review.areasSince', { date: new Date(a.updatedAt).toLocaleDateString(loc) })}</span>
                 </li>
               ))}
             </ul>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChefHat, CheckSquare, FileText, Send } from 'lucide-react';
 import { useVault, vault } from '../data/vault';
 import { tl, useLang } from '../lib/i18n';
@@ -17,7 +18,7 @@ export function QuickCapture({ onClose }: { onClose: () => void }) {
     if (text.trim()) await vault.capture(text.trim(), asTask);
     onClose();
   };
-  return (
+  return createPortal(
     <div
       className="fixed inset-x-0 z-50 flex items-end justify-center sm:items-center"
       style={vp ? { top: `${vp.top}px`, height: `${vp.height}px` } : { top: 0, bottom: 0 }}
@@ -73,6 +74,7 @@ export function QuickCapture({ onClose }: { onClose: () => void }) {
         </div>
         <p className="mt-2 text-xs text-faint">{asTask ? tl(lang, 'quick.taskHint') : tl(lang, 'quick.noteHint')}</p>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

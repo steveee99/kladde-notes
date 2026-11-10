@@ -220,7 +220,7 @@ export function FilesView() {
             })}
           </p>
         </div>
-        <button className="btn-ghost rounded-full border border-line px-4" onClick={() => void load()} disabled={loading} title={tl(lang, 'files.refreshTitle')}>
+        <button className="btn-ghost shrink-0 rounded-full border border-line px-4" onClick={() => void load()} disabled={loading} title={tl(lang, 'files.refreshTitle')}>
           <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           <span className="hidden sm:inline">{tl(lang, 'files.refresh')}</span>
         </button>
@@ -277,7 +277,7 @@ export function FilesView() {
             </button>
           </div>
 
-          <div className="relative min-w-[200px] flex-1">
+          <div className="relative min-w-0 flex-1 basis-48">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
             <input
               type="search"
@@ -311,7 +311,7 @@ export function FilesView() {
             type="button"
             disabled={locked || selectedItems.length === 0 || deleting}
             onClick={() => setConfirmOpen(true)}
-            className="btn rounded-full bg-danger px-4 text-bg shadow-soft hover:brightness-110 disabled:opacity-40"
+            className="btn shrink-0 rounded-full bg-danger px-4 text-bg shadow-soft hover:brightness-110 disabled:opacity-40"
           >
             <Trash2 size={16} />
             {tl(lang, 'common.delete')}
@@ -526,17 +526,17 @@ export function FilesView() {
               className="flex max-h-[90vh] w-full max-w-3xl cursor-default flex-col gap-3 rounded-3xl bg-surface p-4 text-ink shadow-soft"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center gap-2">
-                <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="min-w-0 flex-1 basis-40">
                   <div className="truncate font-semibold">{preview.name}</div>
-                  <div className="text-xs text-muted">
+                  <div className="truncate text-xs text-muted">
                     {formatBytes(preview.size)} · {dateFmt.format(preview.createdAt)} · {preview.mime}
                   </div>
                 </div>
-                <a href={preview.url} target="_blank" rel="noopener noreferrer" className="btn-ghost rounded-full border border-line px-3 text-xs">
+                <a href={preview.url} target="_blank" rel="noopener noreferrer" className="btn-ghost shrink-0 rounded-full border border-line px-3 text-xs">
                   <ExternalLink size={14} /> {tl(lang, 'common.open')}
                 </a>
-                <button type="button" className="btn-icon" onClick={() => setPreview(null)} aria-label={tl(lang, 'files.closePreviewAria')}>
+                <button type="button" className="btn-icon shrink-0" onClick={() => setPreview(null)} aria-label={tl(lang, 'files.closePreviewAria')}>
                   <X size={18} />
                 </button>
               </div>
@@ -558,7 +558,7 @@ export function FilesView() {
                         setPreview(null);
                         navigate(`/n/${ref.id}`);
                       }}
-                      className="rounded-lg bg-raised px-2 py-1 text-accent hover:bg-accent/15"
+                      className="max-w-full truncate rounded-lg bg-raised px-2 py-1 text-accent hover:bg-accent/15"
                     >
                       {ref.path}
                     </button>

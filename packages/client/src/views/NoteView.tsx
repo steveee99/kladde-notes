@@ -38,6 +38,7 @@ import {
 import { undo } from '@codemirror/commands';
 import {
   excerpt,
+  extractDailyNoteDate,
   extractHeadings,
   isFolderProjectHome,
   projectTitleOf,
@@ -65,6 +66,7 @@ import { folderDisplayName, t, useLang, type Lang } from '../lib/i18n';
 import { setNoteSplitOpen, setNoteSplitTab, useNoteSplitOpen, useNoteSplitTab, type NoteSplitTab } from '../lib/prefs';
 import { isCoarsePointer } from '../lib/viewport';
 import { useRightPaneHost } from './MaterialShell';
+import { DailyNoteBar } from './DailyNoteBar';
 
 const IS_APPLE = /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -602,11 +604,11 @@ function NoteInspectorPane({
               role="tab"
               aria-selected={active}
               onClick={() => setTab(id)}
-              className={`flex items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-xs font-medium transition-colors ${active ? 'bg-accent-container text-on-accent-container shadow-soft' : 'text-muted hover:text-ink'}`}
+              className={`flex min-w-0 items-center justify-center gap-1 rounded-full px-1.5 py-1.5 text-xs font-medium transition-colors sm:gap-1.5 sm:px-2 ${active ? 'bg-accent-container text-on-accent-container shadow-soft' : 'text-muted hover:text-ink'}`}
             >
               <Icon size={13} className="shrink-0" />
-              <span className="truncate">{label}</span>
-              {count !== undefined && <span className="opacity-70">{count}</span>}
+              <span className="min-w-0 truncate">{label}</span>
+              {count !== undefined && <span className="shrink-0 opacity-70">{count}</span>}
             </button>
           );
         })}
@@ -793,6 +795,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const mayDelete = !locked && vault.canDelete(note);
   const { folder } = splitPath(note.path);
   const folderSegments = folder ? folder.split('/') : [];
+  const features = vault.features();
+  const dailyDate = features.daily.enabled && note.access === 'owner' ? extractDailyNoteDate(note.path, features.daily) : null;
   const index = vault.links();
   const backlinks = index.backlinks(id).map((b) => vault.get(b)!).filter(Boolean);
   const mentions = index.unlinkedMentions(id).map((m) => vault.get(m)!).filter((n) => n && n.access !== 'read');
@@ -917,9 +921,17 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           </div>
 
           {note.access !== 'owner' && (
-            <div className="no-print mb-2 inline-flex items-center gap-1.5 chip md:hidden anim-fade-in">
-              <Avatar name={note.owner ?? ''} avatarUrl={note.ownerAvatar} size="xs" /> {note.owner} ·{' '}
-              {sharedReadOnly ? t('note.sharedReadOnly') : note.canDelete ? t('note.sharedEditDelete') : t('note.sharedEditOnly')}
+            <div className="no-print mb-2 inline-flex max-w-full items-center gap-1.5 chip md:hidden anim-fade-in">
+              <Avatar name={note.owner ?? ''} avatarUrl={note.ownerAvatar} size="xs" />{' '}
+              <span className="truncate">
+                {note.owner} · {sharedReadOnly ? t('note.sharedReadOnly') : note.canDelete ? t('note.sharedEditDelete') : t('note.sharedEditOnly')}
+              </span>
+            </div>
+          )}
+
+          {dailyDate && (
+            <div className="no-print">
+              <DailyNoteBar date={dailyDate} />
             </div>
           )}
 
@@ -956,9 +968,9 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                   <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-faint">{t('note.backlinksTitle', { n: backlinks.length })}</h2>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {backlinks.map((b) => (
-                      <button key={b.id} className="rounded-xl border border-line p-3 text-left text-sm transition hover:border-accent/40" onClick={() => navigate(`/n/${b.id}`)}>
-                        <div className="font-medium">{projectTitleOf(b.path, b.content, rc)}</div>
-                        <div className="line-clamp-1 text-muted">{excerpt(b.content, 90)}</div>
+                      <button key={b.id} className="w-full min-w-0 rounded-xl border border-line p-3 text-left text-sm transition hover:border-accent/40" onClick={() => navigate(`/n/${b.id}`)}>
+                        <div className="truncate font-medium">{projectTitleOf(b.path, b.content, rc)}</div>
+                        <div className="line-clamp-1 break-words text-muted">{excerpt(b.content, 90)}</div>
                       </button>
                     ))}
                   </div>
@@ -1018,25 +1030,27 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           rightHost
         )}
 
-      {/* Tablet / Mobile Splitview Slide-over Sheet (< lg) */}
-      {splitOpen && (
-        <div className="no-print fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/50 anim-fade-in" onClick={() => setNoteSplitOpen(false)} />
-          <div className="absolute inset-y-0 right-0 flex w-[90%] max-w-sm flex-col rounded-l-3xl bg-surface p-4 shadow-soft safe-top safe-bottom">
-            <NoteInspectorPane
-              noteId={id}
-              headings={headings}
-              backlinks={backlinks}
-              mentions={mentions}
-              local={local}
-              tab={splitTab}
-              setTab={setNoteSplitTab}
-              onJump={(pos) => jumpToPos(pos, true)}
-              onClose={() => setNoteSplitOpen(false)}
-            />
-          </div>
-        </div>
-      )}
+      {/* Tablet / Mobile Splitview Slide-over Sheet (< lg) – portal escapes .vt-main stacking context */}
+      {splitOpen &&
+        createPortal(
+          <div data-splitview-sheet="true" className="no-print fixed inset-0 z-50 lg:hidden">
+            <div className="absolute inset-0 bg-black/50 anim-fade-in" onClick={() => setNoteSplitOpen(false)} />
+            <div className="absolute inset-y-0 right-0 flex w-[90%] max-w-sm flex-col rounded-l-3xl bg-surface p-4 shadow-soft safe-top safe-bottom">
+              <NoteInspectorPane
+                noteId={id}
+                headings={headings}
+                backlinks={backlinks}
+                mentions={mentions}
+                local={local}
+                tab={splitTab}
+                setTab={setNoteSplitTab}
+                onJump={(pos) => jumpToPos(pos, true)}
+                onClose={() => setNoteSplitOpen(false)}
+              />
+            </div>
+          </div>,
+          document.body
+        )}
 
       {moving && (
         <MoveNoteSheet

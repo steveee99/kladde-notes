@@ -151,6 +151,7 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       zettel: { enabled: false, folder: DEFAULT_ZETTEL_FOLDER },
       recipe: { enabled: false, folder: STANDALONE_RECIPE_FOLDER },
       daily: defaultDaily,
+      heatmap: { enabled: false },
     });
 
     const upgraded = normalizeFeatures(undefined, ['0 Inbox', '1 Projekte', 'Zettelkasten', '3 Ressourcen/Rezepte']);
@@ -159,6 +160,7 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       zettel: { enabled: true, folder: DEFAULT_ZETTEL_FOLDER },
       recipe: { enabled: true, folder: DEFAULT_RECIPE_FOLDER },
       daily: defaultDaily,
+      heatmap: { enabled: false },
     });
 
     const explicitDisabled = normalizeFeatures(
@@ -167,6 +169,7 @@ describe('frontmatter, PARA, templates, daily notes', () => {
         zettel: { enabled: false, folder: 'Notes/Zettel' },
         recipe: { enabled: true, folder: 'Küche/Rezepte' },
         daily: { enabled: false, folder: '', format: 'YYYY-MM-DD' },
+        heatmap: { enabled: true },
       },
       ['1 Projekte', 'Zettelkasten']
     );
@@ -174,6 +177,7 @@ describe('frontmatter, PARA, templates, daily notes', () => {
     expect(explicitDisabled.zettel).toEqual({ enabled: false, folder: 'Notes/Zettel' });
     expect(explicitDisabled.recipe).toEqual({ enabled: true, folder: 'Küche/Rezepte' });
     expect(explicitDisabled.daily).toEqual({ enabled: false, folder: '', format: 'YYYY-MM-DD' });
+    expect(explicitDisabled.heatmap).toEqual({ enabled: true });
 
     const guarded = normalizeFeatures({ daily: { folder: '.kladde/hack', format: '../../.kladde/evil.md' } }, []);
     expect(guarded.daily).toEqual(defaultDaily);

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowLeft, RotateCcw, X } from 'lucide-react';
 import { diffLines, diffStats, NoteVersion, NoteVersionInfo, splitPath } from '@kladde/shared';
 import { api } from '../lib/api';
@@ -61,7 +62,7 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
 
   const vp = useVisualViewport();
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-x-0 z-50 flex items-end justify-center sm:items-center"
       style={vp ? { top: `${vp.top}px`, height: `${vp.height}px` } : { top: 0, bottom: 0 }}
@@ -70,12 +71,12 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
       <div className="relative flex h-[min(90vh,100%)] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl bg-surface shadow-soft anim-sheet sm:rounded-3xl">
         <div className="flex items-center gap-2 border-b border-line px-4 py-3">
           {detail && (
-            <button className="btn-icon sm:hidden" onClick={() => setDetail(false)} title={tl(lang, 'history.backToList')}>
+            <button className="btn-icon shrink-0 sm:hidden" onClick={() => setDetail(false)} title={tl(lang, 'history.backToList')}>
               <ArrowLeft size={18} />
             </button>
           )}
-          <h2 className="text-lg font-semibold">{tl(lang, 'history.title')}</h2>
-          <button className="btn-icon ml-auto" onClick={onClose} title={tl(lang, 'common.close')}>
+          <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">{tl(lang, 'history.title')}</h2>
+          <button className="btn-icon ml-auto shrink-0" onClick={onClose} title={tl(lang, 'common.close')}>
             <X size={18} />
           </button>
         </div>
@@ -87,7 +88,7 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
           <div className="p-6 text-center text-muted">{tl(lang, 'history.empty')}</div>
         ) : (
           <div className="flex min-h-0 flex-1">
-            <ul className={`w-full shrink-0 overflow-y-auto border-line sm:block sm:w-64 sm:border-r ${detail ? 'hidden' : ''}`}>
+            <ul className={`w-full shrink-0 overflow-y-auto border-line safe-bottom sm:block sm:w-64 sm:border-r ${detail ? 'hidden' : ''}`}>
               {versions.map((v, i) => (
                 <li key={v.id}>
                   <button
@@ -134,7 +135,7 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
                   </button>
                 )}
               </div>
-              <div className="min-h-0 flex-1 overflow-auto">
+              <div className="min-h-0 flex-1 overflow-auto safe-bottom">
                 {!ready ? (
                   <div className="p-6 text-center text-faint">{tl(lang, 'common.loading')}</div>
                 ) : mode === 'rendered' ? (
@@ -162,6 +163,7 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

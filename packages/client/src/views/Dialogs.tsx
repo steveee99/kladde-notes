@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChefHat, ClipboardPaste, FileText, Lightbulb, Loader2, X } from 'lucide-react';
 import { INBOX_FOLDER, Recipe, recipeNoteTitle, recipeToMarkdown, Template, ZETTEL_TYPES, ZettelType } from '@kladde/shared';
 import { api } from '../lib/api';
@@ -7,25 +8,28 @@ import { closeDialog, useDialog } from '../lib/dialogs';
 import { folderDisplayName, tl, useLang, zettelTypeLabel } from '../lib/i18n';
 import { navigate } from '../lib/router';
 import { isCoarsePointer, useVisualViewport } from '../lib/viewport';
+import { Dropdown } from './Dropdown';
 
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  const lang = useLang();
   const vp = useVisualViewport();
-  return (
+  return createPortal(
     <div
       className="fixed inset-x-0 z-50 flex items-end justify-center sm:items-center"
       style={vp ? { top: `${vp.top}px`, height: `${vp.height}px` } : { top: 0, bottom: 0 }}
     >
       <div className="fixed inset-0 bg-black/40 anim-fade-in" onClick={onClose} />
       <div className="relative max-h-[min(90vh,100%)] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface px-5 pt-5 shadow-soft anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-3xl">
-        <div className="mb-4 flex items-center">
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <button className="btn-icon ml-auto" onClick={onClose}>
+        <div className="mb-4 flex items-center gap-2">
+          <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">{title}</h2>
+          <button className="btn-icon shrink-0" onClick={onClose} title={tl(lang, 'common.close')} aria-label={tl(lang, 'common.close')}>
             <X size={18} />
           </button>
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -49,7 +53,7 @@ function NewNoteDialog({ folder }: { folder?: string }) {
   return (
     <Sheet title={tl(lang, 'dialogs.newNoteTitle')} onClose={closeDialog}>
       {templates.length > 0 && (
-        <div className="mb-4 grid grid-cols-3 gap-2">
+        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {[null, ...templates].map((t) => (
             <button
               key={t?.id ?? 'leer'}
@@ -71,16 +75,19 @@ function NewNoteDialog({ folder }: { folder?: string }) {
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && create()}
       />
-      <label className="mb-4 flex items-center gap-2 text-sm text-muted">
-        {tl(lang, 'dialogs.newNoteFolder')}
-        <select className="input py-1.5" value={target} onChange={(e) => setTarget(e.target.value)}>
-          {[...new Set([target, ...folders, ''])].map((f) => (
-            <option key={f} value={f}>
-              {folderDisplayName(f, lang)}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="mb-4 flex flex-col gap-1.5 text-sm text-muted sm:flex-row sm:items-center sm:gap-2">
+        <span className="shrink-0">{tl(lang, 'dialogs.newNoteFolder')}</span>
+        <Dropdown
+          value={target}
+          onChange={setTarget}
+          aria-label={tl(lang, 'dialogs.newNoteFolder')}
+          className="flex-1"
+          options={[...new Set([target, ...folders, ''])].map((f) => ({
+            value: f,
+            label: folderDisplayName(f, lang),
+          }))}
+        />
+      </div>
       <button className="btn-primary w-full rounded-full py-2.5" onClick={create}>
         <FileText size={16} /> {tl(lang, 'dialogs.newNoteCreate')}
       </button>
@@ -200,7 +207,7 @@ function RecipeDialog({ initialUrl = '' }: { initialUrl?: string }) {
           autoFocus={!isCoarsePointer()}
           type="url"
           inputMode="url"
-          className="input"
+          className="input min-w-0 flex-1"
           placeholder={tl(lang, 'dialogs.recipePlaceholder')}
           value={url}
           onChange={(e) => (setUrl(e.target.value), setError(''))}

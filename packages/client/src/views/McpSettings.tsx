@@ -15,7 +15,7 @@ function CopyField({ value, label }: { value: string; label?: string }) {
       </code>
       <button
         type="button"
-        className="btn-ghost rounded-full border border-line px-3"
+        className="btn-ghost shrink-0 rounded-full border border-line px-3"
         title={label ?? tl(lang, 'common.copy')}
         onClick={() => {
           void navigator.clipboard?.writeText(value);
@@ -131,7 +131,7 @@ export function McpSettingsView() {
                 {tl(lang, 'mcp.connLast')} {when(c.lastUsedAt)}
               </div>
             </div>
-            <button className="btn-icon h-8 w-8" title={tl(lang, 'common.disconnect')} onClick={() => void revoke(c)}>
+            <button className="btn-icon h-8 w-8 shrink-0" title={tl(lang, 'common.disconnect')} onClick={() => void revoke(c)}>
               <Trash2 size={15} />
             </button>
           </div>

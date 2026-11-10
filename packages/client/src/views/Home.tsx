@@ -9,6 +9,8 @@ import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
 import { formatDue } from '../editor/widgets';
 import { NoteCollection, ViewSwitch } from './NoteList';
+import { Dropdown } from './Dropdown';
+import { ActivityHeatmap } from './ActivityHeatmap';
 import { locale, t, useLang, type I18nKey } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
 
@@ -72,14 +74,21 @@ function TaskMeta({ task }: { task: TaskRow }) {
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: PointerEvent) => {
-      const target = e.target as Node;
-      if (triggerRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
+      const target = e.target as Element | null;
+      if (
+        (target && (triggerRef.current?.contains(target) || popoverRef.current?.contains(target))) ||
+        target?.closest('[data-m3-menu]')
+      ) {
+        return;
+      }
       setOpen(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
     };
-    const onScroll = () => {
+    const onScroll = (e: Event) => {
+      const target = e.target;
+      if (target instanceof Element && target.closest('[data-m3-menu]')) return;
       const r = triggerRef.current?.getBoundingClientRect();
       if (!r || r.bottom <= 0 || r.top >= window.innerHeight) setOpen(false);
       else updatePos();
@@ -126,7 +135,7 @@ function TaskMeta({ task }: { task: TaskRow }) {
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => e.stopPropagation()}
             style={{ top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? 'visible' : 'hidden' }}
-            className="card fixed z-[90] w-64 space-y-2.5 rounded-2xl border border-line/70 bg-raised p-3 shadow-soft anim-fade-in"
+            className="card fixed z-[90] w-64 max-w-[calc(100vw-1rem)] space-y-2.5 rounded-2xl border border-line/70 bg-raised p-3 shadow-soft anim-fade-in"
           >
             <div className="flex flex-wrap gap-1.5">
               {shortcuts.map(([label, kind]) => (
@@ -162,19 +171,16 @@ function TaskMeta({ task }: { task: TaskRow }) {
                 </button>
               )}
             </div>
-            <select
-              className="w-full rounded-xl border border-line bg-surface px-2.5 py-1.5 text-sm text-ink outline-none focus:border-accent"
+            <Dropdown
               value={task.repeat ?? ''}
               aria-label={t('home.taskRepeatLabel')}
-              onChange={(e) => set({ repeat: e.target.value || null })}
-            >
-              {REPEATS.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {t(r.labelKey)}
-                </option>
-              ))}
-              {task.repeat && !REPEATS.some((r) => r.value === task.repeat) && <option value={task.repeat}>{task.repeat}</option>}
-            </select>
+              className="w-full"
+              onChange={(val) => set({ repeat: val || null })}
+              options={[
+                ...REPEATS.map((r) => ({ value: r.value, label: t(r.labelKey) })),
+                ...(task.repeat && !REPEATS.some((r) => r.value === task.repeat) ? [{ value: task.repeat, label: task.repeat }] : []),
+              ]}
+            />
           </div>,
           document.body
         )}
@@ -217,7 +223,7 @@ function TaskItem({ task, compact }: { task: TaskRow; compact: boolean }) {
         </>
       ) : (
         <div className="min-w-0 flex-1">
-          <div className="text-[15px] leading-snug">{task.text || t('home.taskEmpty')}</div>
+          <div className="break-words text-[15px] leading-snug">{task.text || t('home.taskEmpty')}</div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             {task.due && (
               <span className={`cm-due ${bucket === 'overdue' ? 'overdue' : bucket === 'today' ? 'today' : ''}`}>
@@ -232,7 +238,7 @@ function TaskItem({ task, compact }: { task: TaskRow; compact: boolean }) {
               </span>
             )}
             {task.noteTitle && (
-              <button className="truncate text-xs text-faint hover:text-accent" onClick={() => navigate(`/n/${task.noteId}`)}>
+              <button className="max-w-full truncate text-xs text-faint hover:text-accent" onClick={() => navigate(`/n/${task.noteId}`)}>
                 {task.noteTitle}
               </button>
             )}
@@ -356,14 +362,14 @@ export function HomeView() {
             setInput('');
           }}
         >
-          <Plus size={18} className="text-faint" />
+          <Plus size={18} className="shrink-0 text-faint" />
           <input
             className="min-w-0 flex-1 bg-transparent py-2 outline-none placeholder:text-faint"
             placeholder={t('home.taskInputPlaceholder')}
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
-          <button className="btn-primary rounded-full px-4" disabled={!input.trim()}>
+          <button className="btn-primary shrink-0 rounded-full max-sm:!px-3.5 px-4" disabled={!input.trim()}>
             {t('home.addBtn')}
           </button>
         </form>
@@ -400,12 +406,12 @@ export function HomeView() {
           <hr className="my-8 border-0 border-t border-line/80" />
 
           <section aria-labelledby="home-projects-heading" className="anim-fade-up">
-            <div className="mb-4 flex items-center gap-3 px-1">
-              <h2 id="home-projects-heading" className="text-xs font-semibold uppercase tracking-wider text-faint">
+            <div className="mb-4 flex flex-wrap items-center gap-3 px-1">
+              <h2 id="home-projects-heading" className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wider text-faint">
                 {t('home.projectsTitle')}
               </h2>
               <button
-                className="edit-only ml-auto inline-flex items-center gap-2 rounded-full bg-accent-container px-5 py-2.5 text-sm font-medium text-on-accent-container shadow-soft transition-all hover:brightness-110 active:scale-[0.98]"
+                className="edit-only ml-auto inline-flex shrink-0 items-center gap-2 rounded-full bg-accent-container px-4 py-2.5 text-sm font-medium text-on-accent-container shadow-soft transition-all hover:brightness-110 active:scale-[0.98] sm:px-5"
                 onClick={() => openDialog({ kind: 'note', folder: features.para.folders.projects })}
               >
                 <Plus size={18} /> {t('home.addProject')}
@@ -441,7 +447,7 @@ export function HomeView() {
       <hr className="my-8 border-0 border-t border-line/80" />
 
       <section aria-labelledby="home-recent-heading">
-        <div className="mb-3 flex items-center justify-between px-1">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
           <h2 id="home-recent-heading" className="text-xs font-semibold uppercase tracking-wider text-faint">
             {t('home.recentTitle')}
           </h2>
@@ -449,6 +455,13 @@ export function HomeView() {
         </div>
         <NoteCollection notes={recent} cols="sm:grid-cols-2" />
       </section>
+
+      {features.heatmap.enabled && (
+        <>
+          <hr className="my-8 border-0 border-t border-line/80" />
+          <ActivityHeatmap embedded />
+        </>
+      )}
     </div>
   );
 }

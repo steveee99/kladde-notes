@@ -3,6 +3,7 @@ import { startRegistration } from '@simplewebauthn/browser';
 import {
   Bot,
   CalendarDays,
+  CalendarRange,
   Camera,
   Check,
   ChefHat,
@@ -53,6 +54,7 @@ import { startupReport, toggleTallPageTest, viewportReport } from '../lib/viewpo
 import { navigate } from '../lib/router';
 import { passkeysAvailable } from './Auth';
 import { Avatar } from './Avatar';
+import { Dropdown } from './Dropdown';
 
 function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   const lang = useLang();
@@ -256,7 +258,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
               <div className="text-xs text-muted">{tl(lang, 'common.languageDesc')}</div>
             </div>
           </div>
-          <div className="inline-flex rounded-full border border-line bg-raised p-1 shrink-0" role="group" aria-label={tl(lang, 'common.language')}>
+          <div className="inline-flex max-w-full flex-wrap rounded-full border border-line bg-raised p-1 shrink-0" role="group" aria-label={tl(lang, 'common.language')}>
             {(['de', 'en'] as Lang[]).map((code) => {
               const active = lang === code;
               const label = code === 'de' ? tl(lang, 'common.langDe') : tl(lang, 'common.langEn');
@@ -282,9 +284,9 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
 
         {/* Inbox Zero opt-in (M3 Switch) */}
         <div className="flex items-center justify-between gap-4">
-          <div className="flex items-start gap-2.5">
+          <div className="flex min-w-0 flex-1 items-start gap-2.5">
             <Inbox size={18} className="mt-0.5 shrink-0 text-accent" />
-            <div>
+            <div className="min-w-0 flex-1">
               <label htmlFor="inbox-zero-switch" className="cursor-pointer text-sm font-semibold">
                 {tl(lang, 'settings.inboxZeroTitle')}
               </label>
@@ -417,9 +419,9 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
             <ul className="mb-3 divide-y divide-line">
               {me.passkeys.map((p) => (
                 <li key={p.id} className="flex items-center gap-3 py-2">
-                  <KeyRound size={16} className="text-accent" />
-                  <div className="flex-1">
-                    <div className="text-sm">{p.name}</div>
+                  <KeyRound size={16} className="shrink-0 text-accent" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm">{p.name}</div>
                     <div className="text-xs text-faint">
                       {tl(lang, 'settings.passkeyMeta', {
                         created: new Date(p.createdAt).toLocaleDateString(loc),
@@ -429,7 +431,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
                   </div>
                   {(me.passkeys.length > 1 || me.hasPassword) && (
                     <button
-                      className="btn-icon h-8 w-8"
+                      className="btn-icon h-8 w-8 shrink-0"
                       onClick={async () => {
                         if (confirm(tl(lang, 'settings.passkeyRemoveConfirm'))) onMe(await api<Me>(`/auth/passkeys/${encodeURIComponent(p.id)}`, { method: 'DELETE' }));
                       }}
@@ -513,7 +515,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
 
       <Diagnostics />
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         {!me.standalone ? (
           <button className="btn-ghost text-danger" onClick={onLogout}>
             <LogOut size={16} /> {tl(lang, 'settings.logout')}
@@ -620,7 +622,7 @@ function FolderPicker({
           <input
             id={id}
             autoFocus
-            className="input h-9 flex-1 py-1 text-sm"
+            className="input h-9 min-w-0 flex-1 py-1 text-sm"
             placeholder={tl(lang, 'settings.newFolderPlaceholder')}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -659,28 +661,22 @@ function FolderPicker({
         </div>
       ) : (
         <div className="flex items-center gap-1.5">
-          <select
+          <Dropdown
             id={id}
-            disabled={disabled}
-            className="input h-9 flex-1 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-60"
             value={value}
-            onChange={(e) => onChange(e.target.value)}
-          >
-            {allowRoot && (
-              <option key="__root__" value="">
-                {tl(lang, 'common.topLevel')}
-              </option>
-            )}
-            {options.map((f) => (
-              <option key={f} value={f}>
-                {folderDisplayName(f, lang)}
-              </option>
-            ))}
-          </select>
+            disabled={disabled}
+            aria-label={label}
+            className="min-w-0 flex-1"
+            onChange={onChange}
+            options={[
+              ...(allowRoot ? [{ value: '', label: tl(lang, 'common.topLevel') }] : []),
+              ...options.map((f) => ({ value: f, label: folderDisplayName(f, lang) })),
+            ]}
+          />
           {!disabled && (
             <button
               type="button"
-              className="btn-icon h-9 w-9 shrink-0 rounded-xl border border-line"
+              className="btn-icon h-10 w-10 shrink-0 rounded-xl border border-line"
               title={tl(lang, 'settings.newFolderBtnTitle')}
               aria-label={tl(lang, 'settings.newFolderBtnTitle')}
               onClick={() => setCreating(true)}
@@ -761,9 +757,9 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
       {/* Daily Notes */}
       <div>
         <div className="flex items-center justify-between gap-4">
-          <div className="flex items-start gap-2.5">
+          <div className="flex min-w-0 flex-1 items-start gap-2.5">
             <CalendarDays size={18} className="mt-0.5 shrink-0 text-accent" />
-            <div>
+            <div className="min-w-0 flex-1">
               <label htmlFor="feature-daily-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
                 {tl(lang, 'settings.dailyTitle')}
               </label>
@@ -840,12 +836,36 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
 
       <hr className="my-5 border-line" />
 
+      {/* Calendar Heatmap opt-in */}
+      <div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+            <CalendarRange size={18} className="mt-0.5 shrink-0 text-ok" />
+            <div className="min-w-0 flex-1">
+              <label htmlFor="feature-heatmap-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
+                {tl(lang, 'settings.heatmapTitle')}
+              </label>
+              <p className="text-xs text-muted">{tl(lang, 'settings.heatmapDesc')}</p>
+            </div>
+          </div>
+          <Switch
+            id="feature-heatmap-switch"
+            checked={features.heatmap.enabled}
+            disabled={locked}
+            label={tl(lang, 'settings.heatmapToggleLabel')}
+            onChange={(enabled) => save({ ...features, heatmap: { enabled } })}
+          />
+        </div>
+      </div>
+
+      <hr className="my-5 border-line" />
+
       {/* PARA method opt-in */}
       <div>
         <div className="flex items-center justify-between gap-4">
-          <div className="flex items-start gap-2.5">
+          <div className="flex min-w-0 flex-1 items-start gap-2.5">
             <FolderKanban size={18} className="mt-0.5 shrink-0 text-accent" />
-            <div>
+            <div className="min-w-0 flex-1">
               <label htmlFor="feature-para-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
                 {tl(lang, 'settings.paraTitle')}
               </label>
@@ -903,9 +923,9 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
       {/* Zettelkasten opt-in */}
       <div>
         <div className="flex items-center justify-between gap-4">
-          <div className="flex items-start gap-2.5">
+          <div className="flex min-w-0 flex-1 items-start gap-2.5">
             <Lightbulb size={18} className="mt-0.5 shrink-0 text-accent" />
-            <div>
+            <div className="min-w-0 flex-1">
               <label htmlFor="feature-zettel-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
                 {tl(lang, 'settings.zettelTitle')}
               </label>
@@ -939,9 +959,9 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
       {/* Recipe import opt-in */}
       <div>
         <div className="flex items-center justify-between gap-4">
-          <div className="flex items-start gap-2.5">
+          <div className="flex min-w-0 flex-1 items-start gap-2.5">
             <ChefHat size={18} className="mt-0.5 shrink-0 text-accent" />
-            <div>
+            <div className="min-w-0 flex-1">
               <label htmlFor="feature-recipe-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
                 {tl(lang, 'settings.recipeTitle')}
               </label>

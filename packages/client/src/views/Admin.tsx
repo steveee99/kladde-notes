@@ -223,15 +223,15 @@ function InvitesTab({ onError }: { onError: (msg: string) => void }) {
           }
         }}
       >
-        <Mail size={17} className="text-faint" />
+        <Mail size={17} className="shrink-0 text-faint" />
         <input
-          className="min-w-0 flex-1 bg-transparent py-2 outline-none placeholder:text-faint"
+          className="min-w-0 flex-1 basis-36 bg-transparent py-2 outline-none placeholder:text-faint"
           placeholder={tl(lang, 'admin.invitePlaceholder')}
           maxLength={80}
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
-        <button className="btn-primary rounded-full px-5">{tl(lang, 'admin.inviteCreateBtn')}</button>
+        <button className="btn-primary shrink-0 rounded-full px-4 sm:px-5">{tl(lang, 'admin.inviteCreateBtn')}</button>
       </form>
       {invites === null ? (
         <div className="py-10 text-center text-faint">…</div>
@@ -362,11 +362,11 @@ export function AdminView({ me }: { me: Me }) {
               setTab(id);
               setError('');
             }}
-            className={`flex items-center justify-center gap-1.5 rounded-full py-2 text-sm font-medium transition-colors ${
+            className={`flex min-w-0 items-center justify-center gap-1.5 rounded-full px-1.5 py-2 text-xs font-medium transition-colors sm:px-2 sm:text-sm ${
               tab === id ? 'bg-accent-container text-on-accent-container shadow-sm' : 'text-muted hover:text-ink'
             }`}
           >
-            <Icon size={15} /> {label}
+            <Icon size={15} className="shrink-0" /> <span className="truncate">{label}</span>
           </button>
         ))}
       </div>

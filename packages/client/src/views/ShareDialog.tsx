@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, Copy, Folder, Globe, Trash2, UserPlus, X } from 'lucide-react';
 import type { FolderPermissions, FolderShares, NoteShare, NoteShares } from '@kladde/shared';
 import { api } from '../lib/api';
 import { folderDisplayName, folderLeafDisplayName, getLang, Lang, tl, useLang } from '../lib/i18n';
 import { useVisualViewport } from '../lib/viewport';
 import { Avatar } from './Avatar';
+import { Dropdown } from './Dropdown';
 
 /** What is shared: one note, or a folder with its subfolders (including notes added later) */
 export type ShareTarget = { note: string } | { folder: string };
@@ -53,10 +55,17 @@ function PermissionPicker({ folder, value, onChange }: { folder: boolean; value:
   const lang = useLang();
   if (!folder) {
     return (
-      <select className="rounded-lg bg-surface text-sm text-muted" value={value.canWrite ? 'w' : 'r'} onChange={(e) => onChange({ ...READ_ONLY, canWrite: e.target.value === 'w' })}>
-        <option value="r">{tl(lang, 'share.permReadLower')}</option>
-        <option value="w">{tl(lang, 'share.permWriteLower')}</option>
-      </select>
+      <Dropdown
+        variant="ghost"
+        className="shrink-0 text-muted"
+        value={value.canWrite ? 'w' : 'r'}
+        aria-label={tl(lang, 'share.permWrite')}
+        onChange={(v) => onChange({ ...READ_ONLY, canWrite: v === 'w' })}
+        options={[
+          { value: 'r', label: tl(lang, 'share.permReadLower') },
+          { value: 'w', label: tl(lang, 'share.permWriteLower') },
+        ]}
+      />
     );
   }
   const toggle = (key: keyof FolderPermissions) => {
@@ -115,18 +124,18 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose:
   const link = shares?.publicToken ? `${location.origin}/s/${shares.publicToken}` : null;
   const vp = useVisualViewport();
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-x-0 z-50 flex items-end justify-center sm:items-center"
       style={vp ? { top: `${vp.top}px`, height: `${vp.height}px` } : { top: 0, bottom: 0 }}
     >
       <div className="fixed inset-0 bg-black/40 anim-fade-in" onClick={onClose} />
       <div className="relative max-h-[min(90vh,100%)] w-full max-w-md overflow-y-auto rounded-t-3xl bg-surface px-5 pt-5 shadow-soft anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-3xl">
-        <div className="mb-4 flex items-center">
-          <h2 className="min-w-0 truncate text-lg font-semibold">
+        <div className="mb-4 flex items-center gap-2">
+          <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">
             {isNote ? tl(lang, 'share.noteTitle') : tl(lang, 'share.folderTitle', { name: folderLeafDisplayName(target.folder, lang) })}
           </h2>
-          <button className="btn-icon ml-auto" onClick={onClose}>
+          <button className="btn-icon ml-auto shrink-0" onClick={onClose} aria-label={tl(lang, 'common.close')}>
             <X size={18} />
           </button>
         </div>
@@ -138,10 +147,10 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose:
             void call(ep.set(username.trim(), permissions)).then((ok) => ok && (setUsername(''), setPermissions(READ_ONLY)));
           }}
         >
-          <div className="flex flex-1 gap-2">
-            <input className="input" placeholder={tl(lang, 'share.usernamePlaceholder')} value={username} onChange={(e) => setUsername(e.target.value)} />
+          <div className="flex flex-1 flex-wrap items-center gap-2 sm:flex-nowrap">
+            <input className="input min-w-0 flex-1 basis-32" placeholder={tl(lang, 'share.usernamePlaceholder')} value={username} onChange={(e) => setUsername(e.target.value)} />
             {isNote && <PermissionPicker folder={false} value={permissions} onChange={setPermissions} />}
-            <button className="btn-primary rounded-full px-4" disabled={!username.trim()} title={tl(lang, 'share.shareBtnTitle')}>
+            <button className="btn-primary shrink-0 rounded-full px-4" disabled={!username.trim()} title={tl(lang, 'share.shareBtnTitle')}>
               <UserPlus size={16} />
             </button>
           </div>
@@ -210,7 +219,8 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose:
         )}
         {error && <p className="mt-3 text-sm text-danger">{error}</p>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -221,9 +231,9 @@ function ViaFolder({ share }: { share: NoteShare }) {
     <li className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-muted anim-fade-up" title={tl(lang, 'share.viaFolderTitle')}>
       <Avatar name={share.username} avatarUrl={share.avatarUrl} size="sm" />
       <span className="min-w-0 flex-1 truncate">{share.username}</span>
-      <span className="flex min-w-0 items-center gap-1 text-xs text-faint">
+      <span className="flex max-w-[60%] min-w-0 items-center gap-1 text-xs text-faint">
         <Folder size={12} className="shrink-0" /> <span className="truncate">{share.viaFolder ? folderDisplayName(share.viaFolder, lang) : ''}</span> ·{' '}
-        {describePermissions(permissionsOf(share), lang)}
+        <span className="shrink-0">{describePermissions(permissionsOf(share), lang)}</span>
       </span>
     </li>
   );
