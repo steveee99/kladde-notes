@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.20.0] – 2026-11-10
+
 - Neu: Notizen innerhalb von Ordnern sowie auf oberster Ebene werden nun direkt im Ordnerbaum der linken Seitenleiste angezeigt (inklusive Drag & Drop und automatischem Aufklappen); die zusätzliche mittlere Listen-Seitenleiste neben geöffneten Notizen entfällt.
 - Neu: PARA-Methode (Projekte, Bereiche, Ressourcen, Archiv – „0 Inbox“ bleibt unabhängig davon aktiv), Zettelkasten und Rezeptimport sind nun optionale Opt-in-Funktionen unter **Einstellungen → Funktionen & Struktur** mit freier Zielordner-Wahl und Anlegen neuer Zielordner direkt in den Einstellungen (pro Konto verschlüsselt synchronisiert; bestehende Räume mit vorhandenen Standardordnern erhalten sie automatisch voraktiviert).
 - Geändert: Die rechte Splitview-Seitenleiste in geöffneten Notizen ist nun optisch eigenständig als abgerundete Karte vom Hauptbereich getrennt – analog zum angehefteten linken Menü.
