@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.19.0] – 2026-11-10
+
 - Neu: Eigenständiger Desktop-Modus ohne Benutzerverwaltung als einzelne ausführbare Datei via Node.js SEA und Microsoft Edge (`--app`-Fenster; lokal baubar über `npm run build:desktop` bzw. `npm run build:exe` für `dist/kladde.exe`). Notizen, Anhänge und Schlüssel werden lokal und AES-256-GCM-verschlüsselt außerhalb der Programmdatei gespeichert (`%LOCALAPPDATA%\Kladde\` bzw. optional portabel im Ordner `kladde-data` neben der `.exe`), inklusive automatischem Datenbank-Backup vor Schema-Migrationen – Updates erfolgen direkt durch Austausch der `.exe`.
 
 ## [0.18.0] – 2026-11-10
