@@ -453,7 +453,9 @@ export function DailyCarryOver({ noteId, date }: { noteId: string; date: string 
         if (parent && depth(lines[tk.line]) > parent.depth && lines.slice(parent.line + 1, tk.line).every((l) => l.trim() && depth(l) > parent!.depth)) continue;
         if (tk.done) continue;
         parent = { line: tk.line, depth: depth(lines[tk.line]) };
-        out.push({ noteId: n.id, line: tk.line, text: tk.text, date: d, due: tk.due });
+        // Only the task's name: leftover list/checkbox markers ("- [ ]") are left out
+        const text = tk.text.replace(/^(?:[-*+]?\s*\[[ xX]?\]\s*|[-*+]\s+)+/, '').trim() || tk.text;
+        out.push({ noteId: n.id, line: tk.line, text, date: d, due: tk.due });
       }
     }
     return out.sort((a, b) => a.date.localeCompare(b.date) || a.line - b.line);
@@ -479,7 +481,8 @@ export function DailyCarryOver({ noteId, date }: { noteId: string; date: string 
         >
           <ChevronRight size={16} className={`shrink-0 text-faint transition-transform duration-150 ${open ? 'rotate-90' : ''}`} />
           <ListTodo size={16} className="shrink-0 text-accent" />
-          <span className="truncate">{tl(lang, 'daily.carryTitle', { n: tasks.length })}</span>
+          <span className="truncate sm:hidden">{tl(lang, 'daily.carryTitleShort', { n: tasks.length })}</span>
+          <span className="hidden truncate sm:inline">{tl(lang, 'daily.carryTitle', { n: tasks.length })}</span>
         </button>
         {tasks.length > 1 && (
           <button type="button" className="chip shrink-0 px-2.5 py-1 text-xs text-accent transition-colors hover:bg-accent/12" onClick={() => carry(tasks)}>
@@ -490,19 +493,21 @@ export function DailyCarryOver({ noteId, date }: { noteId: string; date: string 
       {open && (
         <ul className="max-h-64 divide-y divide-line/60 overflow-y-auto border-t border-line/60 scrollbar-thin">
           {tasks.map((tk) => (
-            <li key={`${tk.noteId}:${tk.line}`} className="flex items-center gap-2 px-3 py-1.5 text-sm">
-              <button
-                type="button"
-                className="shrink-0 rounded-md px-1 text-xs tabular-nums text-faint hover:text-accent"
-                title={tl(lang, 'daily.carryOpenSource')}
-                onClick={() => navigate(`/n/${tk.noteId}?line=${tk.line + 1}`)}
-              >
-                {dayFmt.format(parseDate(tk.date))}
-              </button>
-              <span className="min-w-0 flex-1 truncate" title={tk.text}>
-                {tk.text}
-              </span>
-              {tk.due && tk.due !== tk.date && <span className="chip hidden shrink-0 text-[11px] sm:inline-flex">📅 {tk.due}</span>}
+            <li key={`${tk.noteId}:${tk.line}`} className="flex items-start gap-2 px-3 py-2 text-sm">
+              <div className="min-w-0 flex-1">
+                <div className="break-words leading-snug">{tk.text}</div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-faint">
+                  <button
+                    type="button"
+                    className="tabular-nums hover:text-accent"
+                    title={tl(lang, 'daily.carryOpenSource')}
+                    onClick={() => navigate(`/n/${tk.noteId}?line=${tk.line + 1}`)}
+                  >
+                    {dayFmt.format(parseDate(tk.date))}
+                  </button>
+                  {tk.due && tk.due !== tk.date && <span className="tabular-nums">📅 {tk.due}</span>}
+                </div>
+              </div>
               <button
                 type="button"
                 className="btn-ghost shrink-0 px-2 py-1 text-xs text-accent"
@@ -510,7 +515,7 @@ export function DailyCarryOver({ noteId, date }: { noteId: string; date: string 
                 aria-label={`${tl(lang, isToday ? 'daily.carryToToday' : 'daily.carryToThis')}: ${tk.text}`}
                 onClick={() => carry([tk])}
               >
-                <ArrowDownToLine size={14} />
+                <ArrowDownToLine size={16} />
                 <span className="hidden sm:inline">{tl(lang, isToday ? 'daily.carryToToday' : 'daily.carryToThis')}</span>
               </button>
             </li>
