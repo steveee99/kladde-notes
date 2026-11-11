@@ -8,7 +8,7 @@ import { SESSION_COOKIE, rateLimit, readCookie } from './http.js';
 /**
  * "Sign in with GitLab" (OAuth 2.0 authorization code + PKCE, GitLab.com or a self-hosted instance).
  * A GitLab identity signs in the Kladde account it is linked to. New accounts need an invite code
- * unless GITLAB_ALLOW_SIGNUP is set; GITLAB_ALLOWED_GROUPS restricts every GitLab sign-in to members
+ * unless SIGNUP_WITHOUT_INVITE contains gitlab (or GITLAB_ALLOW_SIGNUP is set); GITLAB_ALLOWED_GROUPS restricts every GitLab sign-in to members
  * of those groups. Existing accounts link GitLab in the settings.
  */
 
@@ -17,8 +17,10 @@ const FLOW_COOKIE = 'kladde_oauth';
 const FLOW_MAX_AGE_MS = 10 * 60 * 1000;
 
 export interface GitLabConfig {
-  /** Base URL of the GitLab instance, without trailing slash */
+  /** Base URL of the GitLab instance as the browser reaches it, without trailing slash */
   url: string;
+  /** Base URL for the server's own token and user lookups (GITLAB_INTERNAL_URL); defaults to `url` */
+  internalUrl: string;
   clientId: string;
   clientSecret: string;
   label: string;
@@ -29,25 +31,50 @@ export interface GitLabConfig {
 
 const truthy = (v: string | undefined) => v === '1' || v?.toLowerCase() === 'true' || v?.toLowerCase() === 'yes';
 
+/** Sign-in methods that can create an account */
+export type SignupMethod = 'passkey' | 'password' | 'gitlab';
+const SIGNUP_METHODS: SignupMethod[] = ['passkey', 'password', 'gitlab'];
+
+/**
+ * SIGNUP_WITHOUT_INVITE: comma-separated sign-in methods (passkey, password, gitlab or all) that create
+ * accounts without an invite. Everything else still needs one. GITLAB_ALLOW_SIGNUP=1 adds gitlab.
+ */
+export function openSignupFromEnv(env: NodeJS.ProcessEnv): Set<SignupMethod> {
+  const open = new Set<SignupMethod>();
+  for (const raw of (env.SIGNUP_WITHOUT_INVITE ?? '').split(',')) {
+    const name = raw.trim().toLowerCase();
+    if (!name) continue;
+    if (name === 'all') SIGNUP_METHODS.forEach((m) => open.add(m));
+    else if ((SIGNUP_METHODS as string[]).includes(name)) open.add(name as SignupMethod);
+    else console.error(`SIGNUP_WITHOUT_INVITE: unbekannte Anmeldeart „${name}“ (erlaubt: passkey, password, gitlab, all).`);
+  }
+  if (truthy(env.GITLAB_ALLOW_SIGNUP)) open.add('gitlab');
+  return open;
+}
+
 /** Reads GITLAB_* variables; null when GitLab sign-in is not configured */
 export function gitlabConfigFromEnv(env: NodeJS.ProcessEnv): GitLabConfig | null {
   const clientId = env.GITLAB_CLIENT_ID?.trim();
   const clientSecret = env.GITLAB_CLIENT_SECRET?.trim();
   if (!clientId || !clientSecret) return null;
   const url = (env.GITLAB_URL?.trim() || 'https://gitlab.com').replace(/\/+$/, '');
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error('protocol');
-  } catch {
-    console.error(`GITLAB_URL ist keine gültige Adresse: ${url} – GitLab-Anmeldung bleibt aus.`);
-    return null;
+  const internalUrl = (env.GITLAB_INTERNAL_URL?.trim() || url).replace(/\/+$/, '');
+  for (const [name, value] of [['GITLAB_URL', url], ['GITLAB_INTERNAL_URL', internalUrl]]) {
+    try {
+      const parsed = new URL(value);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error('protocol');
+    } catch {
+      console.error(`${name} ist keine gültige Adresse: ${value} – GitLab-Anmeldung bleibt aus.`);
+      return null;
+    }
   }
   return {
     url,
+    internalUrl,
     clientId,
     clientSecret,
     label: env.GITLAB_LABEL?.trim() || 'GitLab',
-    allowSignup: truthy(env.GITLAB_ALLOW_SIGNUP),
+    allowSignup: openSignupFromEnv(env).has('gitlab'),
     allowedGroups: (env.GITLAB_ALLOWED_GROUPS ?? '')
       .split(',')
       .map((g) => g.trim().replace(/^\/+|\/+$/g, '').toLowerCase())
@@ -55,8 +82,11 @@ export function gitlabConfigFromEnv(env: NodeJS.ProcessEnv): GitLabConfig | null
   };
 }
 
-export function authProviders(config: GitLabConfig | null): AuthProviders {
-  return { gitlab: { enabled: !!config, label: config?.label ?? 'GitLab', signup: !!config?.allowSignup } };
+export function authProviders(config: GitLabConfig | null, openSignup: ReadonlySet<SignupMethod> = new Set()): AuthProviders {
+  return {
+    gitlab: { enabled: !!config, label: config?.label ?? 'GitLab', signup: !!config?.allowSignup },
+    signup: { passkey: openSignup.has('passkey'), password: openSignup.has('password') },
+  };
 }
 
 /** Member of one of the allowed groups (a subgroup of an allowed group counts too) */
@@ -141,7 +171,7 @@ export function gitlabRouter(opts: GitLabRouterOptions): express.Router {
 
   /** Exchanges the code and reads the GitLab user (id, username, groups) */
   const lookup = async (code: string, flow: Flow): Promise<GitLabUser> => {
-    const tokenRes = await doFetch(`${config.url}/oauth/token`, {
+    const tokenRes = await doFetch(`${config.internalUrl}/oauth/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
       body: new URLSearchParams({
@@ -155,7 +185,7 @@ export function gitlabRouter(opts: GitLabRouterOptions): express.Router {
     });
     const token = (await tokenRes.json().catch(() => ({}))) as { access_token?: string };
     if (!tokenRes.ok || !token.access_token) throw new AccountError('GitLab hat die Anmeldung nicht bestätigt.', 401);
-    const infoRes = await doFetch(`${config.url}/oauth/userinfo`, { headers: { Authorization: `Bearer ${token.access_token}`, Accept: 'application/json' } });
+    const infoRes = await doFetch(`${config.internalUrl}/oauth/userinfo`, { headers: { Authorization: `Bearer ${token.access_token}`, Accept: 'application/json' } });
     const info = (await infoRes.json().catch(() => ({}))) as { sub?: unknown; nickname?: unknown; preferred_username?: unknown; groups?: unknown };
     if (!infoRes.ok || (typeof info.sub !== 'string' && typeof info.sub !== 'number')) throw new AccountError('GitLab-Benutzer konnte nicht gelesen werden.', 401);
     const username = String(info.preferred_username ?? info.nickname ?? '');

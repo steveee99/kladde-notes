@@ -4,6 +4,10 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Ausführliche Anleitung für „Mit GitLab anmelden“ mit selbst gehostetem GitLab in `docs/GITLAB.md` (OAuth-Anwendung anlegen, Container-Variablen, eigene Zertifikate über `NODE_EXTRA_CA_CERTS`, Fehlersuche).
+- Neu: Einladungen pro Anmeldeart abschaltbar: `SIGNUP_WITHOUT_INVITE` (z. B. `gitlab` oder `gitlab,password`, `all`) legt fest, mit welchen Anmeldearten neue Konten ohne Einladung entstehen. So dürfen sich z. B. alle GitLab-Benutzer (optional nur aus `GITLAB_ALLOWED_GROUPS`) selbst registrieren, während Passkey und Passwort weiter eine Einladung brauchen. Für offene Passkey-/Passwort-Registrierung gibt es auf der Anmeldeseite „Neues Konto erstellen“. `GITLAB_ALLOW_SIGNUP=1` funktioniert weiter.
+- Neu: `GITLAB_INTERNAL_URL` – erreicht der Container GitLab unter einer anderen Adresse als der Browser (Heimnetz ohne Hairpin-NAT, GitLab auf demselben Docker-Host), fragt Kladde Token und Benutzerdaten dort ab.
+
 ## [0.31.1] – 2026-11-11
 
 - Behoben: Die untere Navigationsleiste auf dem Handy endet nicht mehr mit einem großen Leerraum über dem Bildschirmrand; die Beschriftungen rücken wie bei der iOS-Tab-Leiste in den Bereich des Home-Indikators.

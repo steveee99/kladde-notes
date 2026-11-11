@@ -108,15 +108,17 @@ docker exec kladde node packages/server/dist/cli.js einladen Anna
 | `PUBLIC_URL` | Öffentliche Adresse; legt die Passkey-Domain fest und baut Einladungslinks |
 | `TRUST_PROXY` | `1` hinter einem Reverse-Proxy |
 | `DATA_KEY` | Schlüssel für die Verschlüsselung (`openssl rand -base64 32`). Leer = Schlüsseldatei `data/secret.key` im Volume |
+| `SIGNUP_WITHOUT_INVITE` | Anmeldearten, mit denen neue Konten **ohne Einladung** entstehen: kommagetrennt `gitlab`, `passkey`, `password` oder `all`. Leer = jedes neue Konto braucht eine Einladung. Für Passkey/Passwort erscheint dann „Neues Konto erstellen“ auf der Anmeldeseite |
 | `GITLAB_URL` | GitLab-Instanz für „Mit GitLab anmelden“ (Standard `https://gitlab.com`) |
+| `GITLAB_INTERNAL_URL` | Optional: Adresse, unter der der Container GitLab erreicht, falls sie von `GITLAB_URL` abweicht (z. B. `http://192.168.1.20`) |
 | `GITLAB_CLIENT_ID`, `GITLAB_CLIENT_SECRET` | OAuth-Anwendung aus GitLab; beide gesetzt = GitLab-Anmeldung an |
 | `GITLAB_ALLOWED_GROUPS` | Nur Mitglieder dieser Gruppen (kommagetrennte Pfade, z. B. `familie,firma/team`; Untergruppen zählen mit), leer = alle |
-| `GITLAB_ALLOW_SIGNUP` | `1` = unbekannte GitLab-Nutzer bekommen ohne Einladung ein Konto (am besten mit `GITLAB_ALLOWED_GROUPS`) |
+| `GITLAB_ALLOW_SIGNUP` | Ältere Schreibweise für `SIGNUP_WITHOUT_INVITE=gitlab` (funktioniert weiter) |
 | `GITLAB_LABEL` | Beschriftung des Knopfs, z. B. Name der eigenen Instanz (Standard `GitLab`) |
 | `BACKUP_KEEP` | Tägliche Datenbank-Backups in `data/backups` (Standard 7, `0` = aus) |
 | `EXPORT_DIR` | Klartext-Spiegel der Notizen (z. B. NAS), leer = aus |
 
-**Anmelden mit GitLab:**
+**Anmelden mit GitLab** (ausführliche Anleitung für selbst gehostete Instanzen, Netzwerk, eigene Zertifikate und Fehlersuche: [`docs/GITLAB.md`](docs/GITLAB.md)):
 
 1. In GitLab eine OAuth-Anwendung anlegen: *Benutzereinstellungen → Anwendungen* (nur für dich) bzw. *Gruppe → Einstellungen → Anwendungen* oder *Admin → Anwendungen* (eigene Instanz).
    - **Redirect-URI:** `https://notes.example.org/api/auth/gitlab/callback` (also `PUBLIC_URL` + `/api/auth/gitlab/callback`)
@@ -133,7 +135,7 @@ docker exec kladde node packages/server/dist/cli.js einladen Anna
 
 3. `docker compose up -d` – auf der Anmeldeseite erscheint „Mit GitLab anmelden“.
 
-Bestehende Konten verknüpfen GitLab unter *Einstellungen → Anmelden mit GitLab*; danach reicht der GitLab-Knopf. Neue Personen registrieren sich über ihren Einladungslink mit „Mit GitLab registrieren“ (Benutzername = GitLab-Name) – oder ohne Einladung, wenn `GITLAB_ALLOW_SIGNUP=1` gesetzt ist. Gesperrte Konten bleiben gesperrt; eine Verknüpfung lässt sich nur entfernen, solange ein Passkey oder Passwort bleibt.
+Bestehende Konten verknüpfen GitLab unter *Einstellungen → Anmelden mit GitLab*; danach reicht der GitLab-Knopf. Neue Personen registrieren sich über ihren Einladungslink mit „Mit GitLab registrieren“ (Benutzername = GitLab-Name) – oder ohne Einladung, wenn `SIGNUP_WITHOUT_INVITE` `gitlab` enthält. Gesperrte Konten bleiben gesperrt; eine Verknüpfung lässt sich nur entfernen, solange ein Passkey oder Passwort bleibt.
 
 **KI-Assistenten (MCP):** Unter `PUBLIC_URL/mcp` läuft ein MCP-Server (Streamable HTTP). Clients wie claude.ai, Claude Desktop oder Claude Code melden sich per OAuth 2.1 an (dynamische Registrierung, PKCE, Zustimmung mit dem normalen Kladde-Login) oder mit einem Zugriffstoken aus Einstellungen → KI-Assistenten (`Authorization: Bearer kld_…`). Jede Verbindung sieht nur die eigenen Notizen ihres Kontos. Der Reverse-Proxy muss dafür neben der App auch `/mcp`, `/oauth/…` und `/.well-known/oauth-…` durchreichen (Standard, wenn alles an Kladde geht); `PUBLIC_URL` sollte gesetzt sein, damit die OAuth-Adressen stimmen.
 

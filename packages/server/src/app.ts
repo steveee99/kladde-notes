@@ -13,7 +13,7 @@ import { ExportMirror } from './ExportMirror.js';
 import { AuditLog } from './security/AuditLog.js';
 import { configuredOrigins, isAllowedOrigin } from './security/origin.js';
 import { authRouter } from './auth.js';
-import { gitlabConfigFromEnv } from './gitlabAuth.js';
+import { gitlabConfigFromEnv, openSignupFromEnv } from './gitlabAuth.js';
 import { apiRouter, LiveUpdates } from './api.js';
 import { adminRouter } from './admin/adminRouter.js';
 import { McpTokenStore } from './mcp/McpTokenStore.js';
@@ -162,6 +162,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
         secureCookies: opts.isProduction && (opts.publicUrl?.startsWith('https://') ?? false),
         devLogin: !opts.isProduction && env.DEV_LOGIN === '1',
         gitlab: gitlabConfigFromEnv(env),
+        openSignup: openSignupFromEnv(env),
         onRegistered: opts.onRegistered,
       })
     );

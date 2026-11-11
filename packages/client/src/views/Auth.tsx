@@ -171,11 +171,19 @@ export function Login({ onDone }: { onDone: (me: Me) => void }) {
       <GitLabButton label={tl(lang, 'auth.gitlabLogin', { name: providers.gitlab.label })} />
     </div>
   ) : null;
+  // Sign-up without an invite (SIGNUP_WITHOUT_INVITE); GitLab sign-up happens through the GitLab button
+  const register =
+    providers && ((providers.signup.passkey && passkeysAvailable()) || providers.signup.password) ? (
+      <button className="btn-ghost mt-2 w-full rounded-full text-sm" onClick={() => navigate('/register')}>
+        <UserPlus size={16} /> {tl(lang, 'auth.registerLink')}
+      </button>
+    ) : null;
   if (!passkeysAvailable()) {
     return (
       <Frame title="Kladde" subtitle={tl(lang, 'auth.subtitle')}>
         <PasswordLogin busy={busy} run={run} primary />
         {gitlab}
+        {register}
         <p className="mt-3 text-xs text-faint">{tl(lang, 'auth.noPasskeyHint')}</p>
         {error && <p className="mt-4 text-sm text-danger anim-fade-in">{error}</p>}
       </Frame>
@@ -206,6 +214,7 @@ export function Login({ onDone }: { onDone: (me: Me) => void }) {
         </button>
       )}
       {gitlab}
+      {register}
       <Divider label={tl(lang, 'auth.newDevice')} />
       <form
         className="flex gap-2"
@@ -233,7 +242,8 @@ export function Login({ onDone }: { onDone: (me: Me) => void }) {
   );
 }
 
-export function Invite({ code, onDone }: { code: string; onDone: (me: Me) => void }) {
+/** Registration: with an invite code (`/invite/:code`) or, where the server allows it, without one (`/register`) */
+export function Invite({ code, onDone }: { code?: string; onDone: (me: Me) => void }) {
   const lang = useLang();
   const { busy, error, run } = useAction((me) => {
     navigate('/', true);
@@ -241,23 +251,51 @@ export function Invite({ code, onDone }: { code: string; onDone: (me: Me) => voi
   });
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const canPasskey = passkeysAvailable();
-  const [withPassword, setWithPassword] = useState(!canPasskey);
   const providers = useAuthProviders();
-  const gitlab = providers?.gitlab.enabled ? (
+  const [choice, setChoice] = useState<'passkey' | 'password' | null>(null);
+  if (!code && !providers) return <div className="flex h-full items-center justify-center text-faint">…</div>;
+  // With an invite every method works; without one only those the server opened
+  const canPasskey = passkeysAvailable() && (!!code || !!providers?.signup.passkey);
+  const canPassword = !!code || !!providers?.signup.password;
+  const canGitlab = !!providers?.gitlab.enabled && (!!code || providers.gitlab.signup);
+  const mode = choice === 'password' && canPassword ? 'password' : choice === 'passkey' && canPasskey ? 'passkey' : canPasskey ? 'passkey' : canPassword ? 'password' : null;
+  const title = tl(lang, code ? 'auth.inviteTitle' : 'auth.registerTitle');
+  const inviteJson = code ? { inviteCode: code } : {};
+
+  const footer = (
     <>
-      <Divider label={tl(lang, 'auth.or')} />
-      <GitLabButton label={tl(lang, 'auth.gitlabRegister', { name: providers.gitlab.label })} query={{ invite: code }} />
+      {canGitlab && providers && (
+        <>
+          {mode && <Divider label={tl(lang, 'auth.or')} />}
+          <GitLabButton label={tl(lang, 'auth.gitlabRegister', { name: providers.gitlab.label })} query={code ? { invite: code } : undefined} primary={!mode} />
+        </>
+      )}
+      {code ? (
+        <p className="mt-3 text-xs text-faint">{tl(lang, 'auth.inviteCodeLabel', { code })}</p>
+      ) : (
+        <button className="btn-ghost mt-3 w-full rounded-full text-sm" onClick={() => navigate('/', true)}>
+          {tl(lang, 'auth.backToLogin')}
+        </button>
+      )}
+      {error && <p className="mt-4 text-sm text-danger anim-fade-in">{error}</p>}
     </>
-  ) : null;
-  if (withPassword) {
+  );
+
+  if (!mode) {
     return (
-      <Frame title={tl(lang, 'auth.inviteTitle')} subtitle={tl(lang, 'auth.invitePwSubtitle', { min: PASSWORD_MIN_LENGTH })}>
+      <Frame title={title} subtitle={tl(lang, canGitlab ? 'auth.registerGitlabSubtitle' : 'auth.registerClosed')}>
+        {footer}
+      </Frame>
+    );
+  }
+  if (mode === 'password') {
+    return (
+      <Frame title={title} subtitle={tl(lang, 'auth.invitePwSubtitle', { min: PASSWORD_MIN_LENGTH })}>
         <form
           className="space-y-3"
           onSubmit={(e) => {
             e.preventDefault();
-            run(() => api<Me>('/auth/password/register', { method: 'POST', json: { inviteCode: code, username, password } }));
+            run(() => api<Me>('/auth/password/register', { method: 'POST', json: { ...inviteJson, username, password } }));
           }}
         >
           <input
@@ -282,22 +320,22 @@ export function Invite({ code, onDone }: { code: string; onDone: (me: Me) => voi
           </button>
         </form>
         {canPasskey ? (
-          <button className="btn-ghost mt-2 w-full rounded-full text-sm" onClick={() => setWithPassword(false)}>
+          <button className="btn-ghost mt-2 w-full rounded-full text-sm" onClick={() => setChoice('passkey')}>
             {tl(lang, 'auth.usePasskeyInstead')}
           </button>
         ) : (
-          <p className="mt-3 text-xs text-faint">
-            {tl(lang, 'auth.noPasskeyHint')} {tl(lang, 'auth.addPasskeyLaterHint')}
-          </p>
+          !passkeysAvailable() && (
+            <p className="mt-3 text-xs text-faint">
+              {tl(lang, 'auth.noPasskeyHint')} {tl(lang, 'auth.addPasskeyLaterHint')}
+            </p>
+          )
         )}
-        {gitlab}
-        <p className="mt-3 text-xs text-faint">{tl(lang, 'auth.inviteCodeLabel', { code })}</p>
-        {error && <p className="mt-4 text-sm text-danger anim-fade-in">{error}</p>}
+        {footer}
       </Frame>
     );
   }
   return (
-    <Frame title={tl(lang, 'auth.inviteTitle')} subtitle={tl(lang, 'auth.invitePasskeySubtitle')}>
+    <Frame title={title} subtitle={tl(lang, 'auth.invitePasskeySubtitle')}>
       <form
         className="space-y-3"
         onSubmit={(e) => {
@@ -305,7 +343,7 @@ export function Invite({ code, onDone }: { code: string; onDone: (me: Me) => voi
           run(async () => {
             const { flowId, options } = await api<{ flowId: string; options: never }>('/auth/register/options', {
               method: 'POST',
-              json: { inviteCode: code, username },
+              json: { ...inviteJson, username },
             });
             const response = await startRegistration({ optionsJSON: options });
             return api<Me>('/auth/register/verify', { method: 'POST', json: { flowId, response } });
@@ -324,12 +362,12 @@ export function Invite({ code, onDone }: { code: string; onDone: (me: Me) => voi
           <UserPlus size={18} /> {tl(lang, 'auth.createWithPasskey')}
         </button>
       </form>
-      <button className="btn-ghost mt-2 w-full rounded-full text-sm" onClick={() => setWithPassword(true)}>
-        {tl(lang, 'auth.usePasswordInstead')}
-      </button>
-      {gitlab}
-      <p className="mt-3 text-xs text-faint">{tl(lang, 'auth.inviteCodeLabel', { code })}</p>
-      {error && <p className="mt-4 text-sm text-danger anim-fade-in">{error}</p>}
+      {canPassword && (
+        <button className="btn-ghost mt-2 w-full rounded-full text-sm" onClick={() => setChoice('password')}>
+          {tl(lang, 'auth.usePasswordInstead')}
+        </button>
+      )}
+      {footer}
     </Frame>
   );
 }

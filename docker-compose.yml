@@ -21,17 +21,25 @@ services:
       # Key for the encryption at rest (base64, 32 bytes: `openssl rand -base64 32`).
       # Empty = a key file is generated in the data volume (protects backups and copies of the database only)
       - DATA_KEY=${DATA_KEY:-}
+      # Sign-in methods that create accounts WITHOUT an invite: comma-separated gitlab, passkey, password or all.
+      # Empty = every new account needs an invite. E.g. "gitlab" (with GITLAB_ALLOWED_GROUPS) = GitLab users sign up freely
+      - SIGNUP_WITHOUT_INVITE=${SIGNUP_WITHOUT_INVITE:-}
       # Optional "Sign in with GitLab" (gitlab.com or self-hosted). Create an OAuth application in GitLab with the
-      # redirect URI <PUBLIC_URL>/api/auth/gitlab/callback and the scopes openid + profile; empty = off
+      # redirect URI <PUBLIC_URL>/api/auth/gitlab/callback and the scopes openid + profile; empty = off.
+      # Step-by-step guide (self-hosted GitLab, own CA, troubleshooting): docs/GITLAB.md
       - GITLAB_URL=${GITLAB_URL:-https://gitlab.com}
+      # Address the container uses to reach GitLab when it differs from GITLAB_URL (LAN IP, container name); empty = GITLAB_URL
+      - GITLAB_INTERNAL_URL=${GITLAB_INTERNAL_URL:-}
       - GITLAB_CLIENT_ID=${GITLAB_CLIENT_ID:-}
       - GITLAB_CLIENT_SECRET=${GITLAB_CLIENT_SECRET:-}
       # Only members of these groups (comma-separated full paths, subgroups included); empty = any GitLab user
       - GITLAB_ALLOWED_GROUPS=${GITLAB_ALLOWED_GROUPS:-}
-      # 1 = unknown GitLab users get a new account without an invite (combine with GITLAB_ALLOWED_GROUPS)
+      # Old switch for "gitlab" in SIGNUP_WITHOUT_INVITE (still works)
       - GITLAB_ALLOW_SIGNUP=${GITLAB_ALLOW_SIGNUP:-}
       # Button label, e.g. the name of your instance
       - GITLAB_LABEL=${GITLAB_LABEL:-}
+      # GitLab with a certificate from your own CA: mount the CA (PEM) and point Node at it (see docs/GITLAB.md)
+      # - NODE_EXTRA_CA_CERTS=/certs/gitlab-ca.pem
       # Daily database backup in data/backups; how many to keep, 0 = off
       - BACKUP_KEEP=${BACKUP_KEEP:-7}
       # Optional plain Markdown mirror of all notes (e.g. a NAS share mounted at /app/export), empty = off
@@ -40,6 +48,8 @@ services:
       - kladde-data:/app/data
       # NAS mirror: uncomment and set EXPORT_DIR=/app/export
       # - /mnt/nas/notes:/app/export
+      # Own CA for a self-hosted GitLab (with NODE_EXTRA_CA_CERTS above)
+      # - ./gitlab-ca.pem:/certs/gitlab-ca.pem:ro
     restart: unless-stopped
     read_only: true
     tmpfs:

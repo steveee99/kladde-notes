@@ -76,6 +76,8 @@ export interface AuthProviders {
     /** New accounts without an invite are allowed */
     signup: boolean;
   };
+  /** New accounts without an invite (SIGNUP_WITHOUT_INVITE) per sign-in method; otherwise an invite is needed */
+  signup: { passkey: boolean; password: boolean };
 }
 
 export interface Me {
