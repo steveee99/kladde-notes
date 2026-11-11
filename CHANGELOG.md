@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Import-CLI für Obsidian-Vaults und Markdown-Ordner. Unter Einstellungen → Import erstellst und widerrufst du Import-Tokens; `npm run import -- <ordner> [<zielordner>] --url <Kladde-URL>` liest den Ordner, zeigt eine Vorschau (neu, übersprungen, ignoriert), fragt nach und importiert dann Notizen und die verlinkten Bilder und PDFs. Vorhandene Pfade werden übersprungen, nie überschrieben. Anleitung in `docs/IMPORT.md`.
+
 ## [0.33.0] – 2026-11-11
 
 - Neu: Helles Farbschema (Material 3) – unter Einstellungen → Darstellung & Sprache → „Farbschema“ zwischen Dunkel (Standard), Hell und System wählen; „System“ folgt der Einstellung des Betriebssystems. Die Wahl gilt pro Gerät.
