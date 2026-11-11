@@ -16,7 +16,8 @@ let counter = 0;
 /** SVG (or error) per theme + source, so re-created widgets show up without a flicker */
 const cache = new Map<string, { svg?: string; error?: string }>();
 
-const themeKey = () => document.documentElement.dataset.theme ?? 'material';
+const isDark = () => document.documentElement.dataset.scheme !== 'light';
+const themeKey = () => `${document.documentElement.dataset.theme ?? 'material'}-${isDark() ? 'dark' : 'light'}`;
 
 /** "R G B" variable → #rrggbb (Mermaid's color math needs hex) */
 function cssColor(name: string): string {
@@ -49,7 +50,7 @@ function themeVariables() {
     extra[`pie${i + 1}`] = scale[i % scale.length];
   }
   return {
-    darkMode: true,
+    darkMode: isDark(),
     fontFamily: getComputedStyle(document.body).fontFamily,
     fontSize: '14px',
     background: v.surface,
@@ -89,6 +90,8 @@ function themeVariables() {
     git1: v.accent2,
     git2: v.warn,
     git3: v.ok,
+    // Mind map root label (sits on git0)
+    gitBranchLabel0: v.onAccent,
     ...extra,
   };
 }
@@ -172,6 +175,15 @@ export function drawDiagram(el: HTMLElement, kind: DiagramKind, src: string, don
     // A newer source may have arrived meanwhile
     if (el.dataset.src === src && el.dataset.kind === kind) show(r);
   });
+}
+
+// Redraw the diagrams on screen in the new colors when the color scheme changes
+if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined') {
+  new MutationObserver(() => {
+    document.querySelectorAll<HTMLElement>('.wz-diagram[data-kind][data-src]').forEach((el) => {
+      drawDiagram(el, el.dataset.kind as DiagramKind, el.dataset.src ?? '');
+    });
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-scheme'] });
 }
 
 /** Full-screen view for large diagrams */

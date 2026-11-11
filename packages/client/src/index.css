@@ -45,6 +45,38 @@
 }
 
 /*
+ * Material 3 light color scheme (Einstellungen → Farbschema). Same design, only the colors change;
+ * <html data-scheme> is set by lib/theme.ts and the inline script in index.html.
+ */
+[data-theme='material'][data-scheme='light'] {
+  --bg: 248 249 252;
+  --surface: 240 244 249;
+  --raised: 233 238 246;
+  --line: 196 199 207;
+  --ink: 25 28 32;
+  --muted: 68 71 78;
+  --faint: 104 107 115;
+  --accent: 11 87 208;
+  --on-accent: 255 255 255;
+  --accent2: 0 106 96;
+  --ok: 20 108 46;
+  --on-ok: 255 255 255;
+  --warn: 140 81 0;
+  --danger: 179 38 30;
+  --code-bg: 240 243 248;
+  --inline-code-bg: 225 230 240;
+  --selection: 11 87 208 / 0.2;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.1), 0 1px 3px 1px rgb(0 0 0 / 0.06);
+  --accent-container: 211 227 253;
+  --on-accent-container: 4 30 73;
+  /* Darker cursor tones so they stand out on the light background */
+  --cursor-1: 230 81 0;
+  --cursor-2: 0 137 123;
+  --cursor-6: 85 139 47;
+  color-scheme: light;
+}
+
+/*
  * The document itself never scrolls: iOS scrolls the window when the keyboard opens and, in the
  * home-screen app, often leaves it there, which shifts the header under the status bar and lifts
  * the bottom bar. #root scrolls instead (login and public pages); the shell scrolls inside <main>.
@@ -1602,6 +1634,9 @@ span.cm-checkbox {
   @apply bottom-4 mx-auto mb-4 w-max max-w-[calc(100%-2rem)] rounded-full border-0 bg-raised px-2 py-1.5;
   box-shadow: 0 2px 6px rgb(0 0 0 / 0.3), 0 6px 16px rgb(0 0 0 / 0.25);
 }
+[data-theme='material'][data-scheme='light'] .note-toolbar {
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12), 0 4px 12px rgb(0 0 0 / 0.1);
+}
 @media (max-width: 639px) {
   [data-theme='material'] .note-toolbar {
     max-width: calc(100% - 1rem);
@@ -1705,6 +1740,10 @@ span.cm-checkbox {
   background: rgb(var(--raised)) !important;
   box-shadow: 0 6px 24px rgb(0 0 0 / 0.4), 0 2px 8px rgb(0 0 0 / 0.25) !important;
 }
+[data-theme='material'][data-scheme='light'] .cm-tooltip-autocomplete {
+  border-color: rgb(var(--line) / 0.7) !important;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.12), 0 2px 6px rgb(0 0 0 / 0.08) !important;
+}
 [data-theme='material'] .cm-tooltip-autocomplete > ul {
   padding: 8px 6px !important;
 }
@@ -1780,7 +1819,8 @@ span.cm-checkbox {
     margin: 16mm;
   }
   :root,
-  [data-theme='material'] {
+  [data-theme='material'],
+  [data-theme='material'][data-scheme] {
     --bg: 255 255 255;
     --surface: 255 255 255;
     --raised: 245 244 241;
@@ -1893,6 +1933,10 @@ span.cm-checkbox {
   background: rgb(var(--raised));
   box-shadow: 0 2px 6px rgb(0 0 0 / 0.35), 0 8px 24px rgb(0 0 0 / 0.35);
 }
+[data-theme='material'][data-scheme='light'] .m3-menu {
+  border-color: rgb(var(--line) / 0.7);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.1), 0 8px 24px rgb(0 0 0 / 0.12);
+}
 .m3-menu-item {
   display: flex;
   align-items: center;
@@ -1945,6 +1989,10 @@ span.cm-checkbox {
   background: rgb(var(--raised));
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.35), 0 12px 28px rgb(0 0 0 / 0.35);
 }
+[data-theme='material'][data-scheme='light'] .m3-popover {
+  border-color: rgb(var(--line) / 0.7);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.1), 0 12px 28px rgb(0 0 0 / 0.12);
+}
 
 /* ------------------------------------------------------------------ GitHub-style calendar heatmap */
 
@@ -1959,6 +2007,10 @@ span.cm-checkbox {
 [data-theme='material'] .heatmap-cell[data-level='0'] {
   background: rgb(var(--surface));
   box-shadow: inset 0 0 0 1px rgb(var(--line) / 0.55);
+}
+[data-theme='material'][data-scheme='light'] .heatmap-cell[data-level='0'] {
+  background: rgb(var(--line) / 0.45);
+  box-shadow: inset 0 0 0 1px rgb(var(--line));
 }
 .heatmap-cell[data-level='1'] {
   background: rgb(var(--ok) / 0.28);
