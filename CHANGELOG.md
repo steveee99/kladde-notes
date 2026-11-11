@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.26.0] – 2026-11-11
+
 - Neu: Gemeinsames Bearbeiten in Echtzeit – für geteilte Notizen und für mehrere Geräte/Tabs desselben Kontos. Änderungen der anderen erscheinen sofort im offenen Editor und werden mit dem gerade Getippten zusammengeführt; Cursor, Markierung und Rückgängig-Verlauf bleiben erhalten. Sobald eine Notiz an mehr als einer Stelle offen ist, zeigt der Notizkopf „Live“ mit den Profilbildern aller, die sie gerade offen haben (mit Anzahl der Geräte).
 - Neu: Im gemeinsamen Editor siehst du, wo die anderen gerade schreiben: ein farbiger Cursor mit kleinem Profilbild (beim Daraufzeigen mit Namen), markierter Text erscheint in derselben Farbe. Jede Person hat überall dieselbe Farbe; auch die eigenen anderen Geräte/Tabs werden angezeigt.
 - Neu: Konflikte werden zusammengeführt statt kopiert. Ändern zwei Geräte oder Personen eine Notiz gleichzeitig – auch wenn ein Gerät länger offline war und erst später synchronisiert –, werden beide Änderungen per Drei-Wege-Merge übernommen (zeilenweise, im selben Absatz wortweise). Nur wenn beide dieselben Wörter ändern, bleibt wie bisher eine „(Konflikt …)“-Kopie.
