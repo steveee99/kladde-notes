@@ -92,7 +92,7 @@ describe('GitLab sign-in', () => {
 
   it('reports the provider', async () => {
     const res = await fetch(`${base}/api/auth/providers`);
-    expect(await res.json()).toEqual({ gitlab: { enabled: true, label: 'GitLab', signup: false } });
+    expect(await res.json()).toEqual({ gitlab: { enabled: true, label: 'GitLab', signup: false }, signup: { passkey: false, password: false } });
   });
 
   it('rejects unknown GitLab users without an invite', async () => {

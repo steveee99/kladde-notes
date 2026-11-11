@@ -11,7 +11,7 @@ import type { Me } from '@kladde/shared';
 import { AccountError, UserRecord, UserStore, checkPassword, hashPassword } from './UserStore.js';
 import { AuditLog } from './security/AuditLog.js';
 import { SESSION_COOKIE, deviceName, handle, rateLimit, readCookie, requireUser, setSessionCookie } from './http.js';
-import { GITLAB, GitLabConfig, authProviders, gitlabRouter } from './gitlabAuth.js';
+import { GITLAB, GitLabConfig, SignupMethod, authProviders, gitlabRouter } from './gitlabAuth.js';
 
 const FLOW_MAX_AGE_MS = 5 * 60 * 1000;
 /** Wrong passwords per account, from whatever IP: guessing from many addresses is braked too */
@@ -20,7 +20,7 @@ const ACCOUNT_FAILS_WINDOW_MS = 15 * 60 * 1000;
 const RP_NAME = 'Kladde';
 
 type Flow =
-  | { kind: 'register'; challenge: string; origin: string; rpID: string; userId: string; username: string; invite: string; at: number }
+  | { kind: 'register'; challenge: string; origin: string; rpID: string; userId: string; username: string; invite: string | null; at: number }
   | { kind: 'link'; challenge: string; origin: string; rpID: string; userId: string; code: string; at: number }
   | { kind: 'add'; challenge: string; origin: string; rpID: string; userId: string; at: number }
   | { kind: 'login'; challenge: string; origin: string; rpID: string; at: number };
@@ -36,6 +36,8 @@ export interface AuthOptions {
   gitlab?: GitLabConfig | null;
   /** Replaces fetch for the GitLab token/user lookups (tests) */
   gitlabFetch?: typeof fetch;
+  /** Methods that create accounts without an invite (SIGNUP_WITHOUT_INVITE); GitLab reads its own config */
+  openSignup?: ReadonlySet<SignupMethod>;
   onRegistered?: (user: UserRecord, inviteNote: string) => void;
 }
 
@@ -45,6 +47,11 @@ export function authRouter(opts: AuthOptions): express.Router {
   const flows = new Map<string, Flow>();
   const limit = rateLimit(40, 60_000);
   const passwordLimit = rateLimit(10, 60_000);
+  const openSignup = opts.openSignup ?? new Set<SignupMethod>();
+  /** The checked invite code, or null when this method may sign up without one and none was given */
+  const inviteFor = (method: SignupMethod, code: unknown): string | null =>
+    openSignup.has(method) && (code === undefined || code === null || code === '') ? null : users.checkInvite(code);
+  const inviteNote = (user: UserRecord) => users.listInvites().find((i) => i.usedBy === user.username)?.note ?? '';
   const accountFails = new Map<string, { count: number; reset: number }>();
   const accountLocked = (name: string) => {
     const entry = accountFails.get(name);
@@ -148,13 +155,13 @@ export function authRouter(opts: AuthOptions): express.Router {
     };
   };
 
-  // ---------------------------------------------------------------- register with an invite
+  // ---------------------------------------------------------------- register (with an invite unless open)
 
   router.post(
     '/register/options',
     limit,
     handle(async (req, res) => {
-      const invite = users.checkInvite(req.body?.inviteCode);
+      const invite = inviteFor('passkey', req.body?.inviteCode);
       const username = users.checkNewUsername(req.body?.username);
       const userId = crypto.randomUUID();
       const options = await registrationOptions(req, { id: userId, username }, []);
@@ -170,13 +177,12 @@ export function authRouter(opts: AuthOptions): express.Router {
       const flow = takeFlow(req.body?.flowId, 'register');
       const credential = await finishRegistration(req, flow, flow.userId);
       // Checked again: the invite or the name may have been taken during the ceremony
-      users.checkInvite(flow.invite);
+      if (flow.invite) users.checkInvite(flow.invite);
       users.checkNewUsername(flow.username);
       const user = users.createUser(flow.username);
       users.addCredential({ ...credential, userId: user.id });
-      users.useInvite(flow.invite, user.id);
-      const note = users.listInvites().find((i) => i.usedBy === user.username)?.note ?? '';
-      opts.onRegistered?.(user, note);
+      if (flow.invite) users.useInvite(flow.invite, user.id);
+      opts.onRegistered?.(user, flow.invite ? inviteNote(user) : '');
       signIn(req, res, user, 'register');
     })
   );
@@ -232,17 +238,16 @@ export function authRouter(opts: AuthOptions): express.Router {
     '/password/register',
     passwordLimit,
     handle(async (req, res) => {
-      const invite = users.checkInvite(req.body?.inviteCode);
+      const invite = inviteFor('password', req.body?.inviteCode);
       const username = users.checkNewUsername(req.body?.username);
       const hash = await hashPassword(checkPassword(req.body?.password));
       // Checked again after the (slow) hash: no await from here on, so the invite cannot be used twice
-      users.checkInvite(invite);
+      if (invite) users.checkInvite(invite);
       users.checkNewUsername(username);
       const user = users.createUser(username);
       users.setPasswordHash(user.id, hash);
-      users.useInvite(invite, user.id);
-      const note = users.listInvites().find((i) => i.usedBy === user.username)?.note ?? '';
-      opts.onRegistered?.(user, note);
+      if (invite) users.useInvite(invite, user.id);
+      opts.onRegistered?.(user, invite ? inviteNote(user) : '');
       signIn(req, res, user, 'register');
     })
   );
@@ -371,7 +376,7 @@ export function authRouter(opts: AuthOptions): express.Router {
 
   // ---------------------------------------------------------------- GitLab (OAuth)
 
-  router.get('/providers', (_req, res) => res.json(authProviders(opts.gitlab ?? null)));
+  router.get('/providers', (_req, res) => res.json(authProviders(opts.gitlab ?? null, openSignup)));
 
   router.delete(
     '/gitlab',
@@ -396,7 +401,7 @@ export function authRouter(opts: AuthOptions): express.Router {
         fetchImpl: opts.gitlabFetch,
         onSignedIn: (req, res, user, event) => {
           startSession(req, res, user, event);
-          if (event === 'register') opts.onRegistered?.(user, users.listInvites().find((i) => i.usedBy === user.username)?.note ?? '');
+          if (event === 'register') opts.onRegistered?.(user, inviteNote(user));
         },
       })
     );

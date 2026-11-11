@@ -8,7 +8,7 @@ import { SESSION_COOKIE, rateLimit, readCookie } from './http.js';
 /**
  * "Sign in with GitLab" (OAuth 2.0 authorization code + PKCE, GitLab.com or a self-hosted instance).
  * A GitLab identity signs in the Kladde account it is linked to. New accounts need an invite code
- * unless GITLAB_ALLOW_SIGNUP is set; GITLAB_ALLOWED_GROUPS restricts every GitLab sign-in to members
+ * unless SIGNUP_WITHOUT_INVITE contains gitlab (or GITLAB_ALLOW_SIGNUP is set); GITLAB_ALLOWED_GROUPS restricts every GitLab sign-in to members
  * of those groups. Existing accounts link GitLab in the settings.
  */
 
@@ -30,6 +30,27 @@ export interface GitLabConfig {
 }
 
 const truthy = (v: string | undefined) => v === '1' || v?.toLowerCase() === 'true' || v?.toLowerCase() === 'yes';
+
+/** Sign-in methods that can create an account */
+export type SignupMethod = 'passkey' | 'password' | 'gitlab';
+const SIGNUP_METHODS: SignupMethod[] = ['passkey', 'password', 'gitlab'];
+
+/**
+ * SIGNUP_WITHOUT_INVITE: comma-separated sign-in methods (passkey, password, gitlab or all) that create
+ * accounts without an invite. Everything else still needs one. GITLAB_ALLOW_SIGNUP=1 adds gitlab.
+ */
+export function openSignupFromEnv(env: NodeJS.ProcessEnv): Set<SignupMethod> {
+  const open = new Set<SignupMethod>();
+  for (const raw of (env.SIGNUP_WITHOUT_INVITE ?? '').split(',')) {
+    const name = raw.trim().toLowerCase();
+    if (!name) continue;
+    if (name === 'all') SIGNUP_METHODS.forEach((m) => open.add(m));
+    else if ((SIGNUP_METHODS as string[]).includes(name)) open.add(name as SignupMethod);
+    else console.error(`SIGNUP_WITHOUT_INVITE: unbekannte Anmeldeart „${name}“ (erlaubt: passkey, password, gitlab, all).`);
+  }
+  if (truthy(env.GITLAB_ALLOW_SIGNUP)) open.add('gitlab');
+  return open;
+}
 
 /** Reads GITLAB_* variables; null when GitLab sign-in is not configured */
 export function gitlabConfigFromEnv(env: NodeJS.ProcessEnv): GitLabConfig | null {
@@ -53,7 +74,7 @@ export function gitlabConfigFromEnv(env: NodeJS.ProcessEnv): GitLabConfig | null
     clientId,
     clientSecret,
     label: env.GITLAB_LABEL?.trim() || 'GitLab',
-    allowSignup: truthy(env.GITLAB_ALLOW_SIGNUP),
+    allowSignup: openSignupFromEnv(env).has('gitlab'),
     allowedGroups: (env.GITLAB_ALLOWED_GROUPS ?? '')
       .split(',')
       .map((g) => g.trim().replace(/^\/+|\/+$/g, '').toLowerCase())
@@ -61,8 +82,11 @@ export function gitlabConfigFromEnv(env: NodeJS.ProcessEnv): GitLabConfig | null
   };
 }
 
-export function authProviders(config: GitLabConfig | null): AuthProviders {
-  return { gitlab: { enabled: !!config, label: config?.label ?? 'GitLab', signup: !!config?.allowSignup } };
+export function authProviders(config: GitLabConfig | null, openSignup: ReadonlySet<SignupMethod> = new Set()): AuthProviders {
+  return {
+    gitlab: { enabled: !!config, label: config?.label ?? 'GitLab', signup: !!config?.allowSignup },
+    signup: { passkey: openSignup.has('passkey'), password: openSignup.has('password') },
+  };
 }
 
 /** Member of one of the allowed groups (a subgroup of an allowed group counts too) */

@@ -62,7 +62,7 @@ GITLAB_CLIENT_ID=6f1c…            # Anwendungs-ID
 GITLAB_CLIENT_SECRET=gloas-…      # Geheimnis
 GITLAB_LABEL=Firmen-GitLab        # optional: Beschriftung des Knopfs
 GITLAB_ALLOWED_GROUPS=familie     # optional: nur Mitglieder dieser Gruppen
-# GITLAB_ALLOW_SIGNUP=1           # optional: Konten ohne Einladung anlegen
+SIGNUP_WITHOUT_INVITE=gitlab      # optional: GitLab-Nutzer ohne Einladung registrieren
 # GITLAB_INTERNAL_URL=http://gitlab   # optional: siehe „Netzwerk“
 ```
 
@@ -92,7 +92,7 @@ docker run -d --name kladde -p 13002:3002 -v kladde-data:/app/data \
 | `GITLAB_URL` | Adresse der GitLab-Instanz, wie der **Browser** sie erreicht. Standard `https://gitlab.com`. Bei Installation unter einem Pfad mit Pfad angeben, z. B. `https://example.org/gitlab` |
 | `GITLAB_INTERNAL_URL` | Optional. Adresse, unter der der **Kladde-Server** GitLab für Token und Benutzerdaten erreicht. Leer = `GITLAB_URL` |
 | `GITLAB_ALLOWED_GROUPS` | Kommagetrennte **vollständige Gruppenpfade** (wie in der URL, z. B. `familie,firma/team`). Untergruppen zählen mit. Leer = jeder GitLab-Benutzer der Instanz |
-| `GITLAB_ALLOW_SIGNUP` | `1` = unbekannte GitLab-Benutzer bekommen ohne Einladung ein neues Konto. Am besten nur zusammen mit `GITLAB_ALLOWED_GROUPS` |
+| `SIGNUP_WITHOUT_INVITE` | Enthält es `gitlab`, bekommen unbekannte GitLab-Benutzer ohne Einladung ein neues Konto (siehe *Registrierung ohne Einladung*). Am besten nur zusammen mit `GITLAB_ALLOWED_GROUPS`. Die ältere Variable `GITLAB_ALLOW_SIGNUP=1` wirkt genauso |
 | `GITLAB_LABEL` | Name im Knopf, Standard `GitLab` |
 
 Das Geheimnis lieber nicht in eine eingecheckte Datei schreiben; `.env` gehört nicht ins Git.
@@ -151,10 +151,31 @@ docker exec kladde node -e "fetch((process.env.GITLAB_INTERNAL_URL||process.env.
 
 - **Bestehende Konten:** anmelden wie bisher, dann *Einstellungen → Anmelden mit GitLab → Mit GitLab verknüpfen*. Danach reicht der GitLab-Knopf.
 - **Neue Personen mit Einladung:** Einladungslink öffnen und „Mit GitLab registrieren“ wählen. Der Kladde-Benutzername wird aus dem GitLab-Benutzernamen gebildet (bei Kollision mit Zusatz).
-- **Neue Personen ohne Einladung:** nur mit `GITLAB_ALLOW_SIGNUP=1`.
+- **Neue Personen ohne Einladung:** wenn `SIGNUP_WITHOUT_INVITE` `gitlab` enthält. Dann reicht der normale Knopf „Mit GitLab anmelden“: Ist das GitLab-Konto noch unbekannt, legt Kladde direkt ein Konto an.
 - Mit `GITLAB_ALLOWED_GROUPS` wird **jede** GitLab-Anmeldung geprüft (auch bei verknüpften Konten). Wer die Gruppe verlässt, kommt per GitLab nicht mehr hinein, per Passkey/Passwort weiterhin.
 - Gesperrte Konten bleiben gesperrt. Eine Verknüpfung lässt sich nur entfernen, solange ein Passkey oder Passwort übrig bleibt.
 - Jede GitLab-Anmeldung, Verknüpfung und Ablehnung steht im Protokoll unter *Einstellungen → Verwaltung*.
+
+### Registrierung ohne Einladung, je nach Anmeldeart
+
+Mit `SIGNUP_WITHOUT_INVITE` legst du pro Installation fest, **welche Anmeldearten neue Konten ohne Einladung anlegen dürfen**. Für alle anderen bleibt die Einladung nötig. Einladungslinks funktionieren immer, auch für offene Anmeldearten.
+
+| Wert | Wirkung |
+| --- | --- |
+| *(leer)* | Standard: jedes neue Konto braucht eine Einladung |
+| `gitlab` | GitLab-Benutzer registrieren sich frei, Passkey/Passwort nur mit Einladung. Typisch für ein eigenes GitLab |
+| `gitlab,password` | Zusätzlich offene Registrierung mit Benutzername und Passwort |
+| `all` | Jede Anmeldeart ist offen (`gitlab,passkey,password`) |
+
+Ist `passkey` oder `password` offen, zeigt die Anmeldeseite „Neues Konto erstellen“ (`/register`). GitLab braucht keinen eigenen Knopf: „Mit GitLab anmelden“ legt unbekannte Benutzer direkt an.
+
+```env
+# Firmen-Instanz: alle aus der Gruppe „firma“ dürfen rein, sonst niemand ohne Einladung
+SIGNUP_WITHOUT_INVITE=gitlab
+GITLAB_ALLOWED_GROUPS=firma
+```
+
+> Offene Registrierung per Passkey oder Passwort auf einer öffentlich erreichbaren Instanz heißt: **jeder** im Internet kann sich ein Konto anlegen. Für GitLab begrenzt `GITLAB_ALLOWED_GROUPS` das; ohne Gruppen darf bei `GITLAB_URL=https://gitlab.com` jeder mit einem GitLab.com-Konto rein.
 
 ---
 
@@ -170,7 +191,7 @@ docker exec kladde node -e "fetch((process.env.GITLAB_INTERNAL_URL||process.env.
 | „GitLab hat die Anmeldung nicht bestätigt.“ | Token-Tausch abgelehnt: Geheimnis falsch, Anwendung nicht „vertraulich“ oder die Redirect-URI weicht ab |
 | „Die GitLab-Anmeldung ist abgelaufen, bitte noch einmal.“ | Mehr als 10 Minuten bei GitLab, Container dazwischen neu gestartet, oder Kladde wurde unter einer anderen Adresse als `PUBLIC_URL` geöffnet (das Cookie fehlt dann) |
 | „Dein GitLab-Konto gehört zu keiner freigegebenen Gruppe.“ | `GITLAB_ALLOWED_GROUPS` enthält den Anzeigenamen statt des **Pfads** (aus der URL, z. B. `firma/team`), oder die Person ist nicht Mitglied |
-| „Dieses GitLab-Konto ist mit keinem Kladde-Konto verknüpft …“ | Erst in den Einstellungen verknüpfen, per Einladung registrieren oder `GITLAB_ALLOW_SIGNUP=1` setzen |
+| „Dieses GitLab-Konto ist mit keinem Kladde-Konto verknüpft …“ | Erst in den Einstellungen verknüpfen, per Einladung registrieren oder `SIGNUP_WITHOUT_INVITE=gitlab` setzen |
 
 ---
 

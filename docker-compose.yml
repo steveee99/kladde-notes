@@ -21,6 +21,9 @@ services:
       # Key for the encryption at rest (base64, 32 bytes: `openssl rand -base64 32`).
       # Empty = a key file is generated in the data volume (protects backups and copies of the database only)
       - DATA_KEY=${DATA_KEY:-}
+      # Sign-in methods that create accounts WITHOUT an invite: comma-separated gitlab, passkey, password or all.
+      # Empty = every new account needs an invite. E.g. "gitlab" (with GITLAB_ALLOWED_GROUPS) = GitLab users sign up freely
+      - SIGNUP_WITHOUT_INVITE=${SIGNUP_WITHOUT_INVITE:-}
       # Optional "Sign in with GitLab" (gitlab.com or self-hosted). Create an OAuth application in GitLab with the
       # redirect URI <PUBLIC_URL>/api/auth/gitlab/callback and the scopes openid + profile; empty = off.
       # Step-by-step guide (self-hosted GitLab, own CA, troubleshooting): docs/GITLAB.md
@@ -31,7 +34,7 @@ services:
       - GITLAB_CLIENT_SECRET=${GITLAB_CLIENT_SECRET:-}
       # Only members of these groups (comma-separated full paths, subgroups included); empty = any GitLab user
       - GITLAB_ALLOWED_GROUPS=${GITLAB_ALLOWED_GROUPS:-}
-      # 1 = unknown GitLab users get a new account without an invite (combine with GITLAB_ALLOWED_GROUPS)
+      # Old switch for "gitlab" in SIGNUP_WITHOUT_INVITE (still works)
       - GITLAB_ALLOW_SIGNUP=${GITLAB_ALLOW_SIGNUP:-}
       # Button label, e.g. the name of your instance
       - GITLAB_LABEL=${GITLAB_LABEL:-}

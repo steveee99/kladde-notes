@@ -121,6 +121,7 @@ export function App() {
   if (pub && !me?.standalone) return <PublicNote token={pub.token} />;
   const invite = match(path, '/invite/:code');
   if (invite && !me?.standalone) return <Invite code={invite.code} onDone={signedIn} />;
+  if (path === '/register' && me === null) return <Invite onDone={signedIn} />;
   const link = match(path, '/link/:code');
   if (link && !me?.standalone) return <LinkDevice code={link.code} onDone={signedIn} />;
 
