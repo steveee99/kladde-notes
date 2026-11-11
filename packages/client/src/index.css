@@ -249,6 +249,13 @@ body {
   .safe-bottom {
     padding-bottom: calc(var(--pad-bottom, 0px) + max(0px, env(safe-area-inset-bottom) - var(--vp-gap, 0px)));
   }
+  /*
+   * Bottom navigation bar: its labels may reach into the home indicator's inset (like the native tab bar)
+   * instead of sitting on top of it; without an inset (Android, browser tab) it keeps 0.75rem.
+   */
+  .bottom-bar {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom) - var(--vp-gap, 0px) - 0.75rem);
+  }
   .safe-top {
     padding-top: calc(var(--pad-top, 0px) + env(safe-area-inset-top));
   }

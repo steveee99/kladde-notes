@@ -44,7 +44,7 @@ function BarItem({ to, Icon, label, badge }: { to: string; Icon: Icon; label: st
   const path = usePath();
   const active = path === to;
   return (
-    <button onClick={() => navigate(to)} aria-current={active ? 'page' : undefined} className={`flex min-w-0 flex-col items-center gap-1 px-1 pb-4 pt-3 text-xs font-medium ${active ? 'text-ink' : 'text-muted'}`}>
+    <button onClick={() => navigate(to)} aria-current={active ? 'page' : undefined} className={`flex min-w-0 flex-col items-center gap-1 px-1 pb-1 pt-3 text-xs font-medium ${active ? 'text-ink' : 'text-muted'}`}>
       <span className={`relative flex h-8 w-14 max-w-full items-center justify-center rounded-full transition-colors duration-200 sm:w-16 ${active ? 'bg-accent/20 text-accent' : ''}`}>
         <Icon size={22} />
         {!!badge && <span className="absolute right-2.5 top-0 min-w-4 rounded-full bg-danger px-1 text-center text-[11px] font-semibold leading-4 text-bg sm:right-3.5">{badge}</span>}
@@ -215,7 +215,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
             </RightPaneHostContext.Provider>
             <div ref={setRightHost} className="no-print hidden shrink-0 lg:flex empty:hidden" />
           </div>
-          <nav aria-label={t('nav.navigationLabel')} className="grid grid-cols-4 bg-surface safe-bottom safe-x md:hidden">
+          <nav aria-label={t('nav.navigationLabel')} className="bottom-bar grid grid-cols-4 bg-surface safe-x md:hidden">
             <BarItem to="/" Icon={Home} label={t('nav.home')} />
             <BarItem to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} />
             <BarItem to="/notes" Icon={FileText} label={t('nav.notes')} />
@@ -225,7 +225,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
               aria-current={settingsActive ? 'page' : undefined}
               aria-label={t('nav.settings')}
               title={me.username}
-              className={`flex min-w-0 flex-col items-center gap-1 px-1 pb-4 pt-3 text-xs font-medium ${settingsActive ? 'text-ink' : 'text-muted'}`}
+              className={`flex min-w-0 flex-col items-center gap-1 px-1 pb-1 pt-3 text-xs font-medium ${settingsActive ? 'text-ink' : 'text-muted'}`}
             >
               <span className={`relative flex h-8 w-14 max-w-full items-center justify-center rounded-full transition-colors duration-200 sm:w-16 ${settingsActive ? 'bg-accent/20' : ''}`}>
                 <Avatar name={me.username} avatarUrl={me.avatarUrl} size="sm" active={settingsActive} />
@@ -237,7 +237,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
       </div>
       {!noteId && (
         <button
-          className="edit-only fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-30 flex h-14 items-center gap-3 rounded-2xl bg-accent-container pl-4 pr-5 text-base font-medium text-on-accent-container shadow-soft transition-transform duration-200 ease-spring hover:scale-[1.03] active:scale-95 md:bottom-[calc(2.5rem+env(safe-area-inset-bottom))] md:right-10"
+          className="edit-only fixed bottom-[calc(6rem+max(0px,env(safe-area-inset-bottom)-1.5rem))] right-4 z-30 flex h-14 items-center gap-3 rounded-2xl bg-accent-container pl-4 pr-5 text-base font-medium text-on-accent-container shadow-soft transition-transform duration-200 ease-spring hover:scale-[1.03] active:scale-95 md:bottom-[calc(2.5rem+env(safe-area-inset-bottom))] md:right-10"
           onClick={() => setCapture(true)}
           title={t('nav.capture')}
         >
