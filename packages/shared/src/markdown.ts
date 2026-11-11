@@ -59,7 +59,7 @@ export function excerpt(content: string, length = 140): string {
   return body
     .replace(/```[\s\S]*?(```|$)/g, ' ')
     .replace(/^#+\s*/gm, '')
-    .replace(/^\s*(?:[-*+]|\d+\.)\s+(?:\[[ xX]\]\s+)?/gm, '')
+    .replace(/^\s*(?:[-*+]|\d+\.)\s+(?:\[[ xXoOhH]\]\s+)?/gm, '')
     .replace(/(?:📅\s*|\bdue:)\d{4}-\d{2}-\d{2}|(?:🔁\s*|\bevery:)\S+|✅\s*\d{4}-\d{2}-\d{2}/g, '')
     .replace(/[*_`>~]|!\[[^\]]*\]\([^)]*\)/g, '')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')

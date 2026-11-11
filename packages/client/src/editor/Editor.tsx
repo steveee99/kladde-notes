@@ -9,6 +9,8 @@ import type { SyntaxNode } from '@lezer/common';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 import { tags as t } from '@lezer/highlight';
 import { livePreview, noteIdFacet, previewAll, refreshEffect } from './livePreview';
+import { statusTaskList } from './taskStatus';
+import { useLigatures } from '../lib/prefs';
 import { sourceHighlight } from './sourceHighlight';
 import { editorHost } from './host';
 import { merge3, textChanges } from '@kladde/shared';
@@ -201,6 +203,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   const lockedEverywhere = useReadOnly();
   const locked = readOnly || lockedEverywhere;
   const lang = useLang();
+  const ligatures = useLigatures();
   const lockConf = useRef(new Compartment());
   const placeholderConf = useRef(new Compartment());
   const previewConf = useRef(new Compartment());
@@ -230,7 +233,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
         extensions: [
           history(),
           keymap.of([...formatKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
-          markdown({ base: markdownLanguage, codeLanguages: languages }),
+          markdown({ base: markdownLanguage, codeLanguages: languages, extensions: [statusTaskList] }),
           proseTheme,
           EditorView.lineWrapping,
           noteIdFacet.of(docKey),
@@ -306,8 +309,8 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   }, [value]);
 
   useEffect(() => {
-    view.current?.dispatch({ effects: refreshEffect.of(stamp + (lang === 'en' ? 1_000_000 : 0)) });
-  }, [stamp, lang]);
+    view.current?.dispatch({ effects: refreshEffect.of(stamp + (lang === 'en' ? 1_000_000 : 0) + (ligatures ? 0 : 2_000_000)) });
+  }, [stamp, lang, ligatures]);
 
   return <div ref={host} className="wz-editor" />;
 }
@@ -316,7 +319,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
 
 export function insertAtLineStart(view: EditorView, prefix: string) {
   const line = view.state.doc.lineAt(view.state.selection.main.head);
-  const existing = /^(\s*)(#{1,6}\s|[-*+]\s\[[ xX]\]\s|[-*+]\s|>\s|\d+\.\s)?/.exec(line.text)!;
+  const existing = /^(\s*)(#{1,6}\s|[-*+]\s\[[ xXoOhH]\]\s|[-*+]\s|>\s|\d+\.\s)?/.exec(line.text)!;
   const from = line.from + existing[1].length;
   const to = from + (existing[2]?.length ?? 0);
   const insert = existing[2] === prefix ? '' : prefix;

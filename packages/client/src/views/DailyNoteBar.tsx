@@ -454,7 +454,7 @@ export function DailyCarryOver({ noteId, date }: { noteId: string; date: string 
         if (tk.done) continue;
         parent = { line: tk.line, depth: depth(lines[tk.line]) };
         // Only the task's name: leftover list/checkbox markers ("- [ ]") are left out
-        const text = tk.text.replace(/^(?:[-*+]?\s*\[[ xX]?\]\s*|[-*+]\s+)+/, '').trim() || tk.text;
+        const text = tk.text.replace(/^(?:[-*+]?\s*\[[ xXoOhH]?\]\s*|[-*+]\s+)+/, '').trim() || tk.text;
         out.push({ noteId: n.id, line: tk.line, text, date: d, due: tk.due });
       }
     }

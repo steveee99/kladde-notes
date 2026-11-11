@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
 import {
+  ArrowRight,
   Bot,
   CalendarDays,
   CalendarCheck,
@@ -48,7 +49,7 @@ import {
 } from '@kladde/shared';
 import { api, deleteAvatar, uploadAvatar } from '../lib/api';
 import { folderDisplayName, Lang, locale, setLang, tl, useLang } from '../lib/i18n';
-import { setInboxZero, useInboxZero } from '../lib/prefs';
+import { setInboxZero, setLigatures, useInboxZero, useLigatures } from '../lib/prefs';
 import { useReadOnly } from '../lib/readOnly';
 import { DEFAULT_PERCENT, MAX_PERCENT, MIN_PERCENT, setWidescreen, useWidescreen, WIDESCREEN_PRESETS } from '../lib/widescreen';
 import { useVault, vault } from '../data/vault';
@@ -165,6 +166,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
   const loc = locale(lang);
   const widescreen = useWidescreen();
   const inboxZero = useInboxZero();
+  const ligatures = useLigatures();
   const locked = useReadOnly();
   const features = vault.features();
   const folders = vault.folders();
@@ -301,6 +303,22 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
             label={tl(lang, 'settings.inboxZeroLabel')}
             onChange={setInboxZero}
           />
+        </div>
+
+        <hr className="my-5 border-line" />
+
+        {/* Ligatures in the editor (display only) */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            <ArrowRight size={18} className="mt-0.5 shrink-0 text-accent" />
+            <div className="min-w-0 flex-1">
+              <label htmlFor="ligatures-switch" className="cursor-pointer text-sm font-semibold">
+                {tl(lang, 'settings.ligaturesTitle')}
+              </label>
+              <p className="text-xs text-muted">{tl(lang, 'settings.ligaturesDesc')}</p>
+            </div>
+          </div>
+          <Switch id="ligatures-switch" checked={ligatures} label={tl(lang, 'settings.ligaturesLabel')} onChange={setLigatures} />
         </div>
 
         <hr className="my-5 border-line" />

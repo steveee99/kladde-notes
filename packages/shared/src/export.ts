@@ -270,12 +270,12 @@ export function parseMarkdownForExport(title: string, content: string): ExportDo
     }
 
     // Ordered or unordered / task list
-    const listStart = /^(\s*)(?:([-*+])|(\d+)[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/.exec(line);
+    const listStart = /^(\s*)(?:([-*+])|(\d+)[.)])\s+(?:\[([ xXoOhH])\]\s+)?(.*)$/.exec(line);
     if (listStart) {
       const ordered = !!listStart[3];
       const items: ExportListItem[] = [];
       while (i < lines.length) {
-        const m = /^(\s*)(?:([-*+])|(\d+)[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/.exec(lines[i]);
+        const m = /^(\s*)(?:([-*+])|(\d+)[.)])\s+(?:\[([ xXoOhH])\]\s+)?(.*)$/.exec(lines[i]);
         if (!m) break;
         const itemOrdered = !!m[3];
         if (items.length > 0 && m[1].length === 0 && itemOrdered !== ordered) break;

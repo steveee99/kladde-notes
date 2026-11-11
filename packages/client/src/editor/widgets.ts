@@ -11,11 +11,14 @@ import {
   serializeMarkdownTable,
   setFrontmatter,
   setTableCell,
+  setTaskStatus,
+  TASK_STATUSES,
   toDateString,
   toggleTask,
   type MarkdownTable,
   type NoteHeading,
   type QueryResult,
+  type TaskStatus,
 } from '@kladde/shared';
 import { getLang, locale, tl, type Lang } from '../lib/i18n';
 import { dataTable, openTableCell, parseMarkdownTable, stripInline, type CellRef, type TableEditing } from './datatable';
@@ -462,33 +465,100 @@ export class CodeHeaderWidget extends WidgetType {
   }
 }
 
+/**
+ * Task checkbox: [ ] open, [O] in progress, [H] blocked, [x] done. A click finishes the task (or reopens a
+ * done one); the context menu (right click / long press) picks any status.
+ */
 export class CheckboxWidget extends WidgetType {
   constructor(
-    readonly checked: boolean,
+    readonly status: TaskStatus,
     readonly line: number,
-    readonly locked = false
+    readonly locked = false,
+    readonly lang: Lang = getLang()
   ) {
     super();
   }
   eq(other: CheckboxWidget) {
-    return other.checked === this.checked && other.line === this.line && other.locked === this.locked;
+    return other.status === this.status && other.line === this.line && other.locked === this.locked && other.lang === this.lang;
   }
   toDOM(view: EditorView) {
     const box = document.createElement('input');
     box.type = 'checkbox';
     box.className = 'cm-checkbox';
-    box.checked = this.checked;
+    box.dataset.status = this.status;
+    box.checked = this.status === 'done';
     box.disabled = this.locked;
+    box.title = tl(this.lang, `task.status.${this.status}`);
     box.addEventListener('mousedown', (e) => e.preventDefault());
     box.addEventListener('click', (e) => {
       e.preventDefault();
       if (!view.state.readOnly) toggleLine(view, this.line);
+    });
+    box.addEventListener('contextmenu', (e) => {
+      if (view.state.readOnly) return;
+      e.preventDefault();
+      openStatusMenu(box, this.status, this.lang, (status) => setLineStatus(view, this.line, status));
     });
     return box;
   }
   ignoreEvent() {
     return true;
   }
+}
+
+/** Small menu below `anchor` to pick a task status */
+export function openStatusMenu(anchor: HTMLElement, current: TaskStatus, lang: Lang, pick: (status: TaskStatus) => void) {
+  document.querySelector('.wz-status-menu')?.remove();
+  const menu = document.createElement('div');
+  menu.className = 'wz-status-menu card';
+  menu.setAttribute('role', 'menu');
+  const close = () => {
+    menu.remove();
+    document.removeEventListener('pointerdown', outside, true);
+    document.removeEventListener('keydown', onKey, true);
+  };
+  const outside = (e: Event) => {
+    if (!menu.contains(e.target as Node)) close();
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') close();
+  };
+  for (const status of TASK_STATUSES) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.setAttribute('role', 'menuitemradio');
+    item.setAttribute('aria-checked', String(status === current));
+    const dot = document.createElement('span');
+    dot.className = 'cm-checkbox';
+    dot.dataset.status = status;
+    const label = document.createElement('span');
+    label.textContent = tl(lang, `task.status.${status}`);
+    item.append(dot, label);
+    item.addEventListener('mousedown', (e) => e.preventDefault());
+    item.addEventListener('click', () => {
+      close();
+      if (status !== current) pick(status);
+    });
+    menu.append(item);
+  }
+  document.body.append(menu);
+  const r = anchor.getBoundingClientRect();
+  const w = menu.offsetWidth;
+  const h = menu.offsetHeight;
+  menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
+  menu.style.top = `${r.bottom + 6 + h > window.innerHeight - 8 ? Math.max(8, r.top - 6 - h) : r.bottom + 6}px`;
+  document.addEventListener('pointerdown', outside, true);
+  document.addEventListener('keydown', onKey, true);
+}
+
+/** Rewrites the status of the task in `lineIndex` as one minimal change */
+function setLineStatus(view: EditorView, lineIndex: number, status: TaskStatus) {
+  const doc = view.state.doc;
+  const oldLines = doc.toString().split('\n');
+  const newLines = setTaskStatus(doc.toString(), lineIndex, status).split('\n');
+  const added = newLines.length - oldLines.length;
+  const line = doc.line(lineIndex + 1);
+  view.dispatch({ changes: { from: line.from, to: line.to, insert: newLines.slice(lineIndex, lineIndex + 1 + added).join('\n') } });
 }
 
 /** Ticks a task with the shared logic (repeating tasks get their next occurrence) as one minimal change */
@@ -814,6 +884,22 @@ export class SimpleWidget extends WidgetType {
     const s = document.createElement('span');
     s.className = this.kind === 'hr' ? 'cm-hr' : 'cm-bullet';
     if (this.kind === 'bullet') s.textContent = '•';
+    return s;
+  }
+}
+
+/** A ligature shown in place of its characters (-> as →); the text itself stays unchanged */
+export class LigatureWidget extends WidgetType {
+  constructor(readonly char: string) {
+    super();
+  }
+  eq(o: LigatureWidget) {
+    return o.char === this.char;
+  }
+  toDOM() {
+    const s = document.createElement('span');
+    s.className = 'cm-ligature';
+    s.textContent = this.char;
     return s;
   }
 }
