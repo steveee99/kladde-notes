@@ -13,6 +13,7 @@ import { sourceHighlight } from './sourceHighlight';
 import { editorHost } from './host';
 import { merge3, textChanges } from '@kladde/shared';
 import { slashCompletion } from './slash';
+import { remoteCursors } from './remoteCursors';
 import { useReadOnly } from '../lib/readOnly';
 import { t as i18n, useLang } from '../lib/i18n';
 
@@ -188,9 +189,11 @@ export interface EditorProps {
   autoFocus?: boolean;
   /** Code view: raw Markdown without live preview */
   source?: boolean;
+  /** Synced note: shows the cursors of the other devices/tabs on it and reports this one's */
+  presenceNote?: string;
 }
 
-export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false }: EditorProps) {
+export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const changeRef = useRef(onChange);
@@ -243,6 +246,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
             timer = setTimeout(flush, 350);
           }),
           EditorView.domEventHandlers({ blur: () => flush() }),
+          presenceNote ? remoteCursors(presenceNote) : [],
         ],
       }),
     });

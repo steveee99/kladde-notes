@@ -57,6 +57,32 @@ describe('Presence', () => {
     expect(presence.viewers('note-0001')).toEqual([]);
   });
 
+  it('passes cursors on to everybody on the note and remembers them for newcomers', () => {
+    const { presence, sent, anna, ben, carl } = setup();
+    presence.announce(anna.id, 'laptop-01', 'note-0001');
+    expect(presence.cursor(anna.id, 'laptop-01', 'note-0001', { head: 3, anchor: 1, ctx: 'ab' })).toBe(true);
+    const last = sent[sent.length - 1];
+    expect(last.event).toBe('cursor');
+    expect(last.data).toEqual({ noteId: 'note-0001', cursor: { clientId: 'laptop-01', userId: anna.id, head: 3, anchor: 1, ctx: 'ab' } });
+    expect(last.to.sort()).toEqual([anna.id, ben.id].sort());
+    // A heartbeat keeps it; a newcomer gets it with the presence update
+    presence.announce(anna.id, 'laptop-01', 'note-0001');
+    expect(presence.announce(ben.id, 'tablet-01', 'note-0001')?.cursors).toEqual([expect.objectContaining({ clientId: 'laptop-01', head: 3 })]);
+    // Only for the note the client has open, only for users who may see it
+    expect(presence.cursor(ben.id, 'tablet-01', 'note-0002', { head: 0, anchor: 0, ctx: '' })).toBe(false);
+    expect(presence.cursor(carl.id, 'desk-0001', 'note-0001', { head: 0, anchor: 0, ctx: '' })).toBe(false);
+    // Leaving takes the cursor away
+    presence.leave(anna.id, 'laptop-01');
+    expect(presence.cursors('note-0001')).toEqual([]);
+  });
+
+  it('rejects malformed cursors', () => {
+    expect(Presence.validCursor({ head: 1, anchor: 0, ctx: 'x' })).toEqual({ head: 1, anchor: 0, ctx: 'x' });
+    expect(Presence.validCursor({ head: -1, anchor: 0, ctx: '' })).toBeNull();
+    expect(Presence.validCursor({ head: 1.5, anchor: 0, ctx: '' })).toBeNull();
+    expect(Presence.validCursor({ head: 1, anchor: 0, ctx: 'x'.repeat(25) })).toBeNull();
+  });
+
   it('rejects malformed client ids', () => {
     expect(Presence.validClient('ok-client-1')).toBe(true);
     expect(Presence.validClient('x')).toBe(false);

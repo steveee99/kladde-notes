@@ -201,6 +201,13 @@ class Vault {
         // malformed event: ignore
       }
     });
+    this.events.addEventListener('cursor', (e) => {
+      try {
+        presence.receiveCursor(JSON.parse((e as MessageEvent<string>).data));
+      } catch {
+        // malformed event: ignore
+      }
+    });
   }
 
   // ------------------------------------------------------------------ queries

@@ -1,5 +1,5 @@
 import express, { Response } from 'express';
-import type { AttachmentInfo, DeleteFilesResponse, Me, PresenceAnnounce, PushChange } from '@kladde/shared';
+import type { AttachmentInfo, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange } from '@kladde/shared';
 import { Presence } from './Presence.js';
 import { attachmentUsageMap } from './cliActions.js';
 import { AvatarStore, MAX_AVATAR_BYTES } from './AvatarStore.js';
@@ -131,6 +131,18 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       return;
     }
     res.json(presence.announce(req.user!.id, clientId, noteId));
+  });
+
+  // Where a device/tab's cursor is; everybody on the note sees it
+  router.post('/presence/cursor', (req, res) => {
+    const body = (req.body ?? {}) as Partial<CursorAnnounce>;
+    const clientId = typeof body.clientId === 'string' ? body.clientId : '';
+    const pos = Presence.validCursor(body);
+    if (!Presence.validClient(clientId) || typeof body.noteId !== 'string' || !pos) {
+      res.status(400).json({ error: 'Ungültige Cursor-Position.' });
+      return;
+    }
+    res.json({ ok: presence.cursor(req.user!.id, clientId, body.noteId, pos) });
   });
 
   router.get('/sync', (req, res) => {
