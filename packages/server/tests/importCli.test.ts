@@ -110,7 +110,7 @@ describe('import CLI', () => {
     const before = ownNotes().length;
     const filesBefore = ctx.files.listByOwner(anna.id).length;
     const { io: cli, out } = io();
-    expect(await runImportCli([vault, 'Import', '--url', base, '--dry-run'], cli)).toBe(0);
+    expect(await runImportCli([vault, 'Import', '--url', base, '--allow-insecure', '--dry-run'], cli)).toBe(0);
     expect(out.join('\n')).toContain('2 neue Notizen');
     expect(ownNotes().length).toBe(before);
     expect(ctx.files.listByOwner(anna.id).length).toBe(filesBefore);
@@ -119,17 +119,17 @@ describe('import CLI', () => {
   it('aborts without a terminal unless --yes, and when the answer is no', async () => {
     const before = ownNotes().length;
     const noTty = io();
-    expect(await runImportCli([vault, 'Import', '--url', base], noTty.io)).toBe(1);
+    expect(await runImportCli([vault, 'Import', '--url', base, '--allow-insecure'], noTty.io)).toBe(1);
     expect(noTty.err.join('\n')).toContain('--yes');
     const no = io({ isTTY: true, ask: async () => 'n' });
-    expect(await runImportCli([vault, 'Import', '--url', base], no.io)).toBe(0);
+    expect(await runImportCli([vault, 'Import', '--url', base, '--allow-insecure'], no.io)).toBe(0);
     expect(no.out.join('\n')).toContain('Abgebrochen');
     expect(ownNotes().length).toBe(before);
   });
 
   it('imports new notes and only linked attachments, then skips everything on a second run', async () => {
     const { io: cli, out } = io({ isTTY: true, ask: async () => 'J' });
-    expect(await runImportCli([vault, 'Import', '--url', `${base}/`], cli)).toBe(0);
+    expect(await runImportCli([vault, 'Import', '--url', `${base}/`, '--allow-insecure'], cli)).toBe(0);
     expect(out.join('\n')).toContain('Fertig: 2 Notizen angelegt, 2 übersprungen, 2 Anhänge hochgeladen, 3 ignoriert, 0 Fehler.');
 
     const uploaded = ctx.files.listByOwner(anna.id);
@@ -144,7 +144,7 @@ describe('import CLI', () => {
     expect(ownNotes().find((n) => n.path === 'Import/Nur hier.md')!.content).toBe('schon da');
 
     const again = io({ ask: async () => { throw new Error('should not ask'); } });
-    expect(await runImportCli([vault, 'Import', '--url', base], again.io)).toBe(0);
+    expect(await runImportCli([vault, 'Import', '--url', base, '--allow-insecure'], again.io)).toBe(0);
     const text = again.out.join('\n');
     expect(text).toContain('0 neue Notizen, 0 neue Anhänge, 4 übersprungen');
     expect(text).toContain('Nichts Neues zu importieren.');
@@ -154,11 +154,11 @@ describe('import CLI', () => {
   it('fails clearly before writing on a wrong token, server, url or folder', async () => {
     const before = ownNotes().length;
     const wrong = io({ env: { KLADDE_IMPORT_TOKEN: 'kli_falsch' } });
-    expect(await runImportCli([vault, '--url', base, '--yes'], wrong.io)).toBe(1);
+    expect(await runImportCli([vault, '--url', base, '--allow-insecure', '--yes'], wrong.io)).toBe(1);
     expect(wrong.err.join('\n')).toContain('Import-Token ungültig oder widerrufen');
 
     const down = io();
-    expect(await runImportCli([vault, '--url', 'http://127.0.0.1:1', '--yes'], down.io)).toBe(1);
+    expect(await runImportCli([vault, '--url', 'http://127.0.0.1:1', '--allow-insecure', '--yes'], down.io)).toBe(1);
     expect(down.err.join('\n')).toContain('nicht erreichbar');
 
     const badUrl = io();
@@ -167,25 +167,25 @@ describe('import CLI', () => {
     expect(await runImportCli([vault], io().io)).toBe(1);
 
     const missing = io();
-    expect(await runImportCli([path.join(vault, 'gibtsnicht'), '--url', base], missing.io)).toBe(1);
+    expect(await runImportCli([path.join(vault, 'gibtsnicht'), '--url', base, '--allow-insecure'], missing.io)).toBe(1);
     expect(missing.err.join('\n')).toContain('Ordner nicht gefunden');
     const notDir = io();
-    expect(await runImportCli([path.join(vault, 'Reise.md'), '--url', base], notDir.io)).toBe(1);
+    expect(await runImportCli([path.join(vault, 'Reise.md'), '--url', base, '--allow-insecure'], notDir.io)).toBe(1);
     expect(notDir.err.join('\n')).toContain('Kein Ordner');
 
     const system = io();
-    expect(await runImportCli([vault, '.kladde', '--url', base], system.io)).toBe(1);
+    expect(await runImportCli([vault, '.kladde', '--url', base, '--allow-insecure'], system.io)).toBe(1);
     expect(system.err.join('\n')).toContain('.kladde');
 
     const noToken = io({ env: {} });
-    expect(await runImportCli([vault, '--url', base], noToken.io)).toBe(1);
+    expect(await runImportCli([vault, '--url', base, '--allow-insecure'], noToken.io)).toBe(1);
     expect(noToken.err.join('\n')).toContain('KLADDE_IMPORT_TOKEN');
     expect(ownNotes().length).toBe(before);
   });
 
   it('asks for the token on a terminal and never prints it', async () => {
     const prompted = io({ env: {}, isTTY: true, askHidden: async () => secret });
-    expect(await runImportCli([vault, 'Import', '--url', base, '--dry-run'], prompted.io)).toBe(0);
+    expect(await runImportCli([vault, 'Import', '--url', base, '--allow-insecure', '--dry-run'], prompted.io)).toBe(0);
     expect([...prompted.out, ...prompted.err].join('\n')).not.toContain(secret);
   });
 
@@ -193,7 +193,7 @@ describe('import CLI', () => {
     let calls = 0;
     const flaky: typeof fetch = async (input, init) => (++calls === 1 ? new Response('{}', { status: 429 }) : fetch(input, init));
     const { io: cli } = io({ fetch: flaky });
-    expect(await runImportCli([vault, 'Import', '--url', base, '--dry-run'], cli)).toBe(0);
+    expect(await runImportCli([vault, 'Import', '--url', base, '--allow-insecure', '--dry-run'], cli)).toBe(0);
     expect(calls).toBe(2);
   });
 
@@ -201,6 +201,19 @@ describe('import CLI', () => {
     const { io: cli, out } = io();
     expect(await runImportCli(['--help'], cli)).toBe(0);
     const text = out.join('\n');
-    for (const word of ['--url', '--dry-run', '--yes', 'KLADDE_IMPORT_TOKEN', 'Verwendung']) expect(text).toContain(word);
+    for (const word of ['--url', '--dry-run', '--yes', '--allow-insecure', 'KLADDE_IMPORT_TOKEN', 'Verwendung']) expect(text).toContain(word);
+  });
+
+  it('refuses http without --allow-insecure and warns with it', async () => {
+    const before = ownNotes().length;
+    const refused = io();
+    expect(await runImportCli([vault, 'Import', '--url', base, '--yes'], refused.io)).toBe(1);
+    expect(refused.err.join('\n')).toContain('--allow-insecure');
+    expect(refused.out).toEqual([]);
+    expect(ownNotes().length).toBe(before);
+
+    const allowed = io();
+    expect(await runImportCli([vault, 'Import', '--url', base, '--allow-insecure', '--dry-run'], allowed.io)).toBe(0);
+    expect(allowed.err.join('\n')).toContain('Warnung: unverschlüsselte Verbindung');
   });
 });

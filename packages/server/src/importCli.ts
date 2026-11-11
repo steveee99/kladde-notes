@@ -25,7 +25,7 @@ const BATCH_MAX_BYTES = 20 * 1024 * 1024;
 const MAX_RETRIES = 3;
 
 export const TOKEN_ENV = 'KLADDE_IMPORT_TOKEN';
-const MSG_UNAUTHORIZED = 'Import-Token ungültig oder widerrufen';
+const MSG_UNAUTHORIZED = 'Import-Token ungültig oder widerrufen (oder abgelaufen)';
 
 export interface ScannedFile {
   /** Absolute path */
@@ -97,7 +97,7 @@ export function helpText(): string {
     'Kladde Import – lokalen Ordner (z. B. Obsidian-Vault) in deinen Space importieren',
     '',
     'Verwendung:',
-    '  npm run import -- <ordner> [<zielordner>] --url <Kladde-URL> [--dry-run] [--yes]',
+    '  npm run import -- <ordner> [<zielordner>] --url <Kladde-URL> [--dry-run] [--yes] [--allow-insecure]',
     '',
     'Argumente:',
     '  <ordner>          Lokaler Ordner, wird rekursiv gelesen (versteckte Ordner wie .obsidian werden ignoriert)',
@@ -107,6 +107,7 @@ export function helpText(): string {
     '  --url <url>       Adresse deiner Kladde, z. B. https://kladde.example.org',
     '  --dry-run         Nur die Vorschau zeigen, nichts importieren',
     '  --yes, -y         Ohne Rückfrage importieren',
+    '  --allow-insecure  http-Adressen erlauben (das Token wird dann unverschlüsselt übertragen)',
     '  --help, -h        Diese Hilfe anzeigen',
     '',
     'Token:',
@@ -118,8 +119,8 @@ export function helpText(): string {
   ].join('\n');
 }
 
-/** http(s) URL without trailing slash */
-export function parseBaseUrl(raw: string | undefined): string {
+/** http(s) URL without trailing slash; http only with allowInsecure, because the token would travel in cleartext */
+export function parseBaseUrl(raw: string | undefined, allowInsecure = false): string {
   if (!raw) throw new CliError('Bitte die Adresse deiner Kladde mit --url angeben, z. B. --url https://kladde.example.org');
   let url: URL;
   try {
@@ -129,6 +130,11 @@ export function parseBaseUrl(raw: string | undefined): string {
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new CliError(`Ungültige --url "${raw}": erwartet wird eine http- oder https-Adresse.`);
+  }
+  if (url.protocol === 'http:' && !allowInsecure) {
+    throw new CliError(
+      `Unverschlüsselte Verbindung (${url.origin}): das Import-Token würde im Klartext übertragen. Nutze https oder bestätige mit --allow-insecure.`
+    );
   }
   return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
 }
@@ -381,6 +387,7 @@ export async function runImportCli(argv: string[], io: CliIo): Promise<number> {
           url: { type: 'string' },
           'dry-run': { type: 'boolean' },
           yes: { type: 'boolean', short: 'y' },
+          'allow-insecure': { type: 'boolean' },
           help: { type: 'boolean', short: 'h' },
         },
       });
@@ -394,7 +401,8 @@ export async function runImportCli(argv: string[], io: CliIo): Promise<number> {
     }
     const [srcArg, targetArg, ...extra] = positionals;
     if (!srcArg || extra.length) throw new CliError(`Bitte genau einen Quellordner und höchstens einen Zielordner angeben.\n\n${helpText()}`);
-    const baseUrl = parseBaseUrl(values.url);
+    const baseUrl = parseBaseUrl(values.url, values['allow-insecure']);
+    if (baseUrl.startsWith('http:')) io.err('Warnung: unverschlüsselte Verbindung (http) – das Import-Token wird im Klartext übertragen.');
     // npm run starts in the repo root; INIT_CWD is where the user called it
     const resolved = path.resolve(io.env.INIT_CWD ?? process.cwd(), srcArg);
     if (!fs.existsSync(resolved)) throw new CliError(`Ordner nicht gefunden: ${srcArg}`);
