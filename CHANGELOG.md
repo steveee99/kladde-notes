@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Behoben: Die untere Navigationsleiste auf dem Handy endet nicht mehr mit einem großen Leerraum über dem Bildschirmrand; die Beschriftungen rücken wie bei der iOS-Tab-Leiste in den Bereich des Home-Indikators.
+
 ## [0.31.0] – 2026-11-11
 
 - Neu: Ein Ordner lässt sich in der Ordneransicht mit „Löschen“ samt allen Notizen und Unterordnern entfernen (nach Rückfrage mit der Zahl der Notizen). Eingang, PARA-Ordner, Zettelkasten und Daily Notes sind davon ausgenommen.
@@ -11,7 +13,6 @@ Alle nutzersichtbaren Änderungen an Kladde.
 - Geändert: Die Aufgaben auf der Startseite lassen Notizen im Archiv aus. Die Kanban-Spalte „Fertig“ zeigt nur noch Aufgaben, die heute oder gestern erledigt wurden.
 - Behoben: Die Checkboxen von Aufgaben stehen im Editor wieder auf einer Höhe – je nach Status (offen, in Arbeit, blockiert, fertig) saßen sie unterschiedlich hoch.
 - Behoben: Auf der Startseite stehen Aufgaben ohne Notiz mittig in ihrer Zeile bzw. Karte, ohne Leerraum darunter.
-- Behoben: Die untere Navigationsleiste auf dem Handy endet nicht mehr mit einem großen Leerraum über dem Bildschirmrand; die Beschriftungen rücken wie bei der iOS-Tab-Leiste in den Bereich des Home-Indikators.
 
 ## [0.30.0] – 2026-11-11
 
