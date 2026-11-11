@@ -191,6 +191,15 @@ export function createDailyDateExtractor(daily: Pick<DailySettings, 'folder' | '
   };
 }
 
+/**
+ * Due date for tasks without their own date: a task in a daily note belongs to that day.
+ * Returns null for every path while daily notes are turned off.
+ */
+export function dailyDueResolver(daily: DailySettings): (notePath: string) => string | null {
+  if (!daily.enabled) return () => null;
+  return createDailyDateExtractor(daily);
+}
+
 /** Extracts `YYYY-MM-DD` when `notePath` matches the configured daily note folder + format */
 export function extractDailyNoteDate(notePath: string, daily: Pick<DailySettings, 'folder' | 'format'>): string | null {
   return createDailyDateExtractor(daily)(notePath);

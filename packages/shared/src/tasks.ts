@@ -19,6 +19,8 @@ export interface Task {
   repeat: string | null;
   /** Indentation + list marker, kept when rewriting */
   indent: string;
+  /** The due date is not written in the task but comes from its note (a daily note's date) */
+  dueFromNote?: boolean;
 }
 
 const TASK_LINE = /^(\s*[-*+]\s+)\[([ xX])\]\s+(.*)$/;
@@ -49,7 +51,11 @@ function addDays(d: Date, n: number): Date {
   return r;
 }
 
-export function parseTasks(content: string, today = new Date()): Task[] {
+/**
+ * `defaultDue` is the due date of tasks that name none themselves: tasks in a daily note belong to
+ * that day (see `dailyDueResolver`).
+ */
+export function parseTasks(content: string, today = new Date(), defaultDue: string | null = null): Task[] {
   const tasks: Task[] = [];
   let inFence = false;
   content.split('\n').forEach((raw, line) => {
@@ -67,9 +73,10 @@ export function parseTasks(content: string, today = new Date()): Task[] {
       line,
       text,
       done: m[2] !== ' ',
-      due: due ? resolveDue(due[1], today) : null,
+      due: due ? resolveDue(due[1], today) : defaultDue,
       repeat: repeat ? repeat[1].trim() : null,
       indent: m[1],
+      ...(!due && defaultDue ? { dueFromNote: true } : {}),
     });
   });
   return tasks;
@@ -187,4 +194,34 @@ export function setTaskMeta(content: string, line: number, meta: { due?: string 
   }
   lines[line] = `${m[1]}[${m[2]}] ${rest.trim()}${doneDate}`;
   return lines.join('\n');
+}
+
+/**
+ * Takes the task in `line` out of `content`, together with the lines below it that are indented
+ * deeper (subtasks, notes). The block comes back with its common indentation removed.
+ */
+export function takeTaskBlock(content: string, line: number): { content: string; block: string[] } | null {
+  const lines = content.split('\n');
+  const raw = lines[line];
+  const m = raw !== undefined ? TASK_LINE.exec(raw) : null;
+  if (!m) return null;
+  const depth = (s: string) => /^\s*/.exec(s)![0].replace(/\t/g, '    ').length;
+  const base = depth(raw);
+  let end = line + 1;
+  while (end < lines.length && lines[end].trim() !== '' && depth(lines[end]) > base) end++;
+  const block = lines.splice(line, end - line).map((l) => {
+    const strip = Math.min(base, /^\s*/.exec(l)![0].length);
+    return l.slice(strip);
+  });
+  return { content: lines.join('\n'), block };
+}
+
+/** Appends task lines at the end of `content` (directly below a list that ends the note) */
+export function appendTaskLines(content: string, lines: string[]): string {
+  if (!lines.length) return content;
+  const body = content.replace(/\s+$/, '');
+  if (!body) return `${lines.join('\n')}\n`;
+  const last = body.slice(body.lastIndexOf('\n') + 1);
+  const sep = /^\s*[-*+]\s/.test(last) ? '\n' : '\n\n';
+  return `${body}${sep}${lines.join('\n')}\n`;
 }

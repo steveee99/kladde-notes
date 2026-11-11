@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, ChevronLeft, ChevronRight, FilePlus2, FileText, Settings } from 'lucide-react';
+import { ArrowDownToLine, CalendarDays, ChevronLeft, ChevronRight, FilePlus2, FileText, ListTodo, Settings } from 'lucide-react';
 import {
   createDailyDateExtractor,
   isValidDateString,
   parseDate,
+  parseTasks,
   projectTitleOf,
   shiftDateString,
   splitPath,
@@ -14,6 +15,7 @@ import { useVault, vault } from '../data/vault';
 import { folderDisplayName, locale, tl, useLang, weekdaysShort } from '../lib/i18n';
 import { useReadOnly } from '../lib/readOnly';
 import { navigate } from '../lib/router';
+import { editorHost } from '../editor/host';
 
 interface PopoverCoords {
   top?: number;
@@ -403,5 +405,118 @@ export function DailyNoteEmptyView({ date }: { date?: string }) {
         </section>
       )}
     </div>
+  );
+}
+
+
+const CARRY_OPEN_KEY = 'kladde.carryOverOpen';
+
+/**
+ * Open tasks from daily notes before `date`, each with a button that moves it (with its subtasks)
+ * into the open daily note. Tasks without their own date then belong to the new day.
+ */
+export function DailyCarryOver({ noteId, date }: { noteId: string; date: string }) {
+  const version = useVault();
+  const lang = useLang();
+  const loc = locale(lang);
+  const locked = useReadOnly();
+  const { daily } = vault.features();
+  const [open, setOpenState] = useState(() => {
+    try {
+      return localStorage.getItem(CARRY_OPEN_KEY) !== '0';
+    } catch {
+      return true;
+    }
+  });
+  const setOpen = (v: boolean) => {
+    setOpenState(v);
+    try {
+      localStorage.setItem(CARRY_OPEN_KEY, v ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  };
+  const extractDaily = useMemo(() => createDailyDateExtractor(daily), [daily.folder, daily.format]);
+  const dayFmt = useMemo(() => new Intl.DateTimeFormat(loc, { weekday: 'short', day: '2-digit', month: '2-digit' }), [loc]);
+
+  const tasks = useMemo(() => {
+    const out: { noteId: string; line: number; text: string; date: string; due: string | null }[] = [];
+    for (const n of vault.list()) {
+      if (n.access !== 'owner' || n.id === noteId) continue;
+      const d = extractDaily(n.path);
+      if (!d || d >= date) continue;
+      const lines = n.content.split('\n');
+      const depth = (l: string) => /^\s*/.exec(l)![0].length;
+      let parent: { line: number; depth: number } | null = null;
+      for (const tk of parseTasks(n.content)) {
+        // Subtasks of an open task travel with it (takeTaskBlock takes the deeper lines along)
+        if (parent && depth(lines[tk.line]) > parent.depth && lines.slice(parent.line + 1, tk.line).every((l) => l.trim() && depth(l) > parent!.depth)) continue;
+        if (tk.done) continue;
+        parent = { line: tk.line, depth: depth(lines[tk.line]) };
+        out.push({ noteId: n.id, line: tk.line, text: tk.text, date: d, due: tk.due });
+      }
+    }
+    return out.sort((a, b) => a.date.localeCompare(b.date) || a.line - b.line);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version, extractDaily, date, noteId]);
+
+  if (locked || !tasks.length) return null;
+
+  const isToday = date === toDateString(new Date());
+  const carry = (items: { noteId: string; line: number }[]) => {
+    editorHost.flush();
+    void vault.carryOverTasks(noteId, items);
+  };
+
+  return (
+    <section className="no-print mb-4 rounded-2xl border border-line bg-surface/60 anim-fade-in" aria-label={tl(lang, 'daily.carryTitle', { n: tasks.length })}>
+      <div className="flex items-center gap-2 px-3 py-2">
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-medium text-ink"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          <ChevronRight size={16} className={`shrink-0 text-faint transition-transform duration-150 ${open ? 'rotate-90' : ''}`} />
+          <ListTodo size={16} className="shrink-0 text-accent" />
+          <span className="truncate">{tl(lang, 'daily.carryTitle', { n: tasks.length })}</span>
+        </button>
+        {tasks.length > 1 && (
+          <button type="button" className="chip shrink-0 px-2.5 py-1 text-xs text-accent transition-colors hover:bg-accent/12" onClick={() => carry(tasks)}>
+            <ArrowDownToLine size={13} /> {tl(lang, 'daily.carryAll')}
+          </button>
+        )}
+      </div>
+      {open && (
+        <ul className="max-h-64 divide-y divide-line/60 overflow-y-auto border-t border-line/60 scrollbar-thin">
+          {tasks.map((tk) => (
+            <li key={`${tk.noteId}:${tk.line}`} className="flex items-center gap-2 px-3 py-1.5 text-sm">
+              <button
+                type="button"
+                className="shrink-0 rounded-md px-1 text-xs tabular-nums text-faint hover:text-accent"
+                title={tl(lang, 'daily.carryOpenSource')}
+                onClick={() => navigate(`/n/${tk.noteId}?line=${tk.line + 1}`)}
+              >
+                {dayFmt.format(parseDate(tk.date))}
+              </button>
+              <span className="min-w-0 flex-1 truncate" title={tk.text}>
+                {tk.text}
+              </span>
+              {tk.due && tk.due !== tk.date && <span className="chip hidden shrink-0 text-[11px] sm:inline-flex">📅 {tk.due}</span>}
+              <button
+                type="button"
+                className="btn-ghost shrink-0 px-2 py-1 text-xs text-accent"
+                title={tl(lang, isToday ? 'daily.carryToToday' : 'daily.carryToThis')}
+                aria-label={`${tl(lang, isToday ? 'daily.carryToToday' : 'daily.carryToThis')}: ${tk.text}`}
+                onClick={() => carry([tk])}
+              >
+                <ArrowDownToLine size={14} />
+                <span className="hidden sm:inline">{tl(lang, isToday ? 'daily.carryToToday' : 'daily.carryToThis')}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

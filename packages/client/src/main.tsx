@@ -4,7 +4,7 @@ import ReactDOM from 'react-dom/client';
 import { App } from './App';
 import { applyTheme } from './lib/theme';
 import { justUpdated, keepUpToDate } from './lib/update';
-import { fitShortViewport, pinViewport, recordStartupReport } from './lib/viewport';
+import { fitKeyboardViewport, fitShortViewport, pinViewport, recordStartupReport } from './lib/viewport';
 import './index.css';
 
 // After an update the app reappears as it was, without every list fading in again
@@ -15,6 +15,7 @@ if (justUpdated()) {
 applyTheme();
 pinViewport();
 fitShortViewport();
+fitKeyboardViewport();
 recordStartupReport();
 keepUpToDate();
 

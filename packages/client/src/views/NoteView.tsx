@@ -6,6 +6,7 @@ import {
   Bold,
   CalendarPlus,
   Check,
+  CheckCircle2,
   CheckSquare,
   ChevronDown,
   ChevronRight,
@@ -32,6 +33,7 @@ import {
   Printer,
   Share2,
   Star,
+  Tags,
   Trash2,
   Undo2,
   X,
@@ -42,6 +44,8 @@ import {
   extractDailyNoteDate,
   extractHeadings,
   isFolderProjectHome,
+  isProjectNote,
+  isSingleProjectFile,
   projectTitleOf,
   safeExportFilename,
   splitPath,
@@ -57,6 +61,7 @@ import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
 import { Editor, insertAtLineStart, insertText, toggleCode, toggleWrap, wrapSelection } from '../editor/Editor';
 import { editorHost } from '../editor/host';
+import { applyFrontmatter } from '../editor/widgets';
 import { ShareDialog } from './ShareDialog';
 import { HistoryDialog } from './History';
 import { ParaBar } from './ParaBar';
@@ -68,7 +73,7 @@ import { folderDisplayName, t, useLang, type Lang } from '../lib/i18n';
 import { setNoteSplitOpen, setNoteSplitTab, setSourceMode, useNoteSplitOpen, useNoteSplitTab, useSourceMode, type NoteSplitTab } from '../lib/prefs';
 import { isCoarsePointer } from '../lib/viewport';
 import { useRightPaneHost } from './MaterialShell';
-import { DailyNoteBar } from './DailyNoteBar';
+import { DailyCarryOver, DailyNoteBar } from './DailyNoteBar';
 
 const IS_APPLE = /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -243,7 +248,38 @@ function MobileBreadcrumbMenu({ folderSegments, lang }: { folderSegments: string
   );
 }
 
-/** Material 3 three-dot overflow menu: Share, History, Export (submenu), Move, Delete */
+/** One entry of the overflow menu */
+function MenuItem({
+  icon: Icon,
+  label,
+  onClick,
+  active,
+  iconClass = 'text-muted',
+  className = 'text-ink hover:bg-surface',
+}: {
+  icon: typeof Bold;
+  label: string;
+  onClick: () => void;
+  active?: boolean;
+  iconClass?: string;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role={active === undefined ? 'menuitem' : 'menuitemcheckbox'}
+      aria-checked={active}
+      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${className}`}
+      onClick={onClick}
+    >
+      <Icon size={16} className={`shrink-0 ${iconClass}`} fill={Icon === Star && active ? 'currentColor' : 'none'} />
+      <span className="flex-1">{label}</span>
+      {active && <Check size={15} className="shrink-0 text-accent" />}
+    </button>
+  );
+}
+
+/** Material 3 three-dot overflow menu: copy, favorite, code view, project actions, Share, History, Export, Move, Delete */
 function NoteOverflowMenu({
   title,
   content,
@@ -254,6 +290,14 @@ function NoteOverflowMenu({
   onHistory,
   onMove,
   onDelete,
+  onCopy,
+  favorite,
+  onToggleFavorite,
+  sourceMode,
+  onToggleSource,
+  onFinishProject,
+  onConvertProject,
+  onAddProperty,
 }: {
   title: string;
   content: string;
@@ -264,6 +308,19 @@ function NoteOverflowMenu({
   onHistory: () => void;
   onMove: () => void;
   onDelete: () => void;
+  onCopy: () => void;
+  /** null: favorites are turned off */
+  favorite: boolean | null;
+  onToggleFavorite: () => void;
+  /** null: the note cannot be edited, so there is no code view */
+  sourceMode: boolean | null;
+  onToggleSource: () => void;
+  /** Only for project notes the user owns */
+  onFinishProject?: () => void;
+  /** Only for single-file projects */
+  onConvertProject?: () => void;
+  /** Only for editable notes */
+  onAddProperty?: () => void;
 }) {
   useLang();
   const [open, setOpen] = useState(false);
@@ -377,6 +434,70 @@ function NoteOverflowMenu({
             style={{ top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? 'visible' : 'hidden' }}
             className="no-print fixed z-[90] w-60 rounded-2xl border border-line/70 bg-raised p-1.5 shadow-soft anim-fade-in"
           >
+            <MenuItem
+              icon={Copy}
+              label={t('note.copyMarkdownMenu')}
+              onClick={() => {
+                setOpen(false);
+                onCopy();
+              }}
+            />
+            {favorite !== null && (
+              <MenuItem
+                icon={Star}
+                label={t('favorites.menuLabel')}
+                active={favorite}
+                iconClass={favorite ? 'text-warn' : 'text-muted'}
+                onClick={() => {
+                  setOpen(false);
+                  onToggleFavorite();
+                }}
+              />
+            )}
+            {sourceMode !== null && (
+              <MenuItem
+                icon={FileCode}
+                label={t('note.sourceModeMenu')}
+                active={sourceMode}
+                onClick={() => {
+                  setOpen(false);
+                  onToggleSource();
+                }}
+              />
+            )}
+            {onAddProperty && (
+              <MenuItem
+                icon={Tags}
+                label={t('note.addProperty')}
+                onClick={() => {
+                  setOpen(false);
+                  onAddProperty();
+                }}
+              />
+            )}
+            {(onFinishProject || onConvertProject) && <div className="my-1 border-t border-line/80" />}
+            {onConvertProject && (
+              <MenuItem
+                icon={FolderInput}
+                label={t('para.convertFolderBtn')}
+                onClick={() => {
+                  setOpen(false);
+                  onConvertProject();
+                }}
+              />
+            )}
+            {onFinishProject && (
+              <MenuItem
+                icon={CheckCircle2}
+                label={t('para.finishMenu')}
+                iconClass="text-ok"
+                onClick={() => {
+                  setOpen(false);
+                  onFinishProject();
+                }}
+              />
+            )}
+            <div className="my-1 border-t border-line/80" />
             {canShare && (
               <button
                 type="button"
@@ -800,6 +921,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const { folder } = splitPath(note.path);
   const folderSegments = folder ? folder.split('/') : [];
   const features = vault.features();
+  const isProject = isOwner && features.para.enabled && isProjectNote(note.path, rc);
+  const isSingleProject = isProject && isSingleProjectFile(note.path, rc);
   const dailyDate = features.daily.enabled && note.access === 'owner' ? extractDailyNoteDate(note.path, features.daily) : null;
   const index = vault.links();
   const backlinks = index.backlinks(id).map((b) => vault.get(b)!).filter(Boolean);
@@ -892,39 +1015,10 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                   <Lock size={15} className="mr-1 text-muted" />
                 </span>
               )}
-              <button
-                type="button"
-                onClick={() => void copyMarkdown()}
-                className={`btn-icon rounded-full transition-colors ${copiedMd ? 'bg-accent/15 text-accent' : ''}`}
-                title={copiedMd ? t('note.copyMarkdownDone') : t('note.copyMarkdownTitle')}
-                aria-label={t('note.copyMarkdownTitle')}
-              >
-                {copiedMd ? <Check size={18} /> : <Copy size={18} />}
-              </button>
-              {vault.features().favorites.enabled && (
-                <button
-                  type="button"
-                  onClick={() => void vault.toggleFavorite(id).catch(() => undefined)}
-                  aria-pressed={vault.isFavorite(id)}
-                  data-favorite-toggle
-                  className={`btn-icon rounded-full transition-colors ${vault.isFavorite(id) ? 'text-warn' : ''}`}
-                  title={vault.isFavorite(id) ? t('favorites.remove') : t('favorites.add')}
-                  aria-label={vault.isFavorite(id) ? t('favorites.remove') : t('favorites.add')}
-                >
-                  <Star size={18} fill={vault.isFavorite(id) ? 'currentColor' : 'none'} />
-                </button>
-              )}
-              {!readOnly && (
-                <button
-                  type="button"
-                  onClick={() => setSourceMode(!sourceMode)}
-                  aria-pressed={sourceMode}
-                  className={`btn-icon rounded-full transition-colors ${sourceMode ? 'bg-accent-container text-on-accent-container' : ''}`}
-                  title={sourceMode ? t('note.sourceModeOff') : t('note.sourceModeOn')}
-                  aria-label={t('note.sourceMode')}
-                >
-                  <FileCode size={18} />
-                </button>
+              {copiedMd && (
+                <span role="status" className="chip anim-fade-in text-accent">
+                  <Check size={13} /> {t('note.copyMarkdownDone')}
+                </span>
               )}
               <button
                 type="button"
@@ -946,6 +1040,21 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 onHistory={() => setShowHistory(true)}
                 onMove={() => setMoving(true)}
                 onDelete={handleDelete}
+                onCopy={() => void copyMarkdown()}
+                favorite={features.favorites.enabled ? vault.isFavorite(id) : null}
+                onToggleFavorite={() => void vault.toggleFavorite(id).catch(() => undefined)}
+                sourceMode={readOnly ? null : sourceMode}
+                onToggleSource={() => setSourceMode(!sourceMode)}
+                onFinishProject={isProject ? () => confirm(t('para.finishConfirm')) && void vault.archiveProject(id) : undefined}
+                onAddProperty={
+                  !readOnly && view
+                    ? () => {
+                        const key = prompt(t('note.addPropertyPrompt'))?.trim().replace(/:+$/, '');
+                        if (key) applyFrontmatter(view, { [key]: '' }, key);
+                      }
+                    : undefined
+                }
+                onConvertProject={isSingleProject ? () => void vault.convertProjectToFolder(id) : undefined}
               />
             </div>
           </div>
@@ -962,6 +1071,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           {dailyDate && (
             <div className="no-print">
               <DailyNoteBar date={dailyDate} />
+              {!readOnly && <DailyCarryOver noteId={id} date={dailyDate} />}
             </div>
           )}
 

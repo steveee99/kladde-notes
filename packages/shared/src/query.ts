@@ -199,7 +199,12 @@ function matches(values: Record<string, unknown>, c: Condition, today: Date): bo
   }
 }
 
-export function runQuery(src: string | Query, notes: QueryNote[], today = new Date()): QueryResult {
+export interface QueryOptions {
+  /** Due date of tasks that name none (daily notes: the note's date) */
+  defaultDue?: (path: string) => string | null;
+}
+
+export function runQuery(src: string | Query, notes: QueryNote[], today = new Date(), opts: QueryOptions = {}): QueryResult {
   const query = typeof src === 'string' ? parseQuery(src) : src;
   let rows: QueryRow[] = [];
   for (const note of notes) {
@@ -216,7 +221,7 @@ export function runQuery(src: string | Query, notes: QueryNote[], today = new Da
       updated: note.updatedAt,
     };
     if (query.mode === 'tasks') {
-      for (const t of parseTasks(note.content, today)) {
+      for (const t of parseTasks(note.content, today, opts.defaultDue?.(note.path) ?? null)) {
         rows.push({
           noteId: note.id,
           path: note.path,

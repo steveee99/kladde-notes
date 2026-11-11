@@ -37,11 +37,14 @@ import {
   renameWikiLinks,
   restoreTarget,
   setFrontmatter,
+  dailyDueResolver,
   toDateString,
   zettelId,
   normalizeDueWords,
   splitPath,
   toggleTask,
+  takeTaskBlock,
+  appendTaskLines,
   setTaskMeta,
   merge3,
 } from '@kladde/shared';
@@ -413,6 +416,11 @@ class Vault {
     };
   }
 
+  /** Due date of tasks without their own date: tasks in a daily note belong to its day */
+  taskDueResolver(): (path: string) => string | null {
+    return dailyDueResolver(this.features().daily);
+  }
+
   findDailyNote(date: Date | string = new Date()): LocalNote | undefined {
     const { daily } = this.features();
     if (!daily.enabled) return undefined;
@@ -708,6 +716,33 @@ class Vault {
   async toggleTask(id: string, line: number): Promise<void> {
     const note = this.get(id);
     if (note) await this.update(id, { content: toggleTask(note.content, line) });
+  }
+
+  /**
+   * Moves open tasks (with their subtasks) from other notes to the end of `targetId`, e.g. from
+   * earlier daily notes into today's. Items are taken in the given order.
+   */
+  async carryOverTasks(targetId: string, items: { noteId: string; line: number }[]): Promise<void> {
+    const target = this.get(targetId);
+    if (!target || isReadOnly()) return;
+    const moved = new Map<string, string[]>();
+    const byNote = new Map<string, number[]>();
+    for (const it of items) if (it.noteId !== targetId) byNote.set(it.noteId, [...(byNote.get(it.noteId) ?? []), it.line]);
+    for (const [noteId, lines] of byNote) {
+      const note = this.get(noteId);
+      if (!note || note.access === 'read') continue;
+      let content = note.content;
+      // From the bottom up, so the line numbers above stay valid
+      for (const line of [...lines].sort((a, b) => b - a)) {
+        const taken = takeTaskBlock(content, line);
+        if (!taken) continue;
+        content = taken.content;
+        moved.set(`${noteId}:${line}`, taken.block);
+      }
+      if (content !== note.content) await this.update(noteId, { content });
+    }
+    const lines = items.flatMap((it) => moved.get(`${it.noteId}:${it.line}`) ?? []);
+    if (lines.length) await this.update(targetId, { content: appendTaskLines(this.get(targetId)!.content, lines) });
   }
 
   private storedFolders(): string[] {
