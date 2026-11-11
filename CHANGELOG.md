@@ -5,7 +5,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 ## [Unveröffentlicht]
 
 - Neu: Suche in der Seitenleiste per Tastatur – Pfeiltasten ↑/↓ wandern durch die Treffer, Enter öffnet den markierten.
-- Neu: Favoriten (Opt-In unter Einstellungen → Funktionen): `Strg/⌘+D` oder der Stern im Notizkopf fügt die offene Notiz hinzu bzw. entfernt sie; die Favoriten stehen als eigene Liste links in der Seitenleiste und werden zwischen Geräten synchronisiert.
+- Neu: Favoriten (Opt-In unter Einstellungen → Funktionen): Der Stern im Notizkopf (oder `Strg/⌘+D`) fügt die offene Notiz hinzu bzw. entfernt sie. Sobald es Favoriten gibt, stehen sie als eigene Liste in der Seitenleiste und werden zwischen Geräten synchronisiert.
+- Geändert: Aufgeräumte Seitenleiste – die Navigation (Start, Tagesnotiz, Notizen, Inbox, Wissensnetz, Anhänge, Rückblick …) ist eine kompakte Icon-Reihe mit Tooltips und Zählern; „Favoriten“ und „Ordner“ lassen sich einklappen (pro Gerät gemerkt), die Favoriten zeigen höchstens fünf Einträge ohne Scrollen, und auf niedrigen Bildschirmen starten sie eingeklappt. So bleibt den Ordnern deutlich mehr Platz.
 - Neu: Tabellen in der Vorschau bearbeiten – Zelle anklicken und tippen (Tab/Shift+Tab/Enter springen weiter, Escape bricht ab), Spalten über das Menü ⋮ im Kopf einfügen, umbenennen und entfernen, Zeilen hinzufügen und entfernen. In der Markdown-Ansicht bleibt die Tabelle reiner Text.
 - Neu: Anmelden mit GitLab (GitLab.com oder eigene Instanz) über `GITLAB_CLIENT_ID`/`GITLAB_CLIENT_SECRET`, optional beschränkt auf Gruppen (`GITLAB_ALLOWED_GROUPS`). Bestehende Konten verknüpfen GitLab in den Einstellungen; neue Konten entstehen über einen Einladungslink oder mit `GITLAB_ALLOW_SIGNUP=1`. Anleitung in der README.
 - Geändert: Der Wochenrückblick ist jetzt ein Opt-In (Einstellungen → Funktionen); ohne ihn verschwinden „Rückblick“ in der Navigation und die Erinnerung auf der Startseite.
