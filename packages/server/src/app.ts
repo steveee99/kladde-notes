@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import type { DatabaseSync } from 'node:sqlite';
-import { APP_VERSION, type Me } from '@kladde/shared';
+import { APP_VERSION, type AdminStatus, type Me } from '@kladde/shared';
 import { DataCipher } from './crypto.js';
 import { AvatarStore } from './AvatarStore.js';
 import { UserRecord, UserStore } from './UserStore.js';
@@ -13,8 +13,8 @@ import { ExportMirror } from './ExportMirror.js';
 import { AuditLog } from './security/AuditLog.js';
 import { configuredOrigins, isAllowedOrigin } from './security/origin.js';
 import { authRouter } from './auth.js';
+import { gitlabConfigFromEnv } from './gitlabAuth.js';
 import { apiRouter, LiveUpdates } from './api.js';
-import { AdminActions } from './admin/AdminCommands.js';
 import { adminRouter } from './admin/adminRouter.js';
 import { McpTokenStore } from './mcp/McpTokenStore.js';
 import { mcpRouters } from './mcp/router.js';
@@ -42,7 +42,6 @@ export interface KladdeAppContext {
   avatars: AvatarStore;
   audit: AuditLog;
   live: LiveUpdates;
-  actions: AdminActions;
   standaloneUser?: UserRecord;
 }
 
@@ -76,34 +75,13 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
 
   if (mirror) for (const u of users.listUsers()) mirror.writeAll(u.id, notes.allOf(u.id));
 
-  const status = (): ReturnType<AdminActions['status']> => ({
+  const status = (): AdminStatus => ({
     version: APP_VERSION,
     startedAt,
     users: users.countUsers(),
     ...notes.counts(),
     connections: live.connections,
   });
-
-  const actions: AdminActions = {
-    createInvite: (note) => users.createInvite(note),
-    listInvites: () => users.listInvites(),
-    deleteInvite: (code) => users.deleteInvite(code),
-    listUsers: () => users.listUsers(),
-    setBanned: (username, banned) => {
-      const u = users.findByUsername(username);
-      return !!u && users.setBanned(u.id, banned);
-    },
-    resetPassword: async (username) => {
-      const u = users.findByUsername(username);
-      return u ? users.resetPassword(u.id) : null;
-    },
-    setAdmin: (username, admin) => {
-      const u = users.findByUsername(username);
-      return !!u && users.setAdmin(u.id, admin);
-    },
-    auditLog: () => audit.recent(25),
-    status,
-  };
 
   const app = express();
   app.disable('x-powered-by');
@@ -160,6 +138,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       hasPassword: user.hasPassword,
       isAdmin: user.isAdmin,
       avatarUrl: user.avatarUrl,
+      externalLogins: users.externalLoginsOf(user.id),
     };
   };
 
@@ -182,6 +161,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
         publicUrl: opts.publicUrl,
         secureCookies: opts.isProduction && (opts.publicUrl?.startsWith('https://') ?? false),
         devLogin: !opts.isProduction && env.DEV_LOGIN === '1',
+        gitlab: gitlabConfigFromEnv(env),
         onRegistered: opts.onRegistered,
       })
     );
@@ -247,5 +227,5 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     res.status(500).json({ error: 'Serverfehler' });
   });
 
-  return { app, users, notes, files, avatars, audit, live, actions, standaloneUser };
+  return { app, users, notes, files, avatars, audit, live, standaloneUser };
 }

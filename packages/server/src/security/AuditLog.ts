@@ -12,7 +12,9 @@ export type AuditEvent =
   | 'admin_command'
   | 'mcp_token_created'
   | 'mcp_connected'
-  | 'mcp_revoked';
+  | 'mcp_revoked'
+  | 'external_linked'
+  | 'external_unlinked';
 
 export interface AuditEntry {
   at: number;

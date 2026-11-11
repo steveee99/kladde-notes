@@ -1,13 +1,16 @@
-import { AlertTriangle, Briefcase, CalendarCheck, Check, Inbox, Lightbulb, Target, Unlink } from 'lucide-react';
+import { AlertTriangle, Briefcase, CalendarCheck, Check, Inbox, Lightbulb, Settings, Target, Unlink } from 'lucide-react';
 import { buildReview, projectTitleOf } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { locale, tl, useLang } from '../lib/i18n';
 import { navigate } from '../lib/router';
+import { useReadOnly } from '../lib/readOnly';
 
 export const REVIEW_KEY = 'lastReview';
 const WEEK = 7 * 86_400_000;
 
+/** Only when the opt-in weekly review is enabled and the last one is more than a week ago */
 export function reviewDue(): boolean {
+  if (!vault.features().review.enabled) return false;
   const last = vault.setting<number>(REVIEW_KEY);
   return !last || last < Date.now() - WEEK;
 }
@@ -48,7 +51,31 @@ export function ReviewView() {
   useVault();
   const lang = useLang();
   const loc = locale(lang);
+  const locked = useReadOnly();
   const features = vault.features();
+  if (!features.review.enabled) {
+    return (
+      <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
+        <div className="card max-w-lg space-y-4 p-6 anim-fade-up">
+          <div className="flex items-center gap-2 text-lg font-semibold">
+            <CalendarCheck size={20} className="shrink-0 text-accent" />
+            {tl(lang, 'review.optInTitle')}
+          </div>
+          <p className="text-sm text-muted">{tl(lang, 'review.optInDesc')}</p>
+          <div className="flex flex-wrap gap-2">
+            {!locked && (
+              <button className="btn-primary" onClick={() => void vault.updateFeatures({ ...features, review: { enabled: true } })}>
+                {tl(lang, 'review.enableBtn')}
+              </button>
+            )}
+            <button className="btn-ghost border border-line" onClick={() => navigate('/settings')}>
+              <Settings size={16} /> {tl(lang, 'daily.openSettings')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const r = buildReview(vault.list().filter((n) => n.access === 'owner'), Date.now(), 30, vault.roleConfig());
   const last = vault.setting<number>(REVIEW_KEY);
   return (

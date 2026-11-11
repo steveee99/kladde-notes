@@ -1,11 +1,11 @@
 # Guidelines for AI Agents Working on Kladde
 
 ## Project Overview
-Self-hosted, offline-first Markdown notes app (PWA) with npm workspaces, a hardened Docker image, invites, a Telegram admin bot and a release script.
+Self-hosted, offline-first Markdown notes app (PWA) with npm workspaces, a hardened Docker image, invites, optional GitLab sign-in and a release script.
 
 ## Monorepo Architecture
 - `packages/shared`: Pure logic without browser or node dependencies: sync contracts (`types.ts`), Markdown metadata/frontmatter (`markdown.ts`), task parsing/recurrence (`tasks.ts`), the query language (`query.ts`), PARA roles and Zettel ids (`para.ts`), link resolution/backlinks/mentions/graph (`links.ts`), templates and the weekly review.
-- `packages/server`: Express + `node:sqlite`. Passkey auth (`auth.ts`, SimpleWebAuthn), `NoteStore` (encrypted notes, global seq cursor, shares, public links), `FileStore` (encrypted attachments), `ExportMirror` (plain Markdown to `EXPORT_DIR`), Telegram admin, `mcp/` (MCP endpoint `/mcp` with OAuth 2.1 + personal tokens in `McpTokenStore`; tools in `mcp/tools.ts` see only the token owner's own notes via `NoteStore.ownedNotes` and write through `NoteStore.push`).
+- `packages/server`: Express + `node:sqlite`. Passkey auth (`auth.ts`, SimpleWebAuthn), GitLab OAuth sign-in (`gitlabAuth.ts`, identities in `external_logins`), GitLab OAuth sign-in (`gitlabAuth.ts`, identities in `external_logins`), `NoteStore` (encrypted notes, global seq cursor, shares, public links), `FileStore` (encrypted attachments), `ExportMirror` (plain Markdown to `EXPORT_DIR`), admin area (`admin/adminRouter.ts`), `mcp/` (MCP endpoint `/mcp` with OAuth 2.1 + personal tokens in `McpTokenStore`; tools in `mcp/tools.ts` see only the token owner's own notes via `NoteStore.ownedNotes` and write through `NoteStore.push`).
 - `packages/client`: React 18 + Vite + Tailwind + CodeMirror 6. `data/vault.ts` is the offline store (IndexedDB) and sync engine; `editor/livePreview.ts` builds all decorations in one StateField (block widgets need it).
 
 ## Key Rules & Contracts

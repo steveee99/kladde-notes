@@ -21,10 +21,17 @@ services:
       # Key for the encryption at rest (base64, 32 bytes: `openssl rand -base64 32`).
       # Empty = a key file is generated in the data volume (protects backups and copies of the database only)
       - DATA_KEY=${DATA_KEY:-}
-      # Telegram admin bot for invites; without it the first invite code is printed to the log
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
-      - TELEGRAM_ADMIN_USER_IDS=${TELEGRAM_ADMIN_USER_IDS:-}
+      # Optional "Sign in with GitLab" (gitlab.com or self-hosted). Create an OAuth application in GitLab with the
+      # redirect URI <PUBLIC_URL>/api/auth/gitlab/callback and the scopes openid + profile; empty = off
+      - GITLAB_URL=${GITLAB_URL:-https://gitlab.com}
+      - GITLAB_CLIENT_ID=${GITLAB_CLIENT_ID:-}
+      - GITLAB_CLIENT_SECRET=${GITLAB_CLIENT_SECRET:-}
+      # Only members of these groups (comma-separated full paths, subgroups included); empty = any GitLab user
+      - GITLAB_ALLOWED_GROUPS=${GITLAB_ALLOWED_GROUPS:-}
+      # 1 = unknown GitLab users get a new account without an invite (combine with GITLAB_ALLOWED_GROUPS)
+      - GITLAB_ALLOW_SIGNUP=${GITLAB_ALLOW_SIGNUP:-}
+      # Button label, e.g. the name of your instance
+      - GITLAB_LABEL=${GITLAB_LABEL:-}
       # Daily database backup in data/backups; how many to keep, 0 = off
       - BACKUP_KEEP=${BACKUP_KEEP:-7}
       # Optional plain Markdown mirror of all notes (e.g. a NAS share mounted at /app/export), empty = off

@@ -29,6 +29,14 @@ export interface UserRecord {
   avatarUrl: string | null;
 }
 
+/** A sign-in through another service (e.g. GitLab) linked to an account */
+export interface ExternalLogin {
+  provider: string;
+  /** The user's name at the provider, for display */
+  username: string;
+  createdAt: number;
+}
+
 export interface StoredCredential {
   id: string;
   userId: string;
@@ -159,6 +167,19 @@ export class UserStore {
     return name;
   }
 
+  /** A free, valid username derived from an external name (e.g. a GitLab username) */
+  availableUsername(base: string): string {
+    let name = base.normalize('NFKD').replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 20);
+    if (name.length < 3) name = `${name}user`.slice(0, 20);
+    if (!this.findByUsername(name)) return name;
+    for (let i = 2; i < 10_000; i++) {
+      const suffix = String(i);
+      const candidate = `${name.slice(0, 20 - suffix.length)}${suffix}`;
+      if (!this.findByUsername(candidate)) return candidate;
+    }
+    throw new AccountError('Kein freier Benutzername gefunden.', 409);
+  }
+
   /** The very first account becomes admin: otherwise nobody could reach the admin area */
   createUser(username: string, now = Date.now()): UserRecord {
     const id = crypto.randomUUID();
@@ -192,6 +213,41 @@ export class UserStore {
     return this.db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(admin ? 1 : 0, id).changes > 0;
   }
 
+  // ------------------------------------------------------------------ external logins (GitLab)
+
+  externalLoginsOf(userId: string): ExternalLogin[] {
+    return (this.db.prepare('SELECT provider, username, created_at FROM external_logins WHERE user_id = ? ORDER BY provider').all(userId) as Row[]).map((r) => ({
+      provider: r.provider as string,
+      username: r.username as string,
+      createdAt: r.created_at as number,
+    }));
+  }
+
+  /** The account an external identity is linked to */
+  findByExternal(provider: string, subject: string): UserRecord | null {
+    const row = this.db.prepare('SELECT user_id FROM external_logins WHERE provider = ? AND subject = ?').get(provider, subject) as { user_id: string } | undefined;
+    return row ? this.getUser(row.user_id) : null;
+  }
+
+  /** Links an external identity; one per provider and account, and never to two accounts */
+  linkExternal(userId: string, provider: string, subject: string, username: string, now = Date.now()): void {
+    const owner = this.findByExternal(provider, subject);
+    if (owner && owner.id !== userId) throw new AccountError('Dieses Konto ist schon mit einem anderen Kladde-Konto verknüpft.', 409);
+    this.db.prepare('DELETE FROM external_logins WHERE user_id = ? AND provider = ?').run(userId, provider);
+    this.db
+      .prepare('INSERT INTO external_logins (provider, subject, user_id, username, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run(provider, subject, userId, username, now);
+  }
+
+  /** Only while a passkey, a password or another external login is left */
+  unlinkExternal(userId: string, provider: string): boolean {
+    const others = this.externalLoginsOf(userId).filter((l) => l.provider !== provider).length;
+    if (this.credentialsOf(userId).length === 0 && !this.getUser(userId)?.hasPassword && others === 0) {
+      throw new AccountError('Ohne Passkey oder Passwort kann die Verknüpfung nicht entfernt werden.', 409);
+    }
+    return this.db.prepare('DELETE FROM external_logins WHERE user_id = ? AND provider = ?').run(userId, provider).changes > 0;
+  }
+
   // ------------------------------------------------------------------ passwords
 
   async setPassword(userId: string, password: unknown): Promise<void> {
@@ -202,9 +258,11 @@ export class UserStore {
     this.db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, userId);
   }
 
-  /** Only while a passkey is left: the account must keep a way in */
+  /** Only while a passkey or an external login is left: the account must keep a way in */
   removePassword(userId: string): void {
-    if (this.credentialsOf(userId).length === 0) throw new AccountError('Ohne Passkey kann das Passwort nicht entfernt werden.', 409);
+    if (this.credentialsOf(userId).length === 0 && this.externalLoginsOf(userId).length === 0) {
+      throw new AccountError('Ohne Passkey kann das Passwort nicht entfernt werden.', 409);
+    }
     this.db.prepare('UPDATE users SET password_hash = NULL WHERE id = ?').run(userId);
   }
 
@@ -268,7 +326,9 @@ export class UserStore {
 
   /** The last passkey cannot be removed without a password, the account would be locked for good */
   deleteCredential(userId: string, id: string): boolean {
-    if (this.credentialsOf(userId).length <= 1 && !this.getUser(userId)?.hasPassword) throw new AccountError('Der letzte Passkey kann nicht gelöscht werden.', 409);
+    if (this.credentialsOf(userId).length <= 1 && !this.getUser(userId)?.hasPassword && this.externalLoginsOf(userId).length === 0) {
+      throw new AccountError('Der letzte Passkey kann nicht gelöscht werden.', 409);
+    }
     return this.db.prepare('DELETE FROM credentials WHERE id = ? AND user_id = ?').run(id, userId).changes > 0;
   }
 

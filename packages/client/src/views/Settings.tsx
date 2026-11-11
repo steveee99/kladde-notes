@@ -3,6 +3,7 @@ import { startRegistration } from '@simplewebauthn/browser';
 import {
   Bot,
   CalendarDays,
+  CalendarCheck,
   CalendarRange,
   Camera,
   Check,
@@ -28,6 +29,7 @@ import {
   Smartphone,
   SlidersHorizontal,
   Trash2,
+  Star,
   Upload,
   X,
   Zap,
@@ -52,7 +54,7 @@ import { DEFAULT_PERCENT, MAX_PERCENT, MIN_PERCENT, setWidescreen, useWidescreen
 import { useVault, vault } from '../data/vault';
 import { startupReport, toggleTallPageTest, viewportReport } from '../lib/viewport';
 import { navigate } from '../lib/router';
-import { passkeysAvailable } from './Auth';
+import { GitLabIcon, passkeysAvailable, useAuthProviders, useRedirectParam } from './Auth';
 import { Avatar } from './Avatar';
 import { Dropdown } from './Dropdown';
 
@@ -429,7 +431,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
                       })}
                     </div>
                   </div>
-                  {(me.passkeys.length > 1 || me.hasPassword) && (
+                  {(me.passkeys.length > 1 || me.hasPassword || !!me.externalLogins?.length) && (
                     <button
                       className="btn-icon h-8 w-8 shrink-0"
                       onClick={async () => {
@@ -485,6 +487,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
           </section>
 
           <PasswordSection me={me} onMe={onMe} />
+          <GitLabSection me={me} onMe={onMe} />
         </>
       )}
 
@@ -860,6 +863,54 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
 
       <hr className="my-5 border-line" />
 
+      {/* review opt-in */}
+      <div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            <CalendarCheck size={18} className="mt-0.5 shrink-0 text-accent" />
+            <div className="min-w-0 flex-1">
+              <label htmlFor="feature-review-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
+                {tl(lang, 'settings.reviewTitle')}
+              </label>
+              <p className="text-xs text-muted">{tl(lang, 'settings.reviewDesc')}</p>
+            </div>
+          </div>
+          <Switch
+            id="feature-review-switch"
+            checked={features.review.enabled}
+            disabled={locked}
+            label={tl(lang, 'settings.reviewToggleLabel')}
+            onChange={(enabled) => save({ ...features, review: { enabled } })}
+          />
+        </div>
+      </div>
+
+      <hr className="my-5 border-line" />
+
+      {/* favorites opt-in */}
+      <div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            <Star size={18} className="mt-0.5 shrink-0 text-warn" />
+            <div className="min-w-0 flex-1">
+              <label htmlFor="feature-favorites-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
+                {tl(lang, 'settings.favoritesTitle')}
+              </label>
+              <p className="text-xs text-muted">{tl(lang, 'settings.favoritesDesc')}</p>
+            </div>
+          </div>
+          <Switch
+            id="feature-favorites-switch"
+            checked={features.favorites.enabled}
+            disabled={locked}
+            label={tl(lang, 'settings.favoritesToggleLabel')}
+            onChange={(enabled) => save({ ...features, favorites: { enabled } })}
+          />
+        </div>
+      </div>
+
+      <hr className="my-5 border-line" />
+
       {/* PARA method opt-in */}
       <div>
         <div className="flex items-center justify-between gap-4">
@@ -1003,6 +1054,58 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
   );
 }
 
+/** Link a GitLab account for "Sign in with GitLab" (only when the server has GitLab configured) */
+function GitLabSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
+  const lang = useLang();
+  const providers = useAuthProviders();
+  const linkedParam = useRedirectParam('gitlab');
+  const errorParam = useRedirectParam('gitlab_error');
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(() =>
+    errorParam ? { ok: false, text: errorParam } : linkedParam === 'linked' ? { ok: true, text: tl(lang, 'settings.gitlabLinked') } : null
+  );
+  if (!providers?.gitlab.enabled) return null;
+  const name = providers.gitlab.label;
+  const linked = me.externalLogins?.find((l) => l.provider === 'gitlab');
+  const canUnlink = me.passkeys.length > 0 || me.hasPassword || (me.externalLogins?.length ?? 0) > 1;
+  return (
+    <section className="card p-5 anim-fade-up" data-gitlab-section>
+      <h2 className="mb-1 flex items-center gap-2 font-semibold">
+        <GitLabIcon size={18} /> {tl(lang, 'settings.gitlabTitle', { name })}
+      </h2>
+      <p className="mb-3 text-sm text-muted">
+        {linked
+          ? tl(lang, 'settings.gitlabLinkedAs', { name, username: linked.username, date: new Date(linked.createdAt).toLocaleDateString(locale(lang)) })
+          : tl(lang, 'settings.gitlabDesc', { name })}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {linked ? (
+          <button
+            className="btn-ghost border border-line text-danger"
+            disabled={!canUnlink}
+            title={canUnlink ? undefined : tl(lang, 'settings.gitlabUnlinkBlocked')}
+            onClick={async () => {
+              if (!confirm(tl(lang, 'settings.gitlabUnlinkConfirm', { name }))) return;
+              try {
+                onMe(await api<Me>('/auth/gitlab', { method: 'DELETE' }));
+                setMessage({ ok: true, text: tl(lang, 'settings.gitlabUnlinked') });
+              } catch (e) {
+                setMessage({ ok: false, text: (e as Error).message });
+              }
+            }}
+          >
+            <Trash2 size={16} /> {tl(lang, 'common.disconnect')}
+          </button>
+        ) : (
+          <a className="btn-ghost border border-line" href="/api/auth/gitlab/start?intent=link">
+            <GitLabIcon size={16} /> {tl(lang, 'settings.gitlabLink', { name })}
+          </a>
+        )}
+      </div>
+      {message && <p className={`mt-2 text-sm ${message.ok ? 'text-accent' : 'text-danger'}`}>{message.text}</p>}
+    </section>
+  );
+}
+
 /** Optional password: for devices on a plain-HTTP home network, where passkeys do not work */
 function PasswordSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   const lang = useLang();
@@ -1088,7 +1191,7 @@ function PasswordSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
           <button className="btn-ghost border border-line" onClick={() => setOpen(true)}>
             <Lock size={16} /> {me.hasPassword ? tl(lang, 'settings.passwordChange') : tl(lang, 'settings.passwordSet')}
           </button>
-          {me.hasPassword && me.passkeys.length > 0 && (
+          {me.hasPassword && (me.passkeys.length > 0 || !!me.externalLogins?.length) && (
             <button
               className="btn-ghost text-danger"
               onClick={async () => {

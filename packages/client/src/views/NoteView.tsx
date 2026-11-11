@@ -31,6 +31,7 @@ import {
   PanelRightClose,
   Printer,
   Share2,
+  Star,
   Trash2,
   Undo2,
   X,
@@ -900,6 +901,19 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               >
                 {copiedMd ? <Check size={18} /> : <Copy size={18} />}
               </button>
+              {vault.features().favorites.enabled && (
+                <button
+                  type="button"
+                  onClick={() => void vault.toggleFavorite(id).catch(() => undefined)}
+                  aria-pressed={vault.isFavorite(id)}
+                  data-favorite-toggle
+                  className={`btn-icon rounded-full transition-colors ${vault.isFavorite(id) ? 'text-warn' : ''}`}
+                  title={vault.isFavorite(id) ? t('favorites.remove') : t('favorites.add')}
+                  aria-label={vault.isFavorite(id) ? t('favorites.remove') : t('favorites.add')}
+                >
+                  <Star size={18} fill={vault.isFavorite(id) ? 'currentColor' : 'none'} />
+                </button>
+              )}
               {!readOnly && (
                 <button
                   type="button"

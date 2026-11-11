@@ -4,6 +4,13 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Suche in der Seitenleiste per Tastatur – Pfeiltasten ↑/↓ wandern durch die Treffer, Enter öffnet den markierten.
+- Neu: Favoriten (Opt-In unter Einstellungen → Funktionen): `Strg/⌘+D` oder der Stern im Notizkopf fügt die offene Notiz hinzu bzw. entfernt sie; die Favoriten stehen als eigene Liste links in der Seitenleiste und werden zwischen Geräten synchronisiert.
+- Neu: Tabellen in der Vorschau bearbeiten – Zelle anklicken und tippen (Tab/Shift+Tab/Enter springen weiter, Escape bricht ab), Spalten über das Menü ⋮ im Kopf einfügen, umbenennen und entfernen, Zeilen hinzufügen und entfernen. In der Markdown-Ansicht bleibt die Tabelle reiner Text.
+- Neu: Anmelden mit GitLab (GitLab.com oder eigene Instanz) über `GITLAB_CLIENT_ID`/`GITLAB_CLIENT_SECRET`, optional beschränkt auf Gruppen (`GITLAB_ALLOWED_GROUPS`). Bestehende Konten verknüpfen GitLab in den Einstellungen; neue Konten entstehen über einen Einladungslink oder mit `GITLAB_ALLOW_SIGNUP=1`. Anleitung in der README.
+- Geändert: Der Wochenrückblick ist jetzt ein Opt-In (Einstellungen → Funktionen); ohne ihn verschwinden „Rückblick“ in der Navigation und die Erinnerung auf der Startseite.
+- Entfernt: Der Telegram-Admin-Bot (`TELEGRAM_*`-Variablen). Einladungen, Konten und Protokoll verwaltest du in der App unter Einstellungen → Verwaltung.
+
 ## [0.26.0] – 2026-11-11
 
 - Neu: Gemeinsames Bearbeiten in Echtzeit – für geteilte Notizen und für mehrere Geräte/Tabs desselben Kontos. Änderungen der anderen erscheinen sofort im offenen Editor und werden mit dem gerade Getippten zusammengeführt; Cursor, Markierung und Rückgängig-Verlauf bleiben erhalten. Sobald eine Notiz an mehr als einer Stelle offen ist, zeigt der Notizkopf „Live“ mit den Profilbildern aller, die sie gerade offen haben (mit Anzahl der Geräte).

@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
 import { KeyRound, LogIn, Smartphone, Sparkles, UserPlus } from 'lucide-react';
-import { PASSWORD_MIN_LENGTH, type Me } from '@kladde/shared';
+import { PASSWORD_MIN_LENGTH, type AuthProviders, type Me } from '@kladde/shared';
 import { api } from '../lib/api';
 import { Lang, setLang, t, tl, useLang } from '../lib/i18n';
 import { navigate } from '../lib/router';
@@ -15,6 +15,57 @@ function errorText(err: unknown): string {
 
 /** Passkeys need a secure context: HTTPS or localhost. On a plain-HTTP home network only the password works */
 export const passkeysAvailable = () => typeof window !== 'undefined' && window.isSecureContext && 'PublicKeyCredential' in window;
+
+let providersRequest: Promise<AuthProviders | null> | null = null;
+
+/** Sign-in options of the server (GitLab), fetched once */
+export function useAuthProviders(): AuthProviders | null {
+  const [providers, setProviders] = useState<AuthProviders | null>(null);
+  useEffect(() => {
+    let alive = true;
+    providersRequest ??= api<AuthProviders>('/auth/providers').catch(() => null);
+    void providersRequest.then((p) => alive && setProviders(p));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return providers;
+}
+
+/** A query parameter set by a server redirect (e.g. `login_error`), removed from the address bar once read */
+export function useRedirectParam(name: string): string {
+  const [value] = useState(() => new URLSearchParams(window.location.search).get(name) ?? '');
+  useEffect(() => {
+    if (!value) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete(name);
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+  }, [name, value]);
+  return value;
+}
+
+/** GitLab mark (simplified tanuki), in the current text color */
+export function GitLabIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+      <path d="m23.6 9.6-.03-.09-3.27-8.53a.85.85 0 0 0-1.62.06l-2.2 6.75H7.52L5.32 1.04A.85.85 0 0 0 3.7.98L.43 9.5l-.03.09a6.07 6.07 0 0 0 2.01 7.01l.01.01.03.02 4.98 3.73 2.46 1.87 1.5 1.13a1 1 0 0 0 1.22 0l1.5-1.13 2.46-1.87 5.01-3.75.01-.01a6.07 6.07 0 0 0 2.01-7z" />
+    </svg>
+  );
+}
+
+/** Full-page redirect into the GitLab OAuth flow */
+function GitLabButton({ label, query, primary }: { label: string; query?: Record<string, string>; primary?: boolean }) {
+  const q = query ? `?${new URLSearchParams(query)}` : '';
+  return (
+    <a
+      href={`/api/auth/gitlab/start${q}`}
+      className={`${primary ? 'btn-primary py-3' : 'btn-ghost border border-line'} w-full rounded-full`}
+      data-gitlab-login
+    >
+      <GitLabIcon /> {label}
+    </a>
+  );
+}
 
 function Divider({ label }: { label: string }) {
   return (
@@ -109,13 +160,22 @@ function useAction(onDone: (me: Me) => void) {
 
 export function Login({ onDone }: { onDone: (me: Me) => void }) {
   const lang = useLang();
-  const { busy, error, run } = useAction(onDone);
+  const { busy, error: actionError, run } = useAction(onDone);
+  const redirectError = useRedirectParam('login_error');
+  const error = actionError || (busy ? '' : redirectError);
+  const providers = useAuthProviders();
   const [code, setCode] = useState('');
   const [withPassword, setWithPassword] = useState(false);
+  const gitlab = providers?.gitlab.enabled ? (
+    <div className="mt-2">
+      <GitLabButton label={tl(lang, 'auth.gitlabLogin', { name: providers.gitlab.label })} />
+    </div>
+  ) : null;
   if (!passkeysAvailable()) {
     return (
       <Frame title="Kladde" subtitle={tl(lang, 'auth.subtitle')}>
         <PasswordLogin busy={busy} run={run} primary />
+        {gitlab}
         <p className="mt-3 text-xs text-faint">{tl(lang, 'auth.noPasskeyHint')}</p>
         {error && <p className="mt-4 text-sm text-danger anim-fade-in">{error}</p>}
       </Frame>
@@ -145,6 +205,7 @@ export function Login({ onDone }: { onDone: (me: Me) => void }) {
           {tl(lang, 'auth.usePassword')}
         </button>
       )}
+      {gitlab}
       <Divider label={tl(lang, 'auth.newDevice')} />
       <form
         className="flex gap-2"
@@ -182,6 +243,13 @@ export function Invite({ code, onDone }: { code: string; onDone: (me: Me) => voi
   const [password, setPassword] = useState('');
   const canPasskey = passkeysAvailable();
   const [withPassword, setWithPassword] = useState(!canPasskey);
+  const providers = useAuthProviders();
+  const gitlab = providers?.gitlab.enabled ? (
+    <>
+      <Divider label={tl(lang, 'auth.or')} />
+      <GitLabButton label={tl(lang, 'auth.gitlabRegister', { name: providers.gitlab.label })} query={{ invite: code }} />
+    </>
+  ) : null;
   if (withPassword) {
     return (
       <Frame title={tl(lang, 'auth.inviteTitle')} subtitle={tl(lang, 'auth.invitePwSubtitle', { min: PASSWORD_MIN_LENGTH })}>
@@ -222,6 +290,7 @@ export function Invite({ code, onDone }: { code: string; onDone: (me: Me) => voi
             {tl(lang, 'auth.noPasskeyHint')} {tl(lang, 'auth.addPasskeyLaterHint')}
           </p>
         )}
+        {gitlab}
         <p className="mt-3 text-xs text-faint">{tl(lang, 'auth.inviteCodeLabel', { code })}</p>
         {error && <p className="mt-4 text-sm text-danger anim-fade-in">{error}</p>}
       </Frame>
@@ -258,6 +327,7 @@ export function Invite({ code, onDone }: { code: string; onDone: (me: Me) => voi
       <button className="btn-ghost mt-2 w-full rounded-full text-sm" onClick={() => setWithPassword(true)}>
         {tl(lang, 'auth.usePasswordInstead')}
       </button>
+      {gitlab}
       <p className="mt-3 text-xs text-faint">{tl(lang, 'auth.inviteCodeLabel', { code })}</p>
       {error && <p className="mt-4 text-sm text-danger anim-fade-in">{error}</p>}
     </Frame>

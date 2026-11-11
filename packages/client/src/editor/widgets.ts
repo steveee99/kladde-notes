@@ -1,7 +1,21 @@
 import { EditorView, WidgetType } from '@codemirror/view';
-import { formatValue, parseDate, toDateString, toggleTask, type NoteHeading, type QueryResult } from '@kladde/shared';
+import {
+  formatValue,
+  insertTableColumn,
+  insertTableRow,
+  parseDate,
+  removeTableColumn,
+  removeTableRow,
+  serializeMarkdownTable,
+  setTableCell,
+  toDateString,
+  toggleTask,
+  type MarkdownTable,
+  type NoteHeading,
+  type QueryResult,
+} from '@kladde/shared';
 import { getLang, locale, tl, type Lang } from '../lib/i18n';
-import { dataTable, parseMarkdownTable, stripInline } from './datatable';
+import { dataTable, openTableCell, parseMarkdownTable, stripInline, type CellRef, type TableEditing } from './datatable';
 import { editorHost } from './host';
 import { DiagramKind, drawDiagram, openDiagram } from './diagram';
 
@@ -41,20 +55,60 @@ abstract class BlockWidget extends WidgetType {
 }
 
 export class TableWidget extends BlockWidget {
+  constructor(
+    src: string,
+    lang: Lang = getLang(),
+    readonly canEdit = false
+  ) {
+    super(src, lang);
+  }
   eq(other: TableWidget) {
-    return other.src === this.src && other.lang === this.lang;
+    return other.src === this.src && other.lang === this.lang && other.canEdit === this.canEdit;
   }
   toDOM(view: EditorView) {
     const t = parseMarkdownTable(this.src);
     if (!t) return document.createElement('div');
-    return this.frame(
+    let frame: HTMLElement | null = null;
+    /** Rewrites this table in the document; reopens a cell editor in the rebuilt widget when asked */
+    const apply = (next: MarkdownTable, focus?: CellRef) => {
+      if (!frame) return;
+      const from = view.posAtDOM(frame);
+      const to = from + this.src.length;
+      if (view.state.sliceDoc(from, to) !== this.src) return;
+      view.dispatch({ changes: { from, to, insert: serializeMarkdownTable(next) }, userEvent: 'input.table' });
+      if (!focus) return;
+      requestAnimationFrame(() => {
+        for (const el of view.dom.querySelectorAll<HTMLElement>('.wz-block')) {
+          const table = el.querySelector('.wz-table-editable');
+          if (table && view.posAtDOM(el) === from) {
+            openTableCell(table, focus);
+            break;
+          }
+        }
+      });
+    };
+    const edit: TableEditing | undefined =
+      this.canEdit && view.state.facet(EditorView.editable) && !view.state.readOnly
+        ? {
+            setCell: (cell, value, focus) => {
+              const next = setTableCell(t, cell.row, cell.col, value);
+              apply(focus && focus.row >= next.rows.length ? insertTableRow(next) : next, focus);
+            },
+            insertColumn: (at) => apply(insertTableColumn(t, at), { row: -1, col: Math.max(0, Math.min(at, t.headers.length)) }),
+            removeColumn: (at) => apply(removeTableColumn(t, at)),
+            addRow: (focus) => apply(insertTableRow(t), focus ?? { row: t.rows.length, col: 0 }),
+            removeRow: (row) => apply(removeTableRow(t, row)),
+          }
+        : undefined;
+    frame = this.frame(
       view,
       dataTable(
         t.headers,
-        t.rows.map((r) => ({ cells: r, keys: r.map(stripInline) })),
-        { align: t.align, onWiki: (w) => editorHost.openWiki(w) }
+        t.rows.map((r) => ({ cells: r, keys: r.map(stripInline), raw: r })),
+        { align: t.align, onWiki: (w) => editorHost.openWiki(w), edit }
       )
     );
+    return frame;
   }
 }
 

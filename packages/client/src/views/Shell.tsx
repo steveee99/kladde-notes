@@ -27,6 +27,7 @@ import {
   Plus,
   Search,
   Share2,
+  Star,
   Trash2,
   X,
 } from 'lucide-react';
@@ -264,18 +265,21 @@ interface RevealRequest {
 
 function SidebarNoteRow({
   note,
+  label,
   active,
   highlighted,
   depth,
   onNavigate,
 }: {
   note: LocalNote;
+  /** Shown instead of the file name (favorites show the title) */
+  label?: string;
   active: boolean;
   highlighted?: boolean;
   depth: number;
   onNavigate?: () => void;
 }) {
-  const name = splitPath(note.path).name;
+  const name = label ?? splitPath(note.path).name;
   const openNote = () => {
     navigate(`/n/${note.id}`);
     onNavigate?.();
@@ -493,6 +497,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
   const locked = useReadOnly();
   const [newRoot, setNewRoot] = useState(false);
   const [query, setQuery] = useState('');
+  const [activeResult, setActiveResult] = useState(0);
   const [revealRequest, setRevealRequest] = useState<RevealRequest | null>(null);
   const [flashNoteId, setFlashNoteId] = useState<string | null>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -602,6 +607,22 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [terms, version]);
 
+  // Arrow keys move through the results; a new query starts again at the top
+  useEffect(() => setActiveResult(0), [query]);
+  const selectedResult = Math.min(activeResult, Math.max(searchResults.length - 1, 0));
+  useEffect(() => {
+    sidebarRef.current
+      ?.querySelector<HTMLElement>(`[data-search-result="${selectedResult}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [selectedResult, searchResults]);
+
+  const favoriteNotes = features.favorites.enabled
+    ? vault
+        .favoriteIds()
+        .map((id) => vault.get(id))
+        .filter((n): n is LocalNote => !!n)
+    : [];
+
   const nav = (to: string) => {
     navigate(to);
     onNavigate?.();
@@ -648,10 +669,21 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
             if (e.key === 'Escape') {
               setQuery('');
               e.currentTarget.blur();
-            } else if (e.key === 'Enter' && searchResults[0]) {
-              nav(`/n/${searchResults[0].id}`);
+            } else if (e.key === 'ArrowDown' && searchResults.length) {
+              e.preventDefault();
+              setActiveResult((selectedResult + 1) % searchResults.length);
+            } else if (e.key === 'ArrowUp' && searchResults.length) {
+              e.preventDefault();
+              setActiveResult((selectedResult - 1 + searchResults.length) % searchResults.length);
+            } else if (e.key === 'Enter' && searchResults[selectedResult]) {
+              e.preventDefault();
+              nav(`/n/${searchResults[selectedResult].id}`);
             }
           }}
+          role="combobox"
+          aria-expanded={terms.length > 0}
+          aria-controls="sidebar-search-results"
+          aria-activedescendant={terms.length > 0 && searchResults.length ? `sidebar-search-result-${selectedResult}` : undefined}
           placeholder={t('search.sidebarPlaceholder')}
           aria-label={t('common.search')}
           className="min-w-0 flex-1 bg-transparent text-sm text-ink placeholder:text-faint outline-none"
@@ -683,17 +715,23 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
           {searchResults.length === 0 ? (
             <p className="px-2 py-6 text-center text-sm text-muted">{t('search.noResults')}</p>
           ) : (
-            <ul className="space-y-1">
-              {searchResults.map((n) => {
+            <ul id="sidebar-search-results" role="listbox" className="space-y-1">
+              {searchResults.map((n, i) => {
                 const { folder } = splitPath(n.path);
                 const title = projectTitleOf(n.path, n.content, roleConfig);
                 const active = path === `/n/${n.id}`;
+                const selected = i === selectedResult;
                 return (
-                  <li key={n.id}>
+                  <li key={n.id} id={`sidebar-search-result-${i}`} role="option" aria-selected={selected}>
                     <button
+                      data-search-result={i}
+                      tabIndex={-1}
                       onClick={() => nav(`/n/${n.id}`)}
+                      onMouseMove={() => selected || setActiveResult(i)}
                       aria-current={active ? 'page' : undefined}
-                      className={`w-full rounded-2xl px-3 py-2 text-left transition-colors ${active ? 'bg-accent-container text-on-accent-container' : 'hover:bg-raised'}`}
+                      className={`w-full rounded-2xl px-3 py-2 text-left transition-colors ${
+                        active ? 'bg-accent-container text-on-accent-container' : selected ? 'bg-raised' : 'hover:bg-raised'
+                      } ${selected ? 'ring-2 ring-inset ring-accent/60' : ''}`}
                     >
                       <div className="truncate text-sm font-medium">{title}</div>
                       <div className="truncate text-[11px] text-muted">{folderDisplayName(folder, lang)}</div>
@@ -726,10 +764,27 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
           {item('/inbox', InboxIcon, t('nav.inbox'), inboxZero && inboxCount > 0 ? <span className="rounded-full bg-warn/15 px-1.5 py-0.5 text-xs font-semibold text-warn">{inboxCount}</span> : null)}
           {item('/graph', Network, t('nav.graph'))}
           {item('/files', Images, t('nav.files'))}
-          {item('/review', CalendarCheck, t('nav.review'), reviewDue() ? <span className="h-2 w-2 rounded-full bg-accent" /> : null)}
+          {features.review.enabled && item('/review', CalendarCheck, t('nav.review'), reviewDue() ? <span className="h-2 w-2 rounded-full bg-accent" /> : null)}
           {(shared > 0 || vault.sharedFolders.length > 0) &&
             !vault.standalone &&
             item('/shared', Share2, t('nav.sharedWithMe'), <span className="text-xs opacity-75">{shared || ''}</span>, { 'data-tree-shared': 'true' })}
+          {features.favorites.enabled && (
+            <>
+              <div className="mt-3 mb-1 flex items-center gap-1 px-3 text-xs font-semibold uppercase tracking-wider text-faint">
+                <Star size={12} className="shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{t('nav.favorites')}</span>
+              </div>
+              {favoriteNotes.length === 0 ? (
+                <p className="shrink-0 px-3 pb-1 text-xs text-faint">{t('nav.favoritesEmpty')}</p>
+              ) : (
+                <ul data-favorites-list className="max-h-48 shrink-0 overflow-y-auto scrollbar-thin">
+                  {favoriteNotes.map((n) => (
+                    <SidebarNoteRow key={n.id} note={n} label={projectTitleOf(n.path, n.content, roleConfig)} active={activeNoteId === n.id} depth={0} onNavigate={onNavigate} />
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
           <div className="mt-3 mb-1 flex items-center gap-1 px-3 text-xs font-semibold uppercase tracking-wider text-faint">
             <span className="min-w-0 flex-1 truncate">{t('nav.folders')}</span>
             <button
@@ -879,6 +934,43 @@ function useDailyShortcut() {
   }, []);
 }
 
+/** The note open in the current route (`/n/<id>`), if any */
+function openNoteId(): string | null {
+  const p = window.location.pathname;
+  return p.startsWith('/n/') ? decodeURIComponent(p.slice(3)) : null;
+}
+
+/** Adds or removes a note from the favorites and confirms it with a snackbar */
+export async function toggleFavorite(id: string, showToast?: (text: string, tone?: 'ok' | 'warn' | 'danger') => void) {
+  const note = vault.get(id);
+  if (!note) return;
+  const title = projectTitleOf(note.path, note.content, vault.roleConfig());
+  try {
+    const fav = await vault.toggleFavorite(id);
+    showToast?.(t(fav ? 'favorites.addedToast' : 'favorites.removedToast', { title }), 'ok');
+  } catch (err) {
+    showToast?.((err as Error).message, 'warn');
+  }
+}
+
+/** Strg/⌘+D adds the open note to the favorites or removes it (only with the favorites feature enabled) */
+function useFavoriteShortcut(showToast: (text: string, tone?: 'ok' | 'warn' | 'danger') => void) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+      if (e.key.toLowerCase() !== 'd' && e.code !== 'KeyD') return;
+      if (!vault.features().favorites.enabled) return;
+      const id = openNoteId();
+      if (!id || !vault.get(id)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      void toggleFavorite(id, showToast);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [showToast]);
+}
+
 export function Shell({ me, children, isAdmin }: { me: Me; children: React.ReactNode; isAdmin?: boolean }) {
   const [toast, setToast] = useState<{ text: string; tone: 'ok' | 'warn' | 'danger' } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -898,6 +990,7 @@ export function Shell({ me, children, isAdmin }: { me: Me; children: React.React
   useSearchShortcut();
   useSaveShortcut(showToast);
   useDailyShortcut();
+  useFavoriteShortcut(showToast);
 
   return (
     <>
