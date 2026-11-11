@@ -293,7 +293,7 @@ export const TOOLS: ToolDef[] = [
       const tasks = space(ctx).flatMap((n) =>
         parseTasks(n.content, today, dueOf(n.path))
           .filter((t) => (includeDone || !t.done) && (!until || (t.due !== null && t.due <= until)))
-          .map((t) => ({ note_id: n.id, note: splitPath(n.path).name, path: n.path, line: t.line, text: t.text, done: t.done, due: t.due, repeat: t.repeat }))
+          .map((t) => ({ note_id: n.id, note: splitPath(n.path).name, path: n.path, line: t.line, text: t.text, done: t.done, status: t.status, due: t.due, repeat: t.repeat }))
       );
       tasks.sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999') || a.path.localeCompare(b.path) || a.line - b.line);
       return { today: toDateString(today), total: tasks.length, tasks: tasks.slice(0, int(args, 'limit', 200, 500)) };
@@ -319,7 +319,7 @@ export const TOOLS: ToolDef[] = [
           const values = Object.fromEntries(
             Object.entries(r.values).map(([k, v]) => [k, (k === 'created' || k === 'updated') && typeof v === 'number' ? iso(v) : v])
           );
-          const fields = result.query.mode === 'table' ? Object.fromEntries(result.columns.map((c) => [c, values[c] ?? null])) : result.query.mode === 'tasks' ? { text: values.text, due: values.due || null, done: values.done, repeat: values.repeat || null } : { title: values.title };
+          const fields = result.query.mode === 'table' ? Object.fromEntries(result.columns.map((c) => [c, values[c] ?? null])) : result.query.mode === 'tasks' ? { text: values.text, due: values.due || null, done: values.done, status: values.status, repeat: values.repeat || null } : { title: values.title };
           return { note_id: r.noteId, path: r.path, ...(r.line !== undefined ? { line: r.line } : {}), ...fields };
         });
         return { mode: result.query.mode, total: result.rows.length, rows };

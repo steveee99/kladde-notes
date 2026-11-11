@@ -15,6 +15,7 @@ import {
   FootnoteRefWidget,
   GalleryWidget,
   ImageWidget,
+  LigatureWidget,
   LinkWidget,
   PropertiesWidget,
   QueryWidget,
@@ -24,6 +25,8 @@ import {
   WikiWidget,
 } from './widgets';
 import { editorHost } from './host';
+import { markerStatus } from './taskStatus';
+import { getLigatures } from '../lib/prefs';
 
 /**
  * Obsidian-style live preview: Markdown syntax is hidden and rendered everywhere except in the
@@ -80,6 +83,10 @@ const stampField = StateField.define<number>({
 });
 
 const hide = Decoration.replace({});
+
+/** Character pairs shown as one sign. Longer ones first; neighbors like "-->" or "<==" stay as they are. */
+const LIGATURES: Record<string, string> = { '<->': '↔', '<=>': '⇔', '->': '→', '<-': '←', '=>': '⇒', '<=': '≤', '>=': '≥', '!=': '≠', '...': '…' };
+const LIGATURE_RE = /(?<![<>=!-])(?:<->|<=>|->|<-|=>|<=|>=|!=)(?![<>=-])|(?<!\.)\.\.\.(?!\.)/g;
 const mark = (cls: string) => Decoration.mark({ class: cls });
 const line = (cls: string) => Decoration.line({ class: cls });
 
@@ -89,6 +96,7 @@ function build(state: EditorState): DecorationSet {
   const all = state.facet(previewAll) || !state.field(focusField);
   const stamp = state.field(stampField);
   const lang = getLang();
+  const ligatures = getLigatures();
   const active = new Set<number>();
   if (!all) {
     for (const r of state.selection.ranges) {
@@ -247,11 +255,11 @@ function build(state: EditorState): DecorationSet {
           return;
         }
         case 'TaskMarker': {
-          const checked = /x/i.test(text());
+          const status = markerStatus(text());
           const ln = doc.lineAt(node.from);
-          if (checked) decos.push(mark('cm-task-done').range(node.to, ln.to));
+          if (status === 'done') decos.push(mark('cm-task-done').range(node.to, ln.to));
           if (!isActive(node.from, node.to)) {
-            replace(node.from, node.to + (doc.sliceString(node.to, node.to + 1) === ' ' ? 1 : 0), Decoration.replace({ widget: new CheckboxWidget(checked, ln.number - 1, state.readOnly) }));
+            replace(node.from, node.to + (doc.sliceString(node.to, node.to + 1) === ' ' ? 1 : 0), Decoration.replace({ widget: new CheckboxWidget(status, ln.number - 1, state.readOnly, lang) }));
           }
           return;
         }
@@ -346,7 +354,7 @@ function build(state: EditorState): DecorationSet {
       protectedRanges.push([from, from + m[2].length]);
       if (free(from, from + m[2].length)) decos.push(mark('cm-tag').range(from, from + m[2].length));
     }
-    if (!lineActive && /^\s*[-*+]\s+\[[ xX]\]/.test(ln.text)) {
+    if (!lineActive && /^\s*[-*+]\s+\[[ xXoOhH]\]/.test(ln.text)) {
       for (const m of ln.text.matchAll(/(?:📅\s*|\bdue:)(\d{4}-\d{2}-\d{2})/g)) {
         const from = ln.from + m.index!;
         replace(from, from + m[0].length, Decoration.replace({ widget: new DueWidget(m[1], 'due', lang) }));
@@ -376,6 +384,13 @@ function build(state: EditorState): DecorationSet {
         } else {
           replace(from, to, Decoration.replace({ widget: new AutoLinkWidget(target, original, from, to, lang) }));
         }
+      }
+    }
+    if (ligatures && !lineActive) {
+      for (const m of ln.text.matchAll(LIGATURE_RE)) {
+        const from = ln.from + m.index!;
+        const to = from + m[0].length;
+        if (!isProtected(from, to)) replace(from, to, Decoration.replace({ widget: new LigatureWidget(LIGATURES[m[0]]) }));
       }
     }
   }

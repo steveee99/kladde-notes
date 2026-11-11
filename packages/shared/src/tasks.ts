@@ -8,13 +8,30 @@
  * Repeat: "🔁 <rule>" or "every:<rule>" with day|week|month|year, täglich|wöchentlich|monatlich|jährlich,
  * or "2 weeks", "3 tage", or weekdays like "mo,do".
  * Completing a repeating task ticks it and inserts the next open one with the following due date above.
+ *
+ * Status lives in the checkbox: [ ] open, [O] in progress, [H] blocked (on hold), [x] done.
  */
+
+export type TaskStatus = 'open' | 'doing' | 'blocked' | 'done';
+
+export const TASK_STATUSES: TaskStatus[] = ['open', 'doing', 'blocked', 'done'];
+
+const STATUS_CHAR: Record<TaskStatus, string> = { open: ' ', doing: 'O', blocked: 'H', done: 'x' };
+
+/** Status of a checkbox character (case-insensitive) */
+export function statusOfMarker(ch: string): TaskStatus {
+  const c = ch.toLowerCase();
+  return c === 'x' ? 'done' : c === 'o' ? 'doing' : c === 'h' ? 'blocked' : 'open';
+}
 
 export interface Task {
   /** 0-based line number inside the note */
   line: number;
   text: string;
   done: boolean;
+  status: TaskStatus;
+  /** Day the task was finished ("✅ YYYY-MM-DD"), if written */
+  doneDate: string | null;
   due: string | null;
   repeat: string | null;
   /** Indentation + list marker, kept when rewriting */
@@ -23,10 +40,11 @@ export interface Task {
   dueFromNote?: boolean;
 }
 
-const TASK_LINE = /^(\s*[-*+]\s+)\[([ xX])\]\s+(.*)$/;
+/** Matches a task line; group 2 is the status character */
+export const TASK_LINE = /^(\s*[-*+]\s+)\[([ xXoOhH])\]\s+(.*)$/;
 const DUE = /(?:📅\s*|\bdue:)(\d{4}-\d{2}-\d{2}|heute|morgen|today|tomorrow)/i;
 const REPEAT = /(?:🔁\s*|\bevery:)((?:\d+\s*)?[\p{L},]+)/iu;
-const DONE_DATE = /\s*✅\s*\d{4}-\d{2}-\d{2}/;
+const DONE_DATE = /\s*✅\s*(\d{4}-\d{2}-\d{2})/;
 
 export function toDateString(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0');
@@ -72,7 +90,9 @@ export function parseTasks(content: string, today = new Date(), defaultDue: stri
     tasks.push({
       line,
       text,
-      done: m[2] !== ' ',
+      done: statusOfMarker(m[2]) === 'done',
+      status: statusOfMarker(m[2]),
+      doneDate: DONE_DATE.exec(rest)?.[1] ?? null,
       due: due ? resolveDue(due[1], today) : defaultDue,
       repeat: repeat ? repeat[1].trim() : null,
       indent: m[1],
@@ -133,19 +153,30 @@ export function normalizeDueWords(content: string, today = new Date()): string {
     .join('\n');
 }
 
-/** Ticks or unticks the task in `line`; a repeating task gets its next occurrence inserted above */
+/** Ticks or unticks the task in `line` (an open, running or blocked task becomes done; a done one open again) */
 export function toggleTask(content: string, line: number, today = new Date()): string {
+  const m = TASK_LINE.exec(content.split('\n')[line] ?? '');
+  if (!m) return content;
+  return setTaskStatus(content, line, statusOfMarker(m[2]) === 'done' ? 'open' : 'done', today);
+}
+
+/**
+ * Sets the status of the task in `line`. Finishing stamps the done date and gives a repeating task its
+ * next occurrence (inserted above); leaving "done" removes the done date.
+ */
+export function setTaskStatus(content: string, line: number, status: TaskStatus, today = new Date()): string {
   const lines = content.split('\n');
   const raw = lines[line];
   const m = raw !== undefined ? TASK_LINE.exec(raw) : null;
   if (!m) return content;
-  const done = m[2] !== ' ';
-  if (done) {
-    lines[line] = `${m[1]}[ ] ${m[3].replace(DONE_DATE, '')}`;
+  const was = statusOfMarker(m[2]);
+  if (was === status) return content;
+  if (status !== 'done') {
+    lines[line] = `${m[1]}[${STATUS_CHAR[status]}] ${m[3].replace(DONE_DATE, '')}`;
     return lines.join('\n');
   }
   const [task] = parseTasks(raw, today);
-  lines[line] = `${m[1]}[x] ${m[3]} ✅ ${toDateString(today)}`;
+  lines[line] = `${m[1]}[x] ${m[3].replace(DONE_DATE, '')} ✅ ${toDateString(today)}`;
   if (task?.repeat) {
     const next = nextDue(task.repeat, task.due, today);
     if (next) {

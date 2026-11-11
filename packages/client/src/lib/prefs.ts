@@ -6,6 +6,7 @@ const INBOX_ZERO_KEY = 'kladde_inbox_zero';
 const SPLIT_OPEN_KEY = 'kladde_note_split_open';
 const SPLIT_TAB_KEY = 'kladde_note_split_tab';
 const SOURCE_MODE_KEY = 'kladde_source_mode';
+const LIGATURES_KEY = 'kladde_ligatures';
 
 const listeners = new Set<() => void>();
 
@@ -34,6 +35,7 @@ let inboxZero = readBool(INBOX_ZERO_KEY, false);
 let splitOpen = readBool(SPLIT_OPEN_KEY, false);
 let splitTab: NoteSplitTab = readSplitTab();
 let sourceMode = readBool(SOURCE_MODE_KEY, false);
+let ligatures = readBool(LIGATURES_KEY, true);
 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
@@ -46,6 +48,9 @@ if (typeof window !== 'undefined') {
       changed = true;
     } else if (e.key === SPLIT_TAB_KEY) {
       splitTab = readSplitTab();
+      changed = true;
+    } else if (e.key === LIGATURES_KEY) {
+      ligatures = readBool(LIGATURES_KEY, true);
       changed = true;
     } else if (e.key === SOURCE_MODE_KEY) {
       sourceMode = readBool(SOURCE_MODE_KEY, false);
@@ -131,4 +136,24 @@ export function setSourceMode(on: boolean): void {
 
 export function useSourceMode(): boolean {
   return useSyncExternalStore(subscribe, () => sourceMode);
+}
+
+/** Show -> as → and similar in the editor (display only) */
+export function getLigatures(): boolean {
+  return ligatures;
+}
+
+export function setLigatures(on: boolean): void {
+  if (ligatures === on) return;
+  ligatures = on;
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(LIGATURES_KEY, on ? '1' : '0');
+  } catch {
+    // ignore
+  }
+  listeners.forEach((l) => l());
+}
+
+export function useLigatures(): boolean {
+  return useSyncExternalStore(subscribe, () => ligatures);
 }

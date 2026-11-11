@@ -157,7 +157,7 @@ function cleanMarkdownForSearch(body: string): { headings: string; plain: string
       .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
       .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
       .replace(/https?:\/\/\S+/g, ' ')
-      .replace(/^\s*[-*+]\s+\[[ xX]\]\s+/, ' ')
+      .replace(/^\s*[-*+]\s+\[[ xXoOhH]\]\s+/, ' ')
       .replace(/(?:📅\s*|\bdue:)\d{4}-\d{2}-\d{2}|(?:🔁\s*|\bevery:)\S+|✅\s*\d{4}-\d{2}-\d{2}/g, ' ')
       .replace(/[*_`~>#]/g, ' ');
     plainLines.push(cleaned);

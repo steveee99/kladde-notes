@@ -16,7 +16,7 @@ export interface MindmapNode {
   children: MindmapNode[];
 }
 
-const LIST = /^(\s*)(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?(.*)$/;
+const LIST = /^(\s*)(?:[-*+]|\d+[.)])\s+(?:\[[ xXoOhH]\]\s+)?(.*)$/;
 const HEADING = /^(#{1,6})\s+(.*)$/;
 
 /** Plain text of a node: links and emphasis become their visible text */

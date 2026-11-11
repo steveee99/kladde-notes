@@ -43,6 +43,8 @@ import {
   normalizeDueWords,
   splitPath,
   toggleTask,
+  setTaskStatus,
+  type TaskStatus,
   takeTaskBlock,
   appendTaskLines,
   setTaskMeta,
@@ -716,6 +718,11 @@ class Vault {
   async toggleTask(id: string, line: number): Promise<void> {
     const note = this.get(id);
     if (note) await this.update(id, { content: toggleTask(note.content, line) });
+  }
+
+  async setTaskStatus(id: string, line: number, status: TaskStatus): Promise<void> {
+    const note = this.get(id);
+    if (note) await this.update(id, { content: setTaskStatus(note.content, line, status) });
   }
 
   /**

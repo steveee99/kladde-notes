@@ -19,6 +19,7 @@
   --on-accent: 6 46 111;
   --accent2: 128 214 200;
   --ok: 133 214 150;
+  --on-ok: 0 57 22;
   --warn: 240 190 110;
   --danger: 242 184 181;
   --code-bg: 18 19 23;
@@ -541,18 +542,71 @@ html[data-readonly] .edit-only {
   display: inline-grid;
   place-content: center;
 }
-.cm-checkbox:checked {
-  background: rgb(var(--accent));
-  border-color: rgb(var(--accent));
+.cm-checkbox:checked,
+.cm-checkbox[data-status='done'] {
+  background: rgb(var(--ok));
+  border-color: rgb(var(--ok));
   animation: pop 300ms var(--ease-spring);
 }
-.cm-checkbox:checked::after {
+.cm-checkbox:checked::after,
+.cm-checkbox[data-status='done']::after {
   content: '';
   width: 0.55em;
   height: 0.3em;
-  border-left: 2px solid rgb(var(--on-accent));
-  border-bottom: 2px solid rgb(var(--on-accent));
+  border-left: 2px solid rgb(var(--on-ok));
+  border-bottom: 2px solid rgb(var(--on-ok));
   transform: rotate(-45deg) translate(1px, -1px);
+}
+/* [O] in progress: half-filled box; [H] blocked: warning-colored box with a pause sign */
+.cm-checkbox[data-status='doing'] {
+  border-color: rgb(var(--accent));
+  background: linear-gradient(135deg, rgb(var(--accent)) 50%, transparent 50%);
+}
+.cm-checkbox[data-status='blocked'] {
+  border-color: rgb(var(--warn));
+  background: rgb(var(--warn) / 0.16);
+}
+.cm-checkbox[data-status='blocked']::after {
+  content: '';
+  width: 0.4em;
+  height: 0.45em;
+  border-left: 2px solid rgb(var(--warn));
+  border-right: 2px solid rgb(var(--warn));
+}
+span.cm-checkbox {
+  flex-shrink: 0;
+  cursor: inherit;
+}
+/* Status picker of a task checkbox (right click / long press) */
+.wz-status-menu {
+  position: fixed;
+  z-index: 95;
+  display: flex;
+  flex-direction: column;
+  min-width: 10rem;
+  padding: 4px;
+  border: 1px solid rgb(var(--line));
+  border-radius: 12px;
+  background: rgb(var(--raised));
+  box-shadow: var(--shadow);
+}
+.wz-status-menu button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  text-align: left;
+  color: rgb(var(--ink));
+}
+.wz-status-menu button:hover,
+.wz-status-menu button[aria-checked='true'] {
+  background: rgb(var(--accent) / 0.12);
+}
+/* Display-only ligatures (-> → etc.) */
+.cm-ligature {
+  font-variant-ligatures: none;
 }
 .cm-hr {
   display: block;
@@ -1583,6 +1637,16 @@ html[data-readonly] .edit-only {
 [data-theme='material'] .cm-checkbox {
   border-radius: 2px;
   border-color: rgb(var(--muted));
+}
+[data-theme='material'] .cm-checkbox:checked,
+[data-theme='material'] .cm-checkbox[data-status='done'] {
+  border-color: rgb(var(--ok));
+}
+[data-theme='material'] .cm-checkbox[data-status='doing'] {
+  border-color: rgb(var(--accent));
+}
+[data-theme='material'] .cm-checkbox[data-status='blocked'] {
+  border-color: rgb(var(--warn));
 }
 [data-theme='material'] .cm-due,
 [data-theme='material'] .cm-tag {

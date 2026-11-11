@@ -309,7 +309,7 @@ function highlightMindmapLine(text: string, lineFrom: number, isRoot: boolean, a
     addMark(lineFrom, lineFrom + heading[1].length, 'cm-src-h-mark');
     addMark(lineFrom + heading[1].length + heading[2].length, lineFrom + text.length, 'cm-src-code-kw');
   } else {
-    const bullet = /^(\s*)([-*+]|\d+[.)])(\s+)(?:\[([ xX])\](\s+))?(.*)$/.exec(text);
+    const bullet = /^(\s*)([-*+]|\d+[.)])(\s+)(?:\[([ xXoOhH])\](\s+))?(.*)$/.exec(text);
     if (bullet) {
       const markFrom = lineFrom + bullet[1].length;
       addMark(markFrom, markFrom + bullet[2].length, 'cm-src-list-mark');
@@ -674,7 +674,7 @@ export function buildSourceDecorations(state: EditorState, visibleRanges: readon
       }
 
       // Task due dates, repeat rules, and completion stamps
-      if (/^\s*(?:>\s*)*[-*+]\s+\[[ xX]\]/.test(ln.text)) {
+      if (/^\s*(?:>\s*)*[-*+]\s+\[[ xXoOhH]\]/.test(ln.text)) {
         for (const m of ln.text.matchAll(/(?:📅\s*|\bdue:)(\d{4}-\d{2}-\d{2}|heute|morgen|today|tomorrow)/gi)) {
           const from = ln.from + m.index!;
           const to = from + m[0].length;

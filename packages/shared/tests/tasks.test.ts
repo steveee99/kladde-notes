@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextDue, normalizeDueWords, parseTasks, toggleTask, bucketOf, setTaskMeta, shortcutDate, takeTaskBlock, appendTaskLines } from '../src/tasks';
+import { nextDue, normalizeDueWords, parseTasks, toggleTask, setTaskStatus, bucketOf, setTaskMeta, shortcutDate, takeTaskBlock, appendTaskLines } from '../src/tasks';
 
 const today = new Date(2026, 10, 8); // 2026-11-08, a Sunday
 
@@ -34,6 +34,29 @@ describe('tasks', () => {
     expect(normalizeDueWords('Text `due:morgen`\n- [ ] b `due:heute`', today)).toBe('Text `due:morgen`\n- [ ] b `due:heute`');
     const [t] = parseTasks('- [ ] a 📅 2026-11-01', today);
     expect(bucketOf(t, today)).toBe('overdue');
+  });
+});
+
+describe('task status', () => {
+  it('reads [ ], [O], [H] and [x] as open, doing, blocked and done', () => {
+    const tasks = parseTasks('- [ ] a\n- [O] b\n- [h] c\n- [X] d', today);
+    expect(tasks.map((t) => t.status)).toEqual(['open', 'doing', 'blocked', 'done']);
+    expect(tasks.map((t) => t.done)).toEqual([false, false, false, true]);
+  });
+
+  it('moves a task between statuses and stamps the done date only when finished', () => {
+    expect(setTaskStatus('- [ ] a', 0, 'doing', today)).toBe('- [O] a');
+    expect(setTaskStatus('- [O] a', 0, 'blocked', today)).toBe('- [H] a');
+    expect(setTaskStatus('- [H] a', 0, 'done', today)).toBe('- [x] a ✅ 2026-11-08');
+    expect(setTaskStatus('- [x] a ✅ 2026-11-08', 0, 'doing', today)).toBe('- [O] a');
+    expect(toggleTask('  - [O] a', 0, today)).toBe('  - [x] a ✅ 2026-11-08');
+  });
+
+  it('finishing a repeating task from any status adds the next open one', () => {
+    expect(setTaskStatus('- [O] Gießen 📅 2026-11-08 🔁 wöchentlich', 0, 'done', today).split('\n')).toEqual([
+      '- [ ] Gießen 📅 2026-11-15 🔁 wöchentlich',
+      '- [x] Gießen 📅 2026-11-08 🔁 wöchentlich ✅ 2026-11-08',
+    ]);
   });
 });
 
