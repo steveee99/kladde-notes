@@ -4,6 +4,10 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Geändert: Die Aufgaben auf der Startseite lassen Notizen im Archiv aus. Die Kanban-Spalte „Fertig“ zeigt nur noch Aufgaben, die heute oder gestern erledigt wurden.
+- Behoben: Die Checkboxen von Aufgaben stehen im Editor wieder auf einer Höhe – je nach Status (offen, in Arbeit, blockiert, fertig) saßen sie unterschiedlich hoch.
+- Behoben: Auf der Startseite sitzen Checkbox und Kalender-Knopf von Aufgaben ohne Notiz mittig zum Text.
+
 ## [0.30.0] – 2026-11-11
 
 - Neu: Aufgaben haben einen Status: `[ ]` offen, `[O]` in Arbeit, `[H]` blockiert, `[x]` fertig. Im Editor zeigt die Checkbox den Status (halb gefüllt, Pause-Zeichen bzw. grün mit Haken); ein Klick erledigt die Aufgabe, Rechtsklick wählt einen beliebigen Status. `TASKS`-Abfragen und das MCP kennen das Feld `status` (`open`, `doing`, `blocked`, `done`).

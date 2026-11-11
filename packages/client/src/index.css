@@ -534,7 +534,9 @@ html[data-readonly] .edit-only {
   appearance: none;
   width: 1.1em;
   height: 1.1em;
-  margin: 0 0.45em -0.15em 0.1em;
+  margin: 0 0.45em 0 0.1em;
+  /* middle, not baseline: an inline-grid takes its baseline from the ::after mark, which differs per status */
+  vertical-align: middle;
   border: 2px solid rgb(var(--faint));
   border-radius: 6px;
   cursor: pointer;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlignJustify, Briefcase, CalendarCheck, CalendarClock, CalendarDays, Inbox as InboxIcon, Kanban, List, ListChecks, Plus, Repeat, X } from 'lucide-react';
-import { INBOX_FOLDER, TASK_STATUSES, Task, TaskBucket, TaskStatus, bucketOf, parseTasks, projectTitleOf, shortcutDate, projectsOf, splitPath, toDateString } from '@kladde/shared';
+import { INBOX_FOLDER, TASK_STATUSES, Task, TaskBucket, TaskStatus, bucketOf, parseTasks, projectTitleOf, roleOfPath, shortcutDate, projectsOf, splitPath, toDateString } from '@kladde/shared';
 import { openDialog } from '../lib/dialogs';
 import { reviewDue } from './Review';
 import { useVault, vault } from '../data/vault';
@@ -39,7 +39,7 @@ const REPEATS: { value: string; labelKey: I18nKey }[] = [
  * Rendered in a portal with fixed viewport coordinates so CSS animations / transforms on
  * parent list items never trap the popover behind sibling tasks.
  */
-function TaskMeta({ task }: { task: TaskRow }) {
+function TaskMeta({ task, className = '' }: { task: TaskRow; className?: string }) {
   useLang();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -113,7 +113,7 @@ function TaskMeta({ task }: { task: TaskRow }) {
   ] as const;
 
   return (
-    <div className="edit-only relative shrink-0" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+    <div className={`edit-only relative shrink-0 ${className}`} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
       <button
         ref={triggerRef}
         type="button"
@@ -217,7 +217,7 @@ function TaskItem({ task, compact }: { task: TaskRow; compact: boolean }) {
     >
       <input
         type="checkbox"
-        className={`cm-checkbox shrink-0 ${compact ? '' : 'mt-1'}`}
+        className={`cm-checkbox shrink-0 ${compact ? '' : 'mt-0.5'}`}
         data-status={leaving ? 'done' : task.status}
         title={t(`task.status.${task.status}`)}
         checked={leaving}
@@ -245,29 +245,32 @@ function TaskItem({ task, compact }: { task: TaskRow; compact: boolean }) {
       ) : (
         <div className="min-w-0 flex-1">
           <div className="break-words text-[15px] leading-snug">{task.text || t('home.taskEmpty')}</div>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <StatusChip status={task.status} />
-            {task.due && (
-              <span className={`cm-due ${bucket === 'overdue' ? 'overdue' : bucket === 'today' ? 'today' : ''}`}>
-                <CalendarClock size={11} className="mr-1 inline" />
-                {formatDue(task.due)}
-              </span>
-            )}
-            {task.repeat && (
-              <span className="cm-due">
-                <Repeat size={11} className="mr-1 inline" />
-                {task.repeat}
-              </span>
-            )}
-            {task.noteTitle && (
-              <button className="max-w-full truncate text-xs text-faint hover:text-accent" onClick={() => navigate(`/n/${task.noteId}`)}>
-                {task.noteTitle}
-              </button>
-            )}
-          </div>
+          {(task.status === 'doing' || task.status === 'blocked' || task.due || task.repeat || task.noteTitle) && (
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              <StatusChip status={task.status} />
+              {task.due && (
+                <span className={`cm-due ${bucket === 'overdue' ? 'overdue' : bucket === 'today' ? 'today' : ''}`}>
+                  <CalendarClock size={11} className="mr-1 inline" />
+                  {formatDue(task.due)}
+                </span>
+              )}
+              {task.repeat && (
+                <span className="cm-due">
+                  <Repeat size={11} className="mr-1 inline" />
+                  {task.repeat}
+                </span>
+              )}
+              {task.noteTitle && (
+                <button className="max-w-full truncate text-xs text-faint hover:text-accent" onClick={() => navigate(`/n/${task.noteId}`)}>
+                  {task.noteTitle}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
-      <TaskMeta task={task} />
+      {/* The 27px button is taller than a line of text: pull it up so it centers on the first line */}
+      <TaskMeta task={task} className={compact ? '' : '-my-1'} />
     </li>
   );
 }
@@ -347,7 +350,7 @@ function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
                 >
                   <button
                     type="button"
-                    className="mt-0.5 shrink-0 rounded-md disabled:cursor-default"
+                    className="mt-0.5 flex shrink-0 rounded-md disabled:cursor-default"
                     disabled={locked}
                     aria-label={t('home.taskStatusAria')}
                     title={t('home.taskStatusAria')}
@@ -371,7 +374,7 @@ function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
                       </div>
                     )}
                   </div>
-                  {tk.status !== 'done' && <TaskMeta task={tk} />}
+                  {tk.status !== 'done' && <TaskMeta task={tk} className="-my-1" />}
                 </div>
               );
             })}
@@ -423,17 +426,21 @@ export function HomeView() {
   const notes = vault.list();
   const roleConfig = vault.roleConfig();
 
-  /** Open tasks plus the ones finished in the last 7 days (for the board's "done" column) */
+  /**
+   * Open tasks plus the ones finished today or yesterday (for the board's "done" column).
+   * Notes in the PARA archive are left out.
+   */
   const allTasks = useMemo(() => {
     const out: TaskRow[] = [];
     const dueOf = vault.taskDueResolver();
     const free = vault.freeTasksNote();
     const since = new Date();
-    since.setDate(since.getDate() - 7);
+    since.setDate(since.getDate() - 1);
     const recent = toDateString(since);
     const keep = (tk: Task) => !tk.done || (!!tk.doneDate && tk.doneDate >= recent);
     if (free) for (const tk of parseTasks(free.content)) if (keep(tk)) out.push({ ...tk, noteId: free.id, noteTitle: '' });
     for (const n of notes) {
+      if (roleOfPath(n.path, roleConfig) === 'archive') continue;
       for (const tk of parseTasks(n.content, undefined, n.access === 'owner' ? dueOf(n.path) : null)) if (keep(tk)) out.push({ ...tk, noteId: n.id, noteTitle: projectTitleOf(n.path, n.content, roleConfig) });
     }
     return out.sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999'));
