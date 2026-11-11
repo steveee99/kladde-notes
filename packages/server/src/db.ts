@@ -209,6 +209,23 @@ export const MIGRATIONS: Migration[] = [
       db.exec('ALTER TABLE users ADD COLUMN avatar_id TEXT; ALTER TABLE users ADD COLUMN avatar_mime TEXT;');
     },
   },
+  {
+    version: 9,
+    description: 'External sign-in identities (GitLab OAuth) linked to accounts',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE external_logins (
+          provider TEXT NOT NULL,
+          subject TEXT NOT NULL,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          username TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          PRIMARY KEY (provider, subject)
+        );
+        CREATE UNIQUE INDEX external_logins_user ON external_logins(user_id, provider);
+      `);
+    },
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number[] {

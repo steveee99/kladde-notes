@@ -61,6 +61,14 @@ export interface FeatureSettings {
   heatmap: {
     enabled: boolean;
   };
+  /** Weekly review (`/review`) with its reminder on the home screen */
+  review: {
+    enabled: boolean;
+  };
+  /** Favorites list in the sidebar, toggled per note with Ctrl/⌘+D */
+  favorites: {
+    enabled: boolean;
+  };
 }
 
 /** Configurable folder mapping per role; `null` disables matching for that role */
@@ -105,6 +113,11 @@ export function cleanDailyFormat(raw: unknown, fallback = DEFAULT_DAILY_FORMAT):
     .filter((p) => p && p !== '.' && p !== '..');
   if (!parts.length || parts[0].toLowerCase() === '.kladde') return fallback;
   return parts.join('/');
+}
+
+/** `{ enabled: true }` turns an opt-in feature on; anything else leaves it off */
+function optInFlag(raw: unknown): boolean {
+  return !!raw && typeof raw === 'object' && (raw as Record<string, unknown>).enabled === true;
 }
 
 function hasFolderPrefix(folders: string[], target: string): boolean {
@@ -168,6 +181,12 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
     },
     heatmap: {
       enabled: rawHeatmap?.enabled === true,
+    },
+    review: {
+      enabled: optInFlag(obj.review),
+    },
+    favorites: {
+      enabled: optInFlag(obj.favorites),
     },
   };
 }

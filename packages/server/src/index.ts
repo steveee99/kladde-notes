@@ -4,8 +4,6 @@ import type express from 'express';
 import { APP_VERSION } from '@kladde/shared';
 import { createKladdeApp } from './app.js';
 import { backupDatabase, openDatabase } from './db.js';
-import { TelegramAdminBot } from './admin/TelegramBot.js';
-import { escapeHtml } from './admin/AdminCommands.js';
 import { launchDesktopWindow, probeRunningKladde, startDesktopLifecycle } from './desktop.js';
 import {
   isSeaRuntime,
@@ -116,8 +114,7 @@ async function main(): Promise<void> {
   const TRUST_PROXY = !standalone && (env.TRUST_PROXY === '1' || env.TRUST_PROXY === 'true');
   const clientDist = path.resolve(baseDir, '..', '..', 'client', 'dist');
 
-  let bot: TelegramAdminBot | null = null;
-  const { app, users, audit, live, actions } = createKladdeApp({
+  const { app, users, audit, live } = createKladdeApp({
     db,
     dataDir: DATA_DIR,
     env,
@@ -127,18 +124,12 @@ async function main(): Promise<void> {
     trustProxy: TRUST_PROXY,
     clientDist,
     seaAssets: loadSeaClientAssets(),
-    onRegistered: (user, note) => void bot?.notify(`🆕 Neues Konto: <b>${escapeHtml(user.username)}</b>${note ? ` (Einladung: ${escapeHtml(note)})` : ''}`),
   });
   handler = app;
 
   if (!standalone) {
-    bot = TelegramAdminBot.fromEnv(actions, env, (cmd) =>
-      audit.record('admin_command', { detail: `telegram ${cmd.chatId}: ${cmd.text}` })
-    );
-    bot?.start();
-
     const inviteUrl = (code: string) => `${(PUBLIC_URL ?? `http://localhost:${isProduction ? port : 5174}`).replace(/\/$/, '')}/invite/${code}`;
-    // Without users and without a bot there is no other way in: print a first invite
+    // Without users there is no other way in: print a first invite
     if (users.countUsers() === 0 && !users.hasOpenInvite()) {
       const invite = users.createInvite('Erstes Konto');
       console.log(`\n✉️  Erste Einladung (14 Tage gültig): ${inviteUrl(invite.code)}\n`);
@@ -165,7 +156,6 @@ async function main(): Promise<void> {
   const shutdown = () => {
     if (closing) return;
     closing = true;
-    bot?.stop();
     server.closeAllConnections?.();
     server.close(() => {
       try {

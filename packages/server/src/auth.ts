@@ -11,6 +11,7 @@ import type { Me } from '@kladde/shared';
 import { AccountError, UserRecord, UserStore, checkPassword, hashPassword } from './UserStore.js';
 import { AuditLog } from './security/AuditLog.js';
 import { SESSION_COOKIE, deviceName, handle, rateLimit, readCookie, requireUser, setSessionCookie } from './http.js';
+import { GITLAB, GitLabConfig, authProviders, gitlabRouter } from './gitlabAuth.js';
 
 const FLOW_MAX_AGE_MS = 5 * 60 * 1000;
 /** Wrong passwords per account, from whatever IP: guessing from many addresses is braked too */
@@ -31,6 +32,10 @@ export interface AuthOptions {
   publicUrl: string | null;
   secureCookies: boolean;
   devLogin: boolean;
+  /** "Sign in with GitLab", null/undefined = off */
+  gitlab?: GitLabConfig | null;
+  /** Replaces fetch for the GitLab token/user lookups (tests) */
+  gitlabFetch?: typeof fetch;
   onRegistered?: (user: UserRecord, inviteNote: string) => void;
 }
 
@@ -117,9 +122,14 @@ export function authRouter(opts: AuthOptions): express.Router {
   const publicHost = opts.publicUrl ? new URL(opts.publicUrl).hostname.toLowerCase() : null;
   const secureFor = (req: Request) => opts.secureCookies && (req.protocol === 'https' || req.hostname?.toLowerCase() === publicHost);
 
-  const signIn = (req: Request, res: express.Response, user: UserRecord, event: 'login' | 'register') => {
+  /** New session cookie and audit entry; the caller sends the response */
+  const startSession = (req: Request, res: express.Response, user: UserRecord, event: 'login' | 'register') => {
     setSessionCookie(res, users.createSession(user.id), secureFor(req));
     audit.record(event, { userId: user.id, username: user.username, ip: req.ip });
+  };
+
+  const signIn = (req: Request, res: express.Response, user: UserRecord, event: 'login' | 'register') => {
+    startSession(req, res, user, event);
     res.json(me(user));
   };
 
@@ -134,6 +144,7 @@ export function authRouter(opts: AuthOptions): express.Router {
       hasPassword: user.hasPassword,
       isAdmin: user.isAdmin,
       avatarUrl: user.avatarUrl,
+      externalLogins: users.externalLoginsOf(user.id),
     };
   };
 
@@ -357,6 +368,39 @@ export function authRouter(opts: AuthOptions): express.Router {
       res.json(me(req.user!));
     })
   );
+
+  // ---------------------------------------------------------------- GitLab (OAuth)
+
+  router.get('/providers', (_req, res) => res.json(authProviders(opts.gitlab ?? null)));
+
+  router.delete(
+    '/gitlab',
+    authed,
+    handle((req, res) => {
+      if (users.unlinkExternal(req.user!.id, GITLAB)) {
+        audit.record('external_unlinked', { userId: req.user!.id, username: req.user!.username, ip: req.ip, detail: 'gitlab' });
+      }
+      res.json(me(req.user!));
+    })
+  );
+
+  if (opts.gitlab) {
+    router.use(
+      '/gitlab',
+      gitlabRouter({
+        users,
+        audit,
+        config: opts.gitlab,
+        publicUrl: opts.publicUrl,
+        secureFor,
+        fetchImpl: opts.gitlabFetch,
+        onSignedIn: (req, res, user, event) => {
+          startSession(req, res, user, event);
+          if (event === 'register') opts.onRegistered?.(user, users.listInvites().find((i) => i.usedBy === user.username)?.note ?? '');
+        },
+      })
+    );
+  }
 
   // ---------------------------------------------------------------- local development only
 

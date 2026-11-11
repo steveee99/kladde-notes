@@ -67,6 +67,17 @@ export interface PushResponse {
   results: PushResult[];
 }
 
+/** Sign-in options the server offers besides passkeys and passwords (`GET /api/auth/providers`) */
+export interface AuthProviders {
+  gitlab: {
+    enabled: boolean;
+    /** Button label, e.g. "GitLab" or the name of a self-hosted instance */
+    label: string;
+    /** New accounts without an invite are allowed */
+    signup: boolean;
+  };
+}
+
 export interface Me {
   id: string;
   username: string;
@@ -76,6 +87,8 @@ export interface Me {
   hasPassword: boolean;
   /** Sees the admin area (accounts, invites, password reset) */
   isAdmin: boolean;
+  /** Sign-ins through other services linked to the account (e.g. GitLab) */
+  externalLogins?: { provider: string; username: string; createdAt: number }[];
   /** URL of the user's profile picture, if uploaded */
   avatarUrl?: string | null;
   /** True when running in single-user desktop/standalone mode (no auth, invites, sharing or admin area) */

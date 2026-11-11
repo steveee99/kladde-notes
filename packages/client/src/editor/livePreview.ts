@@ -257,7 +257,7 @@ function build(state: EditorState): DecorationSet {
         }
         case 'Table':
           if (!isActive(node.from, node.to)) {
-            blockWidget(node, Decoration.replace({ widget: new TableWidget(text(), lang), block: true }));
+            blockWidget(node, Decoration.replace({ widget: new TableWidget(text(), lang, !state.readOnly), block: true }));
             return false;
           }
           return;

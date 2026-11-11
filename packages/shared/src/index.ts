@@ -15,3 +15,4 @@ export * from './diff.js';
 export * from './merge.js';
 export * from './semantic.js';
 export * from './export.js';
+export * from './table.js';

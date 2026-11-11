@@ -59,6 +59,9 @@ export function newId(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/** Synced setting with the ordered list of favorite note ids */
+const FAVORITES_SETTING = 'favorites';
+
 /**
  * The local copy of the user's space (offline first). Every edit lands in IndexedDB right away and is
  * pushed in the background; the server is asked for "everything after cursor N" on start, when coming
@@ -620,6 +623,28 @@ class Vault {
     await this.setSetting(TEMPLATES_SETTING, this.templates().filter((t) => t.id !== id));
   }
 
+  // ------------------------------------------------------------------ favorites (synced setting)
+
+  /** Favorite note ids in the user's order; ids of deleted or unknown notes are skipped */
+  favoriteIds(): string[] {
+    const raw = this.setting<unknown>(FAVORITES_SETTING);
+    if (!Array.isArray(raw)) return [];
+    return raw.filter((id): id is string => typeof id === 'string' && !!this.get(id));
+  }
+
+  isFavorite(id: string): boolean {
+    return this.favoriteIds().includes(id);
+  }
+
+  /** Adds or removes a note from the favorites; returns whether it is a favorite afterwards */
+  async toggleFavorite(id: string): Promise<boolean> {
+    if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    const list = this.favoriteIds();
+    const next = list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+    await this.setSetting(FAVORITES_SETTING, next);
+    return next.includes(id);
+  }
+
   // ------------------------------------------------------------------ synced settings (system note)
 
   private settingsId() {
@@ -845,6 +870,8 @@ class Vault {
       recipe: { enabled: false, folder: STANDALONE_RECIPE_FOLDER },
       daily: { enabled: true, folder: DEFAULT_DAILY_FOLDER, format: DEFAULT_DAILY_FORMAT },
       heatmap: { enabled: false },
+      review: { enabled: false },
+      favorites: { enabled: false },
     } satisfies FeatureSettings);
     for (const w of welcomeNotes(getLang())) await this.insert(w.folder, w.title, w.content);
   }

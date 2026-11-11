@@ -27,6 +27,7 @@ import {
   Plus,
   Search,
   Share2,
+  Star,
   Trash2,
   X,
 } from 'lucide-react';
@@ -264,18 +265,21 @@ interface RevealRequest {
 
 function SidebarNoteRow({
   note,
+  label,
   active,
   highlighted,
   depth,
   onNavigate,
 }: {
   note: LocalNote;
+  /** Shown instead of the file name (favorites show the title) */
+  label?: string;
   active: boolean;
   highlighted?: boolean;
   depth: number;
   onNavigate?: () => void;
 }) {
-  const name = splitPath(note.path).name;
+  const name = label ?? splitPath(note.path).name;
   const openNote = () => {
     navigate(`/n/${note.id}`);
     onNavigate?.();
@@ -485,6 +489,68 @@ function FolderItem({
   );
 }
 
+const SECTION_KEY = 'kladde_sidebar_sections';
+
+function readSections(): Record<string, boolean> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SECTION_KEY) ?? '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Open/closed state of a sidebar section, remembered per device; `fallback` decides before the first toggle */
+function useSectionOpen(key: string, fallback: () => boolean): [boolean, (open: boolean) => void] {
+  const [open, setOpen] = useState(() => readSections()[key] ?? fallback());
+  const set = useCallback(
+    (next: boolean) => {
+      setOpen(next);
+      try {
+        localStorage.setItem(SECTION_KEY, JSON.stringify({ ...readSections(), [key]: next }));
+      } catch {
+        // storage blocked: only for this session
+      }
+    },
+    [key]
+  );
+  return [open, set];
+}
+
+/** Collapsible section heading of the sidebar (Favorites, Folders); extra buttons go in `children` */
+function SectionHeader({
+  icon: Icon,
+  label,
+  open,
+  onToggle,
+  count,
+  children,
+}: {
+  icon?: typeof Star;
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+  count?: number;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="mt-2 mb-0.5 flex shrink-0 items-center gap-1 pl-1 pr-3 text-xs font-semibold uppercase tracking-wider text-faint">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex min-w-0 flex-1 items-center gap-1 rounded-full px-2 py-1 text-left transition-colors hover:bg-raised hover:text-ink"
+      >
+        {open ? <ChevronDown size={13} className="shrink-0" /> : <ChevronRight size={13} className="shrink-0" />}
+        {Icon && <Icon size={12} className="shrink-0" />}
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        {!open && count ? <span className="font-medium normal-case tracking-normal opacity-75">{count}</span> : null}
+      </button>
+      {children}
+    </div>
+  );
+}
+
 export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onNavigate?: () => void; isAdmin?: boolean; headerAction?: React.ReactNode }) {
   const version = useVault();
   const lang = useLang();
@@ -493,6 +559,9 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
   const locked = useReadOnly();
   const [newRoot, setNewRoot] = useState(false);
   const [query, setQuery] = useState('');
+  const [activeResult, setActiveResult] = useState(0);
+  const [favoritesOpen, setFavoritesOpen] = useSectionOpen('favorites', () => window.innerHeight >= 700);
+  const [foldersOpen, setFoldersOpen] = useSectionOpen('folders', () => true);
   const [revealRequest, setRevealRequest] = useState<RevealRequest | null>(null);
   const [flashNoteId, setFlashNoteId] = useState<string | null>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -556,6 +625,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
       return;
     }
     const folder = splitPath(activeNote.path).folder;
+    setFoldersOpen(true);
     setRevealRequest({ folder, noteId: activeNote.id, nonce: Date.now() });
     setFlashNoteId(activeNote.id);
   };
@@ -602,24 +672,63 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [terms, version]);
 
+  // Arrow keys move through the results; a new query starts again at the top
+  useEffect(() => setActiveResult(0), [query]);
+  const selectedResult = Math.min(activeResult, Math.max(searchResults.length - 1, 0));
+  useEffect(() => {
+    sidebarRef.current
+      ?.querySelector<HTMLElement>(`[data-search-result="${selectedResult}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [selectedResult, searchResults]);
+
+  const favoriteNotes = features.favorites.enabled
+    ? vault
+        .favoriteIds()
+        .map((id) => vault.get(id))
+        .filter((n): n is LocalNote => !!n)
+    : [];
+
   const nav = (to: string) => {
     navigate(to);
     onNavigate?.();
   };
-  const item = (to: string, Icon: typeof Home, label: string, extra?: React.ReactNode, dataAttrs?: Record<string, string>) => {
-    const active = path === to;
+  /** Compact navigation: one round icon button per destination, the label as tooltip, counts as a corner badge */
+  const navIcon = (
+    key: string,
+    Icon: typeof Home,
+    label: string,
+    opts: { to?: string; onClick?: () => void; active?: boolean; badge?: React.ReactNode; dataAttrs?: Record<string, string> } = {}
+  ) => {
+    const active = opts.active ?? (opts.to ? path === opts.to : false);
     return (
       <button
-        {...dataAttrs}
-        onClick={() => nav(to)}
+        key={key}
+        type="button"
+        {...opts.dataAttrs}
+        onClick={opts.onClick ?? (() => opts.to && nav(opts.to))}
         aria-current={active ? 'page' : undefined}
-        className={`flex w-full shrink-0 items-center gap-3 rounded-full px-3 py-2 text-sm font-medium transition-colors ${active ? 'bg-accent-container text-on-accent-container' : 'text-muted hover:bg-raised hover:text-ink'}`}
+        aria-label={label}
+        title={label}
+        className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${
+          active ? 'bg-accent-container text-on-accent-container' : 'text-muted hover:bg-raised hover:text-ink'
+        }`}
       >
-        <Icon size={18} className="shrink-0" /> <span className="min-w-0 flex-1 truncate text-left">{label}</span>
-        {extra}
+        <Icon size={19} />
+        {opts.badge}
       </button>
     );
   };
+  const countBadge = (n: number, tone: 'warn' | 'muted' = 'muted') =>
+    n > 0 ? (
+      <span
+        className={`absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full px-1 text-center text-[10px] font-semibold leading-[1.1rem] ${
+          tone === 'warn' ? 'bg-warn text-surface' : 'bg-raised text-muted ring-1 ring-line'
+        }`}
+      >
+        {n > 99 ? '99+' : n}
+      </span>
+    ) : null;
+  const ownNotes = notes.filter((n) => n.access === 'owner').length;
 
   return (
     <div
@@ -648,10 +757,21 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
             if (e.key === 'Escape') {
               setQuery('');
               e.currentTarget.blur();
-            } else if (e.key === 'Enter' && searchResults[0]) {
-              nav(`/n/${searchResults[0].id}`);
+            } else if (e.key === 'ArrowDown' && searchResults.length) {
+              e.preventDefault();
+              setActiveResult((selectedResult + 1) % searchResults.length);
+            } else if (e.key === 'ArrowUp' && searchResults.length) {
+              e.preventDefault();
+              setActiveResult((selectedResult - 1 + searchResults.length) % searchResults.length);
+            } else if (e.key === 'Enter' && searchResults[selectedResult]) {
+              e.preventDefault();
+              nav(`/n/${searchResults[selectedResult].id}`);
             }
           }}
+          role="combobox"
+          aria-expanded={terms.length > 0}
+          aria-controls="sidebar-search-results"
+          aria-activedescendant={terms.length > 0 && searchResults.length ? `sidebar-search-result-${selectedResult}` : undefined}
           placeholder={t('search.sidebarPlaceholder')}
           aria-label={t('common.search')}
           className="min-w-0 flex-1 bg-transparent text-sm text-ink placeholder:text-faint outline-none"
@@ -683,17 +803,23 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
           {searchResults.length === 0 ? (
             <p className="px-2 py-6 text-center text-sm text-muted">{t('search.noResults')}</p>
           ) : (
-            <ul className="space-y-1">
-              {searchResults.map((n) => {
+            <ul id="sidebar-search-results" role="listbox" className="space-y-1">
+              {searchResults.map((n, i) => {
                 const { folder } = splitPath(n.path);
                 const title = projectTitleOf(n.path, n.content, roleConfig);
                 const active = path === `/n/${n.id}`;
+                const selected = i === selectedResult;
                 return (
-                  <li key={n.id}>
+                  <li key={n.id} id={`sidebar-search-result-${i}`} role="option" aria-selected={selected}>
                     <button
+                      data-search-result={i}
+                      tabIndex={-1}
                       onClick={() => nav(`/n/${n.id}`)}
+                      onMouseMove={() => selected || setActiveResult(i)}
                       aria-current={active ? 'page' : undefined}
-                      className={`w-full rounded-2xl px-3 py-2 text-left transition-colors ${active ? 'bg-accent-container text-on-accent-container' : 'hover:bg-raised'}`}
+                      className={`w-full rounded-2xl px-3 py-2 text-left transition-colors ${
+                        active ? 'bg-accent-container text-on-accent-container' : selected ? 'bg-raised' : 'hover:bg-raised'
+                      } ${selected ? 'ring-2 ring-inset ring-accent/60' : ''}`}
                     >
                       <div className="truncate text-sm font-medium">{title}</div>
                       <div className="truncate text-[11px] text-muted">{folderDisplayName(folder, lang)}</div>
@@ -707,31 +833,41 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto scrollbar-thin">
-          {item('/', Home, t('nav.home'))}
-          {features.daily.enabled && (!locked || !!dailyNote) && (
-            <button
-              type="button"
-              onClick={() => void openTodayDailyNote().then(() => onNavigate?.())}
-              aria-current={dailyRouteActive ? 'page' : undefined}
-              title={t('daily.todayBtn')}
-              className={`flex w-full shrink-0 items-center gap-3 rounded-full px-3 py-2 text-sm font-medium transition-colors ${
-                dailyRouteActive ? 'bg-accent-container text-on-accent-container' : 'text-muted hover:bg-raised hover:text-ink'
-              }`}
-            >
-              <CalendarDays size={18} className="shrink-0" /> <span className="min-w-0 flex-1 truncate text-left">{t('daily.navLabel')}</span>
-            </button>
+          <nav aria-label={t('nav.main')} className="grid shrink-0 grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] justify-items-center gap-y-1 pb-1">
+            {navIcon('home', Home, t('nav.home'), { to: '/' })}
+            {features.daily.enabled &&
+              (!locked || !!dailyNote) &&
+              navIcon('daily', CalendarDays, t('daily.todayBtn'), { active: dailyRouteActive, onClick: () => void openTodayDailyNote().then(() => onNavigate?.()) })}
+            {features.heatmap.enabled && navIcon('calendar', CalendarRange, t('nav.calendar'), { to: '/calendar' })}
+            {navIcon('notes', FileText, `${t('nav.allNotes')} (${ownNotes})`, { to: '/notes' })}
+            {navIcon('inbox', InboxIcon, inboxCount > 0 ? `${t('nav.inbox')} (${inboxCount})` : t('nav.inbox'), {
+              to: '/inbox',
+              badge: inboxZero ? countBadge(inboxCount, 'warn') : null,
+            })}
+            {navIcon('graph', Network, t('nav.graph'), { to: '/graph' })}
+            {navIcon('files', Images, t('nav.files'), { to: '/files' })}
+            {features.review.enabled &&
+              navIcon('review', CalendarCheck, reviewDue() ? `${t('nav.review')} · ${t('home.reviewDueChip')}` : t('nav.review'), {
+                to: '/review',
+                badge: reviewDue() ? <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-accent" /> : null,
+              })}
+            {(shared > 0 || vault.sharedFolders.length > 0) &&
+              !vault.standalone &&
+              navIcon('shared', Share2, t('nav.sharedWithMe'), { to: '/shared', badge: countBadge(shared), dataAttrs: { 'data-tree-shared': 'true' } })}
+          </nav>
+          {favoriteNotes.length > 0 && (
+            <>
+              <SectionHeader icon={Star} label={t('nav.favorites')} open={favoritesOpen} onToggle={() => setFavoritesOpen(!favoritesOpen)} count={favoriteNotes.length} />
+              {favoritesOpen && (
+                <ul data-favorites-list className="max-h-[10.75rem] shrink-0 overflow-y-auto scrollbar-thin">
+                  {favoriteNotes.map((n) => (
+                    <SidebarNoteRow key={n.id} note={n} label={projectTitleOf(n.path, n.content, roleConfig)} active={activeNoteId === n.id} depth={0} onNavigate={onNavigate} />
+                  ))}
+                </ul>
+              )}
+            </>
           )}
-          {features.heatmap.enabled && item('/calendar', CalendarRange, t('nav.calendar'))}
-          {item('/notes', FileText, t('nav.allNotes'), <span className="text-xs opacity-75">{notes.filter((n) => n.access === 'owner').length}</span>)}
-          {item('/inbox', InboxIcon, t('nav.inbox'), inboxZero && inboxCount > 0 ? <span className="rounded-full bg-warn/15 px-1.5 py-0.5 text-xs font-semibold text-warn">{inboxCount}</span> : null)}
-          {item('/graph', Network, t('nav.graph'))}
-          {item('/files', Images, t('nav.files'))}
-          {item('/review', CalendarCheck, t('nav.review'), reviewDue() ? <span className="h-2 w-2 rounded-full bg-accent" /> : null)}
-          {(shared > 0 || vault.sharedFolders.length > 0) &&
-            !vault.standalone &&
-            item('/shared', Share2, t('nav.sharedWithMe'), <span className="text-xs opacity-75">{shared || ''}</span>, { 'data-tree-shared': 'true' })}
-          <div className="mt-3 mb-1 flex items-center gap-1 px-3 text-xs font-semibold uppercase tracking-wider text-faint">
-            <span className="min-w-0 flex-1 truncate">{t('nav.folders')}</span>
+          <SectionHeader label={t('nav.folders')} open={foldersOpen} onToggle={() => setFoldersOpen(!foldersOpen)}>
             <button
               type="button"
               data-focus-open-note="true"
@@ -743,11 +879,19 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
             >
               <LocateFixed size={14} />
             </button>
-            <button className="edit-only rounded-full p-1 hover:bg-raised hover:text-ink" title={t('nav.newFolder')} aria-label={t('nav.newFolder')} onClick={() => setNewRoot(true)}>
+            <button
+              className="edit-only rounded-full p-1 hover:bg-raised hover:text-ink"
+              title={t('nav.newFolder')}
+              aria-label={t('nav.newFolder')}
+              onClick={() => {
+                setFoldersOpen(true);
+                setNewRoot(true);
+              }}
+            >
               <FolderPlus size={14} />
             </button>
-          </div>
-          <ul className="min-h-[8rem] flex-1 overflow-y-auto scrollbar-thin">
+          </SectionHeader>
+          <ul className={`min-h-[8rem] flex-1 overflow-y-auto scrollbar-thin ${foldersOpen ? '' : 'hidden'}`}>
             {newRoot && (
               <li className="px-1">
                 <FolderNameInput
@@ -789,6 +933,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
               </div>
             </li>
           </ul>
+          {!foldersOpen && <div className="flex-1" aria-hidden />}
           <NewNoteButton zettel={features.zettel.enabled} recipe={features.recipe.enabled} onNavigate={onNavigate} />
           <button
             type="button"
@@ -879,6 +1024,43 @@ function useDailyShortcut() {
   }, []);
 }
 
+/** The note open in the current route (`/n/<id>`), if any */
+function openNoteId(): string | null {
+  const p = window.location.pathname;
+  return p.startsWith('/n/') ? decodeURIComponent(p.slice(3)) : null;
+}
+
+/** Adds or removes a note from the favorites and confirms it with a snackbar */
+export async function toggleFavorite(id: string, showToast?: (text: string, tone?: 'ok' | 'warn' | 'danger') => void) {
+  const note = vault.get(id);
+  if (!note) return;
+  const title = projectTitleOf(note.path, note.content, vault.roleConfig());
+  try {
+    const fav = await vault.toggleFavorite(id);
+    showToast?.(t(fav ? 'favorites.addedToast' : 'favorites.removedToast', { title }), 'ok');
+  } catch (err) {
+    showToast?.((err as Error).message, 'warn');
+  }
+}
+
+/** Strg/⌘+D adds the open note to the favorites or removes it (only with the favorites feature enabled) */
+function useFavoriteShortcut(showToast: (text: string, tone?: 'ok' | 'warn' | 'danger') => void) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+      if (e.key.toLowerCase() !== 'd' && e.code !== 'KeyD') return;
+      if (!vault.features().favorites.enabled) return;
+      const id = openNoteId();
+      if (!id || !vault.get(id)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      void toggleFavorite(id, showToast);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [showToast]);
+}
+
 export function Shell({ me, children, isAdmin }: { me: Me; children: React.ReactNode; isAdmin?: boolean }) {
   const [toast, setToast] = useState<{ text: string; tone: 'ok' | 'warn' | 'danger' } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -898,6 +1080,7 @@ export function Shell({ me, children, isAdmin }: { me: Me; children: React.React
   useSearchShortcut();
   useSaveShortcut(showToast);
   useDailyShortcut();
+  useFavoriteShortcut(showToast);
 
   return (
     <>
