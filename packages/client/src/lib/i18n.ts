@@ -568,6 +568,10 @@ const de = {
   'list.subfolderPlaceholder': 'Name des Unterordners',
   'list.archiveFolderConfirm': '„{folder}“ archivieren?',
   'list.archiveFolderTitle': 'Ordner mit allen Notizen ins Archiv verschieben',
+  'list.deleteFolderBtn': 'Löschen',
+  'list.deleteFolderTitle': 'Ordner mit allen Notizen und Unterordnern löschen',
+  'list.deleteFolderConfirm': '„{folder}“ mit allen {n} Notizen und Unterordnern endgültig löschen?',
+  'list.deleteEmptyFolderConfirm': '„{folder}“ löschen?',
   'list.emptyFolder': 'Noch keine Notizen hier.',
   'list.newBtn': 'Neu',
 
@@ -1480,6 +1484,10 @@ const en: Record<I18nKey, string> = {
   'list.subfolderPlaceholder': 'Subfolder name',
   'list.archiveFolderConfirm': 'Archive “{folder}”?',
   'list.archiveFolderTitle': 'Move folder and all notes to archive',
+  'list.deleteFolderBtn': 'Delete',
+  'list.deleteFolderTitle': 'Delete folder with all notes and subfolders',
+  'list.deleteFolderConfirm': 'Permanently delete “{folder}” with all {n} notes and subfolders?',
+  'list.deleteEmptyFolderConfirm': 'Delete “{folder}”?',
   'list.emptyFolder': 'No notes here yet.',
   'list.newBtn': 'New',
 

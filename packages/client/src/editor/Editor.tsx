@@ -122,9 +122,11 @@ function pasteLink(e: ClipboardEvent, view: EditorView): boolean {
     if (/Code|URL|Link|Image/.test(node.name)) return false;
   }
   const selected = view.state.sliceDoc(from, to);
-  const label = selected && !selected.includes('\n') && !URL_ONLY.test(selected.trim()) ? selected : linkTitleFromHtml(e.clipboardData?.getData('text/html') ?? '', url);
+  const raw = selected && !selected.includes('\n') && !URL_ONLY.test(selected.trim()) ? selected : linkTitleFromHtml(e.clipboardData?.getData('text/html') ?? '', url);
+  // Characters that would break the link text are dropped, not escaped: "\[" would show up in other Markdown apps
+  const label = raw?.replace(/[[\]\\]/g, '').replace(/\s+/g, ' ').trim();
   if (!label) return false;
-  const insert = `[${label.replace(/([[\]\\])/g, '\\$1')}](${url})`;
+  const insert = `[${label}](${url})`;
   e.preventDefault();
   view.dispatch({ changes: { from, to, insert }, selection: { anchor: from + insert.length }, userEvent: 'input.paste', scrollIntoView: true });
   return true;

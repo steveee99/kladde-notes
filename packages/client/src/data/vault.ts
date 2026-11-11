@@ -827,6 +827,22 @@ class Vault {
     return true;
   }
 
+  /** Number of own notes inside `folder` and its subfolders */
+  notesInFolder(folder: string): number {
+    return this.notesBelow(folder).length;
+  }
+
+  /** Deletes a folder with every note and subfolder below it */
+  async deleteFolderWithNotes(folder: string): Promise<boolean> {
+    if (!folder || isReadOnly()) return false;
+    const now = Date.now();
+    for (const note of this.notesBelow(folder)) await this.put({ ...note, deleted: true, updatedAt: now, dirty: true });
+    await this.setFolders(this.storedFolders().filter((f) => f !== folder && !f.startsWith(`${folder}/`)));
+    this.schedule(0);
+    if (!this.standalone) void api('/folders/deleted', { method: 'POST', json: { folder } }).catch(() => {});
+    return true;
+  }
+
   /** Quick capture: appends a line to the inbox note of the day-independent "Eingang" note */
   /** Quick capture: tasks are collected in "0 Inbox/Eingang", every thought becomes its own inbox note */
   async capture(text: string, asTask: boolean): Promise<LocalNote | undefined> {
