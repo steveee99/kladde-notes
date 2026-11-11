@@ -60,6 +60,57 @@ export function pinViewport() {
 }
 
 /**
+ * iOS keeps the layout as tall as the screen while the keyboard is open and pans the window so the
+ * caret stays visible. The document does not scroll (index.css), so the part above, with the note's
+ * header bar, could no longer be reached. While the keyboard is open the app is made exactly as tall as
+ * the visible area (`html.keyboard-open`, `--kb-vh`) and the window stays at the top, so every
+ * scroll happens inside the app's own scroll areas. Android resizes the layout itself
+ * (interactive-widget=resizes-content), so the gap stays below the threshold there.
+ */
+export function fitKeyboardViewport() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const root = document.documentElement;
+  let frame = 0;
+  let wasOpen = false;
+  /** Once the app has shrunk, the caret may sit below the visible area: scroll its container */
+  const revealCaret = () => {
+    const sel = document.getSelection();
+    const el = document.activeElement as HTMLElement | null;
+    if (!sel?.rangeCount || !el) return;
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    if (!rect.height) return;
+    const overflow = rect.bottom - (vv.height - 72);
+    const underTop = rect.top - 72;
+    if (overflow <= 0 && underTop >= 0) return;
+    let box: HTMLElement | null = el.parentElement;
+    while (box && !(box.scrollHeight > box.clientHeight && /auto|scroll/.test(getComputedStyle(box).overflowY))) box = box.parentElement;
+    box?.scrollBy({ top: overflow > 0 ? overflow : underTop });
+  };
+  const update = () => {
+    frame = 0;
+    const editing = !!document.activeElement?.matches('input, textarea, select, [contenteditable="true"]');
+    const open = editing && window.innerHeight - vv.height > 100;
+    root.classList.toggle('keyboard-open', open);
+    if (open) {
+      root.style.setProperty('--kb-vh', `${Math.round(vv.height)}px`);
+      if (window.scrollY !== 0 || vv.offsetTop !== 0) window.scrollTo(0, 0);
+      if (!wasOpen) requestAnimationFrame(revealCaret);
+    } else {
+      root.style.removeProperty('--kb-vh');
+    }
+    wasOpen = open;
+  };
+  const schedule = () => {
+    if (!frame) frame = requestAnimationFrame(update);
+  };
+  vv.addEventListener('resize', schedule);
+  vv.addEventListener('scroll', schedule);
+  document.addEventListener('focusin', schedule);
+  document.addEventListener('focusout', () => setTimeout(schedule, 60));
+}
+
+/**
  * iOS 26.1+ bug (WebKit 301108): a home-screen app installed with the translucent status bar lays out
  * in a box that ends short of the screen bottom by the status bar's height, and paints nothing below.
  * iOS keeps the status bar style an app was installed with, so old installs still have it.

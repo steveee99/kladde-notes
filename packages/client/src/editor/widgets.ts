@@ -1,5 +1,7 @@
 import { EditorView, WidgetType } from '@codemirror/view';
 import {
+  PROJECT_STATUSES,
+  ZETTEL_TYPES,
   formatValue,
   insertTableColumn,
   insertTableRow,
@@ -7,6 +9,7 @@ import {
   removeTableColumn,
   removeTableRow,
   serializeMarkdownTable,
+  setFrontmatter,
   setTableCell,
   toDateString,
   toggleTask,
@@ -815,37 +818,167 @@ export class SimpleWidget extends WidgetType {
   }
 }
 
-/** Frontmatter as a compact row of properties (shown when the cursor is outside it) */
+/** Property whose value input should get focus once the widget is rebuilt (after adding a property) */
+let pendingPropFocus: string | null = null;
+
+/** Sets frontmatter properties of the note in `view` (null removes one) as one small change */
+export function applyFrontmatter(view: EditorView, updates: Record<string, string | null>, focusKey?: string) {
+  const current = view.state.doc.toString();
+  const next = setFrontmatter(current, updates);
+  if (next === current) return;
+  let start = 0;
+  while (start < current.length && start < next.length && current[start] === next[start]) start++;
+  let endA = current.length;
+  let endB = next.length;
+  while (endA > start && endB > start && current[endA - 1] === next[endB - 1]) {
+    endA--;
+    endB--;
+  }
+  if (focusKey) pendingPropFocus = focusKey;
+  view.dispatch({ changes: { from: start, to: endA, insert: next.slice(start, endB) }, userEvent: 'input.frontmatter' });
+}
+
+/** Suggested values for well-known keys */
+const PROP_SUGGESTIONS: Record<string, string[]> = {
+  status: [...PROJECT_STATUSES],
+  typ: ZETTEL_TYPES.map((z) => z.id),
+};
+
+const PROP_KEY = /^[\p{L}\p{N}_][\p{L}\p{N}_ -]*$/u;
+
+/**
+ * Frontmatter as a compact row of properties (shown when the cursor is outside it). In editable notes
+ * every simple `key: value` line gets an input, a remove button and there is a button to add one;
+ * a click on the empty area opens the raw YAML.
+ */
 export class PropertiesWidget extends WidgetType {
   constructor(
     readonly src: string,
-    readonly lang: Lang = getLang()
+    readonly lang: Lang = getLang(),
+    readonly canEdit = false
   ) {
     super();
   }
   eq(o: PropertiesWidget) {
-    return o.src === this.src && o.lang === this.lang;
+    return o.src === this.src && o.lang === this.lang && o.canEdit === this.canEdit;
   }
   toDOM(view: EditorView) {
     const wrap = document.createElement('div');
     wrap.className = 'wz-props';
-    for (const line of this.src.split('\n')) {
-      const m = /^([^:]+):\s*(.*)$/.exec(line);
-      if (!m) continue;
+    const editable = this.canEdit && view.state.facet(EditorView.editable) && !view.state.readOnly;
+    const lines = this.src.split('\n');
+    const stop = (el: HTMLElement) => el.addEventListener('mousedown', (e) => e.stopPropagation());
+    let focusTarget: HTMLInputElement | null = null;
+    lines.forEach((line, i) => {
+      const m = /^([^:\s][^:]*):\s*(.*)$/.exec(line);
+      if (!m) return;
+      const key = m[1].trim();
+      // YAML lists/blocks on the following lines: shown, but only editable as raw text
+      const block: string[] = [];
+      for (let j = i + 1; j < lines.length && /^\s+\S|^-\s/.test(lines[j]); j++) block.push(lines[j].replace(/^\s*-?\s*/, ''));
+      const value = m[2].trim();
       const item = document.createElement('span');
       item.className = 'wz-prop';
       const k = document.createElement('span');
       k.className = 'wz-prop-key';
-      k.textContent = m[1].trim();
-      const v = document.createElement('span');
-      v.className = 'wz-prop-value';
-      v.textContent = m[2].trim() || '—';
-      item.append(k, v);
+      k.textContent = key;
+      item.append(k);
+      if (editable && !block.length) {
+        const input = document.createElement('input');
+        input.className = 'wz-prop-value wz-prop-input';
+        input.value = value;
+        input.placeholder = '—';
+        input.size = Math.max(4, Math.min(value.length + 1, 40));
+        input.setAttribute('aria-label', key);
+        input.spellcheck = false;
+        const suggestions = PROP_SUGGESTIONS[key.toLowerCase()];
+        if (suggestions) {
+          const list = document.createElement('datalist');
+          list.id = `wz-prop-${key.toLowerCase()}-${Math.random().toString(36).slice(2, 8)}`;
+          for (const sug of suggestions) list.append(new Option(sug, sug));
+          input.setAttribute('list', list.id);
+          item.append(list);
+        }
+        stop(input);
+        input.addEventListener('input', () => (input.size = Math.max(4, Math.min(input.value.length + 1, 40))));
+        input.addEventListener('keydown', (e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            input.blur();
+          } else if (e.key === 'Escape') {
+            input.value = value;
+            input.blur();
+          }
+        });
+        input.addEventListener('change', () => {
+          if (input.value.trim() !== value) applyFrontmatter(view, { [key]: input.value.trim() });
+        });
+        item.append(input);
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'wz-prop-remove';
+        remove.textContent = '×';
+        remove.title = tl(this.lang, 'editor.propertyRemove', { key });
+        remove.setAttribute('aria-label', remove.title);
+        remove.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        });
+        remove.addEventListener('click', () => applyFrontmatter(view, { [key]: null }));
+        item.append(remove);
+        if (pendingPropFocus === key) focusTarget = input;
+      } else {
+        const v = document.createElement('span');
+        v.className = 'wz-prop-value';
+        v.textContent = (block.length ? block.join(', ') : value) || '—';
+        item.append(v);
+      }
       wrap.append(item);
+    });
+    if (editable) {
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'wz-prop-add';
+      add.textContent = `+ ${tl(this.lang, 'editor.propertyAdd')}`;
+      add.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+      add.addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.className = 'wz-prop-input wz-prop-new';
+        input.placeholder = tl(this.lang, 'editor.propertyName');
+        input.setAttribute('aria-label', tl(this.lang, 'editor.propertyName'));
+        input.spellcheck = false;
+        stop(input);
+        const commit = () => {
+          const key = input.value.trim().replace(/:+$/, '');
+          if (key && PROP_KEY.test(key)) applyFrontmatter(view, { [key]: '' }, key);
+          else input.replaceWith(add);
+        };
+        input.addEventListener('keydown', (e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
+          } else if (e.key === 'Escape') input.replaceWith(add);
+        });
+        input.addEventListener('blur', () => input.isConnected && commit());
+        add.replaceWith(input);
+        input.focus();
+      });
+      wrap.append(add);
+    }
+    if (focusTarget) {
+      pendingPropFocus = null;
+      const target: HTMLInputElement = focusTarget;
+      requestAnimationFrame(() => target.focus());
     }
     if (view.state.facet(EditorView.editable)) {
       wrap.title = tl(this.lang, 'editor.propertiesLabel');
       wrap.addEventListener('mousedown', (e) => {
+        if (e.target !== wrap) return;
         e.preventDefault();
         view.dispatch({ selection: { anchor: 4 } });
         view.focus();

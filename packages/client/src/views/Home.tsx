@@ -277,10 +277,11 @@ export function HomeView() {
 
   const tasks = useMemo(() => {
     const out: TaskRow[] = [];
+    const dueOf = vault.taskDueResolver();
     const free = vault.freeTasksNote();
     if (free) for (const tk of parseTasks(free.content)) if (!tk.done) out.push({ ...tk, noteId: free.id, noteTitle: '' });
     for (const n of notes) {
-      for (const tk of parseTasks(n.content)) if (!tk.done) out.push({ ...tk, noteId: n.id, noteTitle: projectTitleOf(n.path, n.content, roleConfig) });
+      for (const tk of parseTasks(n.content, undefined, n.access === 'owner' ? dueOf(n.path) : null)) if (!tk.done) out.push({ ...tk, noteId: n.id, noteTitle: projectTitleOf(n.path, n.content, roleConfig) });
     }
     return out.sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999'));
     // eslint-disable-next-line react-hooks/exhaustive-deps

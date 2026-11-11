@@ -49,7 +49,7 @@ Object.assign(editorHost, {
   openNote: (id: string) => navigate(`/n/${id}`),
   runQuery: (src: string) => {
     try {
-      return runQuery(src, vault.list());
+      return runQuery(src, vault.list(), new Date(), { defaultDue: vault.taskDueResolver() });
     } catch (e) {
       return { error: (e as Error).message };
     }

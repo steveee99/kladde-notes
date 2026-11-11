@@ -1,6 +1,9 @@
 import crypto from 'crypto';
 import {
+  FEATURES_SETTING,
   INBOX_FOLDER,
+  dailyDueResolver,
+  normalizeFeatures,
   LinkIndex,
   QueryError,
   SYSTEM_PREFIX,
@@ -44,6 +47,18 @@ export interface ToolDef {
 /** The user's own notes without the hidden settings notes */
 function space(ctx: ToolContext): SyncedNote[] {
   return ctx.notes.ownedNotes(ctx.userId).filter((n) => !n.path.startsWith(SYSTEM_PREFIX));
+}
+
+/** Due date for tasks without one: tasks in a daily note belong to its day (settings note of the client) */
+function taskDue(ctx: ToolContext): (path: string) => string | null {
+  const settings = ctx.notes.ownedNotes(ctx.userId).find((n) => n.id === `syssettings-${ctx.userId}`);
+  let raw: unknown;
+  try {
+    raw = settings ? (JSON.parse(settings.content) as Record<string, unknown>)[FEATURES_SETTING] : undefined;
+  } catch {
+    raw = undefined;
+  }
+  return dailyDueResolver(normalizeFeatures(raw).daily);
 }
 
 const str = (args: Record<string, unknown>, key: string, required = false): string | undefined => {
@@ -274,8 +289,9 @@ export const TOOLS: ToolDef[] = [
       const until = str(args, 'due_until');
       if (until && !/^\d{4}-\d{2}-\d{2}$/.test(until)) throw new ToolError('due_until braucht das Format YYYY-MM-DD.');
       const today = ctx.today ?? new Date();
+      const dueOf = taskDue(ctx);
       const tasks = space(ctx).flatMap((n) =>
-        parseTasks(n.content, today)
+        parseTasks(n.content, today, dueOf(n.path))
           .filter((t) => (includeDone || !t.done) && (!until || (t.due !== null && t.due <= until)))
           .map((t) => ({ note_id: n.id, note: splitPath(n.path).name, path: n.path, line: t.line, text: t.text, done: t.done, due: t.due, repeat: t.repeat }))
       );
@@ -298,7 +314,7 @@ export const TOOLS: ToolDef[] = [
     write: false,
     run(args, ctx) {
       try {
-        const result = runQuery(str(args, 'query', true)!, space(ctx), ctx.today ?? new Date());
+        const result = runQuery(str(args, 'query', true)!, space(ctx), ctx.today ?? new Date(), { defaultDue: taskDue(ctx) });
         const rows = result.rows.slice(0, 500).map((r) => {
           const values = Object.fromEntries(
             Object.entries(r.values).map(([k, v]) => [k, (k === 'created' || k === 'updated') && typeof v === 'number' ? iso(v) : v])

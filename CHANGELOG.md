@@ -4,6 +4,12 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Geändert: Das ⋮-Menü der Notiz bündelt jetzt „Markdown kopieren“, „Favorit“ und „Markdown-Ansicht“ (vorher eigene Knöpfe im Notizkopf) sowie bei Projekten „Projekt abschließen“ und „Zu einem Projektordner wandeln“ (vorher in der Projektleiste).
+- Neu: Eigenschaften (Frontmatter) direkt bearbeiten – Werte in der Eigenschaftenzeile anklicken und ändern (Enter übernimmt, Escape verwirft), mit „+ Eigenschaft“ neue anlegen, mit × entfernen; für `status` und `typ` gibt es Vorschläge. Notizen ohne Frontmatter bekommen über ⋮ → „Eigenschaft hinzufügen“ eine. Ein Klick in die freie Fläche zeigt weiterhin das YAML.
+- Neu: In einer Daily Note listet „Offene Aufgaben aus früheren Daily Notes“ alles, was an den Vortagen liegen geblieben ist; „In heutige Notiz übernehmen“ (oder „Alle übernehmen“) verschiebt die Aufgabe samt Unteraufgaben in die offene Daily Note. Die Liste zeigt nur den Namen der Aufgabe (ohne `- [ ]`) und bricht auf dem Handy um, statt abzuschneiden.
+- Neu: Aufgaben in einer Daily Note ohne eigenes Datum gelten als fällig am Tag der Daily Note (Startseite, `TASKS`-Abfragen und MCP). Übernommene Aufgaben wandern damit automatisch auf den neuen Tag; ein ausdrückliches `📅` bleibt erhalten.
+- Behoben: Auf dem Handy ließ sich bei offener Tastatur nicht mehr nach oben zur Leiste der Notiz scrollen. Die App passt sich jetzt an den sichtbaren Bereich über der Tastatur an.
+
 ## [0.28.0] – 2026-11-11
 
 - Neu: Suche in der Seitenleiste per Tastatur – Pfeiltasten ↑/↓ wandern durch die Treffer, Enter öffnet den markierten.

@@ -70,6 +70,10 @@ body {
     height: min(100lvh, calc(100% + env(safe-area-inset-top)));
   }
 }
+/* On-screen keyboard open (lib/viewport.ts fitKeyboardViewport): the app fills only the visible area */
+html.keyboard-open {
+  height: var(--kb-vh, 100%) !important;
+}
 /* Fallback if iOS still keeps the short layout (lib/viewport.ts): the strip below it shows the canvas, so it takes the bottom bar's color */
 html.short-viewport {
   background: rgb(var(--surface));
@@ -1389,6 +1393,56 @@ html[data-readonly] .edit-only {
   color: rgb(var(--muted));
 }
 
+.wz-prop-input {
+  min-width: 3.5rem;
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  outline: none;
+}
+.wz-prop-input:focus {
+  background: rgb(var(--accent) / 0.08);
+  color: rgb(var(--ink));
+}
+.wz-prop-remove,
+.wz-prop-add {
+  border: 0;
+  background: transparent;
+  color: rgb(var(--faint));
+  font-size: 12px;
+  cursor: pointer;
+}
+.wz-prop-remove {
+  padding: 0 7px 0 2px;
+  opacity: 0;
+}
+.wz-prop:hover .wz-prop-remove,
+.wz-prop:focus-within .wz-prop-remove {
+  opacity: 1;
+}
+@media (pointer: coarse) {
+  .wz-prop-remove {
+    opacity: 1;
+  }
+}
+.wz-prop-add {
+  border: 1px dashed rgb(var(--line));
+  border-radius: 8px;
+  padding: 1px 8px;
+}
+.wz-prop-add:hover {
+  color: rgb(var(--accent));
+  border-color: rgb(var(--accent) / 0.5);
+}
+.wz-prop-new {
+  border: 1px solid rgb(var(--accent) / 0.5);
+  border-radius: 8px;
+  padding: 1px 8px;
+  font-size: 12px;
+  color: rgb(var(--ink));
+}
+
 /* ------------------------------------------------------------------ diagrams (```mermaid, ```mindmap) */
 
 .wz-diagram {
@@ -1694,6 +1748,7 @@ html[data-readonly] .edit-only {
   .wz-edit,
   .wz-table-bar,
   .wz-props,
+  .wz-prop-add,
   .cm-frontmatter,
   .cm-src-fm,
   .cm-autolink-btn {

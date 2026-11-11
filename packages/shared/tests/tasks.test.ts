@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextDue, normalizeDueWords, parseTasks, toggleTask, bucketOf, setTaskMeta, shortcutDate } from '../src/tasks';
+import { nextDue, normalizeDueWords, parseTasks, toggleTask, bucketOf, setTaskMeta, shortcutDate, takeTaskBlock, appendTaskLines } from '../src/tasks';
 
 const today = new Date(2026, 10, 8); // 2026-11-08, a Sunday
 
@@ -51,5 +51,32 @@ describe('setTaskMeta / shortcutDate', () => {
     expect(shortcutDate('today', today)).toBe('2026-11-09');
     expect(shortcutDate('tomorrow', today)).toBe('2026-11-10');
     expect(shortcutDate('nextWeek', today)).toBe('2026-11-16');
+  });
+});
+
+describe('daily note tasks', () => {
+  it('uses the default due date only for tasks without one', () => {
+    const tasks = parseTasks('- [ ] a\n- [ ] b 📅 2026-12-01', new Date(2026, 10, 11), '2026-11-10');
+    expect(tasks[0]).toMatchObject({ due: '2026-11-10', dueFromNote: true });
+    expect(tasks[1].due).toBe('2026-12-01');
+    expect(tasks[1].dueFromNote).toBeUndefined();
+  });
+
+  it('takes a task with its subtasks out of a note', () => {
+    const r = takeTaskBlock('# Tag\n- [ ] a\n  - [ ] a1\n- [ ] b\n', 1)!;
+    expect(r.block).toEqual(['- [ ] a', '  - [ ] a1']);
+    expect(r.content).toBe('# Tag\n- [ ] b\n');
+    expect(takeTaskBlock('text', 0)).toBeNull();
+  });
+
+  it('removes the common indentation of a nested task', () => {
+    const r = takeTaskBlock('- [ ] a\n  - [ ] a1\n    - [ ] a2\n', 1)!;
+    expect(r.block).toEqual(['- [ ] a1', '  - [ ] a2']);
+  });
+
+  it('appends tasks below a closing list or after a blank line', () => {
+    expect(appendTaskLines('# Heute\n- [ ] x\n', ['- [ ] y'])).toBe('# Heute\n- [ ] x\n- [ ] y\n');
+    expect(appendTaskLines('# Heute\n\nText', ['- [ ] y'])).toBe('# Heute\n\nText\n\n- [ ] y\n');
+    expect(appendTaskLines('', ['- [ ] y'])).toBe('- [ ] y\n');
   });
 });
