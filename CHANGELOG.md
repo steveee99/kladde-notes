@@ -4,6 +4,12 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Ein Ordner lässt sich in der Ordneransicht mit „Löschen“ samt allen Notizen und Unterordnern entfernen (nach Rückfrage mit der Zahl der Notizen). Eingang, PARA-Ordner, Zettelkasten und Daily Notes sind davon ausgenommen.
+- Geändert: Wird eine URL als Link eingefügt, entfernt Kladde `[`, `]` und `\` aus der Linkbeschreibung, statt sie mit `\` zu maskieren.
+- Geändert: Die Aufgaben auf der Startseite lassen Notizen im Archiv aus. Die Kanban-Spalte „Fertig“ zeigt nur noch Aufgaben, die heute oder gestern erledigt wurden.
+- Behoben: Die Checkboxen von Aufgaben stehen im Editor wieder auf einer Höhe – je nach Status (offen, in Arbeit, blockiert, fertig) saßen sie unterschiedlich hoch.
+- Behoben: Auf der Startseite stehen Aufgaben ohne Notiz mittig in ihrer Zeile bzw. Karte, ohne Leerraum darunter.
+
 ## [0.30.0] – 2026-11-11
 
 - Neu: Aufgaben haben einen Status: `[ ]` offen, `[O]` in Arbeit, `[H]` blockiert, `[x]` fertig. Im Editor zeigt die Checkbox den Status (halb gefüllt, Pause-Zeichen bzw. grün mit Haken); ein Klick erledigt die Aufgabe, Rechtsklick wählt einen beliebigen Status. `TASKS`-Abfragen und das MCP kennen das Feld `status` (`open`, `doing`, `blocked`, `done`).

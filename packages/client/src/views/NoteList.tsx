@@ -1,5 +1,5 @@
 import { useState, useSyncExternalStore } from 'react';
-import { Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, LayoutGrid, List, Plus, Table2 } from 'lucide-react';
+import { Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, LayoutGrid, List, Plus, Table2, Trash2 } from 'lucide-react';
 import { INBOX_FOLDER, archiveTarget, excerpt, extractMeta, projectTitleOf, restoreTarget, splitPath } from '@kladde/shared';
 import type { SharedFolder } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
@@ -385,6 +385,21 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
                 </button>
               )
             )
+          )}
+          {mode === 'folder' && folder && !protectedFolders.has(folder) && folder !== features.daily.folder && (
+            <button
+              className="edit-only btn-ghost shrink-0 hover:text-danger max-sm:!px-2.5"
+              title={t('list.deleteFolderTitle')}
+              onClick={() => {
+                const n = vault.notesInFolder(folder);
+                const name = folderDisplayName(folder, lang);
+                if (!confirm(n ? t('list.deleteFolderConfirm', { folder: name, n }) : t('list.deleteEmptyFolderConfirm', { folder: name }))) return;
+                const up = folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) : '';
+                void vault.deleteFolderWithNotes(folder).then((ok) => ok && navigate(up ? `/f/${encodeURIComponent(up)}` : '/notes', true));
+              }}
+            >
+              <Trash2 size={16} /> <span className="hidden sm:inline">{t('list.deleteFolderBtn')}</span>
+            </button>
           )}
           {mode !== 'shared' && (
             <button className="edit-only btn-primary shrink-0 rounded-full px-4 max-sm:!px-3.5" onClick={() => newNote(folder)}>
