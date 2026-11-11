@@ -5,7 +5,7 @@ import { api } from '../lib/api';
 import { locale, tl, useLang } from '../lib/i18n';
 import { navigate } from '../lib/router';
 
-function CopyField({ value, label }: { value: string; label?: string }) {
+export function CopyField({ value, label }: { value: string; label?: string }) {
   const lang = useLang();
   const [copied, setCopied] = useState(false);
   return (

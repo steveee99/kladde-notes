@@ -103,6 +103,8 @@ docker exec kladde node packages/server/dist/cli.js export / /export/space --wit
 docker exec kladde node packages/server/dist/cli.js einladen Anna
 ```
 
+Ohne Zugriff auf den Server importierst du einen lokalen Ordner (z. B. einen Obsidian-Vault) mit der Import-CLI und einem Import-Token aus den Einstellungen: `npm run import -- <ordner> --url <Kladde-URL>`. Anleitung: [`docs/IMPORT.md`](docs/IMPORT.md).
+
 | Variable | Bedeutung |
 | --- | --- |
 | `PUBLIC_URL` | Öffentliche Adresse; legt die Passkey-Domain fest und baut Einladungslinks |

@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Copy,
   FolderKanban,
+  FolderInput,
   FolderPlus,
   GitBranch,
   Globe,
@@ -200,6 +201,16 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
       title: tl(lang, 'settings.mcpTitle'),
       desc: tl(lang, 'settings.mcpDesc'),
     },
+    ...(!me.standalone
+      ? [
+          {
+            path: '/settings/import',
+            Icon: FolderInput,
+            title: tl(lang, 'settings.importTitle'),
+            desc: tl(lang, 'settings.importDesc'),
+          },
+        ]
+      : []),
     {
       path: '/settings/git',
       Icon: GitBranch,

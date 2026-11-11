@@ -1,10 +1,9 @@
 import { DatabaseSync } from 'node:sqlite';
-import { NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote } from '@kladde/shared';
+import { NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, MAX_NOTE_BYTES, cleanPath } from '@kladde/shared';
 import { DataCipher, randomToken } from './crypto.js';
 import { transaction } from './db.js';
 
-/** Upper bound for one note; attachments go through the file store */
-export const MAX_NOTE_BYTES = 2 * 1024 * 1024;
+export { MAX_NOTE_BYTES, cleanPath };
 /** A pause this long starts a new version; saves closer together update the newest one (a writing session is one version) */
 export const VERSION_PAUSE_MS = 10 * 60 * 1000;
 /** Even without a pause, a version never grows beyond this span */
@@ -68,17 +67,6 @@ export interface NoteChangeEvent {
   previousPath: string | null;
   content: string;
   deleted: boolean;
-}
-
-export function cleanPath(path: unknown): string {
-  if (typeof path !== 'string') throw new Error('invalid path');
-  const parts = path
-    .replace(/\\/g, '/')
-    .split('/')
-    .map((p) => p.trim())
-    .filter((p) => p && p !== '.' && p !== '..');
-  if (!parts.length) throw new Error('invalid path');
-  return parts.join('/').slice(0, 400);
 }
 
 /**
