@@ -13,11 +13,22 @@ import {
 } from '@kladde/shared';
 import { backupDatabase } from './db.js';
 import { FileStore, MAX_FILE_BYTES } from './FileStore.js';
-import { MAX_NOTE_BYTES, NoteStore, cleanPath } from './NoteStore.js';
+import { MAX_NOTE_BYTES, NoteStore } from './NoteStore.js';
 import { UserRecord, UserStore } from './UserStore.js';
 import type { AuditLog } from './security/AuditLog.js';
+import {
+  CliError,
+  MIME_BY_EXT,
+  NOTE_EXTS,
+  cleanSpaceFolder,
+  cleanSpaceNotePath,
+  notePathFor,
+  rewriteLinks,
+  safeFileSegment,
+  walkDirectory,
+} from './importScan.js';
 
-export class CliError extends Error {}
+export { CliError };
 
 export interface CliDeps {
   db: DatabaseSync;
@@ -34,19 +45,6 @@ export interface CliResult {
   data?: unknown;
 }
 
-const NOTE_EXTS = new Set(['.md', '.markdown', '.txt']);
-const MIME_BY_EXT: Record<string, string> = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.svg': 'image/svg+xml',
-  '.avif': 'image/avif',
-  '.pdf': 'application/pdf',
-};
-
-const SKIP_NAMES = new Set(['.git', '.obsidian', '.kladde', 'node_modules', '.DS_Store', 'Thumbs.db']);
 const FILE_URL_RE = /\/api\/files\/([A-Za-z0-9_-]{22})/g;
 
 interface ParsedArgs {
@@ -114,44 +112,6 @@ function resolveUser(users: UserStore, flags: Map<string, string | boolean>): Us
   if (all.length === 0) throw new CliError('Es gibt noch keine Benutzerkonten. Lege zuerst eins per Einladung an.');
   if (all.length === 1) return all[0];
   throw new CliError(`Mehrere Konten vorhanden (${all.map((u) => u.username).join(', ')}). Bitte --user <Name> angeben.`);
-}
-
-function cleanSpaceFolder(raw: string): string {
-  const trimmed = raw.trim().replace(/\\/g, '/');
-  if (!trimmed || trimmed === '/' || trimmed === '.') return '';
-  const cleaned = cleanPath(trimmed);
-  if (cleaned === SYSTEM_PREFIX.slice(0, -1) || cleaned.startsWith(SYSTEM_PREFIX)) {
-    throw new CliError('Der Ordner ".kladde" ist für interne Einstellungen reserviert.');
-  }
-  return cleaned;
-}
-
-function cleanSpaceNotePath(raw: string): string {
-  const cleaned = cleanPath(raw.trim().replace(/\\/g, '/'));
-  if (cleaned.startsWith(SYSTEM_PREFIX)) {
-    throw new CliError('Der Ordner ".kladde" ist für interne Einstellungen reserviert.');
-  }
-  return cleaned.toLowerCase().endsWith('.md') ? cleaned : `${cleaned}.md`;
-}
-
-function walkDirectory(rootDir: string): string[] {
-  const out: string[] = [];
-  const visit = (dir: string) => {
-    const entries = fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, 'en'));
-    for (const entry of entries) {
-      if (SKIP_NAMES.has(entry.name) || entry.name.startsWith('.')) continue;
-      if (entry.isSymbolicLink()) continue;
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) visit(full);
-      else if (entry.isFile()) out.push(full);
-    }
-  };
-  visit(rootDir);
-  return out;
-}
-
-function safeFileSegment(name: string): string {
-  return name.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '-').trim() || 'datei';
 }
 
 function formatBytes(bytes: number): string {
@@ -486,51 +446,9 @@ async function runImport(positionals: string[], flags: Map<string, string | bool
     return info;
   };
 
-  const rewriteLinks = (mdFileDir: string, allowedRootDir: string, rawContent: string): string => {
-    const resolveLocal = (rawRef: string): string | null => {
-      const cleaned = rawRef.split('#')[0].split('?')[0].trim();
-      if (!cleaned || /^[a-z]+:/i.test(cleaned) || cleaned.startsWith('/api/files/')) return null;
-      let decoded = cleaned;
-      try {
-        decoded = decodeURIComponent(cleaned);
-      } catch {
-        // keep original
-      }
-      const candidate = path.resolve(mdFileDir, decoded);
-      const rootWithSep = allowedRootDir.endsWith(path.sep) ? allowedRootDir : `${allowedRootDir}${path.sep}`;
-      if (candidate !== allowedRootDir && !candidate.startsWith(rootWithSep)) return null;
-      if (fs.existsSync(candidate) && fs.lstatSync(candidate).isFile() && MIME_BY_EXT[path.extname(candidate).toLowerCase()]) {
-        return candidate;
-      }
-      return null;
-    };
-
-    // Standard Markdown links & images ![alt](target) / [label](target)
-    let out = rawContent.replace(/(!?)\[([^\]]*)\]\(([^)\n]+)\)/g, (full, bang, label, target) => {
-      const targetPart = target.trim();
-      const disk = resolveLocal(targetPart);
-      if (disk) {
-        const info = registerDiskFile(disk);
-        if (info) return `${bang}[${label}](${info.url})`;
-      }
-      const baseMatches = importedFilesByBase.get(path.basename(targetPart).toLowerCase());
-      if (baseMatches?.length === 1) return `${bang}[${label}](${baseMatches[0].url})`;
-      return full;
-    });
-
-    // Obsidian image embeds ![[filename]] or ![[filename|alt]]
-    out = out.replace(/!\[\[([^\]|#\n]+)(?:\|([^\]\n]*))?\]\]/g, (full, target, alias) => {
-      const disk = resolveLocal(target);
-      if (disk) {
-        const info = registerDiskFile(disk);
-        if (info) return `![${(alias || info.name).trim()}](${info.url})`;
-      }
-      const baseMatches = importedFilesByBase.get(path.basename(target.trim()).toLowerCase());
-      if (baseMatches?.length === 1) return `![${(alias || baseMatches[0].name).trim()}](${baseMatches[0].url})`;
-      return full;
-    });
-
-    return out;
+  const lookup = {
+    file: registerDiskFile,
+    byBase: (baseLower: string) => importedFilesByBase.get(baseLower),
   };
 
   const pendingChanges: PushChange[] = [];
@@ -601,7 +519,7 @@ async function runImport(positionals: string[], flags: Map<string, string | bool
             return `${folder ? `${folder}/` : ''}${name}.md`;
           })());
       const raw = fs.readFileSync(srcPath, 'utf8');
-      const content = rewriteLinks(path.dirname(srcPath), path.dirname(srcPath), raw);
+      const content = rewriteLinks(path.dirname(srcPath), path.dirname(srcPath), raw, lookup);
       queueNote(targetPath, content, stat.mtimeMs);
     } else if (MIME_BY_EXT[ext]) {
       const info = registerDiskFile(srcPath)!;
@@ -631,15 +549,10 @@ async function runImport(positionals: string[], flags: Map<string, string | bool
 
     // 2) Import Markdown/text notes preserving nested subfolders
     for (const f of noteFiles) {
-      const ext = path.extname(f).toLowerCase();
-      const rel = path.relative(srcPath, f).split(path.sep);
-      const relDir = rel.slice(0, -1).map(safeFileSegment).filter(Boolean).join('/');
-      const base = safeFileSegment(path.basename(f, ext));
-      const fullFolder = [targetRoot, relDir].filter(Boolean).join('/');
-      const desiredPath = cleanSpaceNotePath(`${fullFolder ? `${fullFolder}/` : ''}${base}.md`);
+      const desiredPath = notePathFor(srcPath, f, targetRoot);
       const fStat = fs.statSync(f);
       const raw = fs.readFileSync(f, 'utf8');
-      const content = rewriteLinks(path.dirname(f), srcPath, raw);
+      const content = rewriteLinks(path.dirname(f), srcPath, raw, lookup);
       queueNote(desiredPath, content, fStat.mtimeMs);
     }
   }

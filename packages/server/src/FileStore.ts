@@ -2,9 +2,10 @@ import { DatabaseSync } from 'node:sqlite';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { MAX_FILE_BYTES } from '@kladde/shared';
 import { DataCipher } from './crypto.js';
 
-export const MAX_FILE_BYTES = 25 * 1024 * 1024;
+export { MAX_FILE_BYTES };
 const ALLOWED = /^(image\/(png|jpeg|gif|webp|svg\+xml|avif)|application\/pdf)$/;
 
 export interface StoredFileMeta {
