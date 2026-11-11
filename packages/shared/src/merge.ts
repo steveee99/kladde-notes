@@ -186,3 +186,29 @@ export function textChanges(a: string, b: string): { from: number; to: number; i
     return { from, to, insert };
   });
 }
+
+/** How far from the sent offset `resolveCursor` looks for the context */
+const CURSOR_SEARCH = 2_000;
+
+/**
+ * Where `pos` (an offset in the sender's text) is in `doc`: the offset itself when the text before it matches,
+ * otherwise the nearest place with that text (the texts differ until the sender's last change arrives here).
+ */
+export function resolveCursor(doc: string, pos: number, ctx: string): number {
+  const at = Math.min(Math.max(0, pos), doc.length);
+  if (!ctx || doc.slice(Math.max(0, at - ctx.length), at) === ctx) return at;
+  const from = Math.max(0, at - CURSOR_SEARCH - ctx.length);
+  const window = doc.slice(from, Math.min(doc.length, at + CURSOR_SEARCH));
+  // The full context may span a spot the receiver changed at the same time: then its end has to do
+  for (const len of [ctx.length, 12, 6, 3]) {
+    if (len > ctx.length) continue;
+    const part = ctx.slice(-len);
+    let best = -1;
+    for (let i = window.indexOf(part); i >= 0; i = window.indexOf(part, i + 1)) {
+      const end = from + i + len;
+      if (best < 0 || Math.abs(end - at) < Math.abs(best - at)) best = end;
+    }
+    if (best >= 0) return best;
+  }
+  return at;
+}

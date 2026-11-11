@@ -31,7 +31,7 @@
 | **Vorlagen** | Eigene Vorlagen unter Einstellungen → Vorlagen verwalten (`{{title}}`, `{{date}}`, `{{zid}}`), mit Standard-Zielordner und verschlüsselter Synchronisation |
 | **Medien** | Bilder und PDFs per Einfügen/Ziehen/Button; Bilder-Grid mit ```` ```gallery ```` ; PDF eingebettet; Code-Blöcke mit Syntax-Highlighting und Kopieren |
 | **Offline & Sync** | IndexedDB pro Konto, Sync über Cursor + Versionen; gleichzeitige Änderungen (anderes Gerät, andere Person, nachträglich synchronisierte Offline-Bearbeitung) werden per Drei-Wege-Merge zusammengeführt – zeilenweise, im selben Absatz wortweise; nur wenn beide dieselben Wörter ändern, bleibt der lokale Text als „(Konflikt …)“-Kopie erhalten; Live-Updates per Server-Sent Events |
-| **Zusammenarbeit** | Gemeinsames Bearbeiten in Echtzeit (geteilte Notizen und eigene Geräte/Tabs): Änderungen erscheinen sofort im offenen Editor, ohne dass Cursor oder Rückgängig-Verlauf springen; im Notizkopf zeigen Profilbilder mit „Live“, wer die Notiz gerade offen hat (mit Geräteanzahl) |
+| **Zusammenarbeit** | Gemeinsames Bearbeiten in Echtzeit (geteilte Notizen und eigene Geräte/Tabs): Änderungen erscheinen sofort im offenen Editor, ohne dass Cursor oder Rückgängig-Verlauf springen; im Notizkopf zeigen Profilbilder mit „Live“, wer die Notiz gerade offen hat (mit Geräteanzahl); im Editor steht an der Schreibstelle der anderen ein farbiger Cursor mit kleinem Profilbild, ihre Markierung ist eingefärbt |
 | **App & Design** | PWA (installierbar, Service Worker), Designs Hell und Dunkel (Material 3 mit Navigation Rail am Desktop/Tablet und Navigation Bar am Handy); Notizlisten umschaltbar (Kacheln/Liste/Tabelle) |
 | **Sicherheit** | Notizen (Pfad + Inhalt) und Anhänge AES-256-GCM-verschlüsselt auf dem Server, Origin-Prüfung, Rate-Limits, Audit-Log, gehärteter Container |
 | **NAS** | Optionaler Klartext-Spiegel aller Notizen als `.md`-Dateien nach `EXPORT_DIR` (z. B. eingebundene NAS-Freigabe) |
@@ -39,7 +39,6 @@
 ### Noch nicht umgesetzt (Roadmap)
 - Ende-zu-Ende-Verschlüsselung (Schlüssel nur im Browser) und Verschlüsselung der lokalen IndexedDB
 - Anhänge offline hochladen (derzeit nur online)
-- Fremde Cursor/Markierungen im gemeinsamen Editor anzeigen
 
 ---
 

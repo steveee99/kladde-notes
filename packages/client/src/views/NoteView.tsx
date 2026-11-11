@@ -994,6 +994,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             readOnly={readOnly}
             source={sourceMode && !readOnly}
             stamp={version}
+            presenceNote={id}
             onChange={(content) => void vault.update(id, { content })}
             onView={setView}
           />

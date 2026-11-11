@@ -33,6 +33,13 @@
   --on-accent-container: 211 227 253;
   --font-sans: 'Roboto Flex Variable', Roboto, system-ui, sans-serif;
   --content-width: 80%;
+  /* Other people's cursors in the editor (one color per person) */
+  --cursor-1: 239 108 0;
+  --cursor-2: 0 150 136;
+  --cursor-3: 156 39 176;
+  --cursor-4: 216 27 96;
+  --cursor-5: 30 136 229;
+  --cursor-6: 104 159 56;
   color-scheme: dark;
 }
 

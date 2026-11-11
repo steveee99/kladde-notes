@@ -271,6 +271,34 @@ export interface PresenceViewer {
 export interface PresenceUpdate {
   noteId: string;
   viewers: PresenceViewer[];
+  /** Last known cursor of every device/tab on the note that has sent one */
+  cursors?: PresenceCursor[];
+}
+
+/** Where a device/tab's cursor is in a note */
+export interface CursorPosition {
+  /** Character offsets in the sender's text */
+  head: number;
+  anchor: number;
+  /** Up to 24 characters right before `head`: finds the spot again when the receiver's text differs a little */
+  ctx: string;
+}
+
+export interface PresenceCursor extends CursorPosition {
+  clientId: string;
+  userId: string;
+}
+
+/** Sent as the live event `cursor` when a device/tab moves its cursor */
+export interface CursorUpdate {
+  noteId: string;
+  cursor: PresenceCursor;
+}
+
+/** A client reports its cursor in the note it has open */
+export interface CursorAnnounce extends CursorPosition {
+  clientId: string;
+  noteId: string;
 }
 
 /** A client (device/tab) announces which note it has open; `noteId: null` = none */

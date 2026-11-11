@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { merge3, textChanges } from '../src/merge';
+import { merge3, resolveCursor, textChanges } from '../src/merge';
 
 const apply = (a: string, changes: { from: number; to: number; insert: string }[]) => {
   let out = a;
@@ -77,5 +77,26 @@ describe('textChanges', () => {
 
   it('touches only the changed characters', () => {
     expect(textChanges('Hello world\nnext', 'Hello brave world\nnext')).toEqual([{ from: 6, to: 6, insert: 'brave ' }]);
+  });
+});
+
+describe('resolveCursor', () => {
+  it('keeps the offset when the text before it matches', () => {
+    expect(resolveCursor('Hallo Welt', 5, 'Hallo')).toBe(5);
+  });
+
+  it('finds the spot again when text was inserted before it', () => {
+    expect(resolveCursor('Neu: Hallo Welt', 5, 'Hallo')).toBe(10);
+  });
+
+  it('falls back to the end of the context when the receiver changed text inside it', () => {
+    // The sender's context "Zeile\n\nalpha betXY" crosses the line start where the receiver typed "Hallo "
+    expect(resolveCursor('Zeile\n\nHallo alpha betXYa', 18, 'Zeile\n\nalpha betXY')).toBe(24);
+  });
+
+  it('takes the occurrence nearest to the offset and clamps to the text', () => {
+    expect(resolveCursor('ab ab ab', 7, 'ab')).toBe(8);
+    expect(resolveCursor('ab ab ab', 1, 'ab')).toBe(2);
+    expect(resolveCursor('kurz', 99, 'nirgends')).toBe(4);
   });
 });
