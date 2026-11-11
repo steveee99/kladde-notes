@@ -5,8 +5,10 @@ Mit der Import-CLI bringst du einen lokalen Ordner – zum Beispiel einen Obsidi
 ## 1. Import-Token erstellen
 
 1. In Kladde **Einstellungen → Import** öffnen.
-2. Einen Namen eingeben (z. B. „Laptop“) und **Token erstellen** wählen.
+2. Einen Namen eingeben (z. B. „Laptop“), die Gültigkeit wählen (7, 30, 90 oder 365 Tage, Standard 30) und **Token erstellen** wählen.
 3. Das Token (beginnt mit `kli_`) sofort kopieren – es wird **nur dieses eine Mal** angezeigt. Kladde speichert nur einen Hash davon.
+
+Ein Token läuft nach der gewählten Zeit ab und funktioniert danach nicht mehr. Pro Konto gibt es höchstens 5 gültige Import-Tokens; abgelaufene zählen nicht mit.
 
 Ein Import-Token darf nur drei Dinge: die Pfade deiner eigenen Notizen auflisten, Anhänge hochladen und neue Notizen anlegen. Es kann keine Notizen lesen, ändern oder löschen und funktioniert an keiner anderen Stelle der API (auch nicht für MCP).
 
@@ -25,7 +27,7 @@ npm run build
 
 ```bash
 export KLADDE_IMPORT_TOKEN=kli_…
-npm run import -- <ordner> [<zielordner>] --url <Kladde-URL> [--dry-run] [--yes]
+npm run import -- <ordner> [<zielordner>] --url <Kladde-URL> [--dry-run] [--yes] [--allow-insecure]
 ```
 
 - `<ordner>`: der lokale Ordner, der rekursiv gelesen wird.
@@ -33,6 +35,7 @@ npm run import -- <ordner> [<zielordner>] --url <Kladde-URL> [--dry-run] [--yes]
 - `--url`: die Adresse deiner Kladde, z. B. `https://kladde.example.org` (http oder https).
 - `--dry-run`: zeigt nur die Vorschau und schreibt nichts.
 - `--yes`: importiert ohne Rückfrage (nötig, wenn die CLI nicht in einem Terminal läuft, z. B. in einem Skript).
+- `--allow-insecure`: erlaubt eine `http://`-Adresse. Ohne https würde das Token im Klartext übertragen; deshalb bricht die CLI bei `http://` ohne diese Option ab und warnt mit ihr bei jedem Lauf. Für eine lokale Entwicklungsinstanz (z. B. `http://localhost:3002`) ist sie nötig, für eine Kladde im Netz solltest du https verwenden.
 - `--help`: zeigt die Hilfe.
 
 Ist `KLADDE_IMPORT_TOKEN` nicht gesetzt, fragt die CLI im Terminal verdeckt nach dem Token. Das Token wird nie auf die Festplatte geschrieben und nie ausgegeben.
@@ -60,13 +63,14 @@ Die importierten Notizen synchronisieren wie jede andere Änderung und erscheine
 
 ## Token widerrufen
 
-Unter **Einstellungen → Import** steht jedes Token mit Erstell- und letztem Nutzungsdatum. Über das Papierkorb-Symbol (mit Rückfrage) widerrufst du es; die CLI bekommt danach `Import-Token ungültig oder widerrufen`. Ein gesperrtes Konto kann seine Tokens ebenfalls nicht mehr benutzen.
+Unter **Einstellungen → Import** steht jedes Token mit Erstell-, Ablauf- und letztem Nutzungsdatum. Über das Papierkorb-Symbol (mit Rückfrage) widerrufst du es; die CLI bekommt danach `Import-Token ungültig oder widerrufen`. Ein gesperrtes Konto kann seine Tokens ebenfalls nicht mehr benutzen.
 
 ## Fehlermeldungen
 
 | Meldung | Bedeutung |
 | --- | --- |
-| `Import-Token ungültig oder widerrufen` | Token falsch abgeschrieben, widerrufen oder Konto gesperrt |
+| `Import-Token ungültig oder widerrufen (oder abgelaufen)` | Token falsch abgeschrieben, widerrufen, abgelaufen oder Konto gesperrt |
+| `Unverschlüsselte Verbindung …` | `--url` beginnt mit `http://`: auf https wechseln oder bewusst `--allow-insecure` angeben |
 | `Kladde unter … nicht erreichbar` | Adresse falsch, Server aus oder unter der Adresse antwortet keine Kladde |
 | `Bitte die Adresse … mit --url angeben` / `Ungültige --url …` | `--url` fehlt oder ist keine http-/https-Adresse |
 | `Ordner nicht gefunden` / `Kein Ordner` | Der Quellpfad existiert nicht oder ist eine Datei |
