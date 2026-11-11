@@ -889,7 +889,7 @@ const de = {
   'import.cliTitle': 'Aufruf',
   'import.cliDesc': 'Im Kladde-Repository nach „npm ci“ und „npm run build“ ausführen; das Token steht in der Umgebungsvariable KLADDE_IMPORT_TOKEN. Mit --dry-run nur die Vorschau zeigen.',
   'import.createTitle': 'Import-Token erstellen',
-  'import.createDesc': 'Ein Import-Token darf nur deine Notizpfade auflisten, Anhänge hochladen und neue Notizen anlegen – sonst nichts.',
+  'import.createDesc': 'Ein Import-Token darf nur deine Notizpfade auflisten, Anhänge hochladen und neue Notizen anlegen – sonst nichts. Es läuft nach der gewählten Zeit ab; höchstens 5 Tokens gleichzeitig.',
   'import.tokenNamePlaceholder': 'Name, z. B. „Laptop“',
   'import.tokenCreateBtn': 'Token erstellen',
   'import.tokenCreatedTitle': 'Token für „{name}“ – wird nur jetzt angezeigt:',
@@ -901,6 +901,11 @@ const de = {
   'import.never': 'nie',
   'import.revoke': 'Widerrufen',
   'import.revokeConfirm': 'Token „{name}“ widerrufen? Die CLI kann es danach nicht mehr benutzen.',
+  'import.validFor': 'Gültig für',
+  'import.days': '{n} Tage',
+  'import.expires': 'läuft ab',
+  'import.expired': 'abgelaufen',
+  'import.insecureHint': 'Diese Kladde läuft ohne https: Das Token wird unverschlüsselt übertragen, deshalb verlangt die CLI --allow-insecure.',
 
   // Admin
   'admin.title': 'Verwaltung',
@@ -1836,7 +1841,7 @@ const en: Record<I18nKey, string> = {
   'import.cliTitle': 'Usage',
   'import.cliDesc': 'Run it in the Kladde repository after “npm ci” and “npm run build”; the token goes in the environment variable KLADDE_IMPORT_TOKEN. Use --dry-run to only see the preview.',
   'import.createTitle': 'Create import token',
-  'import.createDesc': 'An import token may only list your note paths, upload attachments and create new notes – nothing else.',
+  'import.createDesc': 'An import token may only list your note paths, upload attachments and create new notes – nothing else. It expires after the chosen time; at most 5 tokens at once.',
   'import.tokenNamePlaceholder': 'Name, e.g. “Laptop”',
   'import.tokenCreateBtn': 'Create token',
   'import.tokenCreatedTitle': 'Token for “{name}” – shown only once:',
@@ -1848,6 +1853,11 @@ const en: Record<I18nKey, string> = {
   'import.never': 'never',
   'import.revoke': 'Revoke',
   'import.revokeConfirm': 'Revoke token “{name}”? The CLI can no longer use it.',
+  'import.validFor': 'Valid for',
+  'import.days': '{n} days',
+  'import.expires': 'expires',
+  'import.expired': 'expired',
+  'import.insecureHint': 'This Kladde runs without https: the token travels unencrypted, so the CLI requires --allow-insecure.',
 
   // Admin
   'admin.title': 'Administration',

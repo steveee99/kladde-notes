@@ -224,8 +224,13 @@ export interface ImportToken {
   id: string;
   name: string;
   createdAt: number;
+  /** The token stops working after this */
+  expiresAt: number;
   lastUsedAt: number | null;
 }
+
+/** How long a new import token may live, in days (the first is the default) */
+export const IMPORT_TOKEN_DAYS = [30, 7, 90, 365] as const;
 
 /** A new import token: the secret is shown exactly once */
 export interface ImportTokenCreated {

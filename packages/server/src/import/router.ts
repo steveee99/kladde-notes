@@ -151,7 +151,7 @@ export function importRouters(opts: ImportOptions): { bearerRouter: express.Rout
   accountRouter.post(
     '/',
     handle((req, res) => {
-      const created = tokens.create(req.user!.id, req.body?.name);
+      const created = tokens.create(req.user!.id, req.body?.name, req.body?.days ?? undefined);
       audit.record('import_token_created', { userId: req.user!.id, username: req.user!.username, ip: req.ip, detail: created.token.name });
       res.json(created);
     })

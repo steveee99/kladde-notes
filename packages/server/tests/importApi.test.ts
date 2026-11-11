@@ -76,6 +76,7 @@ describe('import tokens (account router)', () => {
     expect(created.secret).toMatch(/^kli_/);
     expect(created.token.name).toBe('Mein Laptop');
     expect(created.token.lastUsedAt).toBeNull();
+    expect(created.token.expiresAt).toBe(created.token.createdAt + 30 * 86_400_000);
 
     const list = (await (await fetch(`${base}/api/import-tokens`, { headers: { Cookie: annaCookie } })).json()) as ImportToken[];
     expect(list.map((t) => t.id)).toContain(created.token.id);
@@ -102,6 +103,31 @@ describe('import tokens (account router)', () => {
     const events = ctx.audit.recent(10).map((e) => `${e.event}:${e.detail}`);
     expect(events).toContain('import_token_created:Mein Laptop');
     expect(events).toContain('import_token_revoked:Mein Laptop');
+  });
+
+  it('allows at most 5 tokens, with a chosen lifetime, and rejects expired ones', async () => {
+    const dana = users.createUser('dana');
+    const cookie = `kladde_session=${users.createSession(dana.id)}`;
+    const post = (json: unknown) =>
+      fetch(`${base}/api/import-tokens`, { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify(json) });
+
+    const before = Date.now();
+    const week = (await (await post({ name: 'Woche', days: 7 })).json()) as ImportTokenCreated;
+    expect(week.token.expiresAt).toBeGreaterThanOrEqual(before + 7 * 86_400_000);
+    expect(week.token.expiresAt).toBeLessThan(before + 8 * 86_400_000);
+    const standard = (await (await post({ name: 'Standard' })).json()) as ImportTokenCreated;
+    expect(standard.token.expiresAt - standard.token.createdAt).toBe(30 * 86_400_000);
+    expect((await post({ name: 'Ewig', days: 100000 })).status).toBe(400);
+
+    for (let i = 0; i < 3; i++) expect((await post({ name: `T${i}` })).status).toBe(200);
+    const sixth = await post({ name: 'Zu viel' });
+    expect(sixth.status).toBe(409);
+
+    // Expire one: it stops working and no longer counts against the limit
+    db.prepare('UPDATE import_tokens SET expires_at = ? WHERE id = ?').run(Date.now() - 1, week.token.id);
+    expect((await fetch(`${base}/api/import/notes`, { headers: bearer(week.secret) })).status).toBe(401);
+    expect((await fetch(`${base}/api/import/notes`, { headers: bearer(standard.secret) })).status).toBe(200);
+    expect((await post({ name: 'Ersatz' })).status).toBe(200);
   });
 
   it('needs a session cookie', async () => {

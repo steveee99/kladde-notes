@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, KeyRound, Plus, Trash2 } from 'lucide-react';
-import type { ImportToken, ImportTokenCreated } from '@kladde/shared';
+import { IMPORT_TOKEN_DAYS, type ImportToken, type ImportTokenCreated } from '@kladde/shared';
 import { api } from '../lib/api';
 import { locale, tl, useLang } from '../lib/i18n';
 import { navigate } from '../lib/router';
+import { ChipSelect } from './ChipSelect';
 import { CopyField } from './McpSettings';
 
 /** Tokens for the import CLI (`npm run import`), which brings a local folder such as an Obsidian vault into the space */
@@ -15,7 +16,10 @@ export function ImportSettingsView() {
   const [tokens, setTokens] = useState<ImportToken[] | null>(null);
   const [created, setCreated] = useState<ImportTokenCreated | null>(null);
   const [name, setName] = useState('');
+  const [days, setDays] = useState<number>(IMPORT_TOKEN_DAYS[0]);
   const [error, setError] = useState('');
+  // Over http the token travels in cleartext: the CLI insists on --allow-insecure
+  const command = `npm run import -- <ordner> --url ${location.origin}${location.protocol === 'http:' ? ' --allow-insecure' : ''}`;
 
   useEffect(() => {
     api<ImportToken[]>('/import-tokens').then(setTokens, (err) => setError((err as Error).message));
@@ -24,7 +28,7 @@ export function ImportSettingsView() {
   const createToken = async () => {
     setError('');
     try {
-      const result = await api<ImportTokenCreated>('/import-tokens', { method: 'POST', json: { name } });
+      const result = await api<ImportTokenCreated>('/import-tokens', { method: 'POST', json: { name, days } });
       setCreated(result);
       setName('');
       setTokens((list) => [result.token, ...(list ?? [])]);
@@ -57,7 +61,8 @@ export function ImportSettingsView() {
       <section className="card space-y-3 p-5 anim-fade-up">
         <h2 className="font-semibold">{tl(lang, 'import.cliTitle')}</h2>
         <p className="text-sm text-muted">{tl(lang, 'import.cliDesc')}</p>
-        <CopyField value={`npm run import -- <ordner> --url ${location.origin}`} />
+        <CopyField value={command} />
+        {location.protocol === 'http:' && <p className="text-xs text-danger">{tl(lang, 'import.insecureHint')}</p>}
       </section>
 
       <section className="card space-y-3 p-5 anim-fade-up">
@@ -81,6 +86,16 @@ export function ImportSettingsView() {
             }}
           >
             <input className="input" placeholder={tl(lang, 'import.tokenNamePlaceholder')} maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
+            <label className="flex flex-wrap items-center gap-2 text-sm">
+              {tl(lang, 'import.validFor')}
+              <ChipSelect
+                className="text-sm"
+                value={String(days)}
+                aria-label={tl(lang, 'import.validFor')}
+                onChange={(v) => setDays(Number(v))}
+                options={[...IMPORT_TOKEN_DAYS].sort((a, b) => a - b).map((d) => ({ value: String(d), label: tl(lang, 'import.days', { n: d }) }))}
+              />
+            </label>
             <button className="btn-ghost rounded-full border border-line px-4" type="submit">
               <Plus size={16} /> {tl(lang, 'import.tokenCreateBtn')}
             </button>
@@ -100,7 +115,13 @@ export function ImportSettingsView() {
             <div className="min-w-0 flex-1">
               <div className="truncate font-medium">{token.name}</div>
               <div className="truncate text-xs text-faint">
-                {tl(lang, 'import.created')} {when(token.createdAt)} · {tl(lang, 'import.lastUsed')} {when(token.lastUsedAt)}
+                {tl(lang, 'import.created')} {when(token.createdAt)} ·{' '}
+                {token.expiresAt <= Date.now() ? (
+                  <span className="text-danger">{tl(lang, 'import.expired')}</span>
+                ) : (
+                  `${tl(lang, 'import.expires')} ${when(token.expiresAt)}`
+                )}{' '}
+                · {tl(lang, 'import.lastUsed')} {when(token.lastUsedAt)}
               </div>
             </div>
             <button className="btn-icon h-8 w-8 shrink-0" title={tl(lang, 'import.revoke')} onClick={() => void revoke(token)}>
