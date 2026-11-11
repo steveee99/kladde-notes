@@ -43,10 +43,12 @@ import {
   splitPath,
   toggleTask,
   setTaskMeta,
+  merge3,
 } from '@kladde/shared';
 import { api, ApiError } from '../lib/api';
 import { getLang, locale, t } from '../lib/i18n';
 import { isReadOnly } from '../lib/readOnly';
+import { clientId, presence } from '../lib/presence';
 import { LocalDb, LocalNote, openLocalDb } from './db';
 import { welcomeNotes } from './welcome';
 
@@ -129,6 +131,7 @@ class Vault {
     if (this.interval) clearInterval(this.interval);
     this.events?.close();
     this.events = null;
+    presence.reset();
     this.notes.clear();
     this.sharedFolders = [];
     this.ready = false;
@@ -188,8 +191,16 @@ class Vault {
 
   private connectEvents() {
     if (typeof EventSource === 'undefined') return;
-    this.events = new EventSource('/api/events');
+    this.events = new EventSource(`/api/events?client=${clientId}`);
     this.events.addEventListener('changed', this.kick);
+    this.events.addEventListener('hello', presence.reconnected);
+    this.events.addEventListener('presence', (e) => {
+      try {
+        presence.receive(JSON.parse((e as MessageEvent<string>).data));
+      } catch {
+        // malformed event: ignore
+      }
+    });
   }
 
   // ------------------------------------------------------------------ queries
@@ -255,6 +266,17 @@ class Vault {
   // ------------------------------------------------------------------ edits
 
   private async put(note: LocalNote) {
+    if (!note.dirty) {
+      // Synced: the content itself is the base
+      if (note.base !== undefined || note.basePath !== undefined) {
+        const { base: _base, basePath: _basePath, ...rest } = note;
+        note = rest;
+      }
+    } else if (note.base === undefined && note.version > 0) {
+      // First local edit since the last sync: remember what it started from (for merging with others' edits)
+      const before = this.notes.get(note.id);
+      if (before && !before.dirty && before.version === note.version) note = { ...note, base: before.content, basePath: before.path };
+    }
     this.notes.set(note.id, note);
     this.emit();
     await this.db?.put('notes', note);
@@ -338,7 +360,8 @@ class Vault {
     const oldName = splitPath(note.path).name;
     const newName = splitPath(path).name;
     if (oldName !== newName) await this.relink(id, oldName, newName);
-    this.schedule();
+    // Someone else has the note open: hand the edit over right away
+    this.schedule(presence.isLive(id) ? 250 : 1200);
   }
 
   /** After a rename every [[Old Title]] in notes the user may edit points to the new title */
@@ -848,7 +871,9 @@ class Vault {
         if (current.deleted && unchanged) {
           this.notes.delete(r.id);
           await this.db!.delete('notes', r.id);
-        } else await this.put({ ...current, version: r.version, dirty: !unchanged });
+        } else if (unchanged) await this.put({ ...current, version: r.version, dirty: false });
+        // Edited again while the push was underway: the pushed state is the new base
+        else await this.put({ ...current, version: r.version, dirty: true, base: sent.content, basePath: sent.path });
       } else if (r.status === 'conflict') {
         await this.resolveConflict(current, r.server);
       } else if (current.version === 0 && current.access !== 'owner' && !current.deleted) {
@@ -903,6 +928,17 @@ class Vault {
     if (local.id === this.settingsId()) {
       await this.put({ ...server, content: JSON.stringify({ ...safeObject(server.content), ...safeObject(local.content) }), dirty: true });
       return;
+    }
+    // Both changed the text: apply both sides' edits (the result is pushed as a new version)
+    if (!local.deleted && !server.deleted && local.base !== undefined && local.content !== server.content) {
+      const merged = merge3(local.base, local.content, server.content);
+      if (merged.clean) {
+        const renamedHere = local.basePath !== undefined && local.path !== local.basePath && server.path === local.basePath;
+        const path = renamedHere && server.access === 'owner' ? local.path : server.path;
+        await this.put({ ...server, content: merged.text, path, dirty: true, base: server.content, basePath: server.path });
+        this.schedule(250);
+        return;
+      }
     }
     await this.accept(server);
     if (local.deleted || local.content === server.content) return;

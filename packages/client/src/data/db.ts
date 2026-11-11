@@ -4,6 +4,9 @@ import type { SyncedNote } from '@kladde/shared';
 /** A note on this device: the last synced state plus local edits not yet pushed */
 export interface LocalNote extends SyncedNote {
   dirty: boolean;
+  /** Only while dirty: content and path of the synced `version` the local edits started from (three-way merge base) */
+  base?: string;
+  basePath?: string;
 }
 
 interface Schema extends DBSchema {

@@ -4,6 +4,9 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Gemeinsames Bearbeiten in Echtzeit – für geteilte Notizen und für mehrere Geräte/Tabs desselben Kontos. Änderungen der anderen erscheinen sofort im offenen Editor und werden mit dem gerade Getippten zusammengeführt; Cursor, Markierung und Rückgängig-Verlauf bleiben erhalten. Sobald eine Notiz an mehr als einer Stelle offen ist, zeigt der Notizkopf „Live“ mit den Profilbildern aller, die sie gerade offen haben (mit Anzahl der Geräte).
+- Neu: Konflikte werden zusammengeführt statt kopiert. Ändern zwei Geräte oder Personen eine Notiz gleichzeitig – auch wenn ein Gerät länger offline war und erst später synchronisiert –, werden beide Änderungen per Drei-Wege-Merge übernommen (zeilenweise, im selben Absatz wortweise). Nur wenn beide dieselben Wörter ändern, bleibt wie bisher eine „(Konflikt …)“-Kopie.
+
 ## [0.25.0] – 2026-11-10
 
 - Neu: Farbiges Syntax-Highlighting in der Markdown-Code-Ansicht (Überschriften, Formatierungen, Links/Bilder, Codeblöcke inkl. `query`/`mermaid`/`mindmap`/`gallery`/`carousel`, YAML-Frontmatter, `[[Wikilinks]]`, `#Tags`, Fußnoten, `##TOC##` und Aufgaben-Metadaten).

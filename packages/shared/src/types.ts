@@ -244,3 +244,24 @@ export interface DeleteFilesResponse {
   skippedUsed: string[];
   notFound: string[];
 }
+
+/** Someone who has a note open right now (all their devices/tabs together) */
+export interface PresenceViewer {
+  userId: string;
+  username: string;
+  avatarUrl?: string | null;
+  /** Open devices/tabs of this user on the note */
+  clients: number;
+}
+
+/** Sent as the live event `presence` to everybody who may see the note, and returned when announcing */
+export interface PresenceUpdate {
+  noteId: string;
+  viewers: PresenceViewer[];
+}
+
+/** A client (device/tab) announces which note it has open; `noteId: null` = none */
+export interface PresenceAnnounce {
+  clientId: string;
+  noteId: string | null;
+}

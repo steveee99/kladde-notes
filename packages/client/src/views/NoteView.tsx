@@ -62,6 +62,7 @@ import { ParaBar } from './ParaBar';
 import { Graph, GraphLegend } from './Graph';
 import { Sheet } from './Dialogs';
 import { Avatar } from './Avatar';
+import { PresenceBar, useAnnouncePresence } from './PresenceBar';
 import { folderDisplayName, t, useLang, type Lang } from '../lib/i18n';
 import { setNoteSplitOpen, setNoteSplitTab, setSourceMode, useNoteSplitOpen, useNoteSplitTab, useSourceMode, type NoteSplitTab } from '../lib/prefs';
 import { isCoarsePointer } from '../lib/viewport';
@@ -718,6 +719,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const isProjectHome = !!note && note.access === 'owner' && isFolderProjectHome(note.path, rc);
   const displayName = note ? projectTitleOf(note.path, note.content, rc) : '';
   const hasNote = !!note;
+  useAnnouncePresence(hasNote ? id : null);
 
   useEffect(() => setTitle(displayName), [displayName]);
   useEffect(() => {
@@ -883,6 +885,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
 
             {/* Header actions: Lock, Copy Markdown (no frontmatter), Right Splitview toggle, 3-dot Menu */}
             <div className="ml-auto flex shrink-0 items-center gap-1">
+              <PresenceBar noteId={id} />
               {readOnly && (
                 <span title={sharedReadOnly ? t('note.readOnlyShared') : t('common.readOnly')}>
                   <Lock size={15} className="mr-1 text-muted" />

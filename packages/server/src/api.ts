@@ -1,5 +1,6 @@
 import express, { Response } from 'express';
-import type { AttachmentInfo, DeleteFilesResponse, Me, PushChange } from '@kladde/shared';
+import type { AttachmentInfo, DeleteFilesResponse, Me, PresenceAnnounce, PushChange } from '@kladde/shared';
+import { Presence } from './Presence.js';
 import { attachmentUsageMap } from './cliActions.js';
 import { AvatarStore, MAX_AVATAR_BYTES } from './AvatarStore.js';
 import { NoteStore } from './NoteStore.js';
@@ -30,7 +31,13 @@ export class LiveUpdates {
   }
 
   notify(userIds: Iterable<string>): void {
-    for (const id of new Set(userIds)) for (const res of this.clients.get(id) ?? []) res.write('event: changed\ndata: {}\n\n');
+    this.send(userIds, 'changed', {});
+  }
+
+  /** Any live event to all open streams of these users */
+  send(userIds: Iterable<string>, event: string, data: unknown): void {
+    const frame = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    for (const id of new Set(userIds)) for (const res of this.clients.get(id) ?? []) res.write(frame);
   }
 
   get connections(): number {
@@ -96,6 +103,8 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
 
   router.use(authed);
 
+  const presence = new Presence(notes, (id) => users.getUser(id), live);
+
   router.get('/events', (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -103,8 +112,25 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     res.flushHeaders();
     res.write('event: hello\ndata: {}\n\n');
     const keepAlive = setInterval(() => res.write(': ping\n\n'), 25_000);
-    res.on('close', () => clearInterval(keepAlive));
+    const clientId = typeof req.query.client === 'string' ? req.query.client : '';
+    res.on('close', () => {
+      clearInterval(keepAlive);
+      // The device/tab is gone: it no longer has a note open
+      if (clientId) presence.leave(req.user!.id, clientId);
+    });
     live.add(req.user!.id, res);
+  });
+
+  // Which note a device/tab has open (heartbeat); everybody who may see the note learns who is there
+  router.post('/presence', (req, res) => {
+    const body = (req.body ?? {}) as Partial<PresenceAnnounce>;
+    const clientId = typeof body.clientId === 'string' ? body.clientId : '';
+    const noteId = typeof body.noteId === 'string' ? body.noteId : null;
+    if (!Presence.validClient(clientId)) {
+      res.status(400).json({ error: 'Ungültige Geräte-Kennung.' });
+      return;
+    }
+    res.json(presence.announce(req.user!.id, clientId, noteId));
   });
 
   router.get('/sync', (req, res) => {

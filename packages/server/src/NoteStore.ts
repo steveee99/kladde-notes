@@ -138,6 +138,13 @@ export class NoteStore {
     return [row.owner_id, ...shared.map((s) => s.user_id)];
   }
 
+  /** Everybody who may see the note (owner and shares), or null for an unknown/deleted note; for live presence */
+  audienceOf(noteId: string): string[] | null {
+    if (!ID_PATTERN.test(noteId)) return null;
+    const row = this.getRow(noteId);
+    return row && !row.deleted ? this.audience(row) : null;
+  }
+
   pull(userId: string, since: number): PullResponse {
     const cursor = this.currentSeq();
     const own = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND seq > ? ORDER BY seq').all(userId, since) as unknown as NoteRow[];

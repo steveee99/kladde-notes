@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Compartment, EditorState, Extension } from '@codemirror/state';
+import { Compartment, EditorState, Extension, Transaction } from '@codemirror/state';
 import { EditorView, KeyBinding, keymap, placeholder as cmPlaceholder } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
@@ -11,6 +11,7 @@ import { tags as t } from '@lezer/highlight';
 import { livePreview, noteIdFacet, previewAll, refreshEffect } from './livePreview';
 import { sourceHighlight } from './sourceHighlight';
 import { editorHost } from './host';
+import { merge3, textChanges } from '@kladde/shared';
 import { slashCompletion } from './slash';
 import { useReadOnly } from '../lib/readOnly';
 import { t as i18n, useLang } from '../lib/i18n';
@@ -205,13 +206,18 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   const sourceRef = useRef(source);
   sourceRef.current = source;
   const resolvedPlaceholder = placeholder ?? i18n('editor.placeholder');
+  /** The text the vault last had (from `value` or our own flush): the base for merging in changes from elsewhere */
+  const synced = useRef(value);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const flush = () => {
       if (timer) clearTimeout(timer);
       timer = null;
-      if (view.current) changeRef.current?.(view.current.state.doc.toString());
+      if (!view.current) return;
+      const doc = view.current.state.doc.toString();
+      synced.current = doc;
+      changeRef.current?.(doc);
     };
     const unregisterFlush = editorHost.registerFlush(flush);
     const v = new EditorView({
@@ -241,6 +247,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
       }),
     });
     view.current = v;
+    synced.current = value;
     onView?.(v);
     if (autoFocus) {
       v.focus();
@@ -277,14 +284,21 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
     v.dispatch({ effects: placeholderConf.current.reconfigure(cmPlaceholder(resolvedPlaceholder)) });
   }, [resolvedPlaceholder]);
 
-  // Changes from sync (another device) while the note is open
+  // Changes from sync (another device or person) while the note is open: merged with what was typed here
+  // since the last flush, applied as small changes so the cursor, selection and undo history stay
   useEffect(() => {
     const v = view.current;
+    const base = synced.current;
+    synced.current = value;
     if (!v) return;
     const current = v.state.doc.toString();
     if (current === value) return;
-    const head = Math.min(v.state.selection.main.head, value.length);
-    v.dispatch({ changes: { from: 0, to: current.length, insert: value }, selection: { anchor: head } });
+    const next = current === base ? value : merge3(base, current, value).text;
+    if (next === current) return;
+    v.dispatch({
+      changes: textChanges(current, next),
+      annotations: [Transaction.addToHistory.of(false), Transaction.remote.of(true)],
+    });
   }, [value]);
 
   useEffect(() => {
