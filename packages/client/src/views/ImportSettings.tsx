@@ -4,7 +4,7 @@ import { IMPORT_TOKEN_DAYS, type ImportToken, type ImportTokenCreated } from '@k
 import { api } from '../lib/api';
 import { locale, tl, useLang } from '../lib/i18n';
 import { navigate } from '../lib/router';
-import { ChipSelect } from './ChipSelect';
+import { Dropdown } from './Dropdown';
 import { CopyField } from './McpSettings';
 
 /** Tokens for the import CLI (`npm run import`), which brings a local folder such as an Obsidian vault into the space */
@@ -86,16 +86,16 @@ export function ImportSettingsView() {
             }}
           >
             <input className="input" placeholder={tl(lang, 'import.tokenNamePlaceholder')} maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
-            <label className="flex flex-wrap items-center gap-2 text-sm">
-              {tl(lang, 'import.validFor')}
-              <ChipSelect
-                className="text-sm"
+            <div className="flex flex-col gap-1.5 text-sm text-muted sm:flex-row sm:items-center sm:gap-2">
+              <span className="shrink-0">{tl(lang, 'import.validFor')}</span>
+              <Dropdown
                 value={String(days)}
-                aria-label={tl(lang, 'import.validFor')}
                 onChange={(v) => setDays(Number(v))}
+                aria-label={tl(lang, 'import.validFor')}
+                className="sm:w-auto sm:min-w-[14rem]"
                 options={[...IMPORT_TOKEN_DAYS].sort((a, b) => a - b).map((d) => ({ value: String(d), label: tl(lang, 'import.days', { n: d }) }))}
               />
-            </label>
+            </div>
             <button className="btn-ghost rounded-full border border-line px-4" type="submit">
               <Plus size={16} /> {tl(lang, 'import.tokenCreateBtn')}
             </button>
@@ -115,13 +115,14 @@ export function ImportSettingsView() {
             <div className="min-w-0 flex-1">
               <div className="truncate font-medium">{token.name}</div>
               <div className="truncate text-xs text-faint">
-                {tl(lang, 'import.created')} {when(token.createdAt)} ·{' '}
                 {token.expiresAt <= Date.now() ? (
                   <span className="text-danger">{tl(lang, 'import.expired')}</span>
                 ) : (
                   `${tl(lang, 'import.expires')} ${when(token.expiresAt)}`
-                )}{' '}
-                · {tl(lang, 'import.lastUsed')} {when(token.lastUsedAt)}
+                )}
+              </div>
+              <div className="truncate text-xs text-faint">
+                {tl(lang, 'import.created')} {when(token.createdAt)} · {tl(lang, 'import.lastUsed')} {when(token.lastUsedAt)}
               </div>
             </div>
             <button className="btn-icon h-8 w-8 shrink-0" title={tl(lang, 'import.revoke')} onClick={() => void revoke(token)}>
