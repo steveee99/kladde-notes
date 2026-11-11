@@ -18,6 +18,8 @@ import { apiRouter, LiveUpdates } from './api.js';
 import { adminRouter } from './admin/adminRouter.js';
 import { McpTokenStore } from './mcp/McpTokenStore.js';
 import { mcpRouters } from './mcp/router.js';
+import { ImportTokenStore } from './import/ImportTokenStore.js';
+import { importRouters } from './import/router.js';
 import { EmbeddedAsset, ensureStandaloneUser } from './standalone.js';
 
 export interface KladdeAppOptions {
@@ -166,6 +168,13 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
         onRegistered: opts.onRegistered,
       })
     );
+  }
+
+  if (!opts.standalone) {
+    // Bearer import tokens for the import CLI; before the global JSON parser so the routes set their own limits
+    const imports = importRouters({ users, notes, files, tokens: new ImportTokenStore(opts.db), audit });
+    app.use('/api/import', imports.bearerRouter);
+    app.use('/api/import-tokens', imports.accountRouter);
   }
 
   app.use('/api', (req, res, next) =>
