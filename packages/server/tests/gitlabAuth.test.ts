@@ -31,7 +31,7 @@ const fakeFetch = (async (input: string | URL, init?: RequestInit) => {
   throw new Error(`unexpected fetch ${url}`);
 }) as typeof fetch;
 
-const config: GitLabConfig = { url: GITLAB_URL, clientId: 'id', clientSecret: 'secret', label: 'GitLab', allowSignup: false, allowedGroups: ['team'] };
+const config: GitLabConfig = { url: GITLAB_URL, internalUrl: GITLAB_URL, clientId: 'id', clientSecret: 'secret', label: 'GitLab', allowSignup: false, allowedGroups: ['team'] };
 
 let server: Server;
 let base: string;
@@ -77,9 +77,14 @@ describe('GitLab sign-in', () => {
     expect(gitlabConfigFromEnv({})).toBeNull();
     expect(gitlabConfigFromEnv({ GITLAB_CLIENT_ID: 'a', GITLAB_CLIENT_SECRET: 'b', GITLAB_ALLOWED_GROUPS: ' /Team/ , x ' })).toMatchObject({
       url: 'https://gitlab.com',
+      internalUrl: 'https://gitlab.com',
       allowSignup: false,
       allowedGroups: ['team', 'x'],
     });
+    expect(
+      gitlabConfigFromEnv({ GITLAB_CLIENT_ID: 'a', GITLAB_CLIENT_SECRET: 'b', GITLAB_URL: 'https://git.example.org/', GITLAB_INTERNAL_URL: 'http://gitlab:80/' })
+    ).toMatchObject({ url: 'https://git.example.org', internalUrl: 'http://gitlab:80' });
+    expect(gitlabConfigFromEnv({ GITLAB_CLIENT_ID: 'a', GITLAB_CLIENT_SECRET: 'b', GITLAB_INTERNAL_URL: 'nope' })).toBeNull();
     expect(inAllowedGroups(['team/sub'], ['team'])).toBe(true);
     expect(inAllowedGroups(['teamwork'], ['team'])).toBe(false);
     expect(inAllowedGroups([], [])).toBe(true);

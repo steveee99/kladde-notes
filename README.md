@@ -109,6 +109,7 @@ docker exec kladde node packages/server/dist/cli.js einladen Anna
 | `TRUST_PROXY` | `1` hinter einem Reverse-Proxy |
 | `DATA_KEY` | Schlüssel für die Verschlüsselung (`openssl rand -base64 32`). Leer = Schlüsseldatei `data/secret.key` im Volume |
 | `GITLAB_URL` | GitLab-Instanz für „Mit GitLab anmelden“ (Standard `https://gitlab.com`) |
+| `GITLAB_INTERNAL_URL` | Optional: Adresse, unter der der Container GitLab erreicht, falls sie von `GITLAB_URL` abweicht (z. B. `http://192.168.1.20`) |
 | `GITLAB_CLIENT_ID`, `GITLAB_CLIENT_SECRET` | OAuth-Anwendung aus GitLab; beide gesetzt = GitLab-Anmeldung an |
 | `GITLAB_ALLOWED_GROUPS` | Nur Mitglieder dieser Gruppen (kommagetrennte Pfade, z. B. `familie,firma/team`; Untergruppen zählen mit), leer = alle |
 | `GITLAB_ALLOW_SIGNUP` | `1` = unbekannte GitLab-Nutzer bekommen ohne Einladung ein Konto (am besten mit `GITLAB_ALLOWED_GROUPS`) |
@@ -116,7 +117,7 @@ docker exec kladde node packages/server/dist/cli.js einladen Anna
 | `BACKUP_KEEP` | Tägliche Datenbank-Backups in `data/backups` (Standard 7, `0` = aus) |
 | `EXPORT_DIR` | Klartext-Spiegel der Notizen (z. B. NAS), leer = aus |
 
-**Anmelden mit GitLab:**
+**Anmelden mit GitLab** (ausführliche Anleitung für selbst gehostete Instanzen, Netzwerk, eigene Zertifikate und Fehlersuche: [`docs/GITLAB.md`](docs/GITLAB.md)):
 
 1. In GitLab eine OAuth-Anwendung anlegen: *Benutzereinstellungen → Anwendungen* (nur für dich) bzw. *Gruppe → Einstellungen → Anwendungen* oder *Admin → Anwendungen* (eigene Instanz).
    - **Redirect-URI:** `https://notes.example.org/api/auth/gitlab/callback` (also `PUBLIC_URL` + `/api/auth/gitlab/callback`)

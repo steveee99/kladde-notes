@@ -17,8 +17,10 @@ const FLOW_COOKIE = 'kladde_oauth';
 const FLOW_MAX_AGE_MS = 10 * 60 * 1000;
 
 export interface GitLabConfig {
-  /** Base URL of the GitLab instance, without trailing slash */
+  /** Base URL of the GitLab instance as the browser reaches it, without trailing slash */
   url: string;
+  /** Base URL for the server's own token and user lookups (GITLAB_INTERNAL_URL); defaults to `url` */
+  internalUrl: string;
   clientId: string;
   clientSecret: string;
   label: string;
@@ -35,15 +37,19 @@ export function gitlabConfigFromEnv(env: NodeJS.ProcessEnv): GitLabConfig | null
   const clientSecret = env.GITLAB_CLIENT_SECRET?.trim();
   if (!clientId || !clientSecret) return null;
   const url = (env.GITLAB_URL?.trim() || 'https://gitlab.com').replace(/\/+$/, '');
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error('protocol');
-  } catch {
-    console.error(`GITLAB_URL ist keine gültige Adresse: ${url} – GitLab-Anmeldung bleibt aus.`);
-    return null;
+  const internalUrl = (env.GITLAB_INTERNAL_URL?.trim() || url).replace(/\/+$/, '');
+  for (const [name, value] of [['GITLAB_URL', url], ['GITLAB_INTERNAL_URL', internalUrl]]) {
+    try {
+      const parsed = new URL(value);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error('protocol');
+    } catch {
+      console.error(`${name} ist keine gültige Adresse: ${value} – GitLab-Anmeldung bleibt aus.`);
+      return null;
+    }
   }
   return {
     url,
+    internalUrl,
     clientId,
     clientSecret,
     label: env.GITLAB_LABEL?.trim() || 'GitLab',
@@ -141,7 +147,7 @@ export function gitlabRouter(opts: GitLabRouterOptions): express.Router {
 
   /** Exchanges the code and reads the GitLab user (id, username, groups) */
   const lookup = async (code: string, flow: Flow): Promise<GitLabUser> => {
-    const tokenRes = await doFetch(`${config.url}/oauth/token`, {
+    const tokenRes = await doFetch(`${config.internalUrl}/oauth/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
       body: new URLSearchParams({
@@ -155,7 +161,7 @@ export function gitlabRouter(opts: GitLabRouterOptions): express.Router {
     });
     const token = (await tokenRes.json().catch(() => ({}))) as { access_token?: string };
     if (!tokenRes.ok || !token.access_token) throw new AccountError('GitLab hat die Anmeldung nicht bestätigt.', 401);
-    const infoRes = await doFetch(`${config.url}/oauth/userinfo`, { headers: { Authorization: `Bearer ${token.access_token}`, Accept: 'application/json' } });
+    const infoRes = await doFetch(`${config.internalUrl}/oauth/userinfo`, { headers: { Authorization: `Bearer ${token.access_token}`, Accept: 'application/json' } });
     const info = (await infoRes.json().catch(() => ({}))) as { sub?: unknown; nickname?: unknown; preferred_username?: unknown; groups?: unknown };
     if (!infoRes.ok || (typeof info.sub !== 'string' && typeof info.sub !== 'number')) throw new AccountError('GitLab-Benutzer konnte nicht gelesen werden.', 401);
     const username = String(info.preferred_username ?? info.nickname ?? '');
