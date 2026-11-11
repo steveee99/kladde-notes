@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Helles Farbschema (Material 3) – unter Einstellungen → Darstellung & Sprache → „Farbschema“ zwischen Dunkel (Standard), Hell und System wählen; „System“ folgt der Einstellung des Betriebssystems. Die Wahl gilt pro Gerät.
+
 ## [0.32.0] – 2026-11-11
 
 - Neu: Ausführliche Anleitung für „Mit GitLab anmelden“ mit selbst gehostetem GitLab in `docs/GITLAB.md` (OAuth-Anwendung anlegen, Container-Variablen, eigene Zertifikate über `NODE_EXTRA_CA_CERTS`, Fehlersuche).

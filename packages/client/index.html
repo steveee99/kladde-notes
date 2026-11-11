@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-theme="material">
+<html lang="de" data-theme="material" data-scheme="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
@@ -19,12 +19,19 @@
     <meta name="referrer" content="no-referrer" />
     <title>Kladde</title>
     <script>
-      // Language, Material 3 theme, and content width percentage before first paint
+      // Language, Material 3 theme and color scheme, and content width percentage before first paint
       try {
         var lang = localStorage.getItem('kladde_lang');
         if (lang === 'en' || lang === 'de') document.documentElement.lang = lang;
       } catch (e) {}
       document.documentElement.dataset.theme = 'material';
+      var scheme = 'dark';
+      try {
+        var cs = localStorage.getItem('kladde_color_scheme');
+        if (cs === 'light') scheme = 'light';
+        else if (cs === 'system' && window.matchMedia('(prefers-color-scheme: light)').matches) scheme = 'light';
+      } catch (e) {}
+      document.documentElement.dataset.scheme = scheme;
       try {
         var w = localStorage.getItem('kladde_widescreen');
         var cfg = w ? JSON.parse(w) : null;

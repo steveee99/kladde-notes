@@ -29,6 +29,7 @@ import {
   ShieldCheck,
   Smartphone,
   SlidersHorizontal,
+  SunMoon,
   Trash2,
   Star,
   Upload,
@@ -51,6 +52,7 @@ import { api, deleteAvatar, uploadAvatar } from '../lib/api';
 import { folderDisplayName, Lang, locale, setLang, tl, useLang } from '../lib/i18n';
 import { setInboxZero, setLigatures, useInboxZero, useLigatures } from '../lib/prefs';
 import { useReadOnly } from '../lib/readOnly';
+import { setColorSchemeChoice, useColorSchemeChoice } from '../lib/theme';
 import { DEFAULT_PERCENT, MAX_PERCENT, MIN_PERCENT, setWidescreen, useWidescreen, WIDESCREEN_PRESETS } from '../lib/widescreen';
 import { useVault, vault } from '../data/vault';
 import { startupReport, toggleTallPageTest, viewportReport } from '../lib/viewport';
@@ -167,6 +169,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
   const widescreen = useWidescreen();
   const inboxZero = useInboxZero();
   const ligatures = useLigatures();
+  const colorScheme = useColorSchemeChoice();
   const locked = useReadOnly();
   const features = vault.features();
   const folders = vault.folders();
@@ -252,6 +255,44 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
       {/* Layout, Language, Inbox Zero & Widescreen (Material 3) */}
       <section className="card p-5 anim-fade-up">
         <h2 className="mb-4 text-base font-semibold">{tl(lang, 'settings.appearanceTitle')}</h2>
+
+        {/* Color scheme selector (M3 Segmented Pill Button) */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2.5">
+            <SunMoon size={18} className="mt-0.5 shrink-0 text-accent" />
+            <div>
+              <div className="text-sm font-semibold">{tl(lang, 'settings.colorSchemeTitle')}</div>
+              <div className="text-xs text-muted">{tl(lang, 'settings.colorSchemeDesc')}</div>
+            </div>
+          </div>
+          <div className="inline-flex max-w-full flex-wrap rounded-full border border-line bg-raised p-1 shrink-0" role="group" aria-label={tl(lang, 'settings.colorSchemeTitle')}>
+            {(
+              [
+                ['dark', 'settings.colorSchemeDark'],
+                ['light', 'settings.colorSchemeLight'],
+                ['system', 'settings.colorSchemeSystem'],
+              ] as const
+            ).map(([choice, label]) => {
+              const active = colorScheme === choice;
+              return (
+                <button
+                  key={choice}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setColorSchemeChoice(choice)}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    active ? 'bg-accent-container text-on-accent-container shadow-sm' : 'text-muted hover:text-ink'
+                  }`}
+                >
+                  {active && <Check size={14} strokeWidth={2.5} />}
+                  {tl(lang, label)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <hr className="my-5 border-line" />
 
         {/* Language selector (M3 Segmented Pill Button) */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
