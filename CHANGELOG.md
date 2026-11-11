@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.28.0] – 2026-11-11
+
 - Neu: Suche in der Seitenleiste per Tastatur – Pfeiltasten ↑/↓ wandern durch die Treffer, Enter öffnet den markierten.
 - Neu: Favoriten (Opt-In unter Einstellungen → Funktionen): Der Stern im Notizkopf (oder `Strg/⌘+D`) fügt die offene Notiz hinzu bzw. entfernt sie. Sobald es Favoriten gibt, stehen sie als eigene Liste in der Seitenleiste und werden zwischen Geräten synchronisiert.
 - Geändert: Aufgeräumte Seitenleiste – die Navigation (Start, Tagesnotiz, Notizen, Inbox, Wissensnetz, Anhänge, Rückblick …) ist eine kompakte Icon-Reihe mit Tooltips und Zählern; „Favoriten“ und „Ordner“ lassen sich einklappen (pro Gerät gemerkt), die Favoriten zeigen höchstens fünf Einträge ohne Scrollen, und auf niedrigen Bildschirmen starten sie eingeklappt. So bleibt den Ordnern deutlich mehr Platz.
