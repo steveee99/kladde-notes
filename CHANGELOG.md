@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.27.0] – 2026-11-11
+
 - Neu: Im gemeinsamen Editor siehst du, wo die anderen gerade schreiben: ein farbiger Cursor mit kleinem Profilbild (beim Daraufzeigen mit Namen), markierter Text erscheint in derselben Farbe. Jede Person hat überall dieselbe Farbe; auch die eigenen anderen Geräte/Tabs werden angezeigt.
 
 ## [0.26.0] – 2026-11-11
