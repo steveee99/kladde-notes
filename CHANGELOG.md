@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.31.1] – 2026-11-11
+
 - Behoben: Die untere Navigationsleiste auf dem Handy endet nicht mehr mit einem großen Leerraum über dem Bildschirmrand; die Beschriftungen rücken wie bei der iOS-Tab-Leiste in den Bereich des Home-Indikators.
 
 ## [0.31.0] – 2026-11-11
