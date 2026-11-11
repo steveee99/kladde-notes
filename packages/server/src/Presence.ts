@@ -1,13 +1,16 @@
-import type { PresenceUpdate, PresenceViewer } from '@kladde/shared';
+import type { CursorPosition, CursorUpdate, PresenceCursor, PresenceUpdate, PresenceViewer } from '@kladde/shared';
 
 /** A client that has not sent a heartbeat for this long is gone (it sends one every 25 s) */
 export const PRESENCE_TTL_MS = 70_000;
 const CLIENT_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+const MAX_CTX = 24;
+const MAX_OFFSET = 50_000_000;
 
 interface Session {
   userId: string;
   noteId: string;
   at: number;
+  cursor?: CursorPosition;
 }
 
 interface PresenceDeps {
@@ -51,11 +54,44 @@ export class Presence {
     const audience = noteId ? this.notes.audienceOf(noteId) : null;
     // Only notes the user may see; anything else counts as "no note open"
     const target = noteId && audience?.includes(userId) ? noteId : null;
-    if (target) this.sessions.set(key, { userId, noteId: target, at: this.now() });
+    // A heartbeat on the same note keeps the cursor
+    if (target) this.sessions.set(key, { userId, noteId: target, at: this.now(), cursor: before?.noteId === target ? before.cursor : undefined });
     else this.sessions.delete(key);
     if (before && before.noteId !== target) this.broadcast(before.noteId);
     if (target && before?.noteId !== target) this.broadcast(target, audience!);
-    return target ? { noteId: target, viewers: this.viewers(target) } : null;
+    return target ? this.update(target) : null;
+  }
+
+  /** A well-formed cursor (offsets in range, short context) or null */
+  static validCursor(c: Partial<CursorPosition>): CursorPosition | null {
+    const offset = (n: unknown) => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= MAX_OFFSET;
+    if (!offset(c.head) || !offset(c.anchor) || typeof c.ctx !== 'string' || c.ctx.length > MAX_CTX) return null;
+    return { head: c.head!, anchor: c.anchor!, ctx: c.ctx };
+  }
+
+  /** The client moved its cursor in the note it has open; false when it has not announced that note */
+  cursor(userId: string, clientId: string, noteId: string, pos: CursorPosition): boolean {
+    const s = this.sessions.get(`${userId}:${clientId}`);
+    if (!s || s.noteId !== noteId) return false;
+    const audience = this.notes.audienceOf(noteId);
+    if (!audience?.includes(userId)) return false;
+    s.cursor = pos;
+    s.at = this.now();
+    const update: CursorUpdate = { noteId, cursor: { clientId, userId, ...pos } };
+    this.live.send(audience, 'cursor', update);
+    return true;
+  }
+
+  cursors(noteId: string): PresenceCursor[] {
+    const out: PresenceCursor[] = [];
+    for (const [key, s] of this.sessions) {
+      if (s.noteId === noteId && s.cursor) out.push({ clientId: key.slice(s.userId.length + 1), userId: s.userId, ...s.cursor });
+    }
+    return out;
+  }
+
+  private update(noteId: string): PresenceUpdate {
+    return { noteId, viewers: this.viewers(noteId), cursors: this.cursors(noteId) };
   }
 
   /** The client's live stream closed */
@@ -93,7 +129,6 @@ export class Presence {
 
   private broadcast(noteId: string, audience = this.notes.audienceOf(noteId)): void {
     if (!audience?.length) return;
-    const update: PresenceUpdate = { noteId, viewers: this.viewers(noteId) };
-    this.live.send(audience, 'presence', update);
+    this.live.send(audience, 'presence', this.update(noteId));
   }
 }

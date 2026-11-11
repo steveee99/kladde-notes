@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: Im gemeinsamen Editor siehst du, wo die anderen gerade schreiben: ein farbiger Cursor mit kleinem Profilbild (beim Daraufzeigen mit Namen), markierter Text erscheint in derselben Farbe. Jede Person hat überall dieselbe Farbe; auch die eigenen anderen Geräte/Tabs werden angezeigt.
+
 ## [0.26.0] – 2026-11-11
 
 - Neu: Gemeinsames Bearbeiten in Echtzeit – für geteilte Notizen und für mehrere Geräte/Tabs desselben Kontos. Änderungen der anderen erscheinen sofort im offenen Editor und werden mit dem gerade Getippten zusammengeführt; Cursor, Markierung und Rückgängig-Verlauf bleiben erhalten. Sobald eine Notiz an mehr als einer Stelle offen ist, zeigt der Notizkopf „Live“ mit den Profilbildern aller, die sie gerade offen haben (mit Anzahl der Geräte).
