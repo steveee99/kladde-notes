@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.33.0] – 2026-11-11
+
 - Neu: Helles Farbschema (Material 3) – unter Einstellungen → Darstellung & Sprache → „Farbschema“ zwischen Dunkel (Standard), Hell und System wählen; „System“ folgt der Einstellung des Betriebssystems. Die Wahl gilt pro Gerät.
 
 ## [0.32.0] – 2026-11-11
