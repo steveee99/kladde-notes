@@ -19,6 +19,7 @@
   --on-accent: 6 46 111;
   --accent2: 128 214 200;
   --ok: 133 214 150;
+  --on-ok: 0 57 22;
   --warn: 240 190 110;
   --danger: 242 184 181;
   --code-bg: 18 19 23;
@@ -543,8 +544,8 @@ html[data-readonly] .edit-only {
 }
 .cm-checkbox:checked,
 .cm-checkbox[data-status='done'] {
-  background: rgb(var(--accent));
-  border-color: rgb(var(--accent));
+  background: rgb(var(--ok));
+  border-color: rgb(var(--ok));
   animation: pop 300ms var(--ease-spring);
 }
 .cm-checkbox:checked::after,
@@ -552,8 +553,8 @@ html[data-readonly] .edit-only {
   content: '';
   width: 0.55em;
   height: 0.3em;
-  border-left: 2px solid rgb(var(--on-accent));
-  border-bottom: 2px solid rgb(var(--on-accent));
+  border-left: 2px solid rgb(var(--on-ok));
+  border-bottom: 2px solid rgb(var(--on-ok));
   transform: rotate(-45deg) translate(1px, -1px);
 }
 /* [O] in progress: half-filled box; [H] blocked: warning-colored box with a pause sign */
@@ -1636,6 +1637,10 @@ span.cm-checkbox {
 [data-theme='material'] .cm-checkbox {
   border-radius: 2px;
   border-color: rgb(var(--muted));
+}
+[data-theme='material'] .cm-checkbox:checked,
+[data-theme='material'] .cm-checkbox[data-status='done'] {
+  border-color: rgb(var(--ok));
 }
 [data-theme='material'] .cm-checkbox[data-status='doing'] {
   border-color: rgb(var(--accent));

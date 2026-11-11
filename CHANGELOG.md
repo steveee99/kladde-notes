@@ -4,7 +4,7 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
-- Neu: Aufgaben haben einen Status: `[ ]` offen, `[O]` in Arbeit, `[H]` blockiert, `[x]` fertig. Im Editor zeigt die Checkbox den Status (halb gefüllt bzw. Pause-Zeichen); ein Klick erledigt die Aufgabe, Rechtsklick wählt einen beliebigen Status. `TASKS`-Abfragen und das MCP kennen das Feld `status` (`open`, `doing`, `blocked`, `done`).
+- Neu: Aufgaben haben einen Status: `[ ]` offen, `[O]` in Arbeit, `[H]` blockiert, `[x]` fertig. Im Editor zeigt die Checkbox den Status (halb gefüllt, Pause-Zeichen bzw. grün mit Haken); ein Klick erledigt die Aufgabe, Rechtsklick wählt einen beliebigen Status. `TASKS`-Abfragen und das MCP kennen das Feld `status` (`open`, `doing`, `blocked`, `done`).
 - Neu: Die Aufgaben auf der Startseite lassen sich zwischen Liste und Kanban umschalten (pro Gerät gemerkt). Das Board hat je eine Spalte pro Status; eine Karte in eine andere Spalte ziehen ändert den Status der Aufgabe in ihrer Notiz. Auf dem Handy wählt der Knopf auf der Karte den Status. „Fertig“ zeigt die Aufgaben der letzten 7 Tage.
 - Neu: Ligaturen im Editor – `->` erscheint als →, `<-` als ←, `=>` als ⇒, `<=`/`>=` als ≤/≥, `!=` als ≠, `<->`/`<=>` als ↔/⇔ und `...` als …. Nur die Anzeige ändert sich, der Text bleibt; in Code und in der Zeile mit dem Cursor bleiben die Zeichen sichtbar. Abschaltbar unter Einstellungen → „Ligaturen“.
 
