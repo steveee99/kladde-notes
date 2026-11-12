@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+## [0.35.0] – 2026-11-12
+
 - Neu: PDF als eigene Notizart – im Menü „Weitere Notizarten“ (Pfeil neben „Neue Notiz“) → „PDF“ eine PDF-Datei hochladen; sie wird als Notiz im geöffneten Ordner (sonst im Eingang) angelegt und in voller Größe angezeigt, mit Link zum Öffnen in einem neuen Tab. „Als Text bearbeiten“ wechselt zum normalen Editor, „Als PDF anzeigen“ zurück. In der Seitenleiste tragen PDF-Notizen ein eigenes Symbol.
 
 ## [0.34.0] – 2026-11-11
