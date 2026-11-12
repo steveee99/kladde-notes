@@ -11,6 +11,7 @@ import {
   Cloud,
   CloudOff,
   FileText,
+  FileType2,
   Folder,
   FolderOpen,
   FolderPlus,
@@ -31,7 +32,17 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { excerpt, INBOX_FOLDER, Me, projectTitleOf, splitPath, toDateString } from '@kladde/shared';
+import {
+  excerpt,
+  INBOX_FOLDER,
+  Me,
+  pdfNoteMarkdown,
+  pdfNoteOf,
+  pdfNoteTitle,
+  projectTitleOf,
+  splitPath,
+  toDateString,
+} from '@kladde/shared';
 import { createPortal } from 'react-dom';
 import { openDialog } from '../lib/dialogs';
 import { reviewDue } from './Review';
@@ -60,16 +71,49 @@ export function newZettel() {
   openDialog({ kind: 'zettel' });
 }
 
+/** Uploads a PDF and creates a PDF note for it (`type: pdf`, see `shared/pdfNote.ts`) in `folder` */
+async function createPdfNote(file: File, folder: string, onNavigate?: () => void) {
+  if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
+    alert(t('nav.pdfOnly'));
+    return;
+  }
+  let result: { url: string; name: string };
+  try {
+    result = await editorHost.upload(file);
+  } catch (err) {
+    alert(t('editor.uploadFailed', { error: (err as Error).message }));
+    return;
+  }
+  try {
+    const note = await vault.create(folder, pdfNoteTitle(file.name), pdfNoteMarkdown(result.name, result.url));
+    navigate(`/n/${note.id}`);
+    onNavigate?.();
+  } catch (err) {
+    alert((err as Error).message);
+  }
+}
+
 /**
  * "+ New note" as a Material 3 split button: the main part creates a note, the chevron opens a menu
- * with the other ways to start one (Zettel, recipe from a URL) when those features are on.
+ * with the other ways to start one (Zettel and recipe from a URL when those features are on, PDF).
  */
-function NewNoteButton({ zettel, recipe, onNavigate }: { zettel: boolean; recipe: boolean; onNavigate?: () => void }) {
+function NewNoteButton({
+  zettel,
+  recipe,
+  folder,
+  onNavigate,
+}: {
+  zettel: boolean;
+  recipe: boolean;
+  /** Where a new PDF note goes (null: the Inbox) */
+  folder: string | null;
+  onNavigate?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ left: number; bottom: number; width: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const extra = zettel || recipe;
+  const pdfInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -108,22 +152,31 @@ function NewNoteButton({ zettel, recipe, onNavigate }: { zettel: boolean; recipe
 
   return (
     <div ref={wrapRef} className="edit-only mt-2 flex shrink-0 gap-0.5">
-      <button className={`btn-primary min-w-0 flex-1 ${extra ? '!rounded-r-md' : ''}`} onClick={() => run(() => newNote())}>
+      <button className="btn-primary min-w-0 flex-1 !rounded-r-md" onClick={() => run(() => newNote())}>
         <Plus size={16} /> <span className="truncate">{t('nav.newNote')}</span>
       </button>
-      {extra && (
-        <button
-          type="button"
-          className="btn-primary !rounded-l-md !px-2.5"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-label={t('nav.newNoteMore')}
-          title={t('nav.newNoteMore')}
-          onClick={() => setOpen((v) => !v)}
-        >
-          <ChevronDown size={18} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-        </button>
-      )}
+      <button
+        type="button"
+        className="btn-primary !rounded-l-md !px-2.5"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={t('nav.newNoteMore')}
+        title={t('nav.newNoteMore')}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <ChevronDown size={18} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <input
+        ref={pdfInput}
+        type="file"
+        accept="application/pdf,.pdf"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) void createPdfNote(file, folder ?? INBOX_FOLDER, onNavigate);
+        }}
+      />
       {open &&
         createPortal(
           <div
@@ -143,6 +196,20 @@ function NewNoteButton({ zettel, recipe, onNavigate }: { zettel: boolean; recipe
             {menuItem(FileText, t('nav.newNoteShort'), () => newNote())}
             {zettel && menuItem(Lightbulb, 'Zettel', newZettel, t('nav.zettelTitle'))}
             {recipe && menuItem(ChefHat, t('nav.recipe'), () => importRecipe(), t('quick.recipeTitle'))}
+            {/* Not run(): onNavigate may close the mobile drawer, which would drop the file input */}
+            <button
+              type="button"
+              role="menuitem"
+              className="m3-menu-item w-full text-left"
+              title={t('nav.pdfNoteTitle')}
+              onClick={() => {
+                setOpen(false);
+                pdfInput.current?.click();
+              }}
+            >
+              <FileType2 size={18} className="shrink-0 text-muted" />
+              <span className="min-w-0 flex-1 truncate">{t('nav.pdfNote')}</span>
+            </button>
           </div>,
           document.body
         )}
@@ -280,6 +347,7 @@ function SidebarNoteRow({
   onNavigate?: () => void;
 }) {
   const name = label ?? splitPath(note.path).name;
+  const Icon = pdfNoteOf(note.content) ? FileType2 : FileText;
   const openNote = () => {
     navigate(`/n/${note.id}`);
     onNavigate?.();
@@ -309,7 +377,7 @@ function SidebarNoteRow({
               : 'text-muted hover:bg-raised hover:text-ink'
         }`}
       >
-        <FileText
+        <Icon
           size={14}
           className={`shrink-0 ${highlighted ? 'text-accent' : active ? 'text-on-accent-container' : 'text-faint group-hover:text-muted'}`}
         />
@@ -934,7 +1002,12 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
             </li>
           </ul>
           {!foldersOpen && <div className="flex-1" aria-hidden />}
-          <NewNoteButton zettel={features.zettel.enabled} recipe={features.recipe.enabled} onNavigate={onNavigate} />
+          <NewNoteButton
+            zettel={features.zettel.enabled}
+            recipe={features.recipe.enabled}
+            folder={activeFolder}
+            onNavigate={onNavigate}
+          />
           <button
             type="button"
             onClick={() => nav('/settings')}
