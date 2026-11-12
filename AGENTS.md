@@ -19,13 +19,15 @@ Self-hosted, offline-first Markdown notes app (PWA) with npm workspaces, a harde
 8. **Versioning & Changelog:** one SemVer version for the monorepo; user-facing changes go (German) under `## [Unveröffentlicht]` in `CHANGELOG.md`; release with `npm run release -- patch|minor|major`.
 
 ## Git
-The project works on a single branch: **`main`** on GitHub (`origin`). There is no `develop` and no feature/release branches (the owner decided this on 2026-11-08; Git Flow may come back later).
+The project works on **`main`** (GitHub: `steveee99/kladde-notes`). Changes from outside come as pull requests.
 
 Rules for agents:
-1. Commit finished, building work directly on `main` (`npm run build` and `npm run test` must pass first). Commit or push only when the user asks for it.
-2. Commit messages in English, Conventional Commits (`feat:`, `fix:`, `perf:`, `docs:`, `chore:`, `ci:`; `!` or a `BREAKING CHANGE:` footer for breaking changes), ending with the attribution lines the session asks for. The type decides the release (below), so pick it carefully.
+1. Finished work must pass `npm run lint`, `npm run build` and `npm run test`. Commit or push only when the user asks for it.
+2. Commit messages in English, Conventional Commits (`feat:`, `fix:`, `perf:`, `docs:`, `chore:`, `ci:`; `!` or a `BREAKING CHANGE:` footer for breaking changes), ending with the attribution lines the session asks for.
 3. Never rewrite history on `main` (no amend of pushed commits, no reset, no force).
 4. Changelog entries (German) go under `## [Unveröffentlicht]` in `CHANGELOG.md`.
-5. Run `git pull --rebase` before committing: the pipeline pushes release commits to `main`.
+5. Run `git pull --rebase` before committing.
+6. Never put private infrastructure details (hostnames, IPs, registries, SSH targets, e-mail addresses) into this repository.
 
-### Releasing and deploying (automatic)
+### CI and releases
+`.github/workflows/ci.yml` runs lint, build and tests on GitHub-hosted runners for every push to `main` and every pull request. This repository contains no deploy pipeline and no self-hosted runner. Versions are bumped with `npm run release -- patch|minor|major` (see `scripts/release.mjs`), then committed and tagged by hand.

@@ -14,15 +14,22 @@
     "test": "npm run test --workspace=packages/shared && npm run test --workspace=packages/server",
     "cli": "node packages/server/dist/cli.js",
     "import": "node packages/server/dist/importCli.js",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "lint": "eslint ."
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "concurrently": "^9.1.2",
     "esbuild": "^0.28.2",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^17.14.0",
     "postject": "^1.0.0-alpha.6",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.72.2"
   },
   "overrides": {
     "glob": "^14.0.2"
-  }
+  },
+  "license": "MIT"
 }

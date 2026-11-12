@@ -1,13 +1,22 @@
 name: CI
 
-# Pushes to main run CI as the first job of deploy.yml (no second run here).
+# Lint, build and test on GitHub-hosted runners only. There is no release or deploy
+# pipeline in this repository.
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
-  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-test:
+  lint-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -16,5 +25,6 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm run lint
       - run: npm run build
       - run: npm run test

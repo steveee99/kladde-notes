@@ -120,7 +120,13 @@ export class LinkIndex {
     let frontier = [id];
     for (let d = 0; d < depth; d++) {
       const next: string[] = [];
-      for (const n of frontier) for (const m of [...this.outgoing(n), ...this.backlinks(n)]) if (!keep.has(m)) keep.add(m), next.push(m);
+      for (const n of frontier) {
+        for (const m of [...this.outgoing(n), ...this.backlinks(n)]) {
+          if (keep.has(m)) continue;
+          keep.add(m);
+          next.push(m);
+        }
+      }
       frontier = next;
     }
     const all = this.graph();

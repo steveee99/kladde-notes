@@ -96,7 +96,10 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: GraphN
       let bestD = Infinity;
       for (const n of simNodes) {
         const d = Math.hypot((n.x ?? 0) - p.x, (n.y ?? 0) - p.y);
-        if (d < radius(n) + 6 / view.k && d < bestD) (best = n), (bestD = d);
+        if (d < radius(n) + 6 / view.k && d < bestD) {
+          best = n;
+          bestD = d;
+        }
       }
       return best;
     }
