@@ -4,6 +4,8 @@ Alle nutzersichtbaren Änderungen an Kladde.
 
 ## [Unveröffentlicht]
 
+- Neu: PDF als eigene Notizart – im Menü „Weitere Notizarten“ (Pfeil neben „Neue Notiz“) → „PDF“ eine PDF-Datei hochladen; sie wird als Notiz im geöffneten Ordner (sonst im Eingang) angelegt und in voller Größe angezeigt, mit Link zum Öffnen in einem neuen Tab. „Als Text bearbeiten“ wechselt zum normalen Editor, „Als PDF anzeigen“ zurück. In der Seitenleiste tragen PDF-Notizen ein eigenes Symbol.
+
 ## [0.34.0] – 2026-11-11
 
 - Neu: Import-CLI für Obsidian-Vaults und Markdown-Ordner. Unter Einstellungen → Import erstellst und widerrufst du Import-Tokens (höchstens 5, mit Ablaufdatum nach 7, 30, 90 oder 365 Tagen); `npm run import -- <ordner> [<zielordner>] --url <Kladde-URL>` liest den Ordner, zeigt eine Vorschau (neu, übersprungen, ignoriert), fragt nach und importiert dann Notizen und die verlinkten Bilder und PDFs. Vorhandene Pfade werden übersprungen, nie überschrieben. Unverschlüsselte `http://`-Adressen akzeptiert die CLI nur mit `--allow-insecure` und warnt dann. Anleitung in `docs/IMPORT.md`.

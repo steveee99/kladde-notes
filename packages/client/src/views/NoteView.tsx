@@ -13,9 +13,11 @@ import {
   Code,
   Copy,
   Download,
+  ExternalLink,
   FileCode,
   FileSpreadsheet,
   FileText,
+  FileType2,
   Folder,
   FolderInput,
   Heading,
@@ -46,6 +48,7 @@ import {
   isFolderProjectHome,
   isProjectNote,
   isSingleProjectFile,
+  pdfNoteOf,
   projectTitleOf,
   safeExportFilename,
   splitPath,
@@ -818,6 +821,40 @@ function NoteInspectorPane({
   );
 }
 
+/** A PDF note (`type: pdf`) as a full-size viewer; a HEAD check replaces the frame with a message when the file can't load */
+function PdfPanel({ url, name, onEditText }: { url: string; name: string; onEditText: () => void }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(url, { method: 'HEAD' })
+      .then((res) => !cancelled && !res.ok && setFailed(true))
+      .catch(() => !cancelled && setFailed(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  return (
+    <div className="mb-4 flex min-h-[60vh] flex-1 flex-col gap-2 anim-fade-in">
+      <div className="no-print flex flex-wrap items-center gap-2">
+        <a className="btn-ghost" href={url} target="_blank" rel="noopener">
+          <ExternalLink size={16} /> {t('note.pdfOpenTab')}
+        </a>
+        <button type="button" className="btn-ghost" onClick={onEditText}>
+          <FileText size={16} /> {t('note.pdfEditText')}
+        </button>
+      </div>
+      {failed ? (
+        <div role="alert" className="flex flex-1 items-center justify-center rounded-xl border border-line bg-surface p-6 text-center text-sm text-muted">
+          {t('note.pdfLoadFailed')}
+        </div>
+      ) : (
+        <iframe src={url} title={name} className="min-h-[60vh] w-full flex-1 rounded-xl border border-line bg-surface" />
+      )}
+    </div>
+  );
+}
+
 export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const version = useVault();
   const lang = useLang();
@@ -837,6 +874,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [title, setTitle] = useState('');
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  // PDF notes show the viewer until the user switches to the text (per visit, NoteView is keyed by id)
+  const [pdfAsText, setPdfAsText] = useState(false);
   const name = note ? splitPath(note.path).name : '';
   const isProjectHome = !!note && note.access === 'owner' && isFolderProjectHome(note.path, rc);
   const displayName = note ? projectTitleOf(note.path, note.content, rc) : '';
@@ -929,6 +968,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const mentions = index.unlinkedMentions(id).map((m) => vault.get(m)!).filter((n) => n && n.access !== 'read');
   const local = index.localGraph(id, 2);
   const headings = extractHeadings(note.content);
+  const pdf = pdfNoteOf(note.content);
+  const showPdf = !!pdf && !pdfAsText;
 
   const copyMarkdown = async () => {
     const clean = stripFrontmatter(note.content);
@@ -963,7 +1004,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   return (
     <div className="flex h-full min-h-0 flex-col print:block print:h-auto print:overflow-visible">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto scrollbar-thin print:block print:h-auto print:overflow-visible">
-        <div className="content-container mx-auto w-full flex-1 px-4 pt-4 sm:px-8 sm:pt-8">
+        <div className={`content-container mx-auto w-full flex-1 px-4 pt-4 sm:px-8 sm:pt-8 ${showPdf ? 'flex flex-col' : ''}`}>
           <div className="no-print mb-3 flex items-center gap-2 text-sm text-faint anim-fade-in">
             <button className="btn-icon -ml-2 shrink-0 rounded-full" onClick={() => history.back()} title={t('common.back')} aria-label={t('common.back')}>
               <ArrowLeft size={18} />
@@ -1098,19 +1139,29 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               <ParaBar note={note} />
             </div>
           )}
-          <Editor
-            docKey={id}
-            value={note.content}
-            readOnly={readOnly}
-            source={sourceMode && !readOnly}
-            stamp={version}
-            presenceNote={id}
-            onChange={(content) => void vault.update(id, { content })}
-            onView={setView}
-          />
+          {pdf && showPdf && <PdfPanel key={pdf.url} url={pdf.url} name={pdf.name} onEditText={() => setPdfAsText(true)} />}
+          {pdf && !showPdf && (
+            <div className="no-print mb-2">
+              <button type="button" className="btn-ghost" onClick={() => setPdfAsText(false)}>
+                <FileType2 size={16} /> {t('note.pdfShow')}
+              </button>
+            </div>
+          )}
+          {!showPdf && (
+            <Editor
+              docKey={id}
+              value={note.content}
+              readOnly={readOnly}
+              source={sourceMode && !readOnly}
+              stamp={version}
+              presenceNote={id}
+              onChange={(content) => void vault.update(id, { content })}
+              onView={setView}
+            />
+          )}
 
           {/* Bottom links/graph overview remains visible when the right split pane is collapsed */}
-          {!splitOpen && (backlinks.length > 0 || mentions.length > 0 || local.nodes.length > 1) && (
+          {!showPdf && !splitOpen && (backlinks.length > 0 || mentions.length > 0 || local.nodes.length > 1) && (
             <div className="no-print mb-10 space-y-6 border-t border-line pt-4">
               {backlinks.length > 0 && (
                 <section className="anim-fade-in">
@@ -1153,7 +1204,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             </div>
           )}
         </div>
-        {!readOnly && <Toolbar view={view} lang={lang} />}
+        {!readOnly && !showPdf && <Toolbar view={view} lang={lang} />}
       </div>
 
       {/* Desktop right Splitview Supporting Pane (lg+, detached card like the left sidebar) */}
