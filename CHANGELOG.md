@@ -1,204 +1,210 @@
 # Changelog
 
-Alle nutzersichtbaren Änderungen an Kladde.
+All user-visible changes to Kladde.
 
-## [Unveröffentlicht]
+## [Unreleased]
+
+## [1.0.0] – 2026-11-12
+
+- Changed: First stable release, Kladde is now open source under the MIT license. The README and this changelog are now in English (the README is also available in German as `README.de.md`).
+- New: `SECURITY.md` (how to report vulnerabilities), `CONTRIBUTING.md`, a code of conduct and issue templates.
 
 ## [0.35.0] – 2026-11-12
 
-- Neu: PDF als eigene Notizart – im Menü „Weitere Notizarten“ (Pfeil neben „Neue Notiz“) → „PDF“ eine PDF-Datei hochladen; sie wird als Notiz im geöffneten Ordner (sonst im Eingang) angelegt und in voller Größe angezeigt, mit Link zum Öffnen in einem neuen Tab. „Als Text bearbeiten“ wechselt zum normalen Editor, „Als PDF anzeigen“ zurück. In der Seitenleiste tragen PDF-Notizen ein eigenes Symbol.
+- New: PDF as its own note type. In the menu "More note types" (arrow next to "New note") → "PDF", upload a PDF file. It is created as a note in the open folder (otherwise in the inbox) and shown at full size, with a link to open it in a new tab. "Edit as text" switches to the normal editor, "View as PDF" switches back. PDF notes have their own icon in the sidebar.
 
 ## [0.34.0] – 2026-11-11
 
-- Neu: Import-CLI für Obsidian-Vaults und Markdown-Ordner. Unter Einstellungen → Import erstellst und widerrufst du Import-Tokens (höchstens 5, mit Ablaufdatum nach 7, 30, 90 oder 365 Tagen); `npm run import -- <ordner> [<zielordner>] --url <Kladde-URL>` liest den Ordner, zeigt eine Vorschau (neu, übersprungen, ignoriert), fragt nach und importiert dann Notizen und die verlinkten Bilder und PDFs. Vorhandene Pfade werden übersprungen, nie überschrieben. Unverschlüsselte `http://`-Adressen akzeptiert die CLI nur mit `--allow-insecure` und warnt dann. Anleitung in `docs/IMPORT.md`.
+- New: Import CLI for Obsidian vaults and Markdown folders. Under Settings → Import you create and revoke import tokens (at most 5, expiring after 7, 30, 90 or 365 days); `npm run import -- <folder> [<target folder>] --url <Kladde URL>` reads the folder, shows a preview (new, skipped, ignored), asks for confirmation and then imports notes and the linked images and PDFs. Existing paths are skipped, never overwritten. Unencrypted `http://` addresses are only accepted with `--allow-insecure`, and the CLI warns when you use it. Guide in `docs/IMPORT.md`.
 
 ## [0.33.0] – 2026-11-11
 
-- Neu: Helles Farbschema (Material 3) – unter Einstellungen → Darstellung & Sprache → „Farbschema“ zwischen Dunkel (Standard), Hell und System wählen; „System“ folgt der Einstellung des Betriebssystems. Die Wahl gilt pro Gerät.
+- New: Light color scheme (Material 3). Under Settings → Appearance & language → "Color scheme" choose between Dark (default), Light and System; "System" follows the operating system setting. The choice applies per device.
 
 ## [0.32.0] – 2026-11-11
 
-- Neu: Ausführliche Anleitung für „Mit GitLab anmelden“ mit selbst gehostetem GitLab in `docs/GITLAB.md` (OAuth-Anwendung anlegen, Container-Variablen, eigene Zertifikate über `NODE_EXTRA_CA_CERTS`, Fehlersuche).
-- Neu: Einladungen pro Anmeldeart abschaltbar: `SIGNUP_WITHOUT_INVITE` (z. B. `gitlab` oder `gitlab,password`, `all`) legt fest, mit welchen Anmeldearten neue Konten ohne Einladung entstehen. So dürfen sich z. B. alle GitLab-Benutzer (optional nur aus `GITLAB_ALLOWED_GROUPS`) selbst registrieren, während Passkey und Passwort weiter eine Einladung brauchen. Für offene Passkey-/Passwort-Registrierung gibt es auf der Anmeldeseite „Neues Konto erstellen“. `GITLAB_ALLOW_SIGNUP=1` funktioniert weiter.
-- Neu: `GITLAB_INTERNAL_URL` – erreicht der Container GitLab unter einer anderen Adresse als der Browser (Heimnetz ohne Hairpin-NAT, GitLab auf demselben Docker-Host), fragt Kladde Token und Benutzerdaten dort ab.
+- New: Detailed guide for "Sign in with GitLab" with a self-hosted GitLab in `docs/GITLAB.md` (creating the OAuth application, container variables, custom certificates via `NODE_EXTRA_CA_CERTS`, troubleshooting).
+- New: Invitations can be switched off per sign-in method: `SIGNUP_WITHOUT_INVITE` (e.g. `gitlab` or `gitlab,password`, `all`) decides which sign-in methods create new accounts without an invitation. For example, all GitLab users (optionally only from `GITLAB_ALLOWED_GROUPS`) can register themselves while passkey and password still require an invitation. For open passkey/password registration the sign-in page offers "Create new account". `GITLAB_ALLOW_SIGNUP=1` keeps working.
+- New: `GITLAB_INTERNAL_URL`. If the container reaches GitLab at a different address than the browser does (home network without hairpin NAT, GitLab on the same Docker host), Kladde requests the token and user data there.
 
 ## [0.31.1] – 2026-11-11
 
-- Behoben: Die untere Navigationsleiste auf dem Handy endet nicht mehr mit einem großen Leerraum über dem Bildschirmrand; die Beschriftungen rücken wie bei der iOS-Tab-Leiste in den Bereich des Home-Indikators.
+- Fixed: The bottom navigation bar on phones no longer ends with a large gap above the screen edge; like the iOS tab bar, the labels now move into the area of the home indicator.
 
 ## [0.31.0] – 2026-11-11
 
-- Neu: Ein Ordner lässt sich in der Ordneransicht mit „Löschen“ samt allen Notizen und Unterordnern entfernen (nach Rückfrage mit der Zahl der Notizen). Eingang, PARA-Ordner, Zettelkasten und Daily Notes sind davon ausgenommen.
-- Geändert: Wird eine URL als Link eingefügt, entfernt Kladde `[`, `]` und `\` aus der Linkbeschreibung, statt sie mit `\` zu maskieren.
-- Geändert: Die Aufgaben auf der Startseite lassen Notizen im Archiv aus. Die Kanban-Spalte „Fertig“ zeigt nur noch Aufgaben, die heute oder gestern erledigt wurden.
-- Behoben: Die Checkboxen von Aufgaben stehen im Editor wieder auf einer Höhe – je nach Status (offen, in Arbeit, blockiert, fertig) saßen sie unterschiedlich hoch.
-- Behoben: Auf der Startseite stehen Aufgaben ohne Notiz mittig in ihrer Zeile bzw. Karte, ohne Leerraum darunter.
+- New: A folder can be removed in the folder view with "Delete", together with all its notes and subfolders (after a confirmation showing the number of notes). The inbox, PARA folders, Zettelkasten and daily notes are excluded.
+- Changed: When a URL is pasted as a link, Kladde removes `[`, `]` and `\` from the link text instead of escaping them with `\`.
+- Changed: The tasks on the home page leave out notes in the archive. The Kanban column "Done" only shows tasks that were completed today or yesterday.
+- Fixed: Task checkboxes in the editor are at the same height again; depending on the status (open, in progress, blocked, done) they used to sit at different heights.
+- Fixed: On the home page, tasks without a note are vertically centered in their row or card, without empty space below.
 
 ## [0.30.0] – 2026-11-11
 
-- Neu: Aufgaben haben einen Status: `[ ]` offen, `[O]` in Arbeit, `[H]` blockiert, `[x]` fertig. Im Editor zeigt die Checkbox den Status (halb gefüllt, Pause-Zeichen bzw. grün mit Haken); ein Klick erledigt die Aufgabe, Rechtsklick wählt einen beliebigen Status. `TASKS`-Abfragen und das MCP kennen das Feld `status` (`open`, `doing`, `blocked`, `done`).
-- Neu: Die Aufgaben auf der Startseite lassen sich zwischen Liste und Kanban umschalten (pro Gerät gemerkt). Das Board hat je eine Spalte pro Status; eine Karte in eine andere Spalte ziehen ändert den Status der Aufgabe in ihrer Notiz. Auf dem Handy wählt der Knopf auf der Karte den Status. „Fertig“ zeigt die Aufgaben der letzten 7 Tage.
-- Neu: Ligaturen im Editor – `->` erscheint als →, `<-` als ←, `=>` als ⇒, `<=`/`>=` als ≤/≥, `!=` als ≠, `<->`/`<=>` als ↔/⇔ und `...` als …. Nur die Anzeige ändert sich, der Text bleibt; in Code und in der Zeile mit dem Cursor bleiben die Zeichen sichtbar. Abschaltbar unter Einstellungen → „Ligaturen“.
+- New: Tasks have a status: `[ ]` open, `[O]` in progress, `[H]` blocked, `[x]` done. In the editor the checkbox shows the status (half filled, pause symbol, or green with a check mark); a click completes the task, a right-click picks any status. `TASKS` queries and the MCP know the field `status` (`open`, `doing`, `blocked`, `done`).
+- New: The tasks on the home page can be switched between list and Kanban (remembered per device). The board has one column per status; dragging a card to another column changes the status of the task in its note. On phones, the button on the card selects the status. "Done" shows the tasks of the last 7 days.
+- New: Ligatures in the editor: `->` appears as →, `<-` as ←, `=>` as ⇒, `<=`/`>=` as ≤/≥, `!=` as ≠, `<->`/`<=>` as ↔/⇔ and `...` as …. Only the display changes, the text stays the same; in code and on the line with the cursor the characters stay visible. Can be turned off under Settings → "Ligatures".
 
 ## [0.29.0] – 2026-11-11
 
-- Geändert: Das ⋮-Menü der Notiz bündelt jetzt „Markdown kopieren“, „Favorit“ und „Markdown-Ansicht“ (vorher eigene Knöpfe im Notizkopf) sowie bei Projekten „Projekt abschließen“ und „Zu einem Projektordner wandeln“ (vorher in der Projektleiste).
-- Neu: Eigenschaften (Frontmatter) direkt bearbeiten – Werte in der Eigenschaftenzeile anklicken und ändern (Enter übernimmt, Escape verwirft), mit „+ Eigenschaft“ neue anlegen, mit × entfernen; für `status` und `typ` gibt es Vorschläge. Notizen ohne Frontmatter bekommen über ⋮ → „Eigenschaft hinzufügen“ eine. Ein Klick in die freie Fläche zeigt weiterhin das YAML.
-- Neu: In einer Daily Note listet „Offene Aufgaben aus früheren Daily Notes“ alles, was an den Vortagen liegen geblieben ist; „In heutige Notiz übernehmen“ (oder „Alle übernehmen“) verschiebt die Aufgabe samt Unteraufgaben in die offene Daily Note. Die Liste zeigt nur den Namen der Aufgabe (ohne `- [ ]`) und bricht auf dem Handy um, statt abzuschneiden.
-- Neu: Aufgaben in einer Daily Note ohne eigenes Datum gelten als fällig am Tag der Daily Note (Startseite, `TASKS`-Abfragen und MCP). Übernommene Aufgaben wandern damit automatisch auf den neuen Tag; ein ausdrückliches `📅` bleibt erhalten.
-- Behoben: Auf dem Handy ließ sich bei offener Tastatur nicht mehr nach oben zur Leiste der Notiz scrollen. Die App passt sich jetzt an den sichtbaren Bereich über der Tastatur an.
+- Changed: The ⋮ menu of a note now bundles "Copy Markdown", "Favorite" and "Markdown view" (previously separate buttons in the note header) as well as "Complete project" and "Convert to a project folder" for projects (previously in the project bar).
+- New: Edit properties (frontmatter) directly. Click values in the properties row to change them (Enter accepts, Escape discards), create new ones with "+ Property" and remove them with ×; `status` and `type` offer suggestions. Notes without frontmatter get one via ⋮ → "Add property". A click on the empty area still shows the YAML.
+- New: In a daily note, "Open tasks from earlier daily notes" lists everything left over from previous days; "Move to today's note" (or "Move all") moves the task with its subtasks into the open daily note. The list shows only the name of the task (without `- [ ]`) and wraps on phones instead of being cut off.
+- New: Tasks in a daily note without a date of their own are due on the day of the daily note (home page, `TASKS` queries and MCP). Moved tasks therefore automatically shift to the new day; an explicit `📅` is kept.
+- Fixed: On phones with the keyboard open, you could no longer scroll up to the note's bar. The app now adapts to the visible area above the keyboard.
 
 ## [0.28.0] – 2026-11-11
 
-- Neu: Suche in der Seitenleiste per Tastatur – Pfeiltasten ↑/↓ wandern durch die Treffer, Enter öffnet den markierten.
-- Neu: Favoriten (Opt-In unter Einstellungen → Funktionen): Der Stern im Notizkopf (oder `Strg/⌘+D`) fügt die offene Notiz hinzu bzw. entfernt sie. Sobald es Favoriten gibt, stehen sie als eigene Liste in der Seitenleiste und werden zwischen Geräten synchronisiert.
-- Geändert: Aufgeräumte Seitenleiste – die Navigation (Start, Tagesnotiz, Notizen, Inbox, Wissensnetz, Anhänge, Rückblick …) ist eine kompakte Icon-Reihe mit Tooltips und Zählern; „Favoriten“ und „Ordner“ lassen sich einklappen (pro Gerät gemerkt), die Favoriten zeigen höchstens fünf Einträge ohne Scrollen, und auf niedrigen Bildschirmen starten sie eingeklappt. So bleibt den Ordnern deutlich mehr Platz.
-- Neu: Tabellen in der Vorschau bearbeiten – Zelle anklicken und tippen (Tab/Shift+Tab/Enter springen weiter, Escape bricht ab), Spalten über das Menü ⋮ im Kopf einfügen, umbenennen und entfernen, Zeilen hinzufügen und entfernen. In der Markdown-Ansicht bleibt die Tabelle reiner Text.
-- Neu: Anmelden mit GitLab (GitLab.com oder eigene Instanz) über `GITLAB_CLIENT_ID`/`GITLAB_CLIENT_SECRET`, optional beschränkt auf Gruppen (`GITLAB_ALLOWED_GROUPS`). Bestehende Konten verknüpfen GitLab in den Einstellungen; neue Konten entstehen über einen Einladungslink oder mit `GITLAB_ALLOW_SIGNUP=1`. Anleitung in der README.
-- Geändert: Der Wochenrückblick ist jetzt ein Opt-In (Einstellungen → Funktionen); ohne ihn verschwinden „Rückblick“ in der Navigation und die Erinnerung auf der Startseite.
-- Entfernt: Der Telegram-Admin-Bot (`TELEGRAM_*`-Variablen). Einladungen, Konten und Protokoll verwaltest du in der App unter Einstellungen → Verwaltung.
+- New: Sidebar search by keyboard. The arrow keys ↑/↓ move through the results, Enter opens the highlighted one.
+- New: Favorites (opt-in under Settings → Features): the star in the note header (or `Ctrl/⌘+D`) adds or removes the open note. As soon as there are favorites, they appear as their own list in the sidebar and are synced between devices.
+- Changed: Tidier sidebar. The navigation (Home, Daily note, Notes, Inbox, Knowledge graph, Attachments, Review …) is a compact row of icons with tooltips and counters; "Favorites" and "Folders" can be collapsed (remembered per device), the favorites show at most five entries without scrolling, and on low screens they start collapsed. This leaves much more room for the folders.
+- New: Edit tables in the preview. Click a cell and type (Tab/Shift+Tab/Enter move on, Escape cancels), insert, rename and remove columns via the ⋮ menu in the header, add and remove rows. In the Markdown view the table stays plain text.
+- New: Sign in with GitLab (GitLab.com or your own instance) via `GITLAB_CLIENT_ID`/`GITLAB_CLIENT_SECRET`, optionally restricted to groups (`GITLAB_ALLOWED_GROUPS`). Existing accounts link GitLab in the settings; new accounts are created via an invitation link or with `GITLAB_ALLOW_SIGNUP=1`. Guide in the README.
+- Changed: The weekly review is now opt-in (Settings → Features); without it, "Review" disappears from the navigation, as does the reminder on the home page.
+- Removed: The Telegram admin bot (`TELEGRAM_*` variables). You manage invitations, accounts and the log in the app under Settings → Administration.
 
 ## [0.27.0] – 2026-11-11
 
-- Neu: Im gemeinsamen Editor siehst du, wo die anderen gerade schreiben: ein farbiger Cursor mit kleinem Profilbild (beim Daraufzeigen mit Namen), markierter Text erscheint in derselben Farbe. Jede Person hat überall dieselbe Farbe; auch die eigenen anderen Geräte/Tabs werden angezeigt.
+- New: In the shared editor you can see where the others are writing: a colored cursor with a small profile picture (with the name on hover), and selected text appears in the same color. Each person has the same color everywhere; your own other devices/tabs are shown as well.
 
 ## [0.26.0] – 2026-11-11
 
-- Neu: Gemeinsames Bearbeiten in Echtzeit – für geteilte Notizen und für mehrere Geräte/Tabs desselben Kontos. Änderungen der anderen erscheinen sofort im offenen Editor und werden mit dem gerade Getippten zusammengeführt; Cursor, Markierung und Rückgängig-Verlauf bleiben erhalten. Sobald eine Notiz an mehr als einer Stelle offen ist, zeigt der Notizkopf „Live“ mit den Profilbildern aller, die sie gerade offen haben (mit Anzahl der Geräte).
-- Neu: Konflikte werden zusammengeführt statt kopiert. Ändern zwei Geräte oder Personen eine Notiz gleichzeitig – auch wenn ein Gerät länger offline war und erst später synchronisiert –, werden beide Änderungen per Drei-Wege-Merge übernommen (zeilenweise, im selben Absatz wortweise). Nur wenn beide dieselben Wörter ändern, bleibt wie bisher eine „(Konflikt …)“-Kopie.
+- New: Real-time collaborative editing, for shared notes and for several devices/tabs of the same account. Changes by others appear immediately in the open editor and are merged with what you are typing; cursor, selection and undo history are kept. As soon as a note is open in more than one place, the note header shows "Live" with the profile pictures of everyone who has it open (with the number of devices).
+- New: Conflicts are merged instead of copied. If two devices or people change a note at the same time, even when a device was offline for longer and only syncs later, both changes are taken over by a three-way merge (line by line, word by word within the same paragraph). Only if both change the same words does a "(Conflict …)" copy remain, as before.
 
 ## [0.25.0] – 2026-11-10
 
-- Neu: Farbiges Syntax-Highlighting in der Markdown-Code-Ansicht (Überschriften, Formatierungen, Links/Bilder, Codeblöcke inkl. `query`/`mermaid`/`mindmap`/`gallery`/`carousel`, YAML-Frontmatter, `[[Wikilinks]]`, `#Tags`, Fußnoten, `##TOC##` und Aufgaben-Metadaten).
+- New: Colored syntax highlighting in the Markdown code view (headings, formatting, links/images, code blocks including `query`/`mermaid`/`mindmap`/`gallery`/`carousel`, YAML frontmatter, `[[wikilinks]]`, `#tags`, footnotes, `##TOC##` and task metadata).
 
 ## [0.24.0] – 2026-11-10
 
-- Neu: Code-Ansicht – ein Knopf im Notizkopf schaltet den Editor auf reines Markdown (ohne Live-Vorschau, Monospace-Schrift); die Wahl wird pro Gerät gemerkt.
-- Behoben: Bilder springen beim Bearbeiten nicht mehr zwischen Bild und Markdown hin und her; sie bleiben sichtbar, und ihr Markdown erscheint nur, wenn der Cursor direkt am Bild steht (dann oberhalb des Bildes).
-- Behoben: Hochkant-Bilder im Karussell werden hochkant dargestellt statt beschnitten.
+- New: Code view. A button in the note header switches the editor to plain Markdown (no live preview, monospace font); the choice is remembered per device.
+- Fixed: Images no longer flip back and forth between image and Markdown while editing; they stay visible, and their Markdown only appears when the cursor is right at the image (then above the image).
+- Fixed: Portrait images in the carousel are displayed in portrait instead of being cropped.
 
 ## [0.23.1] – 2026-11-10
 
-- Behoben: `/carousel` fehlte im Slash-Menü.
+- Fixed: `/carousel` was missing from the slash menu.
 
 ## [0.23.0] – 2026-11-10
 
-- Neu: Externe Links (`[Text](https://…)`, `<https://…>` und nackte URLs) erscheinen im Editor als Material-3-Chip mit dem Favicon der Seite (Globus als Ersatz, offline oder ohne Icon) und dem Linktext bzw. einer gekürzten URL.
-- Neu: Slash-Befehl `/carousel` mit Block ` ```carousel ` (gleiche Syntax wie die Galerie, ein Bild pro Zeile) als Material-3-Karussell: horizontal wischbar mit Einrasten, großes Bild mit angeschnittenem nächsten, Beschriftung aus dem Alt-Text, Vor/Zurück-Knöpfe am Desktop, Klick öffnet die Vollbildansicht.
-- Neu: „+ Neue Notiz“ in der Seitenleiste ist ein Split-Button; das Menü daneben enthält „Zettel“ und „Rezept aus URL“ (statt eigener Knöpfe), sofern die Funktionen aktiviert sind.
-- Geändert: Die Galerie (` ```gallery `) zeigt Bilder in zwei Spalten (bei schmalen Notizen in einer).
-- Geändert: „Verwaltung“ ist aus der Seitenleiste entfernt; sie bleibt über die Einstellungen erreichbar.
-- Behoben: Icons in den Einstellungen (u. a. „Funktionen & Struktur“) sind vertikal mit Titel und Beschreibung zentriert.
-- Neu: Eine eingefügte URL wird zu `[Titel](url)`, wenn die Zwischenablage einen Linktext mitliefert (z. B. „Link kopieren“ auf Webseiten oder Adressleiste in Edge/Safari); mit markiertem Text wird die Markierung zum Linktext.
-- Behoben: Der Slash-Befehl `/link` (Web-Link) fügte nichts ein, weil der leere Linktext der Vorlage `[](https://)` die Live-Vorschau abstürzen ließ.
+- New: External links (`[text](https://…)`, `<https://…>` and bare URLs) appear in the editor as a Material 3 chip with the site's favicon (a globe as fallback, offline or without an icon) and the link text or a shortened URL.
+- New: Slash command `/carousel` with the block ` ```carousel ` (same syntax as the gallery, one image per line) as a Material 3 carousel: swipeable horizontally with snapping, a large image with the next one peeking in, captions from the alt text, previous/next buttons on desktop, a click opens the full-screen view.
+- New: "+ New note" in the sidebar is a split button; the menu next to it contains "Zettel" and "Recipe from URL" (instead of separate buttons), if the features are enabled.
+- Changed: The gallery (` ```gallery `) shows images in two columns (in one column for narrow notes).
+- Changed: "Administration" was removed from the sidebar; it stays reachable via the settings.
+- Fixed: Icons in the settings (including "Features & structure") are vertically centered with title and description.
+- New: A pasted URL becomes `[title](url)` when the clipboard provides a link text (e.g. "Copy link" on web pages or the address bar in Edge/Safari); with selected text, the selection becomes the link text.
+- Fixed: The slash command `/link` (web link) inserted nothing because the empty link text of the template `[](https://)` crashed the live preview.
 
 ## [0.22.0] – 2026-11-10
 
-- Neu: Alle nativen `<select>`-Auswahlfelder durch Material-3-konforme Dropdown-Menüs (schwebendes Listen-Menü per Portal) ersetzt.
-- Neu: Button im Menübaum (Kopfzeile „Ordner“ sowie Suchergebnis-Kopf der Seitenleiste) zum Fokussieren, automatischen Aufklappen übergeordneter Ordner und Hervorheben der aktuell geöffneten Notiz.
-- Neu: Tastenkürzel `Strg+Shift+D` / `⌘+Shift+D` öffnet von überall (auch direkt aus dem Editor) die heutige Tagesnotiz; Datumsleiste `<-- | Datepicker | -->` oberhalb von Tagesnotizen mit Material-3-Kalender-Popover und eigener Tagesansicht (`/daily`, `/daily/:date`).
-- Neu: Opt-in-Kalenderansicht im GitHub-Heat-Map-Stil auf der Startseite und unter `/calendar` (unter **Einstellungen → Funktionen & Struktur** aktivierbar); Klicks auf Tageskacheln öffnen oder erstellen Tagesnotizen nur bei aktivierten Daily Notes und sind sonst inaktiv.
-- Behoben: Mobile Ansichten, Dialoge, Editor-Toolbar (ab `320 px` Breite), Splitview-Tabs, Eigenschaften-Chips und Navigationsleisten (inkl. angepinnter Seitenleisten-Kopfzeile und unterem Abstand über dem „Erfassen“-Button) gegen abgeschnittene Elemente überarbeitet sowie mobile Modals/Drawers/Sheets per Portal über die Kopfzeile gehoben.
+- New: All native `<select>` fields replaced by Material 3 dropdown menus (floating list menu via a portal).
+- New: A button in the folder tree (the "Folders" header and the search results header of the sidebar) to focus, automatically expand parent folders and highlight the currently open note.
+- New: The shortcut `Ctrl+Shift+D` / `⌘+Shift+D` opens today's daily note from anywhere (also directly from the editor); a date bar `<-- | Datepicker | -->` above daily notes with a Material 3 calendar popover and its own daily view (`/daily`, `/daily/:date`).
+- New: Opt-in calendar view in the style of the GitHub heat map on the home page and at `/calendar` (can be enabled under **Settings → Features & structure**); clicks on day tiles open or create daily notes only when daily notes are enabled and are inactive otherwise.
+- Fixed: Mobile views, dialogs, the editor toolbar (from `320 px` width), split-view tabs, property chips and navigation bars (including the pinned sidebar header and the bottom spacing above the "Capture" button) reworked against clipped elements, and mobile modals/drawers/sheets lifted above the header via a portal.
 
 ## [0.21.0] – 2026-11-10
 
-- Neu: **Tagesnotizen (Daily Notes)** mit einstellbarem Zielordner (auch oberste Ebene) und frei definierbarem Namensschema inklusive Datums-Platzhaltern und Live-Vorschau unter **Einstellungen → Funktionen & Struktur** (Standard: `0 Daily/YYYY/MM/YYYY-MM-DD.md`), sowie Direktzugriff über Startseite und Seitenleiste.
-- Neu: **Projekte-Logik & Umwandlung in Projektordner**: Nicht mehr jede Notiz unter dem Projekte-Ordner zählt automatisch als Projektnotiz – nur direkte Projektdateien (`<Projekte>/<Name>.md`) oder eine `Home.md` direkt in einem Projektunterordner (`<Projekte>/<Ordner>/Home.md`). Über den neuen Knopf **„Zu einem Projektordner wandeln“** in einer einzelnen Projektnotiz wird diese inklusive Erhalt bestehender `[[Links]]` in einen eigenen Projektordner (`Home.md`) überführt.
-- Neu: **Profilbilder (Avatare)** im Material-3-Design: Hochladen, Ändern und Entfernen unter Einstellungen, Anzeige beim Teilen von Notizen und Ordnern, auf öffentlichen Links sowie in der Seitenleiste bzw. mobil unten rechts (ein Klick öffnet direkt die Einstellungen).
-- Behoben / Geändert: Auf Mobilgeräten zeigt die Breadcrumb-Leiste nun kompakt nur noch den letzten Ordner an (Tippen öffnet ein Menü mit allen anklickbaren Ordner-Ebenen); lange Notiztitel brechen mehrzeilig um statt abgeschnitten zu werden.
+- New: **Daily notes** with a configurable target folder (also the top level) and a freely definable naming scheme including date placeholders and a live preview under **Settings → Features & structure** (default: `0 Daily/YYYY/MM/YYYY-MM-DD.md`), as well as direct access from the home page and the sidebar.
+- New: **Project logic & conversion to project folders**: Not every note under the Projects folder automatically counts as a project note any more, only direct project files (`<Projects>/<Name>.md`) or a `Home.md` directly in a project subfolder (`<Projects>/<Folder>/Home.md`). The new button **"Convert to a project folder"** in a single project note turns it into its own project folder (`Home.md`) and keeps existing `[[links]]`.
+- New: **Profile pictures (avatars)** in the Material 3 design: upload, change and remove them under Settings, shown when sharing notes and folders, on public links, and in the sidebar or at the bottom right on mobile (a click opens the settings directly).
+- Fixed / Changed: On mobile devices the breadcrumb bar now compactly shows only the last folder (tapping opens a menu with all clickable folder levels); long note titles wrap onto several lines instead of being cut off.
 
 ## [0.20.0] – 2026-11-10
 
-- Neu: Notizen innerhalb von Ordnern sowie auf oberster Ebene werden nun direkt im Ordnerbaum der linken Seitenleiste angezeigt (inklusive Drag & Drop und automatischem Aufklappen); die zusätzliche mittlere Listen-Seitenleiste neben geöffneten Notizen entfällt.
-- Neu: PARA-Methode (Projekte, Bereiche, Ressourcen, Archiv – „0 Inbox“ bleibt unabhängig davon aktiv), Zettelkasten und Rezeptimport sind nun optionale Opt-in-Funktionen unter **Einstellungen → Funktionen & Struktur** mit freier Zielordner-Wahl und Anlegen neuer Zielordner direkt in den Einstellungen (pro Konto verschlüsselt synchronisiert; bestehende Räume mit vorhandenen Standardordnern erhalten sie automatisch voraktiviert).
-- Geändert: Die rechte Splitview-Seitenleiste in geöffneten Notizen ist nun optisch eigenständig als abgerundete Karte vom Hauptbereich getrennt – analog zum angehefteten linken Menü.
+- New: Notes inside folders and at the top level are now shown directly in the folder tree of the left sidebar (including drag & drop and automatic expansion); the additional middle list sidebar next to open notes is gone.
+- New: The PARA method (Projects, Areas, Resources, Archive; "0 Inbox" stays active independently of it), Zettelkasten and recipe import are now optional opt-in features under **Settings → Features & structure**, with a free choice of target folders and creation of new target folders directly in the settings (synced encrypted per account; existing spaces with the default folders get them pre-enabled automatically).
+- Changed: The right split-view sidebar in open notes is now visually separate from the main area as a rounded card, like the pinned left menu.
 
 ## [0.19.0] – 2026-11-10
 
-- Neu: Eigenständiger Desktop-Modus ohne Benutzerverwaltung als einzelne ausführbare Datei via Node.js SEA und Microsoft Edge (`--app`-Fenster; lokal baubar über `npm run build:desktop` bzw. `npm run build:exe` für `dist/kladde.exe`). Notizen, Anhänge und Schlüssel werden lokal und AES-256-GCM-verschlüsselt außerhalb der Programmdatei gespeichert (`%LOCALAPPDATA%\Kladde\` bzw. optional portabel im Ordner `kladde-data` neben der `.exe`), inklusive automatischem Datenbank-Backup vor Schema-Migrationen – Updates erfolgen direkt durch Austausch der `.exe`.
+- New: Standalone desktop mode without user management as a single executable via Node.js SEA and Microsoft Edge (`--app` window; buildable locally with `npm run build:desktop` or `npm run build:exe` for `dist/kladde.exe`). Notes, attachments and the key are stored locally and AES-256-GCM encrypted outside the program file (`%LOCALAPPDATA%\Kladde\` or optionally portable in the folder `kladde-data` next to the `.exe`), including an automatic database backup before schema migrations. Updates are done by simply replacing the `.exe`.
 
 ## [0.18.0] – 2026-11-10
 
-- Neu: Zweisprachigkeit (Deutsch und Englisch) in der gesamten Oberfläche inklusive Datumsformaten, Startnotizen, Widgets, Slash-Befehlen, Dialogen, Exporten und Anmeldung (umschaltbar unter Einstellungen → Erscheinungsbild sowie direkt auf der Anmeldeseite).
-- Neu: Notizen erhalten eine vollständige Ordner-Breadcrumb-Navigation im Kopf, einen Schnell-Kopieren-Knopf für reines Markdown (ohne YAML-Frontmatter) sowie ein Material-3-Drei-Punkte-Menü (Teilen, Verlauf, Exportieren, Verschieben, Löschen).
-- Neu: Einklappbare rechte Splitview-Seitenleiste in Notizen mit den Tabs „Inhalt“ (Inhaltsverzeichnis), „Verlinkungen“ (Backlinks & Erwähnungen) und „Graph“.
-- Neu: Automatisches Inhaltsverzeichnis per `##TOC##` (oder `[[TOC]]`), über den Slash-Befehl `/toc` und die Werkzeugleiste sowie beim Word- und PDF-Export.
-- Neu: Direkte Suchleiste in der Seitenleiste (und der Material-Listenleiste); der eigene Tab „Suche“ entfällt (`Strg+K` fokussiert weiterhin die Suche).
-- Neu: Opt-in „Inbox Zero“ in den Einstellungen (Standardmäßig aus) – erst bei Aktivierung werden der Zähler an der Inbox und die Meldung „X Nachrichten zum einsortieren“ angezeigt.
-- Neu: Tastenkürzel `Strg+S` (`Cmd+S`) speichert offene Änderungen und synchronisiert sofort mit Status-Meldung.
-- Geändert: Kladde nutzt nun ausschließlich das Material-3-Designsystem (Themes „Hell“ und „System“ wurden entfernt); das Drei-Striche-Menü schaltet direkt zwischen schmaler Leiste und angehefteter Sticky-Leiste um (ohne Desktop-Overlay).
-- Geändert: Widescreen nutzt nun Prozentwerte (`50 %`, `80 %` Standard, `100 %`, Benutzerspezifisch) und gilt nun auch für die Einstellungsseiten; auf Bildschirmen unter `800 px` wird automatisch die volle Breite verwendet.
-- Geändert: Auf der Startseite sind Willkommensgruß, Untertitel und „+ Projekt“-Knopf größer und durch optische Trennlinien gegliedert; in der Inbox stehen pro Kachel rechts nur noch Ordnerauswahl und Löschen; Inline-Code hebt sich farblich deutlicher vom Hintergrund ab.
-- Behoben: Das Kalender-/Fälligkeits-Popover bei Aufgaben wird über ein Portal gerendert, sodass es nicht mehr hinter nachfolgendem Text verschwindet und immer klickbar bleibt.
+- New: Bilingual (German and English) throughout the interface, including date formats, welcome notes, widgets, slash commands, dialogs, exports and sign-in (switchable under Settings → Appearance and directly on the sign-in page).
+- New: Notes get a full folder breadcrumb navigation in the header, a quick-copy button for plain Markdown (without YAML frontmatter) and a Material 3 three-dot menu (Share, History, Export, Move, Delete).
+- New: Collapsible right split-view sidebar in notes with the tabs "Contents" (table of contents), "Links" (backlinks & mentions) and "Graph".
+- New: Automatic table of contents via `##TOC##` (or `[[TOC]]`), through the slash command `/toc` and the toolbar, and in the Word and PDF export.
+- New: Direct search bar in the sidebar (and the Material list bar); the separate "Search" tab is gone (`Ctrl+K` still focuses the search).
+- New: Opt-in "Inbox Zero" in the settings (off by default). Only when enabled do the counter on the inbox and the message "X messages to sort" appear.
+- New: The shortcut `Ctrl+S` (`Cmd+S`) saves open changes and syncs immediately with a status message.
+- Changed: Kladde now uses only the Material 3 design system (the "Light" and "System" themes were removed); the three-line menu switches directly between the narrow bar and the pinned sticky bar (without a desktop overlay).
+- Changed: Widescreen now uses percentages (`50 %`, `80 %` default, `100 %`, custom) and now also applies to the settings pages; on screens below `800 px` the full width is used automatically.
+- Changed: On the home page, the welcome greeting, subtitle and "+ Project" button are larger and structured by dividing lines; in the inbox only the folder selection and Delete remain on the right of each tile; inline code stands out more clearly from the background.
+- Fixed: The calendar/due-date popover on tasks is rendered via a portal, so it no longer disappears behind following text and always stays clickable.
 
 ## [0.17.1] – 2026-11-10
 
-- Behoben: Das Export-Menü in Notizen (und geteilten Ansichten) wird nun über ein Portal außerhalb der Notiz-Kopfzeile gerendert, sodass auf dem Desktop nachfolgende Ebenen (Metadaten-Leiste, Eigenschaften und Editor) das Menü nicht mehr verdecken und Klicks auf die Export-Optionen wieder zuverlässig ankommen.
+- Fixed: The export menu in notes (and shared views) is now rendered via a portal outside the note header, so on desktop the following layers (metadata bar, properties and editor) no longer cover the menu, and clicks on the export options arrive reliably again.
 
 ## [0.17.0] – 2026-11-10
 
-- Neu: Im Dunkel-Design (Material) lässt sich die Seitenleiste auf größeren Bildschirmen über Einstellungen → Erscheinungsbild oder direkt im Menü-Kopf zwischen „Overlay“ (schmale Leiste links + Schublade) und „Sticky“ (vollständiges Menü ersetzt die Leiste links dauerhaft) umschalten.
-- Neu: Anhänge verwalten unter „Anhänge“ (Seitenleiste und Einstellungen): Galerie-Grid aller hochgeladenen Bilder und PDFs mit Filter „Nicht in Notizen verwendet“, Notiz-Verweisen, Multiselekt und Löschen mit Bestätigung. Anhänge, die noch in einer Notiz verwendet werden, sind geschützt und können nicht gelöscht werden.
-- Neu (CLI): Erweiterte Server-CLI mit `import <quelle> <ziel>` (einzelne Datei oder rekursiver Ordner inkl. Bildern/PDFs und Obsidian-Links), `export <quelle> <ziel>` (ganzer Space, Ordner oder Einzelnotiz, optional `--strip-frontmatter` / `--with-files`) sowie Hilfsbefehlen (`suche`, `notizen`, `ordner`, `anhaenge`, `anhaenge-bereinigen`, `status`, `backup`, Kontenverwaltung).
-- Neu: Notizen lassen sich direkt als Markdown (`.md`), Word-Dokument (`.docx`), PDF-Datei (`.pdf`) oder über die Druckansicht exportieren – jeweils ohne YAML-Frontmatter.
-- Neu (MCP): Neues Werkzeug `semantic_search` für eine lokale semantische Suche über alle eigenen Notizen – berücksichtigt deutsche und englische Wortstämme, zusammengesetzte Begriffe, themenverwandte Begriffe sowie verknüpfte `[[Links]]`.
+- New: In the dark design (Material), the sidebar on larger screens can be switched between "Overlay" (narrow bar on the left + drawer) and "Sticky" (the full menu permanently replaces the bar on the left) via Settings → Appearance or directly in the menu header.
+- New: Manage attachments under "Attachments" (sidebar and settings): a gallery grid of all uploaded images and PDFs with the filter "Not used in notes", note references, multi-select and deletion with confirmation. Attachments that are still used in a note are protected and cannot be deleted.
+- New (CLI): Extended server CLI with `import <source> <target>` (a single file or a recursive folder including images/PDFs and Obsidian links), `export <source> <target>` (a whole space, folder or single note, optionally `--strip-frontmatter` / `--with-files`) and helper commands (`suche`, `notizen`, `ordner`, `anhaenge`, `anhaenge-bereinigen`, `status`, `backup`, account management).
+- New: Notes can be exported directly as Markdown (`.md`), Word document (`.docx`), PDF file (`.pdf`) or via the print view, each without YAML frontmatter.
+- New (MCP): New tool `semantic_search` for a local semantic search across all your own notes. It takes German and English word stems, compound terms, topic-related terms and linked `[[links]]` into account.
 
 ## [0.16.0] – 2026-11-09
 
-- Neu: Automatische Erkennung von Notiznamen im Text: Wird der Titel einer existierenden Notiz im Fließtext erwähnt, wird er in der Live-Vorschau und im Lesemodus automatisch als klickbarer Hyperlink (dezent gepunktet unterstrichen) dargestellt. Ein Klick öffnet sofort die Zielnotiz. Über ein kleines Symbol beim Daraufzeigen (sowie über den neuen Slash-Befehl `/verlinken` für alle Erwähnungen) lässt sich der Treffer mit einem Klick dauerhaft in einen echten [[Wikilink]] umwandeln.
+- New: Automatic recognition of note names in text: if the title of an existing note is mentioned in running text, it is automatically shown as a clickable hyperlink (subtly dotted underline) in the live preview and reading mode. A click opens the target note immediately. Through a small icon on hover (and through the new slash command `/verlinken` for all mentions), the match can be permanently turned into a real [[wikilink]] with one click.
 
 ## [0.15.0] – 2026-11-09
-- Neu: Widescreen-Einstellung unter Einstellungen → Erscheinungsbild: Wähle zwischen „Fluid (ganze Breite)“ und „Feste Breite“ (mit Schieberegler, Zahleneingabe und Schnellauswahl in Pixeln; Standard ist 1200 px). Notizen, Übersichten und Tabellen nutzen den zusätzlichen Platz auf breiten Bildschirmen optimal aus.
+
+- New: Widescreen setting under Settings → Appearance: choose between "Fluid (full width)" and "Fixed width" (with a slider, numeric input and quick selection in pixels; the default is 1200 px). Notes, overviews and tables make the best use of the extra space on wide screens.
 
 ## [0.14.2] – 2026-11-09
 
-- Behoben: Auf dem Desktop überdeckte das Ordner-Dropdown in der Inbox den Löschen-Knopf bei längeren Ordnernamen. Die Dropdown-Breite ist nun sauber begrenzt, sodass der Löschen-Knopf immer klickbar bleibt.
-- Behoben: Dialoge und Eingabefenster (z. B. der Rezept-Import) passen sich auf Mobilgeräten nun dynamisch an das virtuelle Tastaturfenster an und verschwinden nicht mehr hinter der geöffneten Tastatur. Auf Touch-Geräten öffnet sich die Tastatur zudem nicht mehr automatisch beim Aufrufen des Dialogs.
-- Geändert: Das Slash-Menü (`/`) im Editor bietet mehr Innenabstand und wurde im Material-Design mit abgerundeten Menüeinträgen, Tonal-Highlighting und weicherem Schatten gestaltet.
+- Fixed: On desktop, the folder dropdown in the inbox covered the delete button for longer folder names. The dropdown width is now limited cleanly, so the delete button always stays clickable.
+- Fixed: On mobile devices, dialogs and input windows (e.g. the recipe import) now adapt dynamically to the virtual keyboard area and no longer disappear behind the open keyboard. On touch devices the keyboard also no longer opens automatically when the dialog appears.
+- Changed: The slash menu (`/`) in the editor has more padding and was restyled in the Material design with rounded menu entries, tonal highlighting and a softer shadow.
 
 ## [0.14.1] – 2026-11-09
 
-- Behoben: Sicherheitsaktualisierungen für Abhängigkeiten (Mermaid, Vitest, Glob).
+- Fixed: Security updates for dependencies (Mermaid, Vitest, Glob).
 
 ## [0.14.0] – 2026-11-09
 
-- Geändert: Es gibt nur noch ein dunkles Design – „Material“ heißt jetzt „Dunkel“ und ersetzt die bisherigen Designs „Dunkel“ und „OLED“. Wer eines davon gewählt hatte, bekommt automatisch das neue; „System“ nutzt es im Dunkelmodus.
-- Behoben: Breite Tabellen machten auf dem Handy die ganze Notiz breiter als den Bildschirm, sodass die Seite seitlich scrollte. Jetzt scrollt nur die Tabelle, und Zellen brechen nicht mehr mitten im Wort um.
-- Neu: Das Design „Material“ hat jetzt einen eigenen Aufbau statt nur eigener Farben: Am Tablet und Desktop eine schmale Navigationsleiste links mit großem Knopf für neue Notizen; die Ordner und alles Weitere öffnen sich über das Menü-Symbol als Schublade. Neben einer geöffneten Notiz steht auf breiten Bildschirmen die Liste der Notizen aus ihrem Ordner (umschaltbar auf alle Notizen). Der Inhalt liegt auf einer abgerundeten Fläche. Am Handy gibt es unten eine Navigationsleiste mit Pillen-Markierung und einen „Erfassen“-Knopf. Knöpfe sind rund, Chips, Eingabefelder, Karten und Checkboxen haben Material-Formen, die Werkzeugleiste im Editor schwebt, und die Schrift ist Roboto Flex (offline verfügbar).
+- Changed: There is only one dark design left. "Material" is now called "Dark" and replaces the previous designs "Dark" and "OLED". Anyone who had chosen one of them automatically gets the new one; "System" uses it in dark mode.
+- Fixed: On phones, wide tables made the whole note wider than the screen, so the page scrolled sideways. Now only the table scrolls, and cells no longer wrap in the middle of a word.
+- New: The "Material" design now has its own layout instead of just its own colors: on tablet and desktop a narrow navigation rail on the left with a large button for new notes; folders and everything else open from the menu icon as a drawer. Next to an open note, wide screens show the list of notes from its folder (switchable to all notes). The content sits on a rounded surface. On phones there is a bottom navigation bar with a pill indicator and a "Capture" button. Buttons are round, chips, input fields, cards and checkboxes have Material shapes, the editor toolbar floats, and the font is Roboto Flex (available offline).
 
 ## [0.13.0] – 2026-11-09
 
-- Neu: Design „Material“ unter Einstellungen → Erscheinungsbild. Angelehnt an Googles Material 3: fast schwarze, neutralgraue Flächen, die sich in Tonstufen statt mit Linien abheben, ein blauer Akzent, größere Rundungen und die Bewegungskurven von Material.
+- New: "Material" design under Settings → Appearance. Inspired by Google's Material 3: almost black, neutral gray surfaces that stand out through tonal steps instead of lines, a blue accent, larger rounding and Material's motion curves.
 
 ## [0.12.0] – 2026-11-09
 
-- Neu: Git-Sync. Unter Einstellungen → Git-Sync hinterlegst du pro Konto eine Git-Adresse (https), E-Mail und Access-Token. Deine eigenen Notizen (keine geteilten) werden dann als Markdown-Dateien auf den Branch `main` übertragen – ein Commit pro Sync, rund zwei Minuten nach der letzten Änderung oder per „Jetzt synchronisieren“. Die Commit-Nachricht stellst du selbst ein; `{date}` wird zum aktuellen Datum, `{time}` zur Uhrzeit (Standard: „Kladde-Sync {date}“). Zugangsdaten liegen verschlüsselt in der Datenbank; die Dateien im Repository sind unverschlüsselt. Das Docker-Image enthält dafür jetzt `git`.
-- Neu: Freie Aufgaben. Das Feld „Neue Aufgabe“ auf der Startseite legt Aufgaben ohne Notiz an (in einer versteckten Systemnotiz, verschlüsselt und synchronisiert); sie erscheinen zusammen mit den geplanten Aufgaben aus deinen Notizen.
-- Neu: Jede Aufgabe auf der Startseite hat einen kleinen Kalender-Knopf für Fälligkeit und Wiederholung – mit Shortcuts für Heute, Morgen und Nächste Woche (Montag), Datumswahl und Wiederholung (täglich bis jährlich).
+- New: Git sync. Under Settings → Git sync you store a Git address (https), email and access token per account. Your own notes (not shared ones) are then pushed as Markdown files to the `main` branch, one commit per sync, about two minutes after the last change or via "Sync now". You set the commit message yourself; `{date}` becomes the current date, `{time}` the time (default: "Kladde sync {date}"). Credentials are stored encrypted in the database; the files in the repository are unencrypted. The Docker image now contains `git` for this.
+- New: Free tasks. The "New task" field on the home page creates tasks without a note (in a hidden system note, encrypted and synced); they appear together with the scheduled tasks from your notes.
+- New: Every task on the home page has a small calendar button for due date and repetition, with shortcuts for Today, Tomorrow and Next week (Monday), date picker and repetition (daily to yearly).
 
 ## [0.11.0] – 2026-11-09
 
-- Neu: Versionsverlauf für Notizen. Der Knopf „Verlauf“ (Uhr-Symbol) oben in der Notiz listet die gespeicherten Stände (verschlüsselt auf dem Server, bis zu 100 pro Notiz; eine Schreibsitzung zählt als eine Version – erst nach 10 Minuten Pause oder nach einer Stunde beginnt eine neue). Ein Klick zeigt die Änderungen gegenüber der vorigen Version wie bei `git diff` (grün hinzugefügt, rot entfernt, mit Zeilennummern) oder umschaltbar den gerenderten Text. „Wiederherstellen“ setzt die Notiz auf den gewählten Stand zurück. Der Verlauf beginnt mit dem Update; gelöschte Notizen verlieren ihren Verlauf.
-- Geändert: „Löschen“ im Eingang fragt jetzt wie in der Notiz vorher nach.
+- New: Version history for notes. The "History" button (clock icon) at the top of a note lists the saved versions (encrypted on the server, up to 100 per note; a writing session counts as one version, and a new one only starts after a 10-minute pause or after an hour). A click shows the changes compared to the previous version as in `git diff` (green added, red removed, with line numbers) or, switchable, the rendered text. "Restore" resets the note to the chosen version. The history starts with the update; deleted notes lose their history.
+- Changed: "Delete" in the inbox now asks for confirmation, like in the note before.
 
 ## [0.10.0] – 2026-11-08
 
-- Neu: Notizlisten lassen sich zwischen Kacheln, Liste und Tabelle umschalten – in Ordnern, „Alle Notizen“, „Mit mir geteilt“, der Suche und „Zuletzt bearbeitet“ auf der Startseite. Die Wahl gilt überall und wird auf dem Gerät gemerkt.
-- Neu: Abfragen als Kanban-Board: ```` ```query ```` mit `KANBAN BY status VALUES "offen", "läuft", "fertig"` zeigt pro Wert eine Spalte mit den passenden Notizen (ohne `VALUES` werden die vorhandenen Werte genutzt; `FROM`, `WHERE`, `SORT`, `LIMIT` funktionieren wie sonst). Karten lassen sich in eine andere Spalte ziehen und setzen dabei das Feld in der Notiz. Neuer Slash-Befehl `/kanban`.
-- Neu: Aufgaben auf der Startseite gibt es in einer kompakten Ansicht (eine Zeile pro Aufgabe), umschaltbar per Knopf „Kompakt/Normal“.
-- Neu: Ein Doppelklick auf eine Aufgabe (Startseite und Aufgaben-Abfragen) öffnet die Notiz, aus der sie stammt, und springt zur Zeile.
-- Neu: Fußnoten. `[^1]` wird zur hochgestellten Nummer (Hover zeigt den Text, Klick springt zur Definition), Zeilen `[^1]: Text` erscheinen als nummerierte Fußnote.
+- New: Note lists can be switched between tiles, list and table, in folders, "All notes", "Shared with me", the search and "Recently edited" on the home page. The choice applies everywhere and is remembered on the device.
+- New: Queries as a Kanban board: ```` ```query ```` with `KANBAN BY status VALUES "open", "doing", "done"` shows one column per value with the matching notes (without `VALUES` the existing values are used; `FROM`, `WHERE`, `SORT`, `LIMIT` work as usual). Cards can be dragged to another column and set the field in the note. New slash command `/kanban`.
+- New: Tasks on the home page are available in a compact view (one line per task), switchable with the "Compact/Normal" button.
+- New: A double-click on a task (home page and task queries) opens the note it comes from and jumps to the line.
+- New: Footnotes. `[^1]` becomes a superscript number (hover shows the text, a click jumps to the definition), lines `[^1]: text` appear as a numbered footnote.
 
 ## [0.9.0] – 2026-11-08
 
-- Neu: Diagramme und Mindmaps in Notizen. Ein Codeblock ```` ```mermaid ```` wird als Mermaid-Diagramm gezeichnet (Flussdiagramm, Sequenz-, Kreis-, Gantt-, Klassendiagramm u. v. m.). Ein Codeblock ```` ```mindmap ```` macht aus einer einfachen Gliederung eine Mindmap: die erste Zeile ohne Listenzeichen ist die Mitte, eingerückte Listenpunkte (oder Überschriften) die Äste; Links und Formatierungen erscheinen als Text. Steht der Cursor im Block, siehst du den Quelltext, sonst das Bild – auch in der Lesansicht und auf öffentlichen Links. Ein Klick vergrößert das Diagramm, Fehler zeigt Kladde mit dem Quelltext an. Die Farben folgen dem gewählten Design, und alles funktioniert offline. Neue Slash-Befehle: `/mindmap`, `/diagramm`, `/sequenzdiagramm` und `/kreisdiagramm`.
-- Neu: Ordner teilen. Über das Teilen-Symbol neben einem Ordner in der Seitenleiste gibst du ihn für andere Benutzer frei und stellst pro Person ein, was sie darf: Lesen ist immer erlaubt, dazu wahlweise Bearbeiten, neue Notizen Anlegen und Löschen. Die Freigabe gilt für alle Notizen darin, auch in Unterordnern und für Notizen, die später hinzukommen; verschiebst du eine Notiz heraus, ist sie nicht mehr geteilt. Benennst du den Ordner um oder verschiebst ihn, bleibt die Freigabe bestehen. Empfänger finden die geteilten Ordner unter „Mit mir geteilt“ und legen dort mit „Neue Notiz“ Notizen an, wenn sie dürfen. Diese Notizen gehören dir als Besitzer und liegen in deinem Bereich; ziehst du die Freigabe zurück, sehen die anderen nichts mehr davon.
-- Behoben: Ein App-Update lässt nicht mehr den ganzen Bildschirm blinken. Das Update wartet, bis du nicht gerade tippst (oder die App im Hintergrund ist); danach erscheint die App sofort mit deinem Konto und ohne Einblend-Animationen.
+- New: Diagrams and mind maps in notes. A code block ```` ```mermaid ```` is drawn as a Mermaid diagram (flowchart, sequence, pie, Gantt, class diagram and much more). A code block ```` ```mindmap ```` turns a simple outline into a mind map: the first line without a list marker is the center, indented list items (or headings) are the branches; links and formatting appear as text. If the cursor is in the block you see the source, otherwise the picture, also in the reading view and on public links. A click enlarges the diagram, and Kladde shows errors together with the source. The colors follow the chosen design, and everything works offline. New slash commands: `/mindmap`, `/diagramm`, `/sequenzdiagramm` and `/kreisdiagramm`.
+- New: Share folders. Through the share icon next to a folder in the sidebar you release it to other users and set per person what they may do: reading is always allowed, plus optionally editing, creating new notes and deleting. The share applies to all notes in it, including subfolders and notes added later; if you move a note out, it is no longer shared. If you rename or move the folder, the share stays in place. Recipients find the shared folders under "Shared with me" and create notes there with "New note" if they are allowed to. These notes belong to you as the owner and live in your space; if you withdraw the share, the others no longer see anything of it.
+- Fixed: An app update no longer makes the whole screen flash. The update waits until you are not typing (or the app is in the background); afterwards the app appears immediately with your account and without fade-in animations.
 
 ## [0.8.0] – 2026-11-08
 
-- Neu: KI-Assistenten wie Claude sprechen per MCP (Model Context Protocol) mit deinen Notizen. Die Adresse ist `https://<deine-kladde>/mcp`; beim Verbinden meldest du dich in Kladde an und bestätigst den Zugriff (OAuth), auf Wunsch nur lesend. Der Assistent sieht ausschließlich deine eigenen Notizen – keine Freigaben anderer und keine Einstellungen. Er kann Notizen auflisten, durchsuchen, lesen, Abfragen ausführen und Aufgaben auflisten; mit Schreibrecht auch Notizen anlegen, ersetzen, ergänzen und Aufgaben abhaken (nicht löschen oder umbenennen). Verbindungen verwaltest und trennst du unter Einstellungen → KI-Assistenten; dort erstellst du auch Zugriffstokens für Programme ohne Anmeldefenster. Ein Passwort-Reset durch Admins trennt alle Verbindungen des Kontos.
+- New: AI assistants such as Claude talk to your notes via MCP (Model Context Protocol). The address is `https://<your-kladde>/mcp`; when connecting, you sign in to Kladde and confirm the access (OAuth), read-only if you like. The assistant sees only your own notes, no shares from others and no settings. It can list, search and read notes, run queries and list tasks; with write permission it can also create, replace and append notes and tick off tasks (not delete or rename). You manage and disconnect connections under Settings → AI assistants; there you also create access tokens for programs without a sign-in window. A password reset by admins disconnects all connections of the account.
 
 ## [0.7.0] – 2026-11-08
 
-- Neu: Vorlagen haben einen eigenen Bereich unter Einstellungen → Vorlagen. Dort legst du eigene Vorlagen (z. B. für Projekte oder Besprechungen) mit Name, Zielordner und Inhalt an, bearbeitest und löschst sie. Platzhalter: `{{title}}`, `{{date}}` und `{{zid}}` (Zettel-ID, kommt auch vor den Titel). Die Vorlagen werden verschlüsselt mit den Einstellungen synchronisiert.
+- New: Templates have their own area under Settings → Templates. There you create your own templates (e.g. for projects or meetings) with a name, target folder and content, and edit and delete them. Placeholders: `{{title}}`, `{{date}}` and `{{zid}}` (Zettel ID, also placed before the title). The templates are synced encrypted with the settings.

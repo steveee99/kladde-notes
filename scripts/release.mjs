@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Bumps the version of all workspaces and turns the "Unveröffentlicht" section of
+// Bumps the version of all workspaces and turns the "Unreleased" section of
 // the changelogs (CHANGELOG*.md) into a new release.
 //
 //   npm run release -- patch|minor|major|<x.y.z>   stable release (or first RC with --rc)
@@ -12,10 +12,10 @@
 // auto reads Conventional Commits since the last v* tag: a breaking change ("feat!:" or a
 // "BREAKING CHANGE:" footer) is major (minor while the version is 0.x), feat is minor,
 // fix/perf/revert is patch; anything else (docs, chore, ci, ...) releases nothing. Without
-// any v* tag the current version itself is released. An empty "Unveröffentlicht" section
+// any v* tag the current version itself is released. An empty "Unreleased" section
 // is allowed here, so a fix without a changelog line still ships.
 //
-// Release candidates only bump versions; the changelogs stay under "Unveröffentlicht"
+// Release candidates only bump versions; the changelogs stay under "Unreleased"
 // and are written into the final release.
 //
 // Afterwards: review the diff, then commit and tag, e.g.
@@ -31,7 +31,7 @@ const PACKAGES = ['package.json', 'packages/shared/package.json', 'packages/serv
 const VERSION_TS = 'packages/shared/src/version.ts';
 // One changelog for everybody
 const CHANGELOGS = ['CHANGELOG.md'];
-const UNRELEASED = 'Unveröffentlicht';
+const UNRELEASED = 'Unreleased';
 
 function fail(msg) {
   console.error(`✖ ${msg}`);

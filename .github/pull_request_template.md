@@ -1,8 +1,8 @@
-## Zusammenfassung
+## Summary
 
-<!-- Was ändert sich und warum? -->
+<!-- What changes and why? -->
 
-## Checkliste
+## Checklist
 
-- [ ] `npm run lint`, `npm run build` und `npm run test` laufen durch
-- [ ] Nutzersichtbare Änderungen stehen (deutsch) unter `## [Unveröffentlicht]` im passenden Changelog
+- [ ] `npm run lint`, `npm run build` and `npm run test` pass
+- [ ] User-visible changes are listed under `## [Unreleased]` in `CHANGELOG.md`

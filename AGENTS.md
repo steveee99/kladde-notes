@@ -16,7 +16,7 @@ Self-hosted, offline-first Markdown notes app (PWA) with npm workspaces, a harde
 5. **Schema:** add numbered migrations in `server/src/db.ts`, never edit a released one.
 6. **Links:** resolve `[[links]]` only through `LinkIndex` (title, frontmatter `id`, Zettel id prefix); renaming a note must keep rewriting links (`vault.update` → `relink`).
 7. **Commands:** `npm run build`, `npm run test`, `npm run dev`.
-8. **Versioning & Changelog:** one SemVer version for the monorepo; user-facing changes go (German) under `## [Unveröffentlicht]` in `CHANGELOG.md`; release with `npm run release -- patch|minor|major`.
+8. **Versioning & Changelog:** one SemVer version for the monorepo; user-facing changes go (English) under `## [Unreleased]` in `CHANGELOG.md`; release with `npm run release -- patch|minor|major`.
 
 ## Git
 The project works on **`main`** (GitHub: `steveee99/kladde-notes`). Changes from outside come as pull requests.
@@ -25,7 +25,7 @@ Rules for agents:
 1. Finished work must pass `npm run lint`, `npm run build` and `npm run test`. Commit or push only when the user asks for it.
 2. Commit messages in English, Conventional Commits (`feat:`, `fix:`, `perf:`, `docs:`, `chore:`, `ci:`; `!` or a `BREAKING CHANGE:` footer for breaking changes), ending with the attribution lines the session asks for.
 3. Never rewrite history on `main` (no amend of pushed commits, no reset, no force).
-4. Changelog entries (German) go under `## [Unveröffentlicht]` in `CHANGELOG.md`.
+4. Changelog entries (English) go under `## [Unreleased]` in `CHANGELOG.md`.
 5. Run `git pull --rebase` before committing.
 6. Never put private infrastructure details (hostnames, IPs, registries, SSH targets, e-mail addresses) into this repository.
 

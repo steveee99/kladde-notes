@@ -1,7 +1,18 @@
 {
   "name": "kladde",
-  "version": "0.35.0",
+  "version": "1.0.0",
+  "description": "Self-hosted, offline-first Markdown notes app (PWA)",
   "private": true,
+  "license": "MIT",
+  "author": "Stefan Stumpf",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/steveee99/kladde-notes.git"
+  },
+  "bugs": {
+    "url": "https://github.com/steveee99/kladde-notes/issues"
+  },
+  "homepage": "https://github.com/steveee99/kladde-notes#readme",
   "type": "module",
   "workspaces": [
     "packages/*"
@@ -30,6 +41,5 @@
   },
   "overrides": {
     "glob": "^14.0.2"
-  },
-  "license": "MIT"
+  }
 }
