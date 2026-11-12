@@ -68,6 +68,11 @@ export function isStandaloneMode(
   return sea || isTruthy(env.KLADDE_STANDALONE) || argv.includes('--standalone');
 }
 
+/** Path flavor of the target platform, independent of the OS the code runs on (`path` is win32 on Windows) */
+function pathFor(platform: NodeJS.Platform): typeof path.posix {
+  return platform === 'win32' ? path.win32 : path.posix;
+}
+
 export interface DataDirOptions {
   env?: NodeJS.ProcessEnv;
   argv?: string[];
@@ -88,7 +93,7 @@ export function resolveDataDir(opts: DataDirOptions = {}): string {
   const env = opts.env ?? process.env;
   const argv = opts.argv ?? process.argv.slice(2);
   const platform = opts.platform ?? process.platform;
-  const pathMod = platform === 'win32' ? path.win32 : path;
+  const pathMod = pathFor(platform);
   const execPath = opts.execPath ?? process.execPath;
   const homeDir = opts.homeDir ?? os.homedir();
   const existsSync = opts.existsSync ?? fs.existsSync;
@@ -119,7 +124,7 @@ export function resolveDataDir(opts: DataDirOptions = {}): string {
 }
 
 export function resolveDbPath(dataDir: string, env: NodeJS.ProcessEnv = process.env, argv: string[] = process.argv.slice(2), platform: NodeJS.Platform = process.platform): string {
-  const pathMod = platform === 'win32' ? path.win32 : path;
+  const pathMod = pathFor(platform);
   const raw = env.DB_PATH?.trim() || readCliArg(argv, '--db-path')?.trim();
   if (raw === ':memory:') return ':memory:';
   if (raw) return pathMod.resolve(raw);
