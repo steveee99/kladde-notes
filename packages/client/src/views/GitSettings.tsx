@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, GitBranch, RefreshCw, Trash2 } from 'lucide-react';
+import { ArrowLeft, GitBranch, RefreshCw, Trash2 } from '../lib/icons';
 import { DEFAULT_GIT_MESSAGE, GitSyncSettings } from '@kladde/shared';
 import { api } from '../lib/api';
 import { locale, tl, useLang } from '../lib/i18n';
@@ -82,9 +82,9 @@ export function GitSettingsView() {
         <button className="btn-icon -ml-2" onClick={() => navigate('/settings')} title={tl(lang, 'templates.backToSettings')}>
           <ArrowLeft size={18} />
         </button>
-        <h1 className="text-2xl font-bold tracking-tight">{tl(lang, 'git.title')}</h1>
+        <h1 className="text-headline-m">{tl(lang, 'git.title')}</h1>
       </div>
-      <p className="text-sm text-muted anim-fade-up">{tl(lang, 'git.intro')}</p>
+      <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'git.intro')}</p>
 
       <form
         className="card space-y-3 p-5 anim-fade-up"
@@ -100,7 +100,7 @@ export function GitSettingsView() {
         <label className="block space-y-1">
           <span className="text-sm font-medium">{tl(lang, 'git.email')}</span>
           <input className="input" type="email" required autoComplete="off" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <span className="text-xs text-faint">{tl(lang, 'git.emailHint')}</span>
+          <span className="text-xs text-on-surface-variant">{tl(lang, 'git.emailHint')}</span>
         </label>
         <label className="block space-y-1">
           <span className="text-sm font-medium">{tl(lang, 'git.token')}</span>
@@ -117,24 +117,24 @@ export function GitSettingsView() {
         <label className="block space-y-1">
           <span className="text-sm font-medium">{tl(lang, 'git.commitMsg')}</span>
           <input className="input" maxLength={200} value={message} onChange={(e) => setMessage(e.target.value)} />
-          <span className="text-xs text-faint">
+          <span className="text-xs text-on-surface-variant">
             <code>{'{date}'}</code> {tl(lang, 'git.commitMsgHintDate')} <code>{'{time}'}</code> {tl(lang, 'git.commitMsgHintTime')}
           </span>
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" className="accent-accent" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> {tl(lang, 'git.autoSync')}
         </label>
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
         <div className="flex flex-wrap gap-2">
           <button className="btn-primary rounded-full px-5" disabled={busy || !loaded}>
             <GitBranch size={16} /> {tl(lang, 'common.save')}
           </button>
           {current && (
             <>
-              <button type="button" className="btn-ghost rounded-full border border-line px-4" disabled={busy} onClick={() => void syncNow()}>
+              <button type="button" className="btn-ghost rounded-full border border-outline-variant px-4" disabled={busy} onClick={() => void syncNow()}>
                 <RefreshCw size={16} className={busy ? 'animate-spin' : ''} /> {tl(lang, 'git.syncNow')}
               </button>
-              <button type="button" className="btn-ghost ml-auto rounded-full px-4 text-danger" onClick={() => void remove()}>
+              <button type="button" className="btn-ghost ml-auto rounded-full px-4 text-error" onClick={() => void remove()}>
                 <Trash2 size={16} /> {tl(lang, 'common.remove')}
               </button>
             </>
@@ -143,7 +143,7 @@ export function GitSettingsView() {
       </form>
 
       {current && (
-        <p className={`break-words text-sm anim-fade-up ${current.lastStatus === 'error' ? 'text-danger' : 'text-muted'}`}>
+        <p className={`break-words text-sm anim-fade-up ${current.lastStatus === 'error' ? 'text-error' : 'text-on-surface-variant'}`}>
           {tl(lang, 'git.lastRun', { when: when(current.lastRunAt) })}
           {current.lastStatus === 'ok' && tl(lang, 'git.statusOk')}
           {current.lastStatus === 'unchanged' && tl(lang, 'git.statusUnchanged')}

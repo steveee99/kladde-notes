@@ -150,7 +150,7 @@ async function renderDiagramImage(kind: DiagramKind, src: string): Promise<Loade
     if (!svgEl.getAttribute('xmlns')) svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
 
     // Read current surface color so Mermaid/Mindmap diagrams retain theme contrast
-    const rawBg = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim().split(/[\s/]+/).slice(0, 3).map(Number);
+    const rawBg = getComputedStyle(document.documentElement).getPropertyValue('--surface-container-low').trim().split(/[\s/]+/).slice(0, 3).map(Number);
     const bg = rawBg.length >= 3 && !rawBg.some(Number.isNaN) ? `rgb(${rawBg[0]}, ${rawBg[1]}, ${rawBg[2]})` : '#ffffff';
 
     const serialized = new XMLSerializer().serializeToString(svgEl);

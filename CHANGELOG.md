@@ -4,6 +4,14 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- Changed: The design now follows Material 3 throughout. Colors are the full set of Material 3 color roles (scheme "Tonal Spot" from the previous blue), in both the dark and the light color scheme. Text uses the Material 3 type scale (no more uppercase section labels), corners follow the Material 3 shape scale, and depth comes from tonal surfaces instead of shadows.
+- Changed: Buttons, text fields, chips, segmented buttons, cards, lists, menus, dialogs, switches and checkboxes use their Material 3 forms, including hover and press state layers. Short messages appear as a snackbar.
+- Changed: Navigation rail and navigation bar use the Material 3 sizes; the active destination has a tonal indicator and a filled icon. The editor toolbar is a floating Material 3 toolbar.
+- Changed: Icons are now Material Symbols (Rounded) instead of Lucide; they are bundled with the app and work offline.
+- Changed: On phones the notes list no longer shows a separate "New" button next to the "Capture" button.
+- Fixed: Longer labels in the navigation rail (e.g. "Attachments") are no longer cut off.
+- Fixed: Note previews in lists and cards no longer show the table-of-contents marker (`##TOC##`, `[[TOC]]`) or table pipes and separator rows.
+
 ## [1.0.0] – 2026-11-12
 
 - Changed: First stable release, Kladde is now open source under the MIT license. The README and this changelog are now in English (the README is also available in German as `README.de.md`).

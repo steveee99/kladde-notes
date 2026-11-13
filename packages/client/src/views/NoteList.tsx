@@ -1,5 +1,5 @@
 import { useState, useSyncExternalStore } from 'react';
-import { Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, LayoutGrid, List, Plus, Table2, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, LayoutGrid, List, Plus, Table2, Trash2 } from '../lib/icons';
 import { INBOX_FOLDER, archiveTarget, excerpt, extractMeta, projectTitleOf, restoreTarget, splitPath } from '@kladde/shared';
 import type { SharedFolder } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
@@ -56,16 +56,17 @@ export function ViewSwitch() {
   useLang();
   const [mode, setMode] = useNoteViewMode();
   return (
-    <div className="inline-flex shrink-0 rounded-xl bg-raised/60 p-0.5" role="group" aria-label={t('list.viewLabel')}>
+    <div className="segmented shrink-0" role="group" aria-label={t('list.viewLabel')}>
       {MODES.map(({ id, labelKey, Icon }) => (
         <button
           key={id}
           title={t(labelKey)}
           aria-pressed={mode === id}
           onClick={() => setMode(id)}
-          className={`inline-flex h-8 w-8 items-center justify-center rounded-[10px] transition-all duration-150 ${mode === id ? 'bg-surface text-accent shadow-soft' : 'text-muted hover:text-ink'}`}
+          aria-label={t(labelKey)}
+          className="w-12 !px-0"
         >
-          <Icon size={16} />
+          <Icon size={20} filled={mode === id} />
         </button>
       ))}
     </div>
@@ -86,7 +87,7 @@ function NoteRow({ note }: { note: LocalNote }) {
       {...(note.access === 'owner' ? dragSource({ kind: 'note', id: note.id }) : {})}
       onClick={() => navigate(`/n/${note.id}`)}
       onKeyDown={(e) => e.key === 'Enter' && navigate(`/n/${note.id}`)}
-      className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-raised/60"
+      className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-surface-container-high/60"
     >
       <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
       {note.access !== 'owner' && (
@@ -95,8 +96,8 @@ function NoteRow({ note }: { note: LocalNote }) {
         </span>
       )}
       {note.dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title={t('list.unsynced')} />}
-      <span className="hidden max-w-[40%] truncate text-xs text-faint md:inline">{meta.folder ? folderDisplayName(meta.folder, lang) : ''}</span>
-      <span className="shrink-0 text-xs text-faint">{fmtDate(note.updatedAt, lang)}</span>
+      <span className="hidden max-w-[40%] truncate text-xs text-on-surface-variant md:inline">{meta.folder ? folderDisplayName(meta.folder, lang) : ''}</span>
+      <span className="shrink-0 text-xs text-on-surface-variant">{fmtDate(note.updatedAt, lang)}</span>
     </li>
   );
 }
@@ -108,12 +109,12 @@ function NoteTable({ notes }: { notes: LocalNote[] }) {
     <div className="card overflow-x-auto scrollbar-thin">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-xs uppercase tracking-wider text-faint">
-            <th className="px-3 py-2 font-semibold">{t('list.colTitle')}</th>
-            <th className="px-3 py-2 font-semibold">{t('list.colFolder')}</th>
-            <th className="px-3 py-2 font-semibold">{t('list.colTags')}</th>
-            <th className="px-3 py-2 font-semibold">{t('list.colCreated')}</th>
-            <th className="px-3 py-2 font-semibold">{t('list.colUpdated')}</th>
+          <tr className="text-left text-title-s text-on-surface-variant">
+            <th className="px-3 py-2 font-medium">{t('list.colTitle')}</th>
+            <th className="px-3 py-2 font-medium">{t('list.colFolder')}</th>
+            <th className="px-3 py-2 font-medium">{t('list.colTags')}</th>
+            <th className="px-3 py-2 font-medium">{t('list.colCreated')}</th>
+            <th className="px-3 py-2 font-medium">{t('list.colUpdated')}</th>
           </tr>
         </thead>
         <tbody>
@@ -121,9 +122,9 @@ function NoteTable({ notes }: { notes: LocalNote[] }) {
             const meta = extractMeta(n.path, n.content);
             const title = projectTitleOf(n.path, n.content, rc);
             return (
-              <tr key={n.id} tabIndex={0} onClick={() => navigate(`/n/${n.id}`)} onKeyDown={(e) => e.key === 'Enter' && navigate(`/n/${n.id}`)} className="cursor-pointer border-t border-line/60 transition-colors hover:bg-raised/60">
+              <tr key={n.id} tabIndex={0} onClick={() => navigate(`/n/${n.id}`)} onKeyDown={(e) => e.key === 'Enter' && navigate(`/n/${n.id}`)} className="cursor-pointer border-t border-outline-variant/60 transition-colors hover:bg-surface-container-high/60">
                 <td className="max-w-[18rem] truncate px-3 py-2 font-medium">{title}</td>
-                <td className="max-w-[12rem] truncate px-3 py-2 text-muted">{meta.folder ? folderDisplayName(meta.folder, lang) : ''}</td>
+                <td className="max-w-[12rem] truncate px-3 py-2 text-on-surface-variant">{meta.folder ? folderDisplayName(meta.folder, lang) : ''}</td>
                 <td className="px-3 py-2">
                   <div className="flex flex-wrap gap-1">
                     {meta.tags.slice(0, 4).map((tag) => (
@@ -133,8 +134,8 @@ function NoteTable({ notes }: { notes: LocalNote[] }) {
                     ))}
                   </div>
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-muted">{fmtDate(n.createdAt, lang, true)}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-muted">{fmtDate(n.updatedAt, lang, true)}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-on-surface-variant">{fmtDate(n.createdAt, lang, true)}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-on-surface-variant">{fmtDate(n.updatedAt, lang, true)}</td>
               </tr>
             );
           })}
@@ -150,7 +151,7 @@ export function NoteCollection({ notes, cols = 'sm:grid-cols-2 lg:grid-cols-3' }
   if (mode === 'table') return <NoteTable notes={notes} />;
   if (mode === 'list') {
     return (
-      <ul className="card stagger divide-y divide-line/60 p-1">
+      <ul className="card stagger divide-y divide-outline-variant/60 p-1">
         {notes.map((n) => (
           <NoteRow key={n.id} note={n} />
         ))}
@@ -177,7 +178,7 @@ export function NoteCard({ note }: { note: LocalNote }) {
       {...(note.access === 'owner' ? dragSource({ kind: 'note', id: note.id }) : {})}
       onClick={() => navigate(`/n/${note.id}`)}
       onKeyDown={(e) => e.key === 'Enter' && navigate(`/n/${note.id}`)}
-      className="card group w-full min-w-0 cursor-pointer p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40"
+      className="card group w-full min-w-0 cursor-pointer p-4 text-left transition-all duration-200 hover:bg-surface-container"
     >
       <div className="flex items-center gap-2">
         <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
@@ -188,8 +189,8 @@ export function NoteCard({ note }: { note: LocalNote }) {
         )}
         {note.dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title={t('list.unsynced')} />}
       </div>
-      <p className="mt-1 line-clamp-2 break-words text-sm text-muted">{excerpt(note.content) || t('common.empty')}</p>
-      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-faint">
+      <p className="mt-1 line-clamp-2 break-words text-sm text-on-surface-variant">{excerpt(note.content) || t('common.empty')}</p>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-on-surface-variant">
         <span>{fmtDate(note.updatedAt, lang)}</span>
         {meta.tags.slice(0, 4).map((tag) => (
           <span key={tag} className="cm-tag">
@@ -211,14 +212,14 @@ function FolderRow({ path, count }: { path: string; count: number }) {
       tabIndex={0}
       {...dragSource({ kind: 'folder', path })}
       {...drop.props}
-      className={`drop-target flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-raised/60 ${drop.over ? 'drop-over' : ''}`}
+      className={`drop-target flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-surface-container-high/60 ${drop.over ? 'drop-over' : ''}`}
       onClick={() => navigate(`/f/${encodeURIComponent(path)}`)}
       onKeyDown={(e) => e.key === 'Enter' && navigate(`/f/${encodeURIComponent(path)}`)}
     >
-      <Folder size={17} className="shrink-0 text-accent" />
+      <Folder size={17} className="shrink-0 text-primary" />
       <span className="min-w-0 flex-1 truncate font-medium">{folderLeafDisplayName(path, lang)}</span>
-      {count > 0 && <span className="text-xs text-faint">{count}</span>}
-      <ChevronRight size={16} className="shrink-0 text-faint" />
+      {count > 0 && <span className="text-xs text-on-surface-variant">{count}</span>}
+      <ChevronRight size={16} className="shrink-0 text-on-surface-variant" />
     </li>
   );
 }
@@ -233,7 +234,7 @@ function ParentRow({ folder }: { folder: string }) {
       role="button"
       tabIndex={0}
       {...drop.props}
-      className={`drop-target flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-muted transition-colors hover:bg-raised/60 hover:text-ink ${drop.over ? 'drop-over' : ''}`}
+      className={`drop-target flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-on-surface-variant transition-colors hover:bg-surface-container-high/60 hover:text-on-surface ${drop.over ? 'drop-over' : ''}`}
       onClick={() => navigate(folder ? `/f/${encodeURIComponent(folder)}` : '/notes')}
       onKeyDown={(e) => e.key === 'Enter' && navigate(folder ? `/f/${encodeURIComponent(folder)}` : '/notes')}
       title={folder ? folderDisplayName(folder, lang) : t('list.parentLevel')}
@@ -251,8 +252,8 @@ function SharedFolderSection({ shared, notes }: { shared: SharedFolder; notes: L
   return (
     <section className="anim-fade-up">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <Folder size={16} className="shrink-0 text-accent" />
-        <h2 className="min-w-0 truncate font-semibold" title={shared.folder}>
+        <Folder size={16} className="shrink-0 text-primary" />
+        <h2 className="min-w-0 truncate font-medium" title={shared.folder}>
           {folderLabel}
         </h2>
         <span className="chip min-w-0 max-w-full">
@@ -279,7 +280,7 @@ function SharedFolderSection({ shared, notes }: { shared: SharedFolder; notes: L
         </div>
       )}
       {notes.length === 0 ? (
-        <p className="px-1 text-sm text-faint">{t('list.emptySharedFolder')}</p>
+        <p className="px-1 text-sm text-on-surface-variant">{t('list.emptySharedFolder')}</p>
       ) : (
         <NoteCollection notes={notes} />
       )}
@@ -296,7 +297,7 @@ function SharedList({ notes }: { notes: LocalNote[] }) {
     if (f && byFolder.has(f)) byFolder.get(f)!.push(n);
     else single.push(n);
   }
-  if (!notes.length && !vault.sharedFolders.length) return <div className="py-16 text-center text-faint anim-fade-in">{t('list.emptyShared')}</div>;
+  if (!notes.length && !vault.sharedFolders.length) return <div className="py-16 text-center text-on-surface-variant anim-fade-in">{t('list.emptyShared')}</div>;
   return (
     <div className="space-y-8">
       {[...byFolder].map(([f, list]) => (
@@ -304,7 +305,7 @@ function SharedList({ notes }: { notes: LocalNote[] }) {
       ))}
       {single.length > 0 && (
         <section className="anim-fade-up">
-          {byFolder.size > 0 && <h2 className="mb-2 font-semibold">{t('list.singleNotes')}</h2>}
+          {byFolder.size > 0 && <h2 className="mb-2 font-medium">{t('list.singleNotes')}</h2>}
           <NoteCollection notes={single} />
         </section>
       )}
@@ -351,16 +352,16 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
       <div className="mb-6 flex flex-wrap items-center gap-2 anim-fade-up">
         <div className="min-w-0 flex-1 basis-40">
           {mode === 'folder' && folder && folder.includes('/') && (
-            <p className="truncate text-sm text-faint">
+            <p className="truncate text-sm text-on-surface-variant">
               {folderDisplayName(folder.split('/').slice(0, -1).join('/'), lang).replace(/\//g, ' / ')}
             </p>
           )}
-          <h1 className="truncate text-2xl font-bold tracking-tight">{title}</h1>
+          <h1 className="truncate text-headline-m">{title}</h1>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <ViewSwitch />
           <button className="btn-icon shrink-0" title={t('list.sortTooltip')} onClick={() => setSort(sort === 'updated' ? 'title' : 'updated')}>
-            {sort === 'updated' ? <Clock size={18} /> : <ArrowDownAZ size={18} />}
+            {sort === 'updated' ? <Clock size={24} /> : <ArrowDownAZ size={24} />}
           </button>
           {mode === 'folder' && folder && features.para.enabled && folder !== archiveRoot && (
             restoreDest !== null ? (
@@ -388,7 +389,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
           )}
           {mode === 'folder' && folder && !protectedFolders.has(folder) && folder !== features.daily.folder && (
             <button
-              className="edit-only btn-ghost shrink-0 hover:text-danger max-sm:!px-2.5"
+              className="edit-only btn-ghost shrink-0 hover:text-error max-sm:!px-2.5"
               title={t('list.deleteFolderTitle')}
               onClick={() => {
                 const n = vault.notesInFolder(folder);
@@ -402,14 +403,14 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
             </button>
           )}
           {mode !== 'shared' && (
-            <button className="edit-only btn-primary shrink-0 rounded-full px-4 max-sm:!px-3.5" onClick={() => newNote(folder)}>
-              <Plus size={16} /> {t('list.newBtn')}
+            <button className="edit-only btn-tonal max-md:hidden" onClick={() => newNote(folder)}>
+              <Plus size={18} /> {t('list.newBtn')}
             </button>
           )}
         </div>
       </div>
       {mode === 'folder' && (
-        <ul className="card mb-6 divide-y divide-line/60 p-1 anim-fade-up">
+        <ul className="card mb-6 divide-y divide-outline-variant/60 p-1 anim-fade-up">
           {parent !== null && <ParentRow folder={parent} />}
           {subfolders.map((f) => (
             <FolderRow key={f} path={f} count={countIn(f)} />
@@ -426,7 +427,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
             </li>
           ) : (
             <li className="edit-only">
-              <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted transition-colors hover:bg-raised/60 hover:text-ink" onClick={() => setCreating(true)}>
+              <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-on-surface-variant transition-colors hover:bg-surface-container-high/60 hover:text-on-surface" onClick={() => setCreating(true)}>
                 <FolderPlus size={17} className="shrink-0" /> {t('list.subfolderAdd')}
               </button>
             </li>
@@ -436,7 +437,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
       {mode === 'shared' ? (
         <SharedList notes={notes} />
       ) : notes.length === 0 ? (
-        <div className="py-16 text-center text-faint anim-fade-in">{t('list.emptyFolder')}</div>
+        <div className="py-16 text-center text-on-surface-variant anim-fade-in">{t('list.emptyFolder')}</div>
       ) : (
         <NoteCollection notes={notes} />
       )}

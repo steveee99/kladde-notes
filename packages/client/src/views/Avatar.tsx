@@ -31,11 +31,11 @@ export function Avatar({
   }, [avatarUrl]);
 
   const initial = (name.trim().charAt(0) || '?').toUpperCase();
-  const ring = active ? 'ring-2 ring-accent ring-offset-2 ring-offset-surface' : '';
+  const ring = active ? 'ring-2 ring-primary ring-offset-2 ring-offset-surface-container-low' : '';
 
   return (
     <span
-      className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent-container font-semibold text-on-accent-container select-none ${SIZE_CLASSES[size]} ${ring} ${className}`}
+      className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-container font-medium text-on-primary-container select-none ${SIZE_CLASSES[size]} ${ring} ${className}`}
       aria-hidden="true"
     >
       {avatarUrl && !failed ? (

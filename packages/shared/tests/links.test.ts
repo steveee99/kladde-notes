@@ -99,6 +99,13 @@ describe('frontmatter, PARA, templates, daily notes', () => {
     expect(setFrontmatter(b, { status: null, abgeschlossen: null })).toBe('# Hi');
   });
 
+  it('keeps the table-of-contents marker and table markup out of excerpts', () => {
+    expect(excerpt('## Welcome\n\n##TOC##\n\nEverything here')).toBe('Welcome Everything here');
+    expect(excerpt('Intro\n[[toc]]\nMore')).toBe('Intro More');
+    expect(excerpt('| Title | Status |\n| --- | :---: |\n| Book | done |')).toBe('Title Status Book done');
+    expect(excerpt('See [[Note|alias]] and [[Other]]')).toBe('See alias and Other');
+  });
+
   it('keeps list markup out of excerpts', () => {
     expect(excerpt('# T\n- [ ] Aufgabe 📅 2026-11-08 🔁 weekly\n- Punkt')).toBe('T Aufgabe Punkt');
   });

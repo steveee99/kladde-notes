@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Inbox as InboxIcon, Trash2 } from 'lucide-react';
+import { Inbox as InboxIcon, Trash2 } from '../lib/icons';
 import { INBOX_FOLDER, excerpt, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
@@ -27,8 +27,8 @@ function InboxItem({ note }: { note: LocalNote }) {
     <li className={`card flex flex-col gap-3 p-4 transition-all duration-300 sm:flex-row sm:items-center sm:justify-between ${leaving ? 'translate-x-8 opacity-0' : ''}`}>
       <button className="block min-w-0 flex-1 text-left" onClick={() => navigate(`/n/${note.id}`)}>
         <div className="break-words font-medium">{name}</div>
-        {excerpt(note.content) && <div className="mt-1 line-clamp-3 break-words text-sm text-muted">{excerpt(note.content, 240)}</div>}
-        <div className="mt-1 text-xs text-faint">{new Date(note.createdAt).toLocaleString(locale(lang), { dateStyle: 'medium', timeStyle: 'short' })}</div>
+        {excerpt(note.content) && <div className="mt-1 line-clamp-3 break-words text-sm text-on-surface-variant">{excerpt(note.content, 240)}</div>}
+        <div className="mt-1 text-xs text-on-surface-variant">{new Date(note.createdAt).toLocaleString(locale(lang), { dateStyle: 'medium', timeStyle: 'short' })}</div>
       </button>
       <div className="edit-only ml-auto flex max-w-full shrink-0 items-center justify-end gap-2">
         <ChipSelect
@@ -57,7 +57,7 @@ function InboxItem({ note }: { note: LocalNote }) {
           }}
           title={t('inbox.deleteTitle')}
           aria-label={t('inbox.deleteTitle')}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-danger/15 hover:text-danger"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-error/15 hover:text-error"
         >
           <Trash2 size={16} />
         </button>
@@ -89,15 +89,15 @@ export function InboxView() {
   return (
     <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
       <div className="mb-6 anim-fade-up">
-        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-          <InboxIcon size={24} className="text-accent" /> {t('inbox.title')}
+        <h1 className="flex items-center gap-2 text-headline-m">
+          <InboxIcon size={24} className="text-primary" /> {t('inbox.title')}
         </h1>
-        <p className="mt-1 text-muted">{subtitle}</p>
+        <p className="mt-1 text-on-surface-variant">{subtitle}</p>
       </div>
       {items.length === 0 ? (
         <div className="card p-8 text-center anim-fade-in">
-          <p className="font-medium text-ink">{inboxZero ? t('inbox.emptyTitleZero') : t('inbox.emptyTitle')}</p>
-          <p className="mt-1 text-sm text-muted">{t('inbox.emptyBody')}</p>
+          <p className="font-medium text-on-surface">{inboxZero ? t('inbox.emptyTitleZero') : t('inbox.emptyTitle')}</p>
+          <p className="mt-1 text-sm text-on-surface-variant">{t('inbox.emptyBody')}</p>
         </div>
       ) : (
         <ul className="stagger space-y-3">

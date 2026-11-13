@@ -164,7 +164,7 @@ export class TocWidget extends BlockWidget {
       btn.title = tl(this.lang, 'note.tocJumpHint', { text: h.text });
 
       const bullet = document.createElement('span');
-      bullet.className = 'text-faint text-xs shrink-0';
+      bullet.className = 'text-on-surface-variant text-xs shrink-0';
       bullet.textContent = depth === 0 ? '•' : '◦';
 
       const textSpan = document.createElement('span');

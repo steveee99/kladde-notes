@@ -28,23 +28,23 @@ export function PresenceBar({ noteId }: { noteId: string }) {
   const more = viewers.length - shown.length;
   return (
     <div className="no-print flex shrink-0 items-center gap-1.5 anim-fade-in" title={title} aria-label={title} role="status">
-      <span className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-ok">
+      <span className="flex items-center gap-1 text-label-m text-ok">
         <span className="h-2 w-2 animate-pulse rounded-full bg-ok" aria-hidden="true" />
         <span className="hidden sm:inline">{t('presence.live')}</span>
       </span>
       <span className="flex -space-x-1.5">
         {shown.map((v) => (
-          <span key={v.userId} className="relative rounded-full ring-2 ring-surface">
+          <span key={v.userId} className="relative rounded-full ring-2 ring-surface-container-low">
             <Avatar name={v.username} avatarUrl={v.avatarUrl} size="sm" />
             {v.clients > 1 && (
-              <span className="absolute -bottom-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-accent px-0.5 text-[9px] font-bold leading-none text-on-accent">
+              <span className="absolute -bottom-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-0.5 text-[9px] font-bold leading-none text-on-primary">
                 {v.clients}
               </span>
             )}
           </span>
         ))}
         {more > 0 && (
-          <span className="relative inline-flex h-6 w-6 items-center justify-center rounded-full bg-raised text-[10px] font-semibold text-muted ring-2 ring-surface">
+          <span className="relative inline-flex h-6 w-6 items-center justify-center rounded-full bg-surface-container-high text-[10px] font-medium text-on-surface-variant ring-2 ring-surface-container-low">
             +{more}
           </span>
         )}

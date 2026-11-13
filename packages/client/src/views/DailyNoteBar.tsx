@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowDownToLine, CalendarDays, ChevronLeft, ChevronRight, FilePlus2, FileText, ListTodo, Settings } from 'lucide-react';
+import { ArrowDownToLine, CalendarDays, ChevronLeft, ChevronRight, FilePlus2, FileText, ListTodo, Settings } from '../lib/icons';
 import {
   createDailyDateExtractor,
   isValidDateString,
@@ -185,17 +185,17 @@ export function DailyNoteBar({ date }: { date: string }) {
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 anim-fade-in">
-      <div role="group" aria-label={tl(lang, 'daily.navAria')} className="inline-flex max-w-full items-center overflow-hidden rounded-xl border border-line bg-surface">
+      <div role="group" aria-label={tl(lang, 'daily.navAria')} className="inline-flex max-w-full items-center overflow-hidden rounded-xl border border-outline-variant bg-surface-container-low">
         <button
           type="button"
           onClick={() => goToDate(prevDate)}
           title={prevLabel}
           aria-label={prevLabel}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center text-muted transition-colors hover:bg-raised hover:text-ink active:scale-95"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface active:scale-95"
         >
           <ChevronLeft size={18} />
         </button>
-        <span aria-hidden="true" className="h-5 w-px shrink-0 bg-line" />
+        <span aria-hidden="true" className="h-5 w-px shrink-0 bg-outline-variant" />
         <button
           ref={triggerRef}
           type="button"
@@ -203,25 +203,25 @@ export function DailyNoteBar({ date }: { date: string }) {
           aria-expanded={open}
           aria-label={tl(lang, 'daily.pickDateAria', { date: longDateFmt.format(selectedObj) })}
           onClick={() => setOpen((v) => !v)}
-          className={`inline-flex h-10 min-w-0 items-center gap-2 px-3 text-sm font-medium transition-colors hover:bg-raised ${open ? 'bg-accent/12 text-accent' : 'text-ink'}`}
+          className={`inline-flex h-10 min-w-0 items-center gap-2 px-3 text-sm font-medium transition-colors hover:bg-surface-container-high ${open ? 'bg-primary/12 text-primary' : 'text-on-surface'}`}
         >
-          <CalendarDays size={16} className="shrink-0 text-accent" />
+          <CalendarDays size={16} className="shrink-0 text-primary" />
           <span className="truncate">{triggerFmt.format(selectedObj)}</span>
         </button>
-        <span aria-hidden="true" className="h-5 w-px shrink-0 bg-line" />
+        <span aria-hidden="true" className="h-5 w-px shrink-0 bg-outline-variant" />
         <button
           type="button"
           onClick={() => goToDate(nextDate)}
           title={nextLabel}
           aria-label={nextLabel}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center text-muted transition-colors hover:bg-raised hover:text-ink active:scale-95"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface active:scale-95"
         >
           <ChevronRight size={18} />
         </button>
       </div>
 
       {date !== todayStr && (
-        <button type="button" onClick={() => void openToday()} className="chip h-10 px-3 text-sm font-medium text-accent transition-colors hover:bg-accent/12">
+        <button type="button" onClick={() => void openToday()} className="chip h-10 px-3 text-primary">
           {tl(lang, 'daily.todayChip')}
         </button>
       )}
@@ -250,12 +250,12 @@ export function DailyNoteBar({ date }: { date: string }) {
               <button type="button" className="btn-icon h-9 w-9" aria-label={tl(lang, 'daily.prevMonth')} onClick={() => stepMonth(-1)}>
                 <ChevronLeft size={18} />
               </button>
-              <span className="text-sm font-semibold capitalize">{monthFmt.format(new Date(viewMonth.year, viewMonth.month, 1))}</span>
+              <span className="text-sm font-medium capitalize">{monthFmt.format(new Date(viewMonth.year, viewMonth.month, 1))}</span>
               <button type="button" className="btn-icon h-9 w-9" aria-label={tl(lang, 'daily.nextMonth')} onClick={() => stepMonth(1)}>
                 <ChevronRight size={18} />
               </button>
             </div>
-            <div className="mb-1 grid grid-cols-7 text-center text-[11px] font-medium text-faint">
+            <div className="mb-1 grid grid-cols-7 text-center text-[11px] font-medium text-on-surface-variant">
               {weekdays.map((w) => (
                 <div key={w} className="py-1">
                   {w}
@@ -275,23 +275,23 @@ export function DailyNoteBar({ date }: { date: string }) {
                     onClick={() => goToDate(cell.dateStr)}
                     className={`relative mx-auto flex h-9 w-9 flex-col items-center justify-center rounded-full text-sm transition-colors ${
                       isSelected
-                        ? 'bg-accent font-semibold text-on-accent'
+                        ? 'bg-primary font-medium text-on-primary'
                         : isToday
-                          ? 'border border-accent font-semibold text-accent hover:bg-accent/10'
+                          ? 'border border-primary font-medium text-primary hover:bg-primary/10'
                           : cell.inMonth
-                            ? 'text-ink hover:bg-surface'
-                            : 'text-faint/60 hover:bg-surface'
+                            ? 'text-on-surface hover:bg-surface-container-low'
+                            : 'text-on-surface-variant/60 hover:bg-surface-container-low'
                     }`}
                   >
                     <span>{cell.day}</span>
-                    {hasNote && <span className={`absolute bottom-1 h-1 w-1 rounded-full ${isSelected ? 'bg-on-accent' : 'bg-accent'}`} />}
+                    {hasNote && <span className={`absolute bottom-1 h-1 w-1 rounded-full ${isSelected ? 'bg-on-primary' : 'bg-primary'}`} />}
                   </button>
                 );
               })}
             </div>
-            <div className="mt-2 flex items-center justify-between border-t border-line/60 pt-2">
-              <span className="text-[11px] text-faint">{tl(lang, 'daily.dotLegend')}</span>
-              <button type="button" className="rounded-lg px-2.5 py-1 text-xs font-medium text-accent hover:bg-accent/12" onClick={() => void openToday()}>
+            <div className="mt-2 flex items-center justify-between border-t border-outline-variant/60 pt-2">
+              <span className="text-[11px] text-on-surface-variant">{tl(lang, 'daily.dotLegend')}</span>
+              <button type="button" className="rounded-lg px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/12" onClick={() => void openToday()}>
                 {tl(lang, 'daily.todayChip')}
               </button>
             </div>
@@ -326,11 +326,11 @@ export function DailyNoteEmptyView({ date }: { date?: string }) {
     return (
       <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
         <div className="card max-w-lg space-y-4 p-6 anim-fade-up">
-          <div className="flex items-center gap-2 text-lg font-semibold">
-            <CalendarDays size={20} className="shrink-0 text-accent" />
+          <div className="flex items-center gap-2 text-lg font-medium">
+            <CalendarDays size={20} className="shrink-0 text-primary" />
             {tl(lang, 'daily.disabledTitle')}
           </div>
-          <p className="text-sm text-muted">{tl(lang, 'daily.disabledDesc')}</p>
+          <p className="text-sm text-on-surface-variant">{tl(lang, 'daily.disabledDesc')}</p>
           <div className="flex flex-wrap gap-2">
             {!locked && (
               <button
@@ -344,7 +344,7 @@ export function DailyNoteEmptyView({ date }: { date?: string }) {
                 <FilePlus2 size={16} /> {tl(lang, 'daily.enableAndOpen')}
               </button>
             )}
-            <button className="btn-ghost border border-line" onClick={() => navigate('/settings')}>
+            <button className="btn-ghost border border-outline-variant" onClick={() => navigate('/settings')}>
               <Settings size={16} /> {tl(lang, 'daily.openSettings')}
             </button>
           </div>
@@ -367,12 +367,12 @@ export function DailyNoteEmptyView({ date }: { date?: string }) {
       <DailyNoteBar date={targetDate} />
       <div className="card max-w-xl space-y-4 p-6 anim-fade-up">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-faint">
+          <p className="text-title-s text-on-surface-variant">
             {tl(lang, 'daily.navLabel')} · {daily.folder ? folderDisplayName(daily.folder, lang) : tl(lang, 'common.topLevelPlain')}
           </p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight capitalize">{longDateFmt.format(parseDate(targetDate))}</h1>
+          <h1 className="mt-1 text-headline-m capitalize">{longDateFmt.format(parseDate(targetDate))}</h1>
         </div>
-        <p className="text-sm text-muted">{tl(lang, 'daily.emptyForDay')}</p>
+        <p className="text-sm text-on-surface-variant">{tl(lang, 'daily.emptyForDay')}</p>
         {!locked && (
           <button
             className="btn-primary"
@@ -388,14 +388,14 @@ export function DailyNoteEmptyView({ date }: { date?: string }) {
 
       {notesOnDay.length > 0 && (
         <section className="mt-6 max-w-xl anim-fade-up">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-faint">{tl(lang, 'daily.activityOnDay', { n: notesOnDay.length })}</h2>
-          <ul className="card divide-y divide-line/60 p-1">
+          <h2 className="mb-2 text-title-s text-on-surface-variant">{tl(lang, 'daily.activityOnDay', { n: notesOnDay.length })}</h2>
+          <ul className="card divide-y divide-outline-variant/60 p-1">
             {notesOnDay.map((n) => (
               <li key={n.id}>
-                <button className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-raised/60" onClick={() => navigate(`/n/${n.id}`)}>
-                  <FileText size={15} className="shrink-0 text-accent" />
+                <button className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-surface-container-high/60" onClick={() => navigate(`/n/${n.id}`)}>
+                  <FileText size={15} className="shrink-0 text-primary" />
                   <span className="min-w-0 flex-1 truncate font-medium">{projectTitleOf(n.path, n.content, rc)}</span>
-                  <span className="max-w-[45%] shrink-0 truncate text-xs text-faint">
+                  <span className="max-w-[45%] shrink-0 truncate text-xs text-on-surface-variant">
                     {splitPath(n.path).folder ? folderDisplayName(splitPath(n.path).folder, lang) : tl(lang, 'common.topLevelPlain')}
                   </span>
                 </button>
@@ -471,35 +471,35 @@ export function DailyCarryOver({ noteId, date }: { noteId: string; date: string 
   };
 
   return (
-    <section className="no-print mb-4 rounded-2xl border border-line bg-surface/60 anim-fade-in" aria-label={tl(lang, 'daily.carryTitle', { n: tasks.length })}>
+    <section className="no-print mb-4 rounded-2xl border border-outline-variant bg-surface-container-low/60 anim-fade-in" aria-label={tl(lang, 'daily.carryTitle', { n: tasks.length })}>
       <div className="flex items-center gap-2 px-3 py-2">
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-medium text-ink"
+          className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-medium text-on-surface"
           aria-expanded={open}
           onClick={() => setOpen(!open)}
         >
-          <ChevronRight size={16} className={`shrink-0 text-faint transition-transform duration-150 ${open ? 'rotate-90' : ''}`} />
-          <ListTodo size={16} className="shrink-0 text-accent" />
+          <ChevronRight size={16} className={`shrink-0 text-on-surface-variant transition-transform duration-150 ${open ? 'rotate-90' : ''}`} />
+          <ListTodo size={16} className="shrink-0 text-primary" />
           <span className="truncate sm:hidden">{tl(lang, 'daily.carryTitleShort', { n: tasks.length })}</span>
           <span className="hidden truncate sm:inline">{tl(lang, 'daily.carryTitle', { n: tasks.length })}</span>
         </button>
         {tasks.length > 1 && (
-          <button type="button" className="chip shrink-0 px-2.5 py-1 text-xs text-accent transition-colors hover:bg-accent/12" onClick={() => carry(tasks)}>
+          <button type="button" className="chip shrink-0 text-primary" onClick={() => carry(tasks)}>
             <ArrowDownToLine size={13} /> {tl(lang, 'daily.carryAll')}
           </button>
         )}
       </div>
       {open && (
-        <ul className="max-h-64 divide-y divide-line/60 overflow-y-auto border-t border-line/60 scrollbar-thin">
+        <ul className="max-h-64 divide-y divide-outline-variant/60 overflow-y-auto border-t border-outline-variant/60 scrollbar-thin">
           {tasks.map((tk) => (
             <li key={`${tk.noteId}:${tk.line}`} className="flex items-start gap-2 px-3 py-2 text-sm">
               <div className="min-w-0 flex-1">
                 <div className="break-words leading-snug">{tk.text}</div>
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-faint">
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-on-surface-variant">
                   <button
                     type="button"
-                    className="tabular-nums hover:text-accent"
+                    className="tabular-nums hover:text-primary"
                     title={tl(lang, 'daily.carryOpenSource')}
                     onClick={() => navigate(`/n/${tk.noteId}?line=${tk.line + 1}`)}
                   >
@@ -510,7 +510,7 @@ export function DailyCarryOver({ noteId, date }: { noteId: string; date: string 
               </div>
               <button
                 type="button"
-                className="btn-ghost shrink-0 px-2 py-1 text-xs text-accent"
+                className="btn-ghost shrink-0 px-2 py-1 text-xs text-primary"
                 title={tl(lang, isToday ? 'daily.carryToToday' : 'daily.carryToThis')}
                 aria-label={`${tl(lang, isToday ? 'daily.carryToToday' : 'daily.carryToThis')}: ${tk.text}`}
                 onClick={() => carry([tk])}

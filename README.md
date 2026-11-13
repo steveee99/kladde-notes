@@ -4,7 +4,18 @@
 
 **Kladde** is a self-hosted notes app for the browser: Markdown with live preview, tasks with due dates and recurrence, queries and Kanban boards across your own notes. It works offline on phone, iPad and desktop and syncs as soon as you are back online. Access is by invitation only, with **passkeys**, optionally **GitLab sign-in**, or username and password where passkeys are not an option (local network without HTTPS).
 
-![Kladde: a note with live Markdown preview, a table of contents and tasks with due dates](docs/images/screenshot.png)
+![Kladde: a project note with properties, tasks with status and due dates, and an editable table](docs/images/screenshot.png)
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/home-light.png" alt="Home screen in the light color scheme: tasks grouped by overdue, today and upcoming"></td>
+    <td width="50%"><img src="docs/images/graph.png" alt="Knowledge graph of linked notes"></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/phone-home.png" alt="Home screen on a phone" width="260"></td>
+    <td align="center"><img src="docs/images/phone-note.png" alt="Editing a note on a phone" width="260"></td>
+  </tr>
+</table>
 
 > A *Kladde* (German) is the notebook where everything goes first, before it is written up properly.
 

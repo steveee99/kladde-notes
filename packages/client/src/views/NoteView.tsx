@@ -39,7 +39,7 @@ import {
   Trash2,
   Undo2,
   X,
-} from 'lucide-react';
+} from '../lib/icons';
 import { undo } from '@codemirror/commands';
 import {
   excerpt,
@@ -97,7 +97,7 @@ function Toolbar({ view, lang }: { view: EditorView | null; lang: Lang }) {
     </button>
   );
   return (
-    <div className="note-toolbar sticky bottom-0 z-20 flex gap-1 overflow-x-auto border-t border-line bg-surface/95 px-2 pt-1.5 backdrop-blur [--pad-bottom:0.375rem] max-md:pb-1.5 md:safe-bottom scrollbar-thin">
+    <div className="note-toolbar sticky bottom-0 z-20 flex gap-1 overflow-x-auto border-t border-outline-variant bg-surface-container-low/95 px-2 pt-1.5 backdrop-blur [--pad-bottom:0.375rem] max-md:pb-1.5 md:safe-bottom scrollbar-thin">
       {btn(CheckSquare, t('note.toolbarTask'), () => insertAtLineStart(view, '- [ ] '))}
       {btn(CalendarPlus, t('note.toolbarDueToday'), () => insertText(view, ` 📅 ${toDateString(new Date())}`))}
       {btn(Heading, t('note.toolbarHeading'), () => insertAtLineStart(view, '## '))}
@@ -207,10 +207,10 @@ function MobileBreadcrumbMenu({ folderSegments, lang }: { folderSegments: string
         aria-expanded={open}
         aria-label={t('note.breadcrumbExpand', { name: last.label })}
         className={`inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-medium transition-colors ${
-          open ? 'bg-accent-container text-on-accent-container' : 'bg-raised/70 text-ink hover:bg-raised'
+          open ? 'bg-secondary-container text-on-secondary-container' : 'bg-surface-container-high/70 text-on-surface hover:bg-surface-container-high'
         }`}
       >
-        <Folder size={14} className={`shrink-0 ${open ? 'text-on-accent-container' : 'text-accent'}`} />
+        <Folder size={14} className={`shrink-0 ${open ? 'text-on-primary-container' : 'text-primary'}`} />
         <span className="min-w-0 truncate">{last.label}</span>
         <ChevronDown size={14} className={`shrink-0 transition-transform duration-150 ${open ? 'rotate-180' : 'opacity-70'}`} />
       </button>
@@ -221,7 +221,7 @@ function MobileBreadcrumbMenu({ folderSegments, lang }: { folderSegments: string
             role="menu"
             aria-label={t('note.breadcrumbMenuAria')}
             style={{ top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? 'visible' : 'hidden' }}
-            className="no-print fixed z-[90] max-h-[60vh] w-64 overflow-y-auto rounded-2xl border border-line/70 bg-raised p-1.5 shadow-soft anim-fade-in scrollbar-thin"
+            className="no-print fixed z-[90] max-h-[60vh] w-64 overflow-y-auto rounded-2xl border border-outline-variant/70 bg-surface-container-high p-1.5 shadow-soft anim-fade-in scrollbar-thin"
           >
             {items.map((item, idx) => {
               const isCurrent = idx === items.length - 1;
@@ -236,10 +236,10 @@ function MobileBreadcrumbMenu({ folderSegments, lang }: { folderSegments: string
                     navigate(item.to);
                   }}
                   className={`flex w-full items-center gap-2 rounded-xl py-2 pr-3 text-left text-sm transition-colors ${
-                    isCurrent ? 'bg-accent-container text-on-accent-container font-medium' : 'text-ink hover:bg-surface'
+                    isCurrent ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface hover:bg-surface-container-low'
                   }`}
                 >
-                  <Folder size={14} className={isCurrent ? 'shrink-0' : 'shrink-0 text-accent'} />
+                  <Folder size={14} className={isCurrent ? 'shrink-0' : 'shrink-0 text-primary'} />
                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
                 </button>
               );
@@ -257,8 +257,8 @@ function MenuItem({
   label,
   onClick,
   active,
-  iconClass = 'text-muted',
-  className = 'text-ink hover:bg-surface',
+  iconClass = 'text-on-surface-variant',
+  className = 'text-on-surface hover:bg-surface-container-low',
 }: {
   icon: typeof Bold;
   label: string;
@@ -277,7 +277,7 @@ function MenuItem({
     >
       <Icon size={16} className={`shrink-0 ${iconClass}`} fill={Icon === Star && active ? 'currentColor' : 'none'} />
       <span className="flex-1">{label}</span>
-      {active && <Check size={15} className="shrink-0 text-accent" />}
+      {active && <Check size={15} className="shrink-0 text-primary" />}
     </button>
   );
 }
@@ -435,7 +435,7 @@ function NoteOverflowMenu({
             ref={menuRef}
             role="menu"
             style={{ top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? 'visible' : 'hidden' }}
-            className="no-print fixed z-[90] w-60 rounded-2xl border border-line/70 bg-raised p-1.5 shadow-soft anim-fade-in"
+            className="no-print fixed z-[90] w-60 rounded-2xl border border-outline-variant/70 bg-surface-container-high p-1.5 shadow-soft anim-fade-in"
           >
             <MenuItem
               icon={Copy}
@@ -450,7 +450,7 @@ function NoteOverflowMenu({
                 icon={Star}
                 label={t('favorites.menuLabel')}
                 active={favorite}
-                iconClass={favorite ? 'text-warn' : 'text-muted'}
+                iconClass={favorite ? 'text-warn' : 'text-on-surface-variant'}
                 onClick={() => {
                   setOpen(false);
                   onToggleFavorite();
@@ -478,7 +478,7 @@ function NoteOverflowMenu({
                 }}
               />
             )}
-            {(onFinishProject || onConvertProject) && <div className="my-1 border-t border-line/80" />}
+            {(onFinishProject || onConvertProject) && <div className="my-1 border-t border-outline-variant/80" />}
             {onConvertProject && (
               <MenuItem
                 icon={FolderInput}
@@ -500,18 +500,18 @@ function NoteOverflowMenu({
                 }}
               />
             )}
-            <div className="my-1 border-t border-line/80" />
+            <div className="my-1 border-t border-outline-variant/80" />
             {canShare && (
               <button
                 type="button"
                 role="menuitem"
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-ink transition-colors hover:bg-surface"
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-low"
                 onClick={() => {
                   setOpen(false);
                   onShare();
                 }}
               >
-                <Share2 size={16} className="shrink-0 text-muted" />
+                <Share2 size={16} className="shrink-0 text-on-surface-variant" />
                 <span>{t('common.share')}</span>
               </button>
             )}
@@ -519,13 +519,13 @@ function NoteOverflowMenu({
             <button
               type="button"
               role="menuitem"
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-ink transition-colors hover:bg-surface"
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-low"
               onClick={() => {
                 setOpen(false);
                 onHistory();
               }}
             >
-              <History size={16} className="shrink-0 text-muted" />
+              <History size={16} className="shrink-0 text-on-surface-variant" />
               <span>{t('common.history')}</span>
             </button>
 
@@ -533,57 +533,57 @@ function NoteOverflowMenu({
               type="button"
               role="menuitem"
               aria-expanded={exportOpen}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-ink transition-colors hover:bg-surface"
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-low"
               onClick={() => setExportOpen((v) => !v)}
             >
-              <Download size={16} className="shrink-0 text-muted" />
+              <Download size={16} className="shrink-0 text-on-surface-variant" />
               <span className="flex-1">{t('common.export')}</span>
-              <ChevronDown size={15} className={`shrink-0 text-faint transition-transform duration-150 ${exportOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown size={15} className={`shrink-0 text-on-surface-variant transition-transform duration-150 ${exportOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {exportOpen && (
-              <div className="my-1 ml-3 space-y-0.5 border-l border-line/80 pl-2 anim-fade-in">
-                <div className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-faint">{t('export.headerNoFrontmatter')}</div>
+              <div className="my-1 ml-3 space-y-0.5 border-l border-outline-variant/80 pl-2 anim-fade-in">
+                <div className="px-2 py-0.5 text-label-m text-on-surface-variant">{t('export.headerNoFrontmatter')}</div>
                 <button
                   type="button"
                   role="menuitem"
-                  className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-ink transition-colors hover:bg-surface"
+                  className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-low"
                   onClick={exportMarkdown}
                 >
-                  <FileCode size={15} className="shrink-0 text-accent" />
+                  <FileCode size={15} className="shrink-0 text-primary" />
                   <div className="min-w-0 flex-1">
                     <div className="font-medium leading-tight">{t('export.mdTitle')}</div>
-                    <div className="text-[11px] text-faint">{t('export.mdDesc')}</div>
+                    <div className="text-[11px] text-on-surface-variant">{t('export.mdDesc')}</div>
                   </div>
                 </button>
                 <button
                   type="button"
                   role="menuitem"
-                  className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-ink transition-colors hover:bg-surface"
+                  className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-low"
                   onClick={() => void runAsync('word')}
                 >
-                  <FileSpreadsheet size={15} className="shrink-0 text-accent" />
+                  <FileSpreadsheet size={15} className="shrink-0 text-primary" />
                   <div className="min-w-0 flex-1">
                     <div className="font-medium leading-tight">{t('export.wordTitle')}</div>
-                    <div className="text-[11px] text-faint">{t('export.wordDesc')}</div>
+                    <div className="text-[11px] text-on-surface-variant">{t('export.wordDesc')}</div>
                   </div>
                 </button>
                 <button
                   type="button"
                   role="menuitem"
-                  className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-ink transition-colors hover:bg-surface"
+                  className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-low"
                   onClick={() => void runAsync('pdf')}
                 >
-                  <FileText size={15} className="shrink-0 text-accent" />
+                  <FileText size={15} className="shrink-0 text-primary" />
                   <div className="min-w-0 flex-1">
                     <div className="font-medium leading-tight">{t('export.pdfTitle')}</div>
-                    <div className="text-[11px] text-faint">{t('export.pdfDesc')}</div>
+                    <div className="text-[11px] text-on-surface-variant">{t('export.pdfDesc')}</div>
                   </div>
                 </button>
                 <button
                   type="button"
                   role="menuitem"
-                  className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-muted transition-colors hover:bg-surface hover:text-ink"
+                  className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
                   onClick={() => {
                     setOpen(false);
                     requestAnimationFrame(() => window.print());
@@ -599,24 +599,24 @@ function NoteOverflowMenu({
               <button
                 type="button"
                 role="menuitem"
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-ink transition-colors hover:bg-surface"
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-low"
                 onClick={() => {
                   setOpen(false);
                   onMove();
                 }}
               >
-                <FolderInput size={16} className="shrink-0 text-muted" />
+                <FolderInput size={16} className="shrink-0 text-on-surface-variant" />
                 <span>{t('common.move')}</span>
               </button>
             )}
 
             {mayDelete && (
               <>
-                <div className="my-1 border-t border-line/80" />
+                <div className="my-1 border-t border-outline-variant/80" />
                 <button
                   type="button"
                   role="menuitem"
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-danger transition-colors hover:bg-danger/10"
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-error transition-colors hover:bg-error/10"
                   onClick={() => {
                     setOpen(false);
                     onDelete();
@@ -646,7 +646,7 @@ function MoveNoteSheet({ noteTitle, currentFolder, onMove, onClose }: { noteTitl
 
   return (
     <Sheet title={t('note.moveTitle')} onClose={onClose}>
-      <p className="mb-3 text-sm text-muted">{t('note.moveDesc', { name: noteTitle })}</p>
+      <p className="mb-3 text-sm text-on-surface-variant">{t('note.moveDesc', { name: noteTitle })}</p>
       {allFolders.length > 7 && (
         <input
           className="input mb-3"
@@ -664,9 +664,9 @@ function MoveNoteSheet({ noteTitle, currentFolder, onMove, onClose }: { noteTitl
               <button
                 type="button"
                 onClick={() => onMove(f)}
-                className={`flex w-full items-center gap-3 rounded-full px-3.5 py-2.5 text-left text-sm transition-colors ${active ? 'bg-accent-container text-on-accent-container font-medium' : 'text-ink hover:bg-raised'}`}
+                className={`flex w-full items-center gap-3 rounded-full px-3.5 py-2.5 text-left text-sm transition-colors ${active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface hover:bg-surface-container-high'}`}
               >
-                <Folder size={16} className={active ? 'shrink-0' : 'shrink-0 text-accent'} />
+                <Folder size={16} className={active ? 'shrink-0' : 'shrink-0 text-primary'} />
                 <span className="min-w-0 flex-1 truncate">{f ? folderDisplayName(f, lang) : t('common.topLevelPlain')}</span>
                 {active && <Check size={16} className="shrink-0" />}
               </button>
@@ -711,7 +711,7 @@ function NoteInspectorPane({
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-faint">{t('note.paneTitle')}</span>
+        <span className="text-title-s text-on-surface-variant">{t('note.paneTitle')}</span>
         {onClose && (
           <button type="button" onClick={onClose} className="btn-icon h-8 w-8 rounded-full" aria-label={t('common.close')}>
             <X size={16} />
@@ -720,7 +720,7 @@ function NoteInspectorPane({
       </div>
 
       {/* M3 Segmented Button */}
-      <div role="tablist" aria-label={t('note.paneTitle')} className="grid shrink-0 grid-cols-3 gap-1 rounded-full bg-raised p-1">
+      <div role="tablist" aria-label={t('note.paneTitle')} className="grid shrink-0 grid-cols-3 gap-1 rounded-full bg-surface-container-high p-1">
         {tabs.map(({ id, label, Icon, count }) => {
           const active = tab === id;
           return (
@@ -730,7 +730,7 @@ function NoteInspectorPane({
               role="tab"
               aria-selected={active}
               onClick={() => setTab(id)}
-              className={`flex min-w-0 items-center justify-center gap-1 rounded-full px-1.5 py-1.5 text-xs font-medium transition-colors sm:gap-1.5 sm:px-2 ${active ? 'bg-accent-container text-on-accent-container shadow-soft' : 'text-muted hover:text-ink'}`}
+              className={`flex min-w-0 items-center justify-center gap-1 rounded-full px-1.5 py-1.5 text-xs font-medium transition-colors sm:gap-1.5 sm:px-2 ${active ? 'bg-secondary-container text-on-secondary-container shadow-soft' : 'text-on-surface-variant hover:text-on-surface'}`}
             >
               <Icon size={13} className="shrink-0" />
               <span className="min-w-0 truncate">{label}</span>
@@ -744,7 +744,7 @@ function NoteInspectorPane({
         {tab === 'toc' && (
           <div className="space-y-1">
             {headings.length === 0 ? (
-              <p className="py-8 text-center text-sm text-faint">{t('note.tocEmpty')}</p>
+              <p className="py-8 text-center text-sm text-on-surface-variant">{t('note.tocEmpty')}</p>
             ) : (
               headings.map((h, i) => (
                 <button
@@ -753,7 +753,7 @@ function NoteInspectorPane({
                   onClick={() => onJump(h.from)}
                   title={t('note.tocJumpHint', { text: h.text })}
                   style={{ paddingLeft: `${12 + (h.level - 1) * 12}px` }}
-                  className={`block w-full truncate rounded-full py-1.5 pr-3 text-left transition-colors hover:bg-raised hover:text-accent ${h.level === 1 ? 'text-sm font-medium text-ink' : h.level === 2 ? 'text-sm text-ink/90' : 'text-xs text-muted'}`}
+                  className={`block w-full truncate rounded-full py-1.5 pr-3 text-left transition-colors hover:bg-surface-container-high hover:text-primary ${h.level === 1 ? 'text-sm font-medium text-on-surface' : h.level === 2 ? 'text-sm text-on-surface/90' : 'text-xs text-on-surface-variant'}`}
                 >
                   {h.text}
                 </button>
@@ -765,35 +765,35 @@ function NoteInspectorPane({
         {tab === 'links' && (
           <div className="space-y-5">
             <section>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-faint">{t('note.backlinksTitle', { n: backlinks.length })}</h3>
+              <h3 className="mb-2 text-title-s text-on-surface-variant">{t('note.backlinksTitle', { n: backlinks.length })}</h3>
               {backlinks.length === 0 ? (
-                <p className="text-sm text-faint">{t('note.backlinksEmpty')}</p>
+                <p className="text-sm text-on-surface-variant">{t('note.backlinksEmpty')}</p>
               ) : (
                 <div className="space-y-2">
                   {backlinks.map((b) => (
-                    <button key={b.id} className="w-full rounded-2xl border border-line/80 bg-bg/40 p-3 text-left text-sm transition hover:border-accent/40 hover:bg-raised/60" onClick={() => navigate(`/n/${b.id}`)}>
+                    <button key={b.id} className="w-full rounded-2xl border border-outline-variant/80 bg-surface/40 p-3 text-left text-sm transition hover:border-primary/40 hover:bg-surface-container-high/60" onClick={() => navigate(`/n/${b.id}`)}>
                       <div className="truncate font-medium">{projectTitleOf(b.path, b.content, rc)}</div>
-                      {excerpt(b.content, 85) && <div className="mt-0.5 line-clamp-2 text-xs text-muted">{excerpt(b.content, 85)}</div>}
+                      {excerpt(b.content, 85) && <div className="mt-0.5 line-clamp-2 text-xs text-on-surface-variant">{excerpt(b.content, 85)}</div>}
                     </button>
                   ))}
                 </div>
               )}
             </section>
 
-            <hr className="border-0 border-t border-line/70" />
+            <hr className="border-0 border-t border-outline-variant/70" />
 
             <section>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-faint">{t('note.mentionsTitle', { n: mentions.length })}</h3>
+              <h3 className="mb-2 text-title-s text-on-surface-variant">{t('note.mentionsTitle', { n: mentions.length })}</h3>
               {mentions.length === 0 ? (
-                <p className="text-sm text-faint">{t('note.mentionsEmpty')}</p>
+                <p className="text-sm text-on-surface-variant">{t('note.mentionsEmpty')}</p>
               ) : (
                 <ul className="space-y-1.5">
                   {mentions.map((m) => (
-                    <li key={m.id} className="flex items-center gap-2 rounded-2xl border border-dashed border-line px-3 py-2 text-sm">
-                      <button className="min-w-0 flex-1 truncate text-left hover:text-accent" onClick={() => navigate(`/n/${m.id}`)}>
+                    <li key={m.id} className="flex items-center gap-2 rounded-2xl border border-dashed border-outline-variant px-3 py-2 text-sm">
+                      <button className="min-w-0 flex-1 truncate text-left hover:text-primary" onClick={() => navigate(`/n/${m.id}`)}>
                         {projectTitleOf(m.path, m.content, rc)}
                       </button>
-                      <button className="edit-only chip shrink-0 cursor-pointer px-2.5 py-1 hover:bg-accent/15 hover:text-accent" onClick={() => void vault.linkMention(m.id, noteId)}>
+                      <button className="edit-only chip shrink-0" onClick={() => void vault.linkMention(m.id, noteId)}>
                         <Link2 size={12} /> {t('note.linkMentionTitle')}
                       </button>
                     </li>
@@ -807,7 +807,7 @@ function NoteInspectorPane({
         {tab === 'graph' && (
           <div>
             {local.nodes.length <= 1 ? (
-              <p className="py-8 text-center text-sm text-faint">{t('note.localGraphEmpty')}</p>
+              <p className="py-8 text-center text-sm text-on-surface-variant">{t('note.localGraphEmpty')}</p>
             ) : (
               <div className="space-y-3">
                 <Graph nodes={local.nodes} edges={local.edges} focusId={noteId} height={360} onOpen={(n) => n !== noteId && navigate(`/n/${n}`)} />
@@ -845,11 +845,11 @@ function PdfPanel({ url, name, onEditText }: { url: string; name: string; onEdit
         </button>
       </div>
       {failed ? (
-        <div role="alert" className="flex flex-1 items-center justify-center rounded-xl border border-line bg-surface p-6 text-center text-sm text-muted">
+        <div role="alert" className="flex flex-1 items-center justify-center rounded-xl border border-outline-variant bg-surface-container-low p-6 text-center text-sm text-on-surface-variant">
           {t('note.pdfLoadFailed')}
         </div>
       ) : (
-        <iframe src={url} title={name} className="min-h-[60vh] w-full flex-1 rounded-xl border border-line bg-surface" />
+        <iframe src={url} title={name} className="min-h-[60vh] w-full flex-1 rounded-xl border border-outline-variant bg-surface-container-low" />
       )}
     </div>
   );
@@ -940,7 +940,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
 
   if (!note) {
     return (
-      <div className="p-10 text-center text-muted anim-fade-in">
+      <div className="p-10 text-center text-on-surface-variant anim-fade-in">
         {vault.ready ? t('note.notFound') : t('common.loading')}
         <div>
           <button className="btn-ghost mt-4" onClick={() => navigate('/')}>
@@ -1005,7 +1005,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
     <div className="flex h-full min-h-0 flex-col print:block print:h-auto print:overflow-visible">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto scrollbar-thin print:block print:h-auto print:overflow-visible">
         <div className={`content-container mx-auto w-full flex-1 px-4 pt-4 sm:px-8 sm:pt-8 ${showPdf ? 'flex flex-col' : ''}`}>
-          <div className="no-print mb-3 flex items-center gap-2 text-sm text-faint anim-fade-in">
+          <div className="no-print mb-3 flex items-center gap-2 text-sm text-on-surface-variant anim-fade-in">
             <button className="btn-icon -ml-2 shrink-0 rounded-full" onClick={() => history.back()} title={t('common.back')} aria-label={t('common.back')}>
               <ArrowLeft size={18} />
             </button>
@@ -1018,7 +1018,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               <button
                 type="button"
                 onClick={() => navigate('/notes')}
-                className="truncate rounded-lg px-1.5 py-0.5 text-muted transition-colors hover:bg-raised hover:text-ink"
+                className="truncate rounded-lg px-1.5 py-0.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
               >
                 {t('note.breadcrumbRoot')}
               </button>
@@ -1031,7 +1031,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                     <button
                       type="button"
                       onClick={() => navigate(`/f/${encodeURIComponent(segPath)}`)}
-                      className="truncate rounded-lg px-1.5 py-0.5 text-muted transition-colors hover:bg-raised hover:text-ink"
+                      className="truncate rounded-lg px-1.5 py-0.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
                     >
                       {label}
                     </button>
@@ -1039,7 +1039,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 );
               })}
               <ChevronRight size={14} className="shrink-0 opacity-60" />
-              <span className="truncate px-1 font-medium text-ink/85">{isProjectHome ? name : title || displayName}</span>
+              <span className="truncate px-1 font-medium text-on-surface/85">{isProjectHome ? name : title || displayName}</span>
               {note.access !== 'owner' && (
                 <span className="chip ml-1 shrink-0">
                   <Avatar name={note.owner ?? ''} avatarUrl={note.ownerAvatar} size="xs" /> {note.owner} ·{' '}
@@ -1053,11 +1053,11 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               <PresenceBar noteId={id} />
               {readOnly && (
                 <span title={sharedReadOnly ? t('note.readOnlyShared') : t('common.readOnly')}>
-                  <Lock size={15} className="mr-1 text-muted" />
+                  <Lock size={15} className="mr-1 text-on-surface-variant" />
                 </span>
               )}
               {copiedMd && (
-                <span role="status" className="chip anim-fade-in text-accent">
+                <span role="status" className="chip anim-fade-in text-primary">
                   <Check size={13} /> {t('note.copyMarkdownDone')}
                 </span>
               )}
@@ -1065,7 +1065,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 type="button"
                 onClick={() => setNoteSplitOpen(!splitOpen)}
                 aria-pressed={splitOpen}
-                className={`btn-icon rounded-full transition-colors ${splitOpen ? 'bg-accent-container text-on-accent-container' : ''}`}
+                className={`btn-icon rounded-full transition-colors ${splitOpen ? 'bg-secondary-container text-on-secondary-container' : ''}`}
                 title={t('note.splitviewTitle')}
                 aria-label={t('note.splitviewTitle')}
               >
@@ -1119,7 +1119,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           <textarea
             ref={titleRef}
             rows={1}
-            className="note-title mb-2 block w-full resize-none overflow-hidden break-words bg-transparent text-3xl font-bold tracking-tight leading-tight outline-none placeholder:text-faint sm:text-4xl print:hidden"
+            className="note-title mb-2 block w-full resize-none overflow-hidden break-words bg-transparent text-headline-l outline-none placeholder:text-on-surface-variant print:hidden"
             value={title}
             readOnly={!isOwner}
             placeholder={t('note.titlePlaceholder')}
@@ -1133,7 +1133,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               }
             }}
           />
-          <h1 className="mb-3 hidden break-words text-3xl font-bold tracking-tight print:block">{title || displayName}</h1>
+          <h1 className="mb-3 hidden break-words text-headline-l print:block">{title || displayName}</h1>
           {!locked && (
             <div className="no-print">
               <ParaBar note={note} />
@@ -1162,15 +1162,15 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
 
           {/* Bottom links/graph overview remains visible when the right split pane is collapsed */}
           {!showPdf && !splitOpen && (backlinks.length > 0 || mentions.length > 0 || local.nodes.length > 1) && (
-            <div className="no-print mb-10 space-y-6 border-t border-line pt-4">
+            <div className="no-print mb-10 space-y-6 border-t border-outline-variant pt-4">
               {backlinks.length > 0 && (
                 <section className="anim-fade-in">
-                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-faint">{t('note.backlinksTitle', { n: backlinks.length })}</h2>
+                  <h2 className="mb-2 text-title-s text-on-surface-variant">{t('note.backlinksTitle', { n: backlinks.length })}</h2>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {backlinks.map((b) => (
-                      <button key={b.id} className="w-full min-w-0 rounded-xl border border-line p-3 text-left text-sm transition hover:border-accent/40" onClick={() => navigate(`/n/${b.id}`)}>
+                      <button key={b.id} className="w-full min-w-0 rounded-xl border border-outline-variant p-3 text-left text-sm transition hover:border-primary/40" onClick={() => navigate(`/n/${b.id}`)}>
                         <div className="truncate font-medium">{projectTitleOf(b.path, b.content, rc)}</div>
-                        <div className="line-clamp-1 break-words text-muted">{excerpt(b.content, 90)}</div>
+                        <div className="line-clamp-1 break-words text-on-surface-variant">{excerpt(b.content, 90)}</div>
                       </button>
                     ))}
                   </div>
@@ -1178,14 +1178,14 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               )}
               {mentions.length > 0 && (
                 <section className="anim-fade-in">
-                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-faint">{t('note.mentionsTitle', { n: mentions.length })}</h2>
+                  <h2 className="mb-2 text-title-s text-on-surface-variant">{t('note.mentionsTitle', { n: mentions.length })}</h2>
                   <ul className="space-y-1.5">
                     {mentions.map((m) => (
-                      <li key={m.id} className="flex items-center gap-2 rounded-xl border border-dashed border-line px-3 py-2 text-sm">
-                        <button className="min-w-0 flex-1 truncate text-left hover:text-accent" onClick={() => navigate(`/n/${m.id}`)}>
+                      <li key={m.id} className="flex items-center gap-2 rounded-xl border border-dashed border-outline-variant px-3 py-2 text-sm">
+                        <button className="min-w-0 flex-1 truncate text-left hover:text-primary" onClick={() => navigate(`/n/${m.id}`)}>
                           {projectTitleOf(m.path, m.content, rc)}
                         </button>
-                        <button className="edit-only chip shrink-0 px-2.5 py-1 hover:bg-accent/15 hover:text-accent" onClick={() => void vault.linkMention(m.id, id)}>
+                        <button className="edit-only chip shrink-0" onClick={() => void vault.linkMention(m.id, id)}>
                           <Link2 size={12} /> {t('note.linkMentionTitle')}
                         </button>
                       </li>
@@ -1195,7 +1195,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               )}
               {local.nodes.length > 1 && (
                 <section className="anim-fade-in">
-                  <button className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-faint hover:text-ink" onClick={() => setShowGraph(!showGraph)}>
+                  <button className="mb-2 flex items-center gap-1 text-title-s text-on-surface-variant hover:text-on-surface" onClick={() => setShowGraph(!showGraph)}>
                     <ChevronRight size={14} className={`transition-transform duration-200 ${showGraph ? 'rotate-90' : ''}`} /> {t('note.localGraphTitle', { n: local.nodes.length - 1 })}
                   </button>
                   {showGraph && <Graph nodes={local.nodes} edges={local.edges} focusId={id} height={300} onOpen={(n) => n !== id && navigate(`/n/${n}`)} />}
@@ -1213,7 +1213,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
         createPortal(
           <aside
             aria-label={t('note.paneTitle')}
-            className="flex min-h-0 w-80 flex-col overflow-hidden rounded-[28px] bg-surface p-4 xl:w-96 anim-fade-in"
+            className="flex min-h-0 w-80 flex-col overflow-hidden rounded-[28px] bg-surface-container-low p-4 xl:w-96 anim-fade-in"
           >
             <NoteInspectorPane
               noteId={id}
@@ -1234,8 +1234,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
       {splitOpen &&
         createPortal(
           <div data-splitview-sheet="true" className="no-print fixed inset-0 z-50 lg:hidden">
-            <div className="absolute inset-0 bg-black/50 anim-fade-in" onClick={() => setNoteSplitOpen(false)} />
-            <div className="absolute inset-y-0 right-0 flex w-[90%] max-w-sm flex-col rounded-l-3xl bg-surface p-4 shadow-soft safe-top safe-bottom">
+            <div className="absolute inset-0 bg-scrim/[0.32] anim-fade-in" onClick={() => setNoteSplitOpen(false)} />
+            <div className="absolute inset-y-0 right-0 flex w-[90%] max-w-sm flex-col rounded-l-3xl bg-surface-container-low p-4 shadow-soft safe-top safe-bottom">
               <NoteInspectorPane
                 noteId={id}
                 headings={headings}

@@ -31,7 +31,7 @@ import {
   Star,
   Trash2,
   X,
-} from 'lucide-react';
+} from '../lib/icons';
 import {
   excerpt,
   INBOX_FOLDER,
@@ -145,7 +145,7 @@ function NewNoteButton({
   };
   const menuItem = (Icon: typeof Plus, label: string, action: () => void, title?: string) => (
     <button type="button" role="menuitem" className="m3-menu-item w-full text-left" title={title} onClick={() => run(action)}>
-      <Icon size={18} className="shrink-0 text-muted" />
+      <Icon size={18} className="shrink-0 text-on-surface-variant" />
       <span className="min-w-0 flex-1 truncate">{label}</span>
     </button>
   );
@@ -207,7 +207,7 @@ function NewNoteButton({
                 pdfInput.current?.click();
               }}
             >
-              <FileType2 size={18} className="shrink-0 text-muted" />
+              <FileType2 size={18} className="shrink-0 text-on-surface-variant" />
               <span className="min-w-0 flex-1 truncate">{t('nav.pdfNote')}</span>
             </button>
           </div>,
@@ -251,8 +251,8 @@ export function SyncBadge() {
             : t('common.idle');
   const Icon = state === 'syncing' ? Loader2 : state === 'offline' ? CloudOff : state === 'error' ? AlertTriangle : Cloud;
   return (
-    <button onClick={vault.kick} title={`${label} — ${t('common.syncAction')}`} aria-label={label} className={`chip transition-colors ${state === 'offline' ? 'text-warn' : state === 'error' ? 'text-danger' : ''}`}>
-      <Icon size={14} className={state === 'syncing' ? 'animate-spin' : ''} />
+    <button onClick={vault.kick} title={`${label} — ${t('common.syncAction')}`} aria-label={label} className={`chip ${state === 'offline' ? 'text-warn' : state === 'error' ? 'text-error' : ''}`}>
+      <Icon size={18} className={state === 'syncing' ? 'animate-spin' : ''} />
       <span className="hidden sm:inline">{label}</span>
     </button>
   );
@@ -269,9 +269,9 @@ export function ReadOnlyToggle() {
       title={on ? t('nav.readOnlyDisableTitle') : t('nav.readOnlyEnableTitle')}
       aria-pressed={on}
       aria-label={label}
-      className={`chip transition-colors ${on ? 'bg-accent/15 text-accent' : 'hover:text-ink'}`}
+      className="chip"
     >
-      {on ? <Lock size={14} /> : <LockOpen size={14} />}
+      {on ? <Lock size={18} /> : <LockOpen size={18} />}
       {on && <span>{t('nav.readOnlyBadge')}</span>}
     </button>
   );
@@ -371,15 +371,15 @@ function SidebarNoteRow({
         }}
         className={`group flex min-w-0 cursor-pointer items-center gap-2 rounded-full py-1.5 pl-[26px] pr-3 text-left text-sm transition-colors ${
           highlighted
-            ? 'bg-accent/20 text-accent font-medium ring-2 ring-inset ring-accent/70'
+            ? 'bg-secondary-container text-on-secondary-container font-medium ring-2 ring-inset ring-primary'
             : active
-              ? 'bg-accent-container text-on-accent-container font-medium'
-              : 'text-muted hover:bg-raised hover:text-ink'
+              ? 'bg-secondary-container text-on-secondary-container font-medium'
+              : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
         }`}
       >
         <Icon
           size={14}
-          className={`shrink-0 ${highlighted ? 'text-accent' : active ? 'text-on-accent-container' : 'text-faint group-hover:text-muted'}`}
+          className={`shrink-0 ${highlighted ? 'text-primary' : active ? 'text-on-secondary-container' : 'text-on-surface-variant'}`}
         />
         <span className="min-w-0 flex-1 truncate">{name}</span>
       </div>
@@ -459,7 +459,7 @@ function FolderItem({
         <div
           {...dragSource({ kind: 'folder', path: node.path })}
           {...drop.props}
-          className={`drop-target group flex min-w-0 items-center rounded-full pr-1.5 text-sm transition-colors ${drop.over ? 'drop-over' : active ? 'bg-accent-container text-on-accent-container font-medium' : 'text-muted hover:bg-raised hover:text-ink'}`}
+          className={`drop-target group flex min-w-0 items-center rounded-full pr-1.5 text-sm transition-colors ${drop.over ? 'drop-over' : active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'}`}
           style={indent}
         >
           <button
@@ -492,24 +492,24 @@ function FolderItem({
             <span className="truncate">{displayName}</span>
           </div>
           <span className="edit-only flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100">
-            <button className="rounded-full p-1 hover:bg-surface hover:text-ink" title={t('list.subfolderAdd')} onClick={() => (setOpen(true), setMode('new'))}>
+            <button className="rounded-full p-1 hover:bg-surface-container-low hover:text-on-surface" title={t('list.subfolderAdd')} onClick={() => (setOpen(true), setMode('new'))}>
               <FolderPlus size={13} />
             </button>
-            <button className="rounded-full p-1 hover:bg-surface hover:text-ink" title={t('nav.renameFolder')} onClick={() => setMode('rename')}>
+            <button className="rounded-full p-1 hover:bg-surface-container-low hover:text-on-surface" title={t('nav.renameFolder')} onClick={() => setMode('rename')}>
               <Pencil size={13} />
             </button>
             {!vault.standalone && (
-              <button className="rounded-full p-1 hover:bg-surface hover:text-ink" title={t('nav.shareFolder')} onClick={() => setSharing(true)}>
+              <button className="rounded-full p-1 hover:bg-surface-container-low hover:text-on-surface" title={t('nav.shareFolder')} onClick={() => setSharing(true)}>
                 <Share2 size={13} />
               </button>
             )}
             {empty && (
-              <button className="rounded-full p-1 hover:bg-surface hover:text-danger" title={t('nav.deleteEmptyFolder')} onClick={() => void vault.deleteFolder(node.path)}>
+              <button className="rounded-full p-1 hover:bg-surface-container-low hover:text-error" title={t('nav.deleteEmptyFolder')} onClick={() => void vault.deleteFolder(node.path)}>
                 <Trash2 size={13} />
               </button>
             )}
           </span>
-          <span className={`w-5 shrink-0 text-right text-xs text-faint ${locked ? '' : 'group-hover:hidden [@media(hover:none)]:hidden'}`}>{folderNotes.length || ''}</span>
+          <span className={`w-5 shrink-0 text-right text-xs text-on-surface-variant ${locked ? '' : 'group-hover:hidden [@media(hover:none)]:hidden'}`}>{folderNotes.length || ''}</span>
         </div>
       )}
       {/* Portal: the sidebar may be transformed (mobile drawer), which would trap a fixed overlay */}
@@ -602,12 +602,12 @@ function SectionHeader({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="mt-2 mb-0.5 flex shrink-0 items-center gap-1 pl-1 pr-3 text-xs font-semibold uppercase tracking-wider text-faint">
+    <div className="mt-2 mb-0.5 flex shrink-0 items-center gap-1 pl-1 pr-3 text-title-s text-on-surface-variant">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex min-w-0 flex-1 items-center gap-1 rounded-full px-2 py-1 text-left transition-colors hover:bg-raised hover:text-ink"
+        className="flex min-w-0 flex-1 items-center gap-1 rounded-full px-2 py-1 text-left transition-colors hover:bg-surface-container-high hover:text-on-surface"
       >
         {open ? <ChevronDown size={13} className="shrink-0" /> : <ChevronRight size={13} className="shrink-0" />}
         {Icon && <Icon size={12} className="shrink-0" />}
@@ -778,7 +778,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
         aria-label={label}
         title={label}
         className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${
-          active ? 'bg-accent-container text-on-accent-container' : 'text-muted hover:bg-raised hover:text-ink'
+          active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
         }`}
       >
         <Icon size={19} />
@@ -789,8 +789,8 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
   const countBadge = (n: number, tone: 'warn' | 'muted' = 'muted') =>
     n > 0 ? (
       <span
-        className={`absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full px-1 text-center text-[10px] font-semibold leading-[1.1rem] ${
-          tone === 'warn' ? 'bg-warn text-surface' : 'bg-raised text-muted ring-1 ring-line'
+        className={`absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full px-1 text-center text-[10px] font-medium leading-[1.1rem] ${
+          tone === 'warn' ? 'bg-warn text-surface-container-low' : 'bg-surface-container-high text-on-surface-variant ring-1 ring-outline-variant'
         }`}
       >
         {n > 99 ? '99+' : n}
@@ -807,7 +807,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
       <div className="mb-2 flex min-w-0 shrink-0 items-center gap-1.5 px-1">
         {headerAction}
         <img src="/icons/icon.svg" className="h-7 w-7 shrink-0" alt="" />
-        <span className="min-w-0 truncate font-semibold tracking-tight">Kladde</span>
+        <span className="min-w-0 truncate font-medium tracking-tight">Kladde</span>
         <div className="ml-auto flex shrink-0 items-center gap-1">
           <ReadOnlyToggle />
           <SyncBadge />
@@ -815,8 +815,8 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
       </div>
 
       {/* Inline Material 3 search bar in the sidebar */}
-      <div className="mb-2 flex h-10 shrink-0 items-center gap-2 rounded-full border border-line/60 bg-raised px-3.5 transition-colors focus-within:border-accent">
-        <Search size={16} className="shrink-0 text-muted" />
+      <div className="mb-2 flex h-10 shrink-0 items-center gap-2 rounded-full border border-outline-variant/60 bg-surface-container-high px-3.5 transition-colors focus-within:border-primary">
+        <Search size={16} className="shrink-0 text-on-surface-variant" />
         <input
           data-search-input
           value={query}
@@ -842,10 +842,10 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
           aria-activedescendant={terms.length > 0 && searchResults.length ? `sidebar-search-result-${selectedResult}` : undefined}
           placeholder={t('search.sidebarPlaceholder')}
           aria-label={t('common.search')}
-          className="min-w-0 flex-1 bg-transparent text-sm text-ink placeholder:text-faint outline-none"
+          className="min-w-0 flex-1 bg-transparent text-sm text-on-surface placeholder:text-on-surface-variant outline-none"
         />
         {query && (
-          <button type="button" onClick={() => setQuery('')} aria-label={t('search.clear')} title={t('search.clear')} className="rounded-full p-0.5 text-muted transition-colors hover:bg-surface hover:text-ink">
+          <button type="button" onClick={() => setQuery('')} aria-label={t('search.clear')} title={t('search.clear')} className="rounded-full p-0.5 text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface">
             <X size={14} />
           </button>
         )}
@@ -853,13 +853,13 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
 
       {terms.length > 0 ? (
         <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin pr-0.5">
-          <div className="mb-1.5 flex items-center gap-1 px-2 text-xs font-medium text-faint">
+          <div className="mb-1.5 flex items-center gap-1 px-2 text-xs font-medium text-on-surface-variant">
             <span className="min-w-0 flex-1 truncate">{t('search.resultsCount', { n: searchResults.length })}</span>
             {activeNote && (
               <button
                 type="button"
                 data-focus-open-note="true"
-                className="rounded-full p-1 transition-colors hover:bg-raised hover:text-ink"
+                className="rounded-full p-1 transition-colors hover:bg-surface-container-high hover:text-on-surface"
                 title={t('nav.focusOpenNote')}
                 aria-label={t('nav.focusOpenNote')}
                 onClick={focusOpenNote}
@@ -869,7 +869,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
             )}
           </div>
           {searchResults.length === 0 ? (
-            <p className="px-2 py-6 text-center text-sm text-muted">{t('search.noResults')}</p>
+            <p className="px-2 py-6 text-center text-sm text-on-surface-variant">{t('search.noResults')}</p>
           ) : (
             <ul id="sidebar-search-results" role="listbox" className="space-y-1">
               {searchResults.map((n, i) => {
@@ -886,12 +886,12 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
                       onMouseMove={() => selected || setActiveResult(i)}
                       aria-current={active ? 'page' : undefined}
                       className={`w-full rounded-2xl px-3 py-2 text-left transition-colors ${
-                        active ? 'bg-accent-container text-on-accent-container' : selected ? 'bg-raised' : 'hover:bg-raised'
-                      } ${selected ? 'ring-2 ring-inset ring-accent/60' : ''}`}
+                        active ? 'bg-secondary-container text-on-secondary-container' : selected ? 'bg-surface-container-high' : 'hover:bg-surface-container-high'
+                      } ${selected ? 'ring-2 ring-inset ring-primary/60' : ''}`}
                     >
                       <div className="truncate text-sm font-medium">{title}</div>
-                      <div className="truncate text-[11px] text-muted">{folderDisplayName(folder, lang)}</div>
-                      {excerpt(n.content, 65) && <div className="mt-0.5 truncate text-xs text-faint">{excerpt(n.content, 65)}</div>}
+                      <div className="truncate text-[11px] text-on-surface-variant">{folderDisplayName(folder, lang)}</div>
+                      {excerpt(n.content, 65) && <div className="mt-0.5 truncate text-xs text-on-surface-variant">{excerpt(n.content, 65)}</div>}
                     </button>
                   </li>
                 );
@@ -917,7 +917,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
             {features.review.enabled &&
               navIcon('review', CalendarCheck, reviewDue() ? `${t('nav.review')} · ${t('home.reviewDueChip')}` : t('nav.review'), {
                 to: '/review',
-                badge: reviewDue() ? <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-accent" /> : null,
+                badge: reviewDue() ? <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary" /> : null,
               })}
             {(shared > 0 || vault.sharedFolders.length > 0) &&
               !vault.standalone &&
@@ -939,7 +939,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
             <button
               type="button"
               data-focus-open-note="true"
-              className="rounded-full p-1 transition-colors hover:bg-raised hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-full p-1 transition-colors hover:bg-surface-container-high hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-40"
               title={activeNote ? t('nav.focusOpenNote') : t('nav.focusOpenNoteEmpty')}
               aria-label={t('nav.focusOpenNote')}
               disabled={!activeNote}
@@ -948,7 +948,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
               <LocateFixed size={14} />
             </button>
             <button
-              className="edit-only rounded-full p-1 hover:bg-raised hover:text-ink"
+              className="edit-only rounded-full p-1 hover:bg-surface-container-high hover:text-on-surface"
               title={t('nav.newFolder')}
               aria-label={t('nav.newFolder')}
               onClick={() => {
@@ -996,7 +996,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
               />
             ))}
             <li className="edit-only mt-1">
-              <div {...rootDrop.props} className={`drop-target drop-zone-root rounded-xl border border-dashed border-line px-3 py-2 text-xs text-faint ${rootDrop.over ? 'drop-over' : ''}`}>
+              <div {...rootDrop.props} className={`drop-target drop-zone-root rounded-xl border border-dashed border-outline-variant px-3 py-2 text-xs text-on-surface-variant ${rootDrop.over ? 'drop-over' : ''}`}>
                 {t('nav.dropTopLevel')}
               </div>
             </li>
@@ -1013,7 +1013,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
             onClick={() => nav('/settings')}
             aria-current={settingsActive ? 'page' : undefined}
             className={`flex w-full shrink-0 items-center gap-3 rounded-full px-3 py-2 text-sm font-medium transition-colors ${
-              settingsActive ? 'bg-accent-container text-on-accent-container' : 'text-muted hover:bg-raised hover:text-ink'
+              settingsActive ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
             }`}
           >
             <Avatar name={me.username} avatarUrl={me.avatarUrl} size="xs" active={settingsActive} />
@@ -1163,11 +1163,11 @@ export function Shell({ me, children, isAdmin }: { me: Me; children: React.React
           <div
             role="status"
             aria-live="polite"
-            className="no-print pointer-events-none fixed bottom-20 left-1/2 z-[80] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-2xl border border-line/60 bg-raised px-4 py-2.5 text-sm font-medium text-ink shadow-soft anim-fade-up md:bottom-6"
+            className="m3-snackbar no-print pointer-events-none fixed bottom-24 left-1/2 z-[80] flex min-h-12 max-w-[min(calc(100vw-2rem),42rem)] -translate-x-1/2 items-center gap-3 px-4 py-3 text-body-m anim-fade-up md:bottom-6"
           >
-            {toast.tone === 'ok' && <CheckCircle2 size={16} className="shrink-0 text-ok" />}
-            {toast.tone === 'warn' && <CloudOff size={16} className="shrink-0 text-warn" />}
-            {toast.tone === 'danger' && <AlertTriangle size={16} className="shrink-0 text-danger" />}
+            {toast.tone === 'ok' && <CheckCircle2 size={20} className="shrink-0 text-inverse-primary" />}
+            {toast.tone === 'warn' && <CloudOff size={20} className="shrink-0" />}
+            {toast.tone === 'danger' && <AlertTriangle size={20} className="shrink-0" />}
             <span className="truncate">{toast.text}</span>
           </div>,
           document.body

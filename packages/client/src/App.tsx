@@ -126,7 +126,7 @@ export function App() {
   const link = match(path, '/link/:code');
   if (link && !me?.standalone) return <LinkDevice code={link.code} onDone={signedIn} />;
 
-  if (me === undefined) return <div className="flex h-full items-center justify-center text-faint">…</div>;
+  if (me === undefined) return <div className="flex h-full items-center justify-center text-on-surface-variant">…</div>;
   if (me === null) return <Login onDone={signedIn} />;
   // An AI assistant asks for access (OAuth): after the login above, without the app around it
   if (path === '/oauth/authorize') return <OAuthConsent me={me} />;
