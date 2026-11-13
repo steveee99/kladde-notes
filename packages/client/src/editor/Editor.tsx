@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { Compartment, EditorState, Extension, Prec, Transaction } from '@codemirror/state';
+import { Compartment, EditorState, Extension, Transaction } from '@codemirror/state';
 import { EditorView, KeyBinding, keymap, placeholder as cmPlaceholder } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import { deleteMarkupBackward, insertNewlineContinueMarkupCommand, markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
@@ -172,17 +172,6 @@ const saveAction = () => {
   editorHost.requestSave();
   return true;
 };
-/**
- * Markdown's Enter/Backspace. Enter on an empty item ends the list; CodeMirror's default instead turns a
- * two-item list into a loose one there (empty line, then a new item), which looked like Enter adding a blank line.
- */
-const markdownKeys = Prec.high(
-  keymap.of([
-    { key: 'Enter', run: insertNewlineContinueMarkupCommand({ nonTightLists: false }) },
-    { key: 'Backspace', run: deleteMarkupBackward },
-  ])
-);
-
 const formatKeymap: KeyBinding[] = [
   ...formatCommands.flatMap(([key, run]) => [
     { key: `Mod-${key}`, run, preventDefault: true },
@@ -246,8 +235,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
         extensions: [
           history(),
           keymap.of([...formatKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
-          markdownKeys,
-          markdown({ base: markdownLanguage, codeLanguages: languages, extensions: [statusTaskList], addKeymap: false }),
+          markdown({ base: markdownLanguage, codeLanguages: languages, extensions: [statusTaskList] }),
           proseTheme,
           EditorView.lineWrapping,
           noteIdFacet.of(docKey),
