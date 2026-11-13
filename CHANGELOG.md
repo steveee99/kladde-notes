@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.0.0] – 2026-11-13
+
 - Security: Links, images and PDF embeds in notes only accept `http`, `https`, relative addresses and (for links) `mailto:`/`tel:`. Before, a `javascript:` address in a shared note or behind a public link could run code in the reader's session (stored XSS). Such links are now shown as plain text.
 - Security: The app sends a Content-Security-Policy: scripts only from Kladde itself, no plugins, no framing by other sites. Excalidraw no longer loads its CJK font (Xiaolai) from a CDN.
 - Removed: Git sync. Its settings page, API and background job are gone; the stored repository addresses and access tokens are deleted from the database on start-up, the local working copies in `data/git` too. The Docker image no longer contains `git`. Use the export mirror (`EXPORT_DIR`) or the Markdown export instead.
