@@ -11,6 +11,7 @@ All user-visible changes to Kladde.
 - Changed: On phones the notes list no longer shows a separate "New" button next to the "Capture" button.
 - Fixed: Longer labels in the navigation rail (e.g. "Attachments") are no longer cut off.
 - Fixed: Note previews in lists and cards no longer show the table-of-contents marker (`##TOC##`, `[[TOC]]`) or table pipes and separator rows.
+- Fixed: Pressing Enter on an empty task or list item right after the first one ends the list instead of inserting an empty line and another item (#1).
 
 ## [1.0.0] – 2026-11-12
 
