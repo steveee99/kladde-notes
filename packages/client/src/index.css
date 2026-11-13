@@ -1380,7 +1380,7 @@ span.cm-checkbox {
   padding: 8px;
   border: 1px solid rgb(var(--outline-variant));
   border-radius: 12px;
-  background: rgb(var(--surface-container-high) / 0.4);
+  background: rgb(var(--surface-container));
   transition: border-color 150ms, background 150ms;
 }
 .wz-lane.over {
@@ -1403,10 +1403,25 @@ span.cm-checkbox {
   padding: 8px 10px;
   border: 1px solid rgb(var(--outline-variant));
   border-radius: 10px;
-  background: rgb(var(--surface-container-low));
+  /* Cards sit one tone above the lane (dark: highest, light: lowest = white) plus elevation 1 */
   font-size: 0.92em;
   cursor: pointer;
-  transition: border-color 150ms, transform 150ms var(--ease);
+  transition: border-color 150ms, transform 150ms var(--ease), box-shadow 150ms var(--ease);
+}
+/* Kanban cards (note blocks and the task board) sit one tone above their lane:
+   dark -> surface-container-highest, light -> surface-container-lowest (white), plus elevation 1 */
+.wz-card,
+.card.board-card {
+  background: rgb(var(--surface-container-highest));
+  box-shadow: var(--elevation-1);
+}
+[data-theme='material'][data-scheme='light'] .wz-card,
+[data-theme='material'][data-scheme='light'] .card.board-card {
+  background: rgb(var(--surface-container-lowest));
+}
+.wz-card:hover,
+.card.board-card:hover {
+  box-shadow: var(--elevation-2);
 }
 .wz-card:hover {
   border-color: rgb(var(--primary) / 0.5);

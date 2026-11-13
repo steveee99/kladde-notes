@@ -7,9 +7,10 @@ import { useReadOnly } from '../lib/readOnly';
 import { navigate } from '../lib/router';
 import { Dropdown, DropdownOption } from './Dropdown';
 
-const CELL_PX = 12;
-const GAP_PX = 3;
-const COL_STEP = CELL_PX + GAP_PX;
+/** Cells grow to fill the card width; below MIN the grid scrolls horizontally. */
+const MIN_CELL_PX = 12;
+const MAX_CELL_PX = 32;
+const LABEL_COL_PX = 20 + 8; // weekday label width + gap to the grid
 
 /**
  * GitHub-style activity heatmap calendar.
@@ -24,6 +25,17 @@ export function ActivityHeatmap({ embedded = false }: { embedded?: boolean }) {
   const [period, setPeriod] = useState<string>('rolling');
   const [inspectCell, setInspectCell] = useState<HeatmapCell | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [availWidth, setAvailWidth] = useState(0);
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => setAvailWidth(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const infoDateFmt = useMemo(() => new Intl.DateTimeFormat(loc, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }), [loc]);
   const weekdayLabels = heatmapWeekdayLabels(lang);
@@ -87,7 +99,15 @@ export function ActivityHeatmap({ embedded = false }: { embedded?: boolean }) {
     else navigate(`/daily/${dateStr}`);
   };
 
-  const gridWidth = Math.max(1, data.weeks.length * COL_STEP - GAP_PX);
+  const weekCount = Math.max(1, data.weeks.length);
+  // Gap grows a little on wide cards so larger squares keep a balanced rhythm
+  const gapPx = (availWidth - LABEL_COL_PX) / weekCount >= 23 ? 4 : 3;
+  const fitCell = Math.floor((availWidth - LABEL_COL_PX + gapPx) / weekCount - gapPx);
+  const cellPxFinal = Math.max(MIN_CELL_PX, Math.min(MAX_CELL_PX, fitCell));
+  const colStep = cellPxFinal + gapPx;
+  const gridWidth = Math.max(1, weekCount * colStep - gapPx);
+  const cellStyle = { width: `${cellPxFinal}px`, height: `${cellPxFinal}px`, borderRadius: `${Math.max(3, Math.round(cellPxFinal / 5))}px` };
+  const labelFontPx = cellPxFinal >= 18 ? 11 : 10;
   const activeBadgeText =
     data.activeDays === 1 ? tl(lang, 'heatmap.activeDaySingle') : tl(lang, 'heatmap.activeDays', { n: data.activeDays });
 
@@ -123,29 +143,35 @@ export function ActivityHeatmap({ embedded = false }: { embedded?: boolean }) {
 
       <div ref={scrollRef} className="overflow-x-auto pb-1 scrollbar-thin" onMouseLeave={() => setInspectCell(null)}>
         <div className="inline-flex min-w-max items-start gap-2">
-          <div className="flex shrink-0 flex-col gap-[3px] pt-[20px] text-[10px] leading-[12px] text-on-surface-variant select-none">
+          <div
+            className="flex shrink-0 flex-col pt-[20px] text-on-surface-variant select-none"
+            style={{ gap: `${gapPx}px`, fontSize: `${labelFontPx}px` }}
+          >
             {weekdayLabels.map((label, i) => (
-              <span key={i} className="h-[12px] w-5 text-right">
+              <span key={i} className="flex w-5 items-center justify-end" style={{ height: `${cellPxFinal}px` }}>
                 {label}
               </span>
             ))}
           </div>
 
           <div>
-            <div className="relative mb-1.5 h-[14px] text-[10px] leading-[14px] text-on-surface-variant select-none" style={{ width: `${gridWidth}px` }}>
+            <div
+              className="relative mb-1.5 h-[14px] leading-[14px] text-on-surface-variant select-none"
+              style={{ width: `${gridWidth}px`, fontSize: `${labelFontPx}px` }}
+            >
               {data.monthLabels.map((m) => (
-                <span key={`${m.weekIndex}-${m.label}`} className="absolute top-0 whitespace-nowrap" style={{ left: `${m.weekIndex * COL_STEP}px` }}>
+                <span key={`${m.weekIndex}-${m.label}`} className="absolute top-0 whitespace-nowrap" style={{ left: `${m.weekIndex * colStep}px` }}>
                   {m.label}
                 </span>
               ))}
             </div>
 
-            <div className="flex gap-[3px]" role="grid" aria-label={tl(lang, 'heatmap.gridAria')}>
+            <div className="flex" style={{ gap: `${gapPx}px` }} role="grid" aria-label={tl(lang, 'heatmap.gridAria')}>
               {data.weeks.map((week, wIdx) => (
-                <div key={wIdx} className="flex flex-col gap-[3px]">
+                <div key={wIdx} className="flex flex-col" style={{ gap: `${gapPx}px` }}>
                   {week.map((cell) => {
                     if (!cell.inRange) {
-                      return <span key={cell.date} className="block h-[12px] w-[12px] shrink-0" aria-hidden="true" />;
+                      return <span key={cell.date} className="block shrink-0" style={cellStyle} aria-hidden="true" />;
                     }
                     const tip = formatActivityText(cell);
                     if (daily.enabled) {
@@ -162,7 +188,8 @@ export function ActivityHeatmap({ embedded = false }: { embedded?: boolean }) {
                           onMouseEnter={() => setInspectCell(cell)}
                           onFocus={() => setInspectCell(cell)}
                           onClick={() => void openDay(cell.date)}
-                          className="heatmap-cell h-[12px] w-[12px] shrink-0 cursor-pointer hover:ring-2 hover:ring-primary/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                          style={cellStyle}
+                          className="heatmap-cell shrink-0 cursor-pointer hover:ring-2 hover:ring-primary/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         />
                       );
                     }
@@ -179,7 +206,8 @@ export function ActivityHeatmap({ embedded = false }: { embedded?: boolean }) {
                         aria-label={tip}
                         onMouseEnter={() => setInspectCell(cell)}
                         onTouchStart={() => setInspectCell(cell)}
-                        className="heatmap-cell h-[12px] w-[12px] shrink-0 cursor-default"
+                        style={cellStyle}
+                        className="heatmap-cell shrink-0 cursor-default"
                       />
                     );
                   })}

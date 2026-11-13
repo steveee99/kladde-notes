@@ -301,7 +301,7 @@ function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
             key={status}
             data-testid={`kanban-${status}`}
             className={`flex w-[78vw] max-w-[18rem] shrink-0 snap-start flex-col gap-2 rounded-2xl border p-2 transition-colors sm:w-64 lg:w-auto lg:max-w-none ${
-              over === status ? 'border-primary bg-primary/10' : 'border-outline-variant/70 bg-surface-container-high/40'
+              over === status ? 'border-primary bg-primary/10' : 'border-outline-variant/70 bg-surface-container'
             }`}
             onDragOver={(e) => {
               if (locked || !e.dataTransfer.types.includes(DRAG_MIME)) return;
@@ -350,7 +350,7 @@ function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
                     navigate(`/n/${tk.noteId}?line=${tk.line + 1}`);
                   }}
                   title={tk.noteTitle ? t('home.taskDoubleClickHint') : undefined}
-                  className={`card flex gap-2 p-2.5 ${hasMeta ? 'items-start' : 'items-center'} transition-all hover:bg-surface-container ${locked ? '' : 'cursor-grab active:cursor-grabbing'}`}
+                  className={`card board-card flex gap-2 p-2.5 ${hasMeta ? 'items-start' : 'items-center'} transition-all ${locked ? '' : 'cursor-grab active:cursor-grabbing'}`}
                 >
                   <button
                     type="button"
