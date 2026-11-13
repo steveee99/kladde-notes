@@ -28,18 +28,18 @@ function cssColor(name: string): string {
 
 function themeVariables() {
   const v = {
-    bg: cssColor('--bg'),
-    surface: cssColor('--surface'),
-    raised: cssColor('--raised'),
-    line: cssColor('--line'),
-    ink: cssColor('--ink'),
-    muted: cssColor('--muted'),
-    accent: cssColor('--accent'),
-    onAccent: cssColor('--on-accent'),
-    accent2: cssColor('--accent2'),
+    bg: cssColor('--surface'),
+    surface: cssColor('--surface-container-low'),
+    raised: cssColor('--surface-container-high'),
+    line: cssColor('--outline-variant'),
+    ink: cssColor('--on-surface'),
+    muted: cssColor('--on-surface-variant'),
+    accent: cssColor('--primary'),
+    onAccent: cssColor('--on-primary'),
+    accent2: cssColor('--tertiary'),
     ok: cssColor('--ok'),
     warn: cssColor('--warn'),
-    danger: cssColor('--danger'),
+    danger: cssColor('--error'),
   };
   // Mind map branches and pie slices cycle through these
   const scale = [v.accent, v.accent2, v.warn, v.ok, v.danger, v.muted];

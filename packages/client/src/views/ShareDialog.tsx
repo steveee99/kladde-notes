@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Copy, Folder, Globe, Trash2, UserPlus, X } from 'lucide-react';
+import { Copy, Folder, Globe, Trash2, UserPlus, X } from '../lib/icons';
 import type { FolderPermissions, FolderShares, NoteShare, NoteShares } from '@kladde/shared';
 import { api } from '../lib/api';
 import { folderDisplayName, folderLeafDisplayName, getLang, Lang, tl, useLang } from '../lib/i18n';
 import { useVisualViewport } from '../lib/viewport';
 import { Avatar } from './Avatar';
 import { Dropdown } from './Dropdown';
+import { Switch } from './Switch';
 
 /** What is shared: one note, or a folder with its subfolders (including notes added later) */
 export type ShareTarget = { note: string } | { folder: string };
@@ -57,7 +58,7 @@ function PermissionPicker({ folder, value, onChange }: { folder: boolean; value:
     return (
       <Dropdown
         variant="ghost"
-        className="shrink-0 text-muted"
+        className="shrink-0 text-on-surface-variant"
         value={value.canWrite ? 'w' : 'r'}
         aria-label={tl(lang, 'share.permWrite')}
         onChange={(v) => onChange({ ...READ_ONLY, canWrite: v === 'w' })}
@@ -80,7 +81,7 @@ function PermissionPicker({ folder, value, onChange }: { folder: boolean; value:
   ];
   return (
     <div className="flex flex-wrap gap-1">
-      <span className="chip bg-accent-container/60 text-on-accent-container" title={tl(lang, 'share.permReadAlwaysTitle')}>
+      <span className="chip bg-secondary-container text-on-secondary-container" title={tl(lang, 'share.permReadAlwaysTitle')}>
         {tl(lang, 'share.permRead')}
       </span>
       {options.map(([key, label, title]) => (
@@ -89,7 +90,7 @@ function PermissionPicker({ folder, value, onChange }: { folder: boolean; value:
           type="button"
           title={title}
           aria-pressed={value[key]}
-          className={`chip transition-colors ${value[key] ? 'bg-accent-container text-on-accent-container' : 'text-faint hover:text-ink'}`}
+          className={`chip ${value[key] ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:text-on-surface'}`}
           onClick={() => toggle(key)}
         >
           {label}
@@ -129,17 +130,17 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose:
       className="fixed inset-x-0 z-50 flex items-end justify-center sm:items-center"
       style={vp ? { top: `${vp.top}px`, height: `${vp.height}px` } : { top: 0, bottom: 0 }}
     >
-      <div className="fixed inset-0 bg-black/40 anim-fade-in" onClick={onClose} />
-      <div className="relative max-h-[min(90vh,100%)] w-full max-w-md overflow-y-auto rounded-t-3xl bg-surface px-5 pt-5 shadow-soft anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-3xl">
+      <div className="fixed inset-0 bg-scrim/[0.32] anim-fade-in" onClick={onClose} />
+      <div className="relative max-h-[min(90vh,100%)] w-full max-w-md overflow-y-auto rounded-t-3xl bg-surface-container-high px-6 pt-6 shadow-elevation-3 anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-3xl">
         <div className="mb-4 flex items-center gap-2">
-          <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">
+          <h2 className="min-w-0 flex-1 truncate text-headline-s">
             {isNote ? tl(lang, 'share.noteTitle') : tl(lang, 'share.folderTitle', { name: folderLeafDisplayName(target.folder, lang) })}
           </h2>
           <button className="btn-icon ml-auto shrink-0" onClick={onClose} aria-label={tl(lang, 'common.close')}>
             <X size={18} />
           </button>
         </div>
-        {!isNote && <p className="mb-3 text-sm text-muted">{tl(lang, 'share.folderHint')}</p>}
+        {!isNote && <p className="mb-3 text-sm text-on-surface-variant">{tl(lang, 'share.folderHint')}</p>}
         <form
           className={isNote ? 'flex gap-2' : 'space-y-2'}
           onSubmit={(e) => {
@@ -161,7 +162,7 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose:
             u.viaFolder ? (
               <ViaFolder key={u.username} share={u} />
             ) : (
-              <li key={u.username} className="flex flex-wrap items-center gap-2.5 rounded-xl px-2 py-1.5 anim-fade-up hover:bg-raised">
+              <li key={u.username} className="flex flex-wrap items-center gap-2.5 rounded-xl px-2 py-1.5 anim-fade-up hover:bg-surface-container-high">
                 <Avatar name={u.username} avatarUrl={u.avatarUrl} size="sm" />
                 <span className="min-w-0 flex-1 truncate">{u.username}</span>
                 {isNote && <PermissionPicker folder={false} value={permissionsOf(u)} onChange={(p) => void call(ep.set(u.username, p))} />}
@@ -179,32 +180,19 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose:
           {shares?.inherited?.map((u) => <ViaFolder key={`${u.viaFolder}:${u.username}`} share={u} />)}
         </ul>
         {isNote && (
-          <div className="mt-5 rounded-2xl border border-line p-3.5">
+          <div className="mt-5 rounded-2xl border border-outline-variant p-3.5">
             <div className="flex items-center gap-2 text-sm font-medium">
-              <Globe size={16} className="text-accent2" />
+              <Globe size={16} className="text-tertiary" />
               <span className="flex-1">{tl(lang, 'share.publicLinkLabel')}</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={!!link}
-                aria-label={tl(lang, 'share.publicLinkLabel')}
-                onClick={() => void call(api<NoteShares>(`/notes/${noteId}/public`, { method: 'PUT', json: { enabled: !link } }))}
-                className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full border-2 p-0.5 transition-colors ${
-                  link ? 'border-accent bg-accent' : 'border-faint/60 bg-raised'
-                }`}
-              >
-                <span
-                  className={`flex h-5 w-5 items-center justify-center rounded-full transition-transform duration-150 ${
-                    link ? 'translate-x-5 bg-on-accent text-accent' : 'translate-x-0 scale-75 bg-muted text-surface'
-                  }`}
-                >
-                  {link && <Check size={12} strokeWidth={3} />}
-                </span>
-              </button>
+              <Switch
+                checked={!!link}
+                label={tl(lang, 'share.publicLinkLabel')}
+                onChange={(on) => void call(api<NoteShares>(`/notes/${noteId}/public`, { method: 'PUT', json: { enabled: on } }))}
+              />
             </div>
             {link && (
               <button
-                className="mt-2.5 flex w-full items-center gap-2 rounded-xl bg-raised px-3 py-2 text-left text-xs text-muted anim-fade-in"
+                className="mt-2.5 flex w-full items-center gap-2 rounded-xl bg-surface-container-high px-3 py-2 text-left text-xs text-on-surface-variant anim-fade-in"
                 onClick={() => {
                   void navigator.clipboard?.writeText(link);
                   setCopied(true);
@@ -217,7 +205,7 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose:
             )}
           </div>
         )}
-        {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+        {error && <p className="mt-3 text-sm text-error">{error}</p>}
       </div>
     </div>,
     document.body
@@ -228,10 +216,10 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose:
 function ViaFolder({ share }: { share: NoteShare }) {
   const lang = useLang();
   return (
-    <li className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-muted anim-fade-up" title={tl(lang, 'share.viaFolderTitle')}>
+    <li className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-on-surface-variant anim-fade-up" title={tl(lang, 'share.viaFolderTitle')}>
       <Avatar name={share.username} avatarUrl={share.avatarUrl} size="sm" />
       <span className="min-w-0 flex-1 truncate">{share.username}</span>
-      <span className="flex max-w-[60%] min-w-0 items-center gap-1 text-xs text-faint">
+      <span className="flex max-w-[60%] min-w-0 items-center gap-1 text-xs text-on-surface-variant">
         <Folder size={12} className="shrink-0" /> <span className="truncate">{share.viaFolder ? folderDisplayName(share.viaFolder, lang) : ''}</span> ·{' '}
         <span className="shrink-0">{describePermissions(permissionsOf(share), lang)}</span>
       </span>

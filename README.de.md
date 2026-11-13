@@ -4,7 +4,18 @@
 
 **Kladde** ist eine selbst gehostete Notiz-App für den Browser: Markdown mit Live-Vorschau, Aufgaben mit Fälligkeit und Wiederholung, Abfragen und Kanban-Boards über die eigenen Notizen – offline nutzbar auf Handy, iPad und Desktop, synchronisiert sobald wieder online. Zugang nur per Einladung, Anmeldung per **Passkey**, optional **mit GitLab** – oder mit Benutzername und Passwort, wo Passkeys nicht gehen (lokales Netz ohne HTTPS).
 
-![Kladde: Notiz mit Live-Vorschau, Inhaltsverzeichnis und Aufgaben mit Fälligkeit](docs/images/screenshot.png)
+![Kladde: Projektnotiz mit Eigenschaften, Aufgaben mit Status und Fälligkeit und einer bearbeitbaren Tabelle](docs/images/screenshot.png)
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/home-light.png" alt="Startseite im hellen Farbschema: Aufgaben nach überfällig, heute und demnächst"></td>
+    <td width="50%"><img src="docs/images/graph.png" alt="Wissensgraph der verlinkten Notizen"></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/phone-home.png" alt="Startseite auf dem Smartphone" width="260"></td>
+    <td align="center"><img src="docs/images/phone-note.png" alt="Notiz bearbeiten auf dem Smartphone" width="260"></td>
+  </tr>
+</table>
 
 > Eine *Kladde* ist das Notizbuch, in das erst einmal alles hineinkommt, bevor es ins Reine geschrieben wird.
 

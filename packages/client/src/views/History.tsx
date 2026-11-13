@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, RotateCcw, X } from 'lucide-react';
+import { ArrowLeft, RotateCcw, X } from '../lib/icons';
 import { diffLines, diffStats, NoteVersion, NoteVersionInfo, splitPath } from '@kladde/shared';
 import { api } from '../lib/api';
 import { vault } from '../data/vault';
@@ -67,33 +67,33 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
       className="fixed inset-x-0 z-50 flex items-end justify-center sm:items-center"
       style={vp ? { top: `${vp.top}px`, height: `${vp.height}px` } : { top: 0, bottom: 0 }}
     >
-      <div className="fixed inset-0 bg-black/40 anim-fade-in" onClick={onClose} />
-      <div className="relative flex h-[min(90vh,100%)] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl bg-surface shadow-soft anim-sheet sm:rounded-3xl">
-        <div className="flex items-center gap-2 border-b border-line px-4 py-3">
+      <div className="fixed inset-0 bg-scrim/[0.32] anim-fade-in" onClick={onClose} />
+      <div className="relative flex h-[min(90vh,100%)] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl bg-surface-container-high shadow-elevation-3 anim-sheet sm:rounded-3xl">
+        <div className="flex items-center gap-2 border-b border-outline-variant px-4 py-3">
           {detail && (
             <button className="btn-icon shrink-0 sm:hidden" onClick={() => setDetail(false)} title={tl(lang, 'history.backToList')}>
               <ArrowLeft size={18} />
             </button>
           )}
-          <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">{tl(lang, 'history.title')}</h2>
+          <h2 className="min-w-0 flex-1 truncate text-headline-s">{tl(lang, 'history.title')}</h2>
           <button className="btn-icon ml-auto shrink-0" onClick={onClose} title={tl(lang, 'common.close')}>
             <X size={18} />
           </button>
         </div>
         {error ? (
-          <div className="p-6 text-center text-danger">{error}</div>
+          <div className="p-6 text-center text-error">{error}</div>
         ) : !versions ? (
-          <div className="p-6 text-center text-faint">{tl(lang, 'common.loading')}</div>
+          <div className="p-6 text-center text-on-surface-variant">{tl(lang, 'common.loading')}</div>
         ) : !versions.length ? (
-          <div className="p-6 text-center text-muted">{tl(lang, 'history.empty')}</div>
+          <div className="p-6 text-center text-on-surface-variant">{tl(lang, 'history.empty')}</div>
         ) : (
           <div className="flex min-h-0 flex-1">
-            <ul className={`w-full shrink-0 overflow-y-auto border-line safe-bottom sm:block sm:w-64 sm:border-r ${detail ? 'hidden' : ''}`}>
+            <ul className={`w-full shrink-0 overflow-y-auto border-outline-variant safe-bottom sm:block sm:w-64 sm:border-r ${detail ? 'hidden' : ''}`}>
               {versions.map((v, i) => (
                 <li key={v.id}>
                   <button
-                    className={`w-full border-b border-line px-4 py-3 text-left text-sm transition hover:bg-raised ${
-                      v.id === selected ? 'bg-accent-container/25 text-ink' : ''
+                    className={`w-full border-b border-outline-variant px-4 py-3 text-left text-sm transition hover:bg-surface-container-high ${
+                      v.id === selected ? 'bg-secondary-container/60 text-on-surface' : ''
                     }`}
                     onClick={() => {
                       setSelected(v.id);
@@ -101,7 +101,7 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
                     }}
                   >
                     <div className="font-medium">{fmt(v.savedAt)}</div>
-                    <div className="truncate text-xs text-faint">
+                    <div className="truncate text-xs text-on-surface-variant">
                       {i === 0 && tl(lang, 'history.currentPrefix')}
                       {splitPath(v.path).name} · {v.size < 1024 ? `${v.size} B` : `${(v.size / 1024).toFixed(1)} KB`}
                     </div>
@@ -110,13 +110,13 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
               ))}
             </ul>
             <div className={`min-w-0 flex-1 flex-col ${detail ? 'flex' : 'hidden sm:flex'}`}>
-              <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2 text-sm">
-                <div className="flex rounded-full border border-line bg-raised p-0.5">
+              <div className="flex flex-wrap items-center gap-2 border-b border-outline-variant px-4 py-2 text-sm">
+                <div className="flex rounded-full border border-outline-variant bg-surface-container-high p-0.5">
                   {(['diff', 'rendered'] as const).map((m) => (
                     <button
                       key={m}
                       className={`rounded-full px-3.5 py-1 text-xs font-medium transition-colors ${
-                        mode === m ? 'bg-accent-container text-on-accent-container' : 'text-muted hover:text-ink'
+                        mode === m ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:text-on-surface'
                       }`}
                       onClick={() => setMode(m)}
                     >
@@ -126,31 +126,31 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
                 </div>
                 {ready && mode === 'diff' && (
                   <span className="text-xs tabular-nums">
-                    <span className="text-ok">+{stats.added}</span> <span className="text-danger">−{stats.removed}</span>
+                    <span className="text-ok">+{stats.added}</span> <span className="text-error">−{stats.removed}</span>
                   </span>
                 )}
                 {canRestore && ready && version!.content !== current && (
-                  <button className="btn-ghost ml-auto rounded-full border border-line px-3.5 py-1 text-xs hover:border-accent/40 hover:text-accent" onClick={restore}>
+                  <button className="btn-ghost ml-auto rounded-full border border-outline-variant px-3.5 py-1 text-xs hover:border-primary/40 hover:text-primary" onClick={restore}>
                     <RotateCcw size={13} /> {tl(lang, 'common.restore')}
                   </button>
                 )}
               </div>
               <div className="min-h-0 flex-1 overflow-auto safe-bottom">
                 {!ready ? (
-                  <div className="p-6 text-center text-faint">{tl(lang, 'common.loading')}</div>
+                  <div className="p-6 text-center text-on-surface-variant">{tl(lang, 'common.loading')}</div>
                 ) : mode === 'rendered' ? (
                   <div className="px-4 py-3 sm:px-8">
                     <Editor docKey={`history:${version!.id}`} value={version!.content} readOnly />
                   </div>
                 ) : !lines.some((l) => l.kind !== 'same') ? (
-                  <div className="p-6 text-center text-muted">{tl(lang, 'history.noChanges')}</div>
+                  <div className="p-6 text-center text-on-surface-variant">{tl(lang, 'history.noChanges')}</div>
                 ) : (
                   <pre className="min-w-full w-max font-mono text-[13px] leading-6">
                     {lines.map((l, i) => (
-                      <div key={i} className={`flex ${l.kind === 'add' ? 'bg-ok/15' : l.kind === 'del' ? 'bg-danger/15' : ''}`}>
-                        <span className="w-10 shrink-0 select-none pr-2 text-right text-faint">{l.oldLine ?? ''}</span>
-                        <span className="w-10 shrink-0 select-none pr-2 text-right text-faint">{l.newLine ?? ''}</span>
-                        <span className={`w-5 shrink-0 select-none text-center ${l.kind === 'add' ? 'text-ok' : l.kind === 'del' ? 'text-danger' : 'text-faint'}`}>
+                      <div key={i} className={`flex ${l.kind === 'add' ? 'bg-ok/15' : l.kind === 'del' ? 'bg-error/15' : ''}`}>
+                        <span className="w-10 shrink-0 select-none pr-2 text-right text-on-surface-variant">{l.oldLine ?? ''}</span>
+                        <span className="w-10 shrink-0 select-none pr-2 text-right text-on-surface-variant">{l.newLine ?? ''}</span>
+                        <span className={`w-5 shrink-0 select-none text-center ${l.kind === 'add' ? 'text-ok' : l.kind === 'del' ? 'text-error' : 'text-on-surface-variant'}`}>
                           {l.kind === 'add' ? '+' : l.kind === 'del' ? '−' : ' '}
                         </span>
                         <span className="whitespace-pre-wrap break-words pr-4">{l.text || ' '}</span>

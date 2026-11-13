@@ -36,7 +36,7 @@ import {
   Upload,
   X,
   Zap,
-} from 'lucide-react';
+} from '../lib/icons';
 import {
   APP_VERSION,
   cleanDailyFormat,
@@ -60,6 +60,7 @@ import { startupReport, toggleTallPageTest, viewportReport } from '../lib/viewpo
 import { navigate } from '../lib/router';
 import { GitLabIcon, passkeysAvailable, useAuthProviders, useRedirectParam } from './Auth';
 import { Avatar } from './Avatar';
+import { Switch } from './Switch';
 import { Dropdown } from './Dropdown';
 
 function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
@@ -110,28 +111,28 @@ function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
           disabled={busy}
           title={me.avatarUrl ? tl(lang, 'settings.profileChange') : tl(lang, 'settings.profileUpload')}
           aria-label={me.avatarUrl ? tl(lang, 'settings.profileChange') : tl(lang, 'settings.profileUpload')}
-          className="group relative self-start rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="group relative self-start rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <Avatar name={me.username} avatarUrl={me.avatarUrl} size="xl" />
-          <span className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface bg-accent-container text-on-accent-container shadow-soft transition-transform group-hover:scale-105">
+          <span className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface-container-low bg-secondary-container text-on-secondary-container shadow-soft transition-transform group-hover:scale-105">
             {busy ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
           </span>
         </button>
 
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-semibold">{tl(lang, 'settings.profileTitle')}</h2>
-            <span className="chip text-xs">{me.username}</span>
+            <h2 className="text-base font-medium">{tl(lang, 'settings.profileTitle')}</h2>
+            <span className="chip">{me.username}</span>
           </div>
-          <p className="text-xs text-muted">{tl(lang, 'settings.profileHint')}</p>
+          <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.profileHint')}</p>
           <div className="flex flex-wrap gap-2 pt-2">
             <button
               type="button"
               disabled={busy}
               onClick={() => inputRef.current?.click()}
-              className="inline-flex items-center gap-2 rounded-full bg-accent-container px-4 py-2 text-sm font-medium text-on-accent-container transition-colors hover:brightness-110 disabled:opacity-50"
+              className="btn-tonal"
             >
-              {busy ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+              {busy ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
               {busy ? tl(lang, 'settings.profileUploading') : me.avatarUrl ? tl(lang, 'settings.profileChange') : tl(lang, 'settings.profileUpload')}
             </button>
             {me.avatarUrl && (
@@ -139,13 +140,13 @@ function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
                 type="button"
                 disabled={busy}
                 onClick={() => void handleRemove()}
-                className="btn-ghost rounded-full border border-line px-4 py-2 text-sm text-danger hover:bg-danger/10"
+                className="btn-ghost rounded-full border border-outline-variant px-4 py-2 text-sm text-error hover:bg-error/10"
               >
                 <Trash2 size={15} /> {tl(lang, 'settings.profileRemove')}
               </button>
             )}
           </div>
-          {err && <p className="pt-1 text-sm text-danger">{err}</p>}
+          {err && <p className="pt-1 text-sm text-error">{err}</p>}
         </div>
       </div>
 
@@ -239,7 +240,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
 
   return (
     <div className="content-container space-y-6 px-4 py-6 sm:px-8 sm:py-10">
-      <h1 className="text-2xl font-bold tracking-tight anim-fade-up">{tl(lang, 'settings.title')}</h1>
+      <h1 className="text-headline-m anim-fade-up">{tl(lang, 'settings.title')}</h1>
 
       <ProfileSection me={me} onMe={onMe} />
 
@@ -248,35 +249,35 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
           <button
             key={path}
             type="button"
-            className="card flex w-full items-center gap-3.5 p-4 text-left transition-colors hover:border-accent/40 hover:bg-raised/40 anim-fade-up"
+            className="card flex w-full items-center gap-3.5 p-4 text-left transition-colors hover:bg-surface-container hover:bg-surface-container-high/40 anim-fade-up"
             onClick={() => navigate(path)}
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-container/60 text-accent">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary-container text-on-secondary-container">
               <Icon size={20} />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="font-semibold">{title}</div>
-              <div className="text-sm text-muted">{desc}</div>
+              <div className="font-medium">{title}</div>
+              <div className="text-sm text-on-surface-variant">{desc}</div>
             </div>
-            <ChevronRight size={18} className="shrink-0 text-faint" />
+            <ChevronRight size={18} className="shrink-0 text-on-surface-variant" />
           </button>
         ))}
       </div>
 
       {/* Layout, Language, Inbox Zero & Widescreen (Material 3) */}
       <section className="card p-5 anim-fade-up">
-        <h2 className="mb-4 text-base font-semibold">{tl(lang, 'settings.appearanceTitle')}</h2>
+        <h2 className="mb-4 text-base font-medium">{tl(lang, 'settings.appearanceTitle')}</h2>
 
         {/* Color scheme selector (M3 Segmented Pill Button) */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
-            <SunMoon size={18} className="mt-0.5 shrink-0 text-accent" />
+            <SunMoon size={18} className="mt-0.5 shrink-0 text-primary" />
             <div>
-              <div className="text-sm font-semibold">{tl(lang, 'settings.colorSchemeTitle')}</div>
-              <div className="text-xs text-muted">{tl(lang, 'settings.colorSchemeDesc')}</div>
+              <div className="text-sm font-medium">{tl(lang, 'settings.colorSchemeTitle')}</div>
+              <div className="text-xs text-on-surface-variant">{tl(lang, 'settings.colorSchemeDesc')}</div>
             </div>
           </div>
-          <div className="inline-flex max-w-full flex-wrap rounded-full border border-line bg-raised p-1 shrink-0" role="group" aria-label={tl(lang, 'settings.colorSchemeTitle')}>
+          <div className="inline-flex max-w-full flex-wrap rounded-full border border-outline-variant bg-surface-container-high p-1 shrink-0" role="group" aria-label={tl(lang, 'settings.colorSchemeTitle')}>
             {(
               [
                 ['dark', 'settings.colorSchemeDark'],
@@ -292,7 +293,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
                   aria-pressed={active}
                   onClick={() => setColorSchemeChoice(choice)}
                   className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                    active ? 'bg-accent-container text-on-accent-container shadow-sm' : 'text-muted hover:text-ink'
+                    active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:text-on-surface'
                   }`}
                 >
                   {active && <Check size={14} strokeWidth={2.5} />}
@@ -303,18 +304,18 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
           </div>
         </div>
 
-        <hr className="my-5 border-line" />
+        <hr className="my-5 border-outline-variant" />
 
         {/* Language selector (M3 Segmented Pill Button) */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
-            <Globe size={18} className="mt-0.5 shrink-0 text-accent" />
+            <Globe size={18} className="mt-0.5 shrink-0 text-primary" />
             <div>
-              <div className="text-sm font-semibold">{tl(lang, 'common.language')}</div>
-              <div className="text-xs text-muted">{tl(lang, 'common.languageDesc')}</div>
+              <div className="text-sm font-medium">{tl(lang, 'common.language')}</div>
+              <div className="text-xs text-on-surface-variant">{tl(lang, 'common.languageDesc')}</div>
             </div>
           </div>
-          <div className="inline-flex max-w-full flex-wrap rounded-full border border-line bg-raised p-1 shrink-0" role="group" aria-label={tl(lang, 'common.language')}>
+          <div className="inline-flex max-w-full flex-wrap rounded-full border border-outline-variant bg-surface-container-high p-1 shrink-0" role="group" aria-label={tl(lang, 'common.language')}>
             {(['de', 'en'] as Lang[]).map((code) => {
               const active = lang === code;
               const label = code === 'de' ? tl(lang, 'common.langDe') : tl(lang, 'common.langEn');
@@ -325,7 +326,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
                   aria-pressed={active}
                   onClick={() => setLang(code)}
                   className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                    active ? 'bg-accent-container text-on-accent-container shadow-sm' : 'text-muted hover:text-ink'
+                    active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:text-on-surface'
                   }`}
                 >
                   {active && <Check size={14} strokeWidth={2.5} />}
@@ -336,17 +337,17 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
           </div>
         </div>
 
-        <hr className="my-5 border-line" />
+        <hr className="my-5 border-outline-variant" />
 
         {/* Inbox Zero opt-in (M3 Switch) */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <Inbox size={18} className="mt-0.5 shrink-0 text-accent" />
+            <Inbox size={18} className="mt-0.5 shrink-0 text-primary" />
             <div className="min-w-0 flex-1">
-              <label htmlFor="inbox-zero-switch" className="cursor-pointer text-sm font-semibold">
+              <label htmlFor="inbox-zero-switch" className="cursor-pointer text-sm font-medium">
                 {tl(lang, 'settings.inboxZeroTitle')}
               </label>
-              <p className="text-xs text-muted">{tl(lang, 'settings.inboxZeroDesc')}</p>
+              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.inboxZeroDesc')}</p>
             </div>
           </div>
           <Switch
@@ -357,30 +358,30 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
           />
         </div>
 
-        <hr className="my-5 border-line" />
+        <hr className="my-5 border-outline-variant" />
 
         {/* Ligatures in the editor (display only) */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <ArrowRight size={18} className="mt-0.5 shrink-0 text-accent" />
+            <ArrowRight size={18} className="mt-0.5 shrink-0 text-primary" />
             <div className="min-w-0 flex-1">
-              <label htmlFor="ligatures-switch" className="cursor-pointer text-sm font-semibold">
+              <label htmlFor="ligatures-switch" className="cursor-pointer text-sm font-medium">
                 {tl(lang, 'settings.ligaturesTitle')}
               </label>
-              <p className="text-xs text-muted">{tl(lang, 'settings.ligaturesDesc')}</p>
+              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.ligaturesDesc')}</p>
             </div>
           </div>
           <Switch id="ligatures-switch" checked={ligatures} label={tl(lang, 'settings.ligaturesLabel')} onChange={setLigatures} />
         </div>
 
-        <hr className="my-5 border-line" />
+        <hr className="my-5 border-outline-variant" />
 
         {/* Widescreen percentage options (50%, 80% Default, 100%, Custom) */}
         <div className="mb-3 flex items-center gap-2.5">
-          <Maximize2 size={18} className="mt-0.5 shrink-0 text-accent" />
+          <Maximize2 size={18} className="mt-0.5 shrink-0 text-primary" />
           <div>
-            <h3 className="text-sm font-semibold">{tl(lang, 'settings.widescreenTitle')}</h3>
-            <p className="text-xs text-muted">{tl(lang, 'settings.widescreenDesc')}</p>
+            <h3 className="text-sm font-medium">{tl(lang, 'settings.widescreenTitle')}</h3>
+            <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.widescreenDesc')}</p>
           </div>
         </div>
 
@@ -395,13 +396,13 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
                 onClick={() => setWidescreen({ percent: pct, custom: false })}
                 className={`flex flex-col items-center justify-center gap-0.5 rounded-2xl border px-3 py-3 text-sm transition-all ${
                   active
-                    ? 'border-accent/60 bg-accent-container text-on-accent-container shadow-sm'
-                    : 'border-line bg-raised/30 text-muted hover:border-faint hover:text-ink'
+                    ? 'border-transparent bg-secondary-container text-on-secondary-container'
+                    : 'border-outline-variant bg-surface-container-high/30 text-on-surface-variant hover:border-outline hover:text-on-surface'
                 }`}
               >
-                <span className="font-semibold tabular-nums">{pct} %</span>
+                <span className="font-medium tabular-nums">{pct} %</span>
                 {pct === DEFAULT_PERCENT && (
-                  <span className={`text-[11px] ${active ? 'text-on-accent-container/80' : 'text-faint'}`}>
+                  <span className={`text-[11px] ${active ? 'text-on-primary-container/80' : 'text-on-surface-variant'}`}>
                     {tl(lang, 'settings.widescreenDefaultTag')}
                   </span>
                 )}
@@ -414,22 +415,22 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
             onClick={() => setWidescreen({ percent: widescreen.percent, custom: true })}
             className={`flex flex-col items-center justify-center gap-0.5 rounded-2xl border px-3 py-3 text-sm transition-all ${
               widescreen.custom
-                ? 'border-accent/60 bg-accent-container text-on-accent-container shadow-sm'
-                : 'border-line bg-raised/30 text-muted hover:border-faint hover:text-ink'
+                ? 'border-transparent bg-secondary-container text-on-secondary-container'
+                : 'border-outline-variant bg-surface-container-high/30 text-on-surface-variant hover:border-outline hover:text-on-surface'
             }`}
           >
-            <span className="inline-flex items-center gap-1.5 font-semibold">
+            <span className="inline-flex items-center gap-1.5 font-medium">
               <SlidersHorizontal size={14} />
               {tl(lang, 'settings.widescreenCustom')}
             </span>
-            {widescreen.custom && <span className="text-[11px] tabular-nums text-on-accent-container/80">{widescreen.percent} %</span>}
+            {widescreen.custom && <span className="text-[11px] tabular-nums text-on-primary-container/80">{widescreen.percent} %</span>}
           </button>
         </div>
 
         {widescreen.custom && (
-          <div className="mt-3 space-y-3 rounded-2xl border border-line bg-raised/50 p-4 anim-fade-in">
+          <div className="mt-3 space-y-3 rounded-2xl border border-outline-variant bg-surface-container-high/50 p-4 anim-fade-in">
             <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-muted">{tl(lang, 'settings.widescreenCustom')}</span>
+              <span className="text-on-surface-variant">{tl(lang, 'settings.widescreenCustom')}</span>
               <div className="flex items-center gap-1.5">
                 <input
                   type="number"
@@ -454,7 +455,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
                   className="input h-8 w-20 py-1 text-right font-mono text-sm tabular-nums"
                   aria-label={tl(lang, 'settings.widescreenCustomAria')}
                 />
-                <span className="text-sm font-medium text-muted">%</span>
+                <span className="text-sm font-medium text-on-surface-variant">%</span>
               </div>
             </div>
             <input
@@ -467,15 +468,15 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
               className="w-full cursor-pointer accent-accent"
               aria-label={tl(lang, 'settings.widescreenSliderAria')}
             />
-            <div className="flex justify-between text-[11px] text-faint tabular-nums">
+            <div className="flex justify-between text-[11px] text-on-surface-variant tabular-nums">
               <span>{MIN_PERCENT} %</span>
               <span>{MAX_PERCENT} %</span>
             </div>
           </div>
         )}
 
-        <div className="mt-3 flex items-start gap-2 rounded-xl bg-raised/60 px-3.5 py-2.5 text-xs text-muted">
-          <Info size={15} className="mt-0.5 shrink-0 text-accent" />
+        <div className="mt-3 flex items-start gap-2 rounded-xl bg-surface-container-high/60 px-3.5 py-2.5 text-xs text-on-surface-variant">
+          <Info size={15} className="mt-0.5 shrink-0 text-primary" />
           <span>{tl(lang, 'settings.widescreenSmallScreenHint')}</span>
         </div>
       </section>
@@ -485,16 +486,16 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
       {!me.standalone && (
         <>
           <section className="card p-5 anim-fade-up">
-            <h2 className="mb-1 font-semibold">{tl(lang, 'settings.passkeysTitle', { username: me.username })}</h2>
-            <p className="mb-3 text-sm text-muted">{tl(lang, 'settings.passkeysDesc')}</p>
-            {!me.passkeys.length && <p className="mb-3 text-sm text-faint">{tl(lang, 'settings.passkeysEmpty')}</p>}
-            <ul className="mb-3 divide-y divide-line">
+            <h2 className="mb-1 font-medium">{tl(lang, 'settings.passkeysTitle', { username: me.username })}</h2>
+            <p className="mb-3 text-sm text-on-surface-variant">{tl(lang, 'settings.passkeysDesc')}</p>
+            {!me.passkeys.length && <p className="mb-3 text-sm text-on-surface-variant">{tl(lang, 'settings.passkeysEmpty')}</p>}
+            <ul className="mb-3 divide-y divide-outline-variant">
               {me.passkeys.map((p) => (
                 <li key={p.id} className="flex items-center gap-3 py-2">
-                  <KeyRound size={16} className="shrink-0 text-accent" />
+                  <KeyRound size={16} className="shrink-0 text-primary" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm">{p.name}</div>
-                    <div className="text-xs text-faint">
+                    <div className="text-xs text-on-surface-variant">
                       {tl(lang, 'settings.passkeyMeta', {
                         created: new Date(p.createdAt).toLocaleDateString(loc),
                         last: p.lastUsedAt ? tl(lang, 'settings.passkeyLastUsed', { date: new Date(p.lastUsedAt).toLocaleDateString(loc) }) : '',
@@ -516,7 +517,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
             </ul>
             <div className="flex flex-wrap gap-2">
               <button
-                className="btn-ghost border border-line"
+                className="btn-ghost border border-outline-variant"
                 disabled={!passkeysAvailable()}
                 title={passkeysAvailable() ? undefined : tl(lang, 'settings.passkeyHttpsOnly')}
                 onClick={async () => {
@@ -532,12 +533,12 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
               >
                 <KeyRound size={16} /> {tl(lang, 'settings.passkeyAddHere')}
               </button>
-              <button className="btn-ghost border border-line" onClick={async () => setLink(await api('/auth/device-link', { method: 'POST', json: {} }))}>
+              <button className="btn-ghost border border-outline-variant" onClick={async () => setLink(await api('/auth/device-link', { method: 'POST', json: {} }))}>
                 <Smartphone size={16} /> {tl(lang, 'settings.deviceConnect')}
               </button>
             </div>
             {link && (
-              <div className="mt-3 rounded-xl bg-raised p-3 text-sm anim-fade-up">
+              <div className="mt-3 rounded-xl bg-surface-container-high p-3 text-sm anim-fade-up">
                 {linkTextParts.map((part, i) =>
                   part === '{url}' ? (
                     <b key={i} className="break-all">
@@ -553,7 +554,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
                 )}
               </div>
             )}
-            {error && <p className="mt-2 text-sm text-danger">{error}</p>}
+            {error && <p className="mt-2 text-sm text-error">{error}</p>}
           </section>
 
           <PasswordSection me={me} onMe={onMe} />
@@ -562,8 +563,8 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
       )}
 
       <section className="card p-5 anim-fade-up">
-        <h2 className="mb-1 font-semibold">{me.standalone ? tl(lang, 'settings.standaloneTitle') : tl(lang, 'settings.syncTitle')}</h2>
-        <p className="text-sm text-muted">
+        <h2 className="mb-1 font-medium">{me.standalone ? tl(lang, 'settings.standaloneTitle') : tl(lang, 'settings.syncTitle')}</h2>
+        <p className="text-sm text-on-surface-variant">
           {me.standalone
             ? tl(lang, 'settings.standaloneStats', {
                 notes: vault.list().length,
@@ -579,63 +580,26 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
         </p>
         {me.standalone && me.dataDir && (
           <div className="mt-3 space-y-1">
-            <div className="text-xs font-medium text-faint">{tl(lang, 'settings.standaloneDataDir')}</div>
-            <code className="block rounded-xl border border-line bg-raised px-3 py-2 font-mono text-xs break-all text-ink">{me.dataDir}</code>
+            <div className="text-xs font-medium text-on-surface-variant">{tl(lang, 'settings.standaloneDataDir')}</div>
+            <code className="block rounded-xl border border-outline-variant bg-surface-container-high px-3 py-2 font-mono text-xs break-all text-on-surface">{me.dataDir}</code>
           </div>
         )}
-        <p className="mt-2 text-xs text-faint">{me.standalone ? tl(lang, 'settings.standaloneNote') : tl(lang, 'settings.syncOfflineNote')}</p>
+        <p className="mt-2 text-xs text-on-surface-variant">{me.standalone ? tl(lang, 'settings.standaloneNote') : tl(lang, 'settings.syncOfflineNote')}</p>
       </section>
 
       <Diagnostics />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         {!me.standalone ? (
-          <button className="btn-ghost text-danger" onClick={onLogout}>
+          <button className="btn-ghost text-error" onClick={onLogout}>
             <LogOut size={16} /> {tl(lang, 'settings.logout')}
           </button>
         ) : (
-          <span className="text-xs text-faint">Standalone Desktop</span>
+          <span className="text-xs text-on-surface-variant">Standalone Desktop</span>
         )}
-        <span className="text-xs text-faint">Kladde {APP_VERSION}</span>
+        <span className="text-xs text-on-surface-variant">Kladde {APP_VERSION}</span>
       </div>
     </div>
-  );
-}
-
-function Switch({
-  id,
-  checked,
-  disabled,
-  label,
-  onChange,
-}: {
-  id: string;
-  checked: boolean;
-  disabled?: boolean;
-  label: string;
-  onChange: (next: boolean) => void;
-}) {
-  return (
-    <button
-      id={id}
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      disabled={disabled}
-      onClick={() => !disabled && onChange(!checked)}
-      className={`relative inline-flex h-8 w-[52px] shrink-0 items-center rounded-full border-2 p-0.5 transition-colors ${
-        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
-      } ${checked ? 'border-accent bg-accent' : 'border-faint/60 bg-raised'}`}
-    >
-      <span
-        className={`flex h-6 w-6 items-center justify-center rounded-full transition-transform duration-150 ${
-          checked ? 'translate-x-5 bg-on-accent text-accent' : 'translate-x-0 scale-75 bg-muted text-surface'
-        }`}
-      >
-        {checked && <Check size={14} strokeWidth={3} />}
-      </span>
-    </button>
   );
 }
 
@@ -687,7 +651,7 @@ function FolderPicker({
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-xs font-medium text-muted">
+      <label htmlFor={id} className="block text-xs font-medium text-on-surface-variant">
         {label}
       </label>
       {isCreating ? (
@@ -712,7 +676,7 @@ function FolderPicker({
           />
           <button
             type="button"
-            className="btn-icon h-9 w-9 shrink-0 rounded-xl border border-line text-accent hover:bg-accent/10"
+            className="btn-icon h-9 w-9 shrink-0 rounded-xl border border-outline-variant text-primary hover:bg-primary/10"
             title={tl(lang, 'common.create')}
             aria-label={tl(lang, 'common.create')}
             onClick={() => void createFolder()}
@@ -721,7 +685,7 @@ function FolderPicker({
           </button>
           <button
             type="button"
-            className="btn-icon h-9 w-9 shrink-0 rounded-xl border border-line"
+            className="btn-icon h-9 w-9 shrink-0 rounded-xl border border-outline-variant"
             title={tl(lang, 'common.cancel')}
             aria-label={tl(lang, 'common.cancel')}
             onClick={() => {
@@ -749,7 +713,7 @@ function FolderPicker({
           {!disabled && (
             <button
               type="button"
-              className="btn-icon h-10 w-10 shrink-0 rounded-xl border border-line"
+              className="btn-icon h-10 w-10 shrink-0 rounded-xl border border-outline-variant"
               title={tl(lang, 'settings.newFolderBtnTitle')}
               aria-label={tl(lang, 'settings.newFolderBtnTitle')}
               onClick={() => setCreating(true)}
@@ -817,12 +781,12 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
 
   return (
     <section className="card p-5 anim-fade-up">
-      <h2 className="text-base font-semibold">{tl(lang, 'settings.featuresTitle')}</h2>
-      <p className="mb-5 mt-1 text-xs text-muted">{tl(lang, 'settings.featuresDesc')}</p>
+      <h2 className="text-base font-medium">{tl(lang, 'settings.featuresTitle')}</h2>
+      <p className="mb-5 mt-1 text-xs text-on-surface-variant">{tl(lang, 'settings.featuresDesc')}</p>
 
       {locked && (
-        <div className="mb-4 flex items-start gap-2 rounded-xl bg-raised/60 px-3.5 py-2.5 text-xs text-muted">
-          <Lock size={14} className="mt-0.5 shrink-0 text-accent" />
+        <div className="mb-4 flex items-start gap-2 rounded-xl bg-surface-container-high/60 px-3.5 py-2.5 text-xs text-on-surface-variant">
+          <Lock size={14} className="mt-0.5 shrink-0 text-primary" />
           <span>{tl(lang, 'settings.featuresReadOnlyHint')}</span>
         </div>
       )}
@@ -831,12 +795,12 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
       <div>
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <CalendarDays size={18} className="mt-0.5 shrink-0 text-accent" />
+            <CalendarDays size={18} className="mt-0.5 shrink-0 text-primary" />
             <div className="min-w-0 flex-1">
-              <label htmlFor="feature-daily-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
+              <label htmlFor="feature-daily-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
                 {tl(lang, 'settings.dailyTitle')}
               </label>
-              <p className="text-xs text-muted">{tl(lang, 'settings.dailyDesc')}</p>
+              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.dailyDesc')}</p>
             </div>
           </div>
           <Switch
@@ -848,7 +812,7 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
           />
         </div>
         {features.daily.enabled && (
-          <div className="mt-3 space-y-3 rounded-2xl border border-line bg-raised/50 p-4 anim-fade-in">
+          <div className="mt-3 space-y-3 rounded-2xl border border-outline-variant bg-surface-container-high/50 p-4 anim-fade-in">
             <FolderPicker
               id="daily-target-folder"
               label={tl(lang, 'settings.targetFolderLabel')}
@@ -860,7 +824,7 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
               onChange={(folder) => save({ ...features, daily: { ...features.daily, folder } })}
             />
             <div className="space-y-1.5">
-              <label htmlFor="daily-naming-format" className="block text-xs font-medium text-muted">
+              <label htmlFor="daily-naming-format" className="block text-xs font-medium text-on-surface-variant">
                 {tl(lang, 'settings.dailyFormatLabel')}
               </label>
               <input
@@ -882,7 +846,7 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
                 }}
               />
               <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
-                <span className="text-muted">{tl(lang, 'settings.dailyTokensLabel')}</span>
+                <span className="text-on-surface-variant">{tl(lang, 'settings.dailyTokensLabel')}</span>
                 {DAILY_TOKENS.map((tok) => (
                   <button
                     key={tok}
@@ -890,15 +854,15 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
                     disabled={locked}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => insertDailyToken(tok)}
-                    className="chip font-mono text-[11px] transition-colors hover:border-accent/60 hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+                    className="chip font-mono text-[11px] hover:border-primary/60 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {tok}
                   </button>
                 ))}
               </div>
               <div className="flex flex-wrap items-baseline gap-1.5 pt-0.5 text-xs">
-                <span className="text-muted">{tl(lang, 'settings.dailyPreviewLabel')}</span>
-                <code className="break-all rounded bg-surface px-1.5 py-0.5 font-mono text-[11px] text-accent">
+                <span className="text-on-surface-variant">{tl(lang, 'settings.dailyPreviewLabel')}</span>
+                <code className="break-all rounded bg-surface-container-low px-1.5 py-0.5 font-mono text-[11px] text-primary">
                   {dailyPreview}
                 </code>
               </div>
@@ -907,7 +871,7 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
         )}
       </div>
 
-      <hr className="my-5 border-line" />
+      <hr className="my-5 border-outline-variant" />
 
       {/* Calendar Heatmap opt-in */}
       <div>
@@ -915,10 +879,10 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
             <CalendarRange size={18} className="mt-0.5 shrink-0 text-ok" />
             <div className="min-w-0 flex-1">
-              <label htmlFor="feature-heatmap-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
+              <label htmlFor="feature-heatmap-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
                 {tl(lang, 'settings.heatmapTitle')}
               </label>
-              <p className="text-xs text-muted">{tl(lang, 'settings.heatmapDesc')}</p>
+              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.heatmapDesc')}</p>
             </div>
           </div>
           <Switch
@@ -931,18 +895,18 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
         </div>
       </div>
 
-      <hr className="my-5 border-line" />
+      <hr className="my-5 border-outline-variant" />
 
       {/* review opt-in */}
       <div>
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <CalendarCheck size={18} className="mt-0.5 shrink-0 text-accent" />
+            <CalendarCheck size={18} className="mt-0.5 shrink-0 text-primary" />
             <div className="min-w-0 flex-1">
-              <label htmlFor="feature-review-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
+              <label htmlFor="feature-review-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
                 {tl(lang, 'settings.reviewTitle')}
               </label>
-              <p className="text-xs text-muted">{tl(lang, 'settings.reviewDesc')}</p>
+              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.reviewDesc')}</p>
             </div>
           </div>
           <Switch
@@ -955,7 +919,7 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
         </div>
       </div>
 
-      <hr className="my-5 border-line" />
+      <hr className="my-5 border-outline-variant" />
 
       {/* favorites opt-in */}
       <div>
@@ -963,10 +927,10 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
             <Star size={18} className="mt-0.5 shrink-0 text-warn" />
             <div className="min-w-0 flex-1">
-              <label htmlFor="feature-favorites-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
+              <label htmlFor="feature-favorites-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
                 {tl(lang, 'settings.favoritesTitle')}
               </label>
-              <p className="text-xs text-muted">{tl(lang, 'settings.favoritesDesc')}</p>
+              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.favoritesDesc')}</p>
             </div>
           </div>
           <Switch
@@ -979,18 +943,18 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
         </div>
       </div>
 
-      <hr className="my-5 border-line" />
+      <hr className="my-5 border-outline-variant" />
 
       {/* PARA method opt-in */}
       <div>
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <FolderKanban size={18} className="mt-0.5 shrink-0 text-accent" />
+            <FolderKanban size={18} className="mt-0.5 shrink-0 text-primary" />
             <div className="min-w-0 flex-1">
-              <label htmlFor="feature-para-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
+              <label htmlFor="feature-para-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
                 {tl(lang, 'settings.paraTitle')}
               </label>
-              <p className="text-xs text-muted">{tl(lang, 'settings.paraDesc')}</p>
+              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.paraDesc')}</p>
             </div>
           </div>
           <Switch
@@ -1002,7 +966,7 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
           />
         </div>
         {features.para.enabled && (
-          <div className="mt-3 grid grid-cols-1 gap-3 rounded-2xl border border-line bg-raised/50 p-4 sm:grid-cols-2 anim-fade-in">
+          <div className="mt-3 grid grid-cols-1 gap-3 rounded-2xl border border-outline-variant bg-surface-container-high/50 p-4 sm:grid-cols-2 anim-fade-in">
             <FolderPicker
               id="para-folder-projects"
               label={tl(lang, 'settings.paraFolderProjects')}
@@ -1039,18 +1003,18 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
         )}
       </div>
 
-      <hr className="my-5 border-line" />
+      <hr className="my-5 border-outline-variant" />
 
       {/* Zettelkasten opt-in */}
       <div>
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <Lightbulb size={18} className="mt-0.5 shrink-0 text-accent" />
+            <Lightbulb size={18} className="mt-0.5 shrink-0 text-primary" />
             <div className="min-w-0 flex-1">
-              <label htmlFor="feature-zettel-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
+              <label htmlFor="feature-zettel-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
                 {tl(lang, 'settings.zettelTitle')}
               </label>
-              <p className="text-xs text-muted">{tl(lang, 'settings.zettelDesc')}</p>
+              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.zettelDesc')}</p>
             </div>
           </div>
           <Switch
@@ -1062,7 +1026,7 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
           />
         </div>
         {features.zettel.enabled && (
-          <div className="mt-3 rounded-2xl border border-line bg-raised/50 p-4 anim-fade-in">
+          <div className="mt-3 rounded-2xl border border-outline-variant bg-surface-container-high/50 p-4 anim-fade-in">
             <FolderPicker
               id="zettel-target-folder"
               label={tl(lang, 'settings.targetFolderLabel')}
@@ -1075,18 +1039,18 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
         )}
       </div>
 
-      <hr className="my-5 border-line" />
+      <hr className="my-5 border-outline-variant" />
 
       {/* Recipe import opt-in */}
       <div>
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <ChefHat size={18} className="mt-0.5 shrink-0 text-accent" />
+            <ChefHat size={18} className="mt-0.5 shrink-0 text-primary" />
             <div className="min-w-0 flex-1">
-              <label htmlFor="feature-recipe-switch" className={`text-sm font-semibold ${locked ? '' : 'cursor-pointer'}`}>
+              <label htmlFor="feature-recipe-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
                 {tl(lang, 'settings.recipeTitle')}
               </label>
-              <p className="text-xs text-muted">{tl(lang, 'settings.recipeDesc')}</p>
+              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.recipeDesc')}</p>
             </div>
           </div>
           <Switch
@@ -1108,7 +1072,7 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
           />
         </div>
         {features.recipe.enabled && (
-          <div className="mt-3 rounded-2xl border border-line bg-raised/50 p-4 anim-fade-in">
+          <div className="mt-3 rounded-2xl border border-outline-variant bg-surface-container-high/50 p-4 anim-fade-in">
             <FolderPicker
               id="recipe-target-folder"
               label={tl(lang, 'settings.targetFolderLabel')}
@@ -1139,10 +1103,10 @@ function GitLabSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   const canUnlink = me.passkeys.length > 0 || me.hasPassword || (me.externalLogins?.length ?? 0) > 1;
   return (
     <section className="card p-5 anim-fade-up" data-gitlab-section>
-      <h2 className="mb-1 flex items-center gap-2 font-semibold">
+      <h2 className="mb-1 flex items-center gap-2 font-medium">
         <GitLabIcon size={18} /> {tl(lang, 'settings.gitlabTitle', { name })}
       </h2>
-      <p className="mb-3 text-sm text-muted">
+      <p className="mb-3 text-sm text-on-surface-variant">
         {linked
           ? tl(lang, 'settings.gitlabLinkedAs', { name, username: linked.username, date: new Date(linked.createdAt).toLocaleDateString(locale(lang)) })
           : tl(lang, 'settings.gitlabDesc', { name })}
@@ -1150,7 +1114,7 @@ function GitLabSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
       <div className="flex flex-wrap gap-2">
         {linked ? (
           <button
-            className="btn-ghost border border-line text-danger"
+            className="btn-ghost border border-outline-variant text-error"
             disabled={!canUnlink}
             title={canUnlink ? undefined : tl(lang, 'settings.gitlabUnlinkBlocked')}
             onClick={async () => {
@@ -1166,12 +1130,12 @@ function GitLabSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
             <Trash2 size={16} /> {tl(lang, 'common.disconnect')}
           </button>
         ) : (
-          <a className="btn-ghost border border-line" href="/api/auth/gitlab/start?intent=link">
+          <a className="btn-ghost border border-outline-variant" href="/api/auth/gitlab/start?intent=link">
             <GitLabIcon size={16} /> {tl(lang, 'settings.gitlabLink', { name })}
           </a>
         )}
       </div>
-      {message && <p className={`mt-2 text-sm ${message.ok ? 'text-accent' : 'text-danger'}`}>{message.text}</p>}
+      {message && <p className={`mt-2 text-sm ${message.ok ? 'text-primary' : 'text-error'}`}>{message.text}</p>}
     </section>
   );
 }
@@ -1206,8 +1170,8 @@ function PasswordSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
 
   return (
     <section className="card p-5 anim-fade-up">
-      <h2 className="mb-1 font-semibold">{tl(lang, 'settings.passwordTitle')}</h2>
-      <p className="mb-3 text-sm text-muted">
+      <h2 className="mb-1 font-medium">{tl(lang, 'settings.passwordTitle')}</h2>
+      <p className="mb-3 text-sm text-on-surface-variant">
         {me.hasPassword ? tl(lang, 'settings.passwordHasHint') : tl(lang, 'settings.passwordNoHint')}
       </p>
       {open ? (
@@ -1246,7 +1210,7 @@ function PasswordSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
             value={repeat}
             onChange={(e) => setRepeat(e.target.value)}
           />
-          {mismatch && <p className="text-sm text-danger">{tl(lang, 'settings.passwordMismatch')}</p>}
+          {mismatch && <p className="text-sm text-error">{tl(lang, 'settings.passwordMismatch')}</p>}
           <div className="flex gap-2">
             <button className="btn-primary" disabled={busy || next.length < PASSWORD_MIN_LENGTH || next !== repeat || (me.hasPassword && !current)}>
               {tl(lang, 'common.save')}
@@ -1258,12 +1222,12 @@ function PasswordSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
         </form>
       ) : (
         <div className="flex flex-wrap gap-2">
-          <button className="btn-ghost border border-line" onClick={() => setOpen(true)}>
+          <button className="btn-ghost border border-outline-variant" onClick={() => setOpen(true)}>
             <Lock size={16} /> {me.hasPassword ? tl(lang, 'settings.passwordChange') : tl(lang, 'settings.passwordSet')}
           </button>
           {me.hasPassword && (me.passkeys.length > 0 || !!me.externalLogins?.length) && (
             <button
-              className="btn-ghost text-danger"
+              className="btn-ghost text-error"
               onClick={async () => {
                 if (!confirm(tl(lang, 'settings.passwordRemoveConfirm'))) return;
                 try {
@@ -1279,7 +1243,7 @@ function PasswordSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
           )}
         </div>
       )}
-      {message && <p className={`mt-2 text-sm ${message.ok ? 'text-accent' : 'text-danger'}`}>{message.text}</p>}
+      {message && <p className={`mt-2 text-sm ${message.ok ? 'text-primary' : 'text-error'}`}>{message.text}</p>}
     </section>
   );
 }
@@ -1293,15 +1257,15 @@ function Diagnostics() {
   const measure = () => setText(JSON.stringify({ version: APP_VERSION, now: viewportReport(), atStart: startupReport }, null, 2));
   return (
     <details className="card p-5 anim-fade-up" onToggle={(e) => (e.currentTarget.open ? measure() : setText(''))}>
-      <summary className="cursor-pointer font-semibold">{tl(lang, 'settings.diagTitle')}</summary>
-      <p className="mt-2 text-sm text-muted">{tl(lang, 'settings.diagDesc')}</p>
-      <pre className="mt-3 max-h-80 overflow-auto rounded-xl bg-raised p-3 font-mono text-xs leading-snug whitespace-pre-wrap break-all">{text}</pre>
+      <summary className="cursor-pointer font-medium">{tl(lang, 'settings.diagTitle')}</summary>
+      <p className="mt-2 text-sm text-on-surface-variant">{tl(lang, 'settings.diagDesc')}</p>
+      <pre className="mt-3 max-h-80 overflow-auto rounded-xl bg-surface-container-high p-3 font-mono text-xs leading-snug whitespace-pre-wrap break-all">{text}</pre>
       <div className="mt-3 flex flex-wrap gap-2">
-        <button className="btn-ghost border border-line" onClick={measure}>
+        <button className="btn-ghost border border-outline-variant" onClick={measure}>
           <Zap size={16} /> {tl(lang, 'settings.diagRemeasure')}
         </button>
         <button
-          className="btn-ghost border border-line"
+          className="btn-ghost border border-outline-variant"
           onClick={() => {
             setTall(toggleTallPageTest());
             setTimeout(measure, 400);
@@ -1310,7 +1274,7 @@ function Diagnostics() {
           <Monitor size={16} /> {tall ? tl(lang, 'settings.diagStopTest') : tl(lang, 'settings.diagStartTest')}
         </button>
         <button
-          className="btn-ghost border border-line"
+          className="btn-ghost border border-outline-variant"
           onClick={async () => {
             try {
               await navigator.clipboard.writeText(text);

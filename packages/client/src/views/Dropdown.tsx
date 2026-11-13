@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown } from '../lib/icons';
 import { tl, useLang } from '../lib/i18n';
 
 export interface DropdownOption {
@@ -225,10 +225,10 @@ export function Dropdown({
 
   const triggerVariantClass =
     variant === 'chip'
-      ? `m3-select-chip chip min-w-0 max-w-full cursor-pointer justify-between gap-1.5 text-left transition-colors ${open ? '!border-accent bg-accent/10 text-ink' : ''}`
+      ? `m3-select-chip chip min-w-0 max-w-full cursor-pointer justify-between gap-1.5 text-left transition-colors ${open ? '!border-primary bg-primary/10 text-on-surface' : ''}`
       : variant === 'ghost'
-        ? `m3-select-ghost inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left text-sm transition-colors hover:bg-raised ${open ? 'bg-raised text-ink' : ''}`
-        : `m3-select-field input flex min-w-0 items-center justify-between gap-2 text-left text-sm ${open ? '!border-accent ring-2 ring-accent/25' : ''}`;
+        ? `m3-select-ghost inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left text-sm transition-colors hover:bg-surface-container-high ${open ? 'bg-surface-container-high text-on-surface' : ''}`
+        : `m3-select-field input flex min-w-0 items-center justify-between gap-2 text-left text-sm ${open ? '!border-primary ring-2 ring-primary/25' : ''}`;
 
   return (
     <>
@@ -254,7 +254,7 @@ export function Dropdown({
         <span className="min-w-0 flex-1 truncate">{displayLabel}</span>
         <ChevronDown
           size={variant === 'chip' ? 13 : 16}
-          className={`shrink-0 text-muted transition-transform duration-200 ${open ? 'rotate-180 text-accent' : ''}`}
+          className={`shrink-0 text-on-surface-variant transition-transform duration-200 ${open ? 'rotate-180 text-primary' : ''}`}
         />
       </button>
       {open &&

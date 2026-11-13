@@ -35,7 +35,7 @@ export function applyTheme(): void {
   const root = document.documentElement;
   root.dataset.theme = 'material';
   root.dataset.scheme = resolveScheme(current);
-  const bg = getComputedStyle(root).getPropertyValue('--bg').trim().split(/\s+/).join(',');
+  const bg = getComputedStyle(root).getPropertyValue('--surface').trim().split(/\s+/).join(',');
   if (bg) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', `rgb(${bg})`);
 }
 

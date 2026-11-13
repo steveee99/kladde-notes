@@ -15,7 +15,7 @@ import {
   Search,
   Trash2,
   X,
-} from 'lucide-react';
+} from '../lib/icons';
 import { useVault, vault } from '../data/vault';
 import { deleteFiles, listFiles } from '../lib/api';
 import { locale, t, tl, useLang } from '../lib/i18n';
@@ -207,11 +207,11 @@ export function FilesView() {
     <div className="content-container space-y-5 px-4 py-6 sm:px-8 sm:py-10">
       <header className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
-          <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight">
-            <Images size={24} className="text-accent" />
+          <h1 className="flex items-center gap-2.5 text-headline-m">
+            <Images size={24} className="text-primary" />
             {tl(lang, 'files.title')}
           </h1>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 text-sm text-on-surface-variant">
             {tl(lang, 'files.summary', {
               count: enriched.length,
               unit: enriched.length === 1 ? tl(lang, 'files.unitSingle') : tl(lang, 'files.unitPlural'),
@@ -220,30 +220,30 @@ export function FilesView() {
             })}
           </p>
         </div>
-        <button className="btn-ghost shrink-0 rounded-full border border-line px-4" onClick={() => void load()} disabled={loading} title={tl(lang, 'files.refreshTitle')}>
+        <button className="btn-ghost shrink-0 rounded-full border border-outline-variant px-4" onClick={() => void load()} disabled={loading} title={tl(lang, 'files.refreshTitle')}>
           <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           <span className="hidden sm:inline">{tl(lang, 'files.refresh')}</span>
         </button>
       </header>
 
       {locked && (
-        <div className="flex items-center gap-2 rounded-2xl border border-line bg-raised px-3.5 py-2.5 text-sm text-muted">
-          <Lock size={16} className="shrink-0 text-accent" />
+        <div className="flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface-container-high px-3.5 py-2.5 text-sm text-on-surface-variant">
+          <Lock size={16} className="shrink-0 text-primary" />
           {tl(lang, 'files.lockedHint')}
         </div>
       )}
 
       {error && (
-        <div className="flex items-center gap-2 rounded-2xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
+        <div className="flex items-center gap-2 rounded-lg bg-error-container px-4 py-3 text-body-m text-on-error-container">
           <AlertTriangle size={16} className="shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {notice && (
-        <div className="flex items-center justify-between gap-2 rounded-2xl bg-accent-container/40 px-3.5 py-2.5 text-sm text-on-accent-container">
+        <div className="flex items-center justify-between gap-2 rounded-2xl bg-secondary-container/60 px-3.5 py-2.5 text-sm text-on-primary-container">
           <span>{notice}</span>
-          <button className="rounded-full p-1 hover:bg-accent/15" onClick={() => setNotice('')} aria-label={tl(lang, 'files.closeNotice')}>
+          <button className="rounded-full p-1 hover:bg-primary/15" onClick={() => setNotice('')} aria-label={tl(lang, 'files.closeNotice')}>
             <X size={14} />
           </button>
         </div>
@@ -258,27 +258,27 @@ export function FilesView() {
               onClick={() => setFilter('all')}
               aria-pressed={filter === 'all'}
               className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                filter === 'all' ? 'border-accent/50 bg-accent-container text-on-accent-container' : 'border-line text-muted hover:border-faint hover:text-ink'
+                filter === 'all' ? 'border-transparent bg-secondary-container text-on-secondary-container' : 'border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface'
               }`}
             >
               {tl(lang, 'files.filterAll')}
-              <span className="rounded-full bg-bg/40 px-1.5 py-0.5 text-xs tabular-nums">{enriched.length}</span>
+              <span className="rounded-full bg-surface/40 px-1.5 py-0.5 text-xs tabular-nums">{enriched.length}</span>
             </button>
             <button
               type="button"
               onClick={() => setFilter('unused')}
               aria-pressed={filter === 'unused'}
               className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                filter === 'unused' ? 'border-accent/50 bg-accent-container text-on-accent-container' : 'border-line text-muted hover:border-faint hover:text-ink'
+                filter === 'unused' ? 'border-transparent bg-secondary-container text-on-secondary-container' : 'border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface'
               }`}
             >
               {tl(lang, 'files.filterUnused')}
-              <span className="rounded-full bg-bg/40 px-1.5 py-0.5 text-xs tabular-nums">{unusedCount}</span>
+              <span className="rounded-full bg-surface/40 px-1.5 py-0.5 text-xs tabular-nums">{unusedCount}</span>
             </button>
           </div>
 
           <div className="relative min-w-0 flex-1 basis-48">
-            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
             <input
               type="search"
               className="input rounded-full py-1.5 pl-9 text-sm"
@@ -289,11 +289,11 @@ export function FilesView() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-outline-variant pt-3">
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              className="btn-ghost rounded-full border border-line px-3.5 text-xs sm:text-sm"
+              className="btn-ghost rounded-full border border-outline-variant px-3.5 text-xs sm:text-sm"
               disabled={locked || visibleUnused.length === 0}
               onClick={toggleSelectAllUnused}
             >
@@ -311,7 +311,7 @@ export function FilesView() {
             type="button"
             disabled={locked || selectedItems.length === 0 || deleting}
             onClick={() => setConfirmOpen(true)}
-            className="btn shrink-0 rounded-full bg-danger px-4 text-bg shadow-soft hover:brightness-110 disabled:opacity-40"
+            className="btn shrink-0 rounded-full bg-error px-4 text-surface shadow-soft disabled:opacity-40"
           >
             <Trash2 size={16} />
             {tl(lang, 'common.delete')}
@@ -322,11 +322,11 @@ export function FilesView() {
 
       {/* Gallery Grid */}
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-16 text-muted">
+        <div className="flex items-center justify-center gap-2 py-16 text-on-surface-variant">
           <Loader2 size={20} className="animate-spin" /> {tl(lang, 'files.loading')}
         </div>
       ) : visible.length === 0 ? (
-        <div className="card p-10 text-center text-muted">
+        <div className="card p-10 text-center text-on-surface-variant">
           {enriched.length === 0 ? tl(lang, 'files.emptyNone') : filter === 'unused' ? tl(lang, 'files.emptyAllUsed') : tl(lang, 'files.emptyNoMatch')}
         </div>
       ) : (
@@ -343,16 +343,16 @@ export function FilesView() {
                 }}
                 className={`card group relative flex flex-col overflow-hidden transition-all ${
                   used
-                    ? 'border-line/90'
+                    ? 'border-outline-variant/90'
                     : isSelected
-                      ? 'cursor-pointer border-accent ring-2 ring-accent/40 bg-accent-container/15'
+                      ? 'cursor-pointer border-primary ring-2 ring-primary/40 bg-secondary-container/40'
                       : locked
                         ? ''
-                        : 'cursor-pointer hover:border-accent/50'
+                        : 'cursor-pointer hover:border-primary/50'
                 }`}
               >
                 {/* Preview area */}
-                <div className="relative aspect-[4/3] w-full overflow-hidden bg-raised">
+                <div className="relative aspect-[4/3] w-full overflow-hidden bg-surface-container-high">
                   {isImage ? (
                     <img
                       src={file.url}
@@ -367,15 +367,15 @@ export function FilesView() {
                       }}
                     />
                   ) : (
-                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center text-muted">
-                      <FileText size={32} className="text-accent" />
-                      <span className="text-xs font-semibold uppercase tracking-wide">PDF</span>
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center text-on-surface-variant">
+                      <FileText size={32} className="text-primary" />
+                      <span className="text-title-s">PDF</span>
                       <a
                         href={file.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 rounded-full bg-surface px-3 py-1 text-xs font-medium text-ink shadow-sm hover:text-accent"
+                        className="inline-flex items-center gap-1 rounded-full bg-surface-container-low px-3 py-1 text-xs font-medium text-on-surface shadow-sm hover:text-primary"
                       >
                         {tl(lang, 'common.open')} <ExternalLink size={12} />
                       </a>
@@ -386,9 +386,9 @@ export function FilesView() {
                   {used ? (
                     <span
                       title={tl(lang, 'files.protectedTitle')}
-                      className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-bg/90 px-2 py-1 text-[11px] font-medium text-ink shadow-sm backdrop-blur-sm"
+                      className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-surface/90 px-2 py-1 text-[11px] font-medium text-on-surface shadow-sm backdrop-blur-sm"
                     >
-                      <Lock size={11} className="text-accent" />
+                      <Lock size={11} className="text-primary" />
                       {tl(lang, 'files.protectedBadge')}
                     </span>
                   ) : (
@@ -403,7 +403,7 @@ export function FilesView() {
                           toggleSelect(file);
                         }}
                         className={`absolute left-2 top-2 flex h-7 w-7 items-center justify-center rounded-lg border transition-colors shadow-sm ${
-                          isSelected ? 'border-accent bg-accent text-on-accent' : 'border-line bg-bg/85 text-transparent hover:border-accent backdrop-blur-sm'
+                          isSelected ? 'border-primary bg-primary text-on-primary' : 'border-outline-variant bg-surface/85 text-transparent hover:border-primary backdrop-blur-sm'
                         }`}
                       >
                         <Check size={15} strokeWidth={3} />
@@ -421,7 +421,7 @@ export function FilesView() {
                         e.stopPropagation();
                         setPreview(file);
                       }}
-                      className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-lg bg-bg/85 text-ink opacity-90 shadow-sm backdrop-blur-sm transition-opacity hover:text-accent sm:opacity-0 sm:group-hover:opacity-100"
+                      className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-lg bg-surface/85 text-on-surface opacity-90 shadow-sm backdrop-blur-sm transition-opacity hover:text-primary sm:opacity-0 sm:group-hover:opacity-100"
                     >
                       <Maximize2 size={14} />
                     </button>
@@ -433,13 +433,13 @@ export function FilesView() {
                   <div className="truncate text-sm font-medium" title={file.name}>
                     {file.name}
                   </div>
-                  <div className="text-xs text-faint">
+                  <div className="text-xs text-on-surface-variant">
                     {formatBytes(file.size)} · {dateFmt.format(file.createdAt)}
                   </div>
 
                   {used ? (
                     <div className="mt-auto flex flex-col gap-1 pt-1">
-                      <span className="text-[11px] font-medium text-muted">
+                      <span className="text-[11px] font-medium text-on-surface-variant">
                         {tl(lang, 'files.usedIn', {
                           count: file.usedIn.length,
                           unit: file.usedIn.length === 1 ? tl(lang, 'files.noteSingle') : tl(lang, 'files.notePlural'),
@@ -455,7 +455,7 @@ export function FilesView() {
                               navigate(`/n/${ref.id}`);
                             }}
                             title={ref.path}
-                            className="inline-flex max-w-full items-center gap-1 rounded-md bg-raised px-1.5 py-0.5 text-[11px] text-accent hover:bg-accent/15"
+                            className="inline-flex max-w-full items-center gap-1 rounded-md bg-surface-container-high px-1.5 py-0.5 text-[11px] text-primary hover:bg-primary/15"
                           >
                             <FileText size={10} className="shrink-0" />
                             <span className="truncate">{ref.title}</span>
@@ -468,7 +468,7 @@ export function FilesView() {
                               e.stopPropagation();
                               setPreview(file);
                             }}
-                            className="rounded-md bg-raised px-1.5 py-0.5 text-[11px] text-muted hover:text-ink"
+                            className="rounded-md bg-surface-container-high px-1.5 py-0.5 text-[11px] text-on-surface-variant hover:text-on-surface"
                           >
                             {tl(lang, 'files.moreRefs', { n: file.usedIn.length - 2 })}
                           </button>
@@ -488,16 +488,16 @@ export function FilesView() {
       {/* Confirmation Sheet */}
       {confirmOpen && (
         <Sheet title={tl(lang, 'files.deleteSheetTitle')} onClose={() => !deleting && setConfirmOpen(false)}>
-          <p className="mb-3 text-sm text-muted">
+          <p className="mb-3 text-sm text-on-surface-variant">
             {tl(lang, 'files.deleteSheetDescBefore')} <b>{selectedItems.length}</b>{' '}
             {selectedItems.length === 1 ? tl(lang, 'files.deleteSheetFileSingle') : tl(lang, 'files.deleteSheetFilePlural')} ({formatBytes(selectedBytes)}){' '}
             {tl(lang, 'files.deleteSheetDescAfter')}
           </p>
-          <ul className="mb-4 max-h-48 divide-y divide-line overflow-y-auto rounded-2xl border border-line bg-raised/50 px-3 scrollbar-thin">
+          <ul className="mb-4 max-h-48 divide-y divide-outline-variant overflow-y-auto rounded-2xl border border-outline-variant bg-surface-container-high/50 px-3 scrollbar-thin">
             {selectedItems.map((item) => (
               <li key={item.id} className="flex items-center justify-between gap-2 py-2 text-sm">
                 <span className="truncate">{item.name}</span>
-                <span className="shrink-0 text-xs text-faint">{formatBytes(item.size)}</span>
+                <span className="shrink-0 text-xs text-on-surface-variant">{formatBytes(item.size)}</span>
               </li>
             ))}
           </ul>
@@ -507,7 +507,7 @@ export function FilesView() {
             </button>
             <button
               type="button"
-              className="btn rounded-full bg-danger px-4 text-bg shadow-soft hover:brightness-110"
+              className="btn rounded-full bg-error px-4 text-surface shadow-soft"
               disabled={deleting}
               onClick={() => void confirmDelete()}
             >
@@ -523,17 +523,17 @@ export function FilesView() {
         createPortal(
           <div className="wz-lightbox anim-fade-in" onClick={() => setPreview(null)}>
             <div
-              className="flex max-h-[90vh] w-full max-w-3xl cursor-default flex-col gap-3 rounded-3xl bg-surface p-4 text-ink shadow-soft"
+              className="flex max-h-[90vh] w-full max-w-3xl cursor-default flex-col gap-3 rounded-3xl bg-surface-container-low p-4 text-on-surface shadow-soft"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex flex-wrap items-center gap-2">
                 <div className="min-w-0 flex-1 basis-40">
-                  <div className="truncate font-semibold">{preview.name}</div>
-                  <div className="truncate text-xs text-muted">
+                  <div className="truncate font-medium">{preview.name}</div>
+                  <div className="truncate text-xs text-on-surface-variant">
                     {formatBytes(preview.size)} · {dateFmt.format(preview.createdAt)} · {preview.mime}
                   </div>
                 </div>
-                <a href={preview.url} target="_blank" rel="noopener noreferrer" className="btn-ghost shrink-0 rounded-full border border-line px-3 text-xs">
+                <a href={preview.url} target="_blank" rel="noopener noreferrer" className="btn-ghost shrink-0 rounded-full border border-outline-variant px-3 text-xs">
                   <ExternalLink size={14} /> {tl(lang, 'common.open')}
                 </a>
                 <button type="button" className="btn-icon shrink-0" onClick={() => setPreview(null)} aria-label={tl(lang, 'files.closePreviewAria')}>
@@ -541,14 +541,14 @@ export function FilesView() {
                 </button>
               </div>
               {preview.mime.startsWith('image/') && (
-                <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl bg-raised p-2">
+                <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl bg-surface-container-high p-2">
                   <img src={preview.url} alt={preview.name} className="max-h-[65vh] max-w-full rounded-xl object-contain" />
                 </div>
               )}
               {preview.usedIn.length > 0 ? (
                 <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                  <span className="inline-flex items-center gap-1 text-muted">
-                    <Lock size={12} className="text-accent" /> {tl(lang, 'files.usedInShort')}
+                  <span className="inline-flex items-center gap-1 text-on-surface-variant">
+                    <Lock size={12} className="text-primary" /> {tl(lang, 'files.usedInShort')}
                   </span>
                   {preview.usedIn.map((ref) => (
                     <button
@@ -558,7 +558,7 @@ export function FilesView() {
                         setPreview(null);
                         navigate(`/n/${ref.id}`);
                       }}
-                      className="max-w-full truncate rounded-lg bg-raised px-2 py-1 text-accent hover:bg-accent/15"
+                      className="max-w-full truncate rounded-lg bg-surface-container-high px-2 py-1 text-primary hover:bg-primary/15"
                     >
                       {ref.path}
                     </button>

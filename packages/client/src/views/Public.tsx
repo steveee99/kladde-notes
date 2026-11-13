@@ -14,17 +14,17 @@ export function PublicNote({ token }: { token: string }) {
   useEffect(() => {
     api<PublicNoteData>(`/public/${encodeURIComponent(token)}`).then(setNote, (e) => setError(e.message));
   }, [token]);
-  if (error) return <div className="p-8 text-center text-muted">{error}</div>;
-  if (!note) return <div className="p-8 text-center text-faint">{tl(lang, 'common.loading')}</div>;
+  if (error) return <div className="p-8 text-center text-on-surface-variant">{error}</div>;
+  if (!note) return <div className="p-8 text-center text-on-surface-variant">{tl(lang, 'common.loading')}</div>;
   const title = extractMeta(note.path, note.content).title;
   return (
     <div className="content-container px-4 py-8 sm:px-8 anim-fade-up">
-      <div className="no-print mb-6 flex items-center gap-2.5 text-sm text-faint">
+      <div className="no-print mb-6 flex items-center gap-2.5 text-sm text-on-surface-variant">
         <Avatar name={note.owner} avatarUrl={note.ownerAvatar} size="md" />
         <span className="min-w-0 flex-1">{tl(lang, 'public.sharedBy', { owner: note.owner, date: new Date(note.updatedAt).toLocaleDateString(locale(lang)) })}</span>
         <ExportMenu title={title} content={note.content} />
       </div>
-      <h1 className="mb-4 break-words text-3xl font-bold tracking-tight">{title}</h1>
+      <h1 className="mb-4 break-words text-headline-l">{title}</h1>
       <Editor docKey={token} value={note.content} readOnly />
     </div>
   );

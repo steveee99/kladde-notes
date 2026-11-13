@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
-import { KeyRound, LogIn, Smartphone, Sparkles, UserPlus } from 'lucide-react';
+import { KeyRound, LogIn, Smartphone, Sparkles, UserPlus } from '../lib/icons';
 import { PASSWORD_MIN_LENGTH, type AuthProviders, type Me } from '@kladde/shared';
 import { api } from '../lib/api';
 import { Lang, setLang, t, tl, useLang } from '../lib/i18n';
@@ -59,7 +59,7 @@ function GitLabButton({ label, query, primary }: { label: string; query?: Record
   return (
     <a
       href={`/api/auth/gitlab/start${q}`}
-      className={`${primary ? 'btn-primary py-3' : 'btn-ghost border border-line'} w-full rounded-full`}
+      className={`${primary ? 'btn-primary py-3' : 'btn-ghost border border-outline-variant'} w-full rounded-full`}
       data-gitlab-login
     >
       <GitLabIcon /> {label}
@@ -69,8 +69,8 @@ function GitLabButton({ label, query, primary }: { label: string; query?: Record
 
 function Divider({ label }: { label: string }) {
   return (
-    <div className="my-5 flex items-center gap-3 text-xs text-faint">
-      <div className="h-px flex-1 bg-line" /> {label} <div className="h-px flex-1 bg-line" />
+    <div className="my-5 flex items-center gap-3 text-xs text-on-surface-variant">
+      <div className="h-px flex-1 bg-outline-variant" /> {label} <div className="h-px flex-1 bg-outline-variant" />
     </div>
   );
 }
@@ -103,7 +103,7 @@ function PasswordLogin({ busy, run, primary }: { busy: boolean; run: (fn: () => 
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
-      <button className={`${primary ? 'btn-primary rounded-full py-3' : 'btn-ghost rounded-full border border-line'} w-full`} disabled={busy || !username.trim() || !password}>
+      <button className={`${primary ? 'btn-primary rounded-full py-3' : 'btn-ghost rounded-full border border-outline-variant'} w-full`} disabled={busy || !username.trim() || !password}>
         <LogIn size={primary ? 18 : 16} /> {tl(lang, 'auth.passwordLogin')}
       </button>
     </form>
@@ -117,15 +117,15 @@ export function Frame({ title, subtitle, children }: { title: string; subtitle: 
       <div className="card w-full max-w-sm rounded-3xl p-6 anim-fade-up">
         <div className="mb-4 flex items-start justify-between gap-2">
           <img src="/icons/icon.svg" alt="" className="h-14 w-14 anim-pop" />
-          <div className="inline-flex rounded-full border border-line bg-raised p-0.5" role="group" aria-label={tl(lang, 'common.language')}>
+          <div className="inline-flex rounded-full border border-outline-variant bg-surface-container-high p-0.5" role="group" aria-label={tl(lang, 'common.language')}>
             {(['de', 'en'] as Lang[]).map((code) => (
               <button
                 key={code}
                 type="button"
                 aria-pressed={lang === code}
                 onClick={() => setLang(code)}
-                className={`rounded-full px-2.5 py-1 text-xs font-medium uppercase transition-colors ${
-                  lang === code ? 'bg-accent-container text-on-accent-container' : 'text-muted hover:text-ink'
+                className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                  lang === code ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:text-on-surface'
                 }`}
               >
                 {code}
@@ -133,8 +133,8 @@ export function Frame({ title, subtitle, children }: { title: string; subtitle: 
             ))}
           </div>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-        <p className="mt-1 mb-6 text-sm text-muted">{subtitle}</p>
+        <h1 className="text-headline-m">{title}</h1>
+        <p className="mt-1 mb-6 text-sm text-on-surface-variant">{subtitle}</p>
         {children}
       </div>
     </div>
@@ -184,8 +184,8 @@ export function Login({ onDone }: { onDone: (me: Me) => void }) {
         <PasswordLogin busy={busy} run={run} primary />
         {gitlab}
         {register}
-        <p className="mt-3 text-xs text-faint">{tl(lang, 'auth.noPasskeyHint')}</p>
-        {error && <p className="mt-4 text-sm text-danger anim-fade-in">{error}</p>}
+        <p className="mt-3 text-xs text-on-surface-variant">{tl(lang, 'auth.noPasskeyHint')}</p>
+        {error && <p className="mt-4 text-sm text-error anim-fade-in">{error}</p>}
       </Frame>
     );
   }
@@ -224,20 +224,20 @@ export function Login({ onDone }: { onDone: (me: Me) => void }) {
         }}
       >
         <input className="input min-w-0 flex-1" placeholder={tl(lang, 'auth.deviceCodePlaceholder')} value={code} onChange={(e) => setCode(e.target.value)} />
-        <button className="btn-ghost shrink-0 rounded-xl border border-line" type="submit">
+        <button className="btn-ghost shrink-0 rounded-xl border border-outline-variant" type="submit">
           <Smartphone size={16} />
         </button>
       </form>
-      <p className="mt-2 text-xs text-faint">{tl(lang, 'auth.deviceCodeHint')}</p>
+      <p className="mt-2 text-xs text-on-surface-variant">{tl(lang, 'auth.deviceCodeHint')}</p>
       {import.meta.env.DEV && (
         <button
-          className="btn-ghost mt-4 w-full rounded-full border border-dashed border-line"
+          className="btn-ghost mt-4 w-full rounded-full border border-dashed border-outline-variant"
           onClick={() => run(() => api<Me>('/auth/dev-login', { method: 'POST', json: {} }))}
         >
           <Sparkles size={16} /> {tl(lang, 'auth.devLogin')}
         </button>
       )}
-      {error && <p className="mt-4 text-sm text-danger anim-fade-in">{error}</p>}
+      {error && <p className="mt-4 text-sm text-error anim-fade-in">{error}</p>}
     </Frame>
   );
 }
@@ -253,7 +253,7 @@ export function Invite({ code, onDone }: { code?: string; onDone: (me: Me) => vo
   const [password, setPassword] = useState('');
   const providers = useAuthProviders();
   const [choice, setChoice] = useState<'passkey' | 'password' | null>(null);
-  if (!code && !providers) return <div className="flex h-full items-center justify-center text-faint">…</div>;
+  if (!code && !providers) return <div className="flex h-full items-center justify-center text-on-surface-variant">…</div>;
   // With an invite every method works; without one only those the server opened
   const canPasskey = passkeysAvailable() && (!!code || !!providers?.signup.passkey);
   const canPassword = !!code || !!providers?.signup.password;
@@ -271,13 +271,13 @@ export function Invite({ code, onDone }: { code?: string; onDone: (me: Me) => vo
         </>
       )}
       {code ? (
-        <p className="mt-3 text-xs text-faint">{tl(lang, 'auth.inviteCodeLabel', { code })}</p>
+        <p className="mt-3 text-xs text-on-surface-variant">{tl(lang, 'auth.inviteCodeLabel', { code })}</p>
       ) : (
         <button className="btn-ghost mt-3 w-full rounded-full text-sm" onClick={() => navigate('/', true)}>
           {tl(lang, 'auth.backToLogin')}
         </button>
       )}
-      {error && <p className="mt-4 text-sm text-danger anim-fade-in">{error}</p>}
+      {error && <p className="mt-4 text-sm text-error anim-fade-in">{error}</p>}
     </>
   );
 
@@ -325,7 +325,7 @@ export function Invite({ code, onDone }: { code?: string; onDone: (me: Me) => vo
           </button>
         ) : (
           !passkeysAvailable() && (
-            <p className="mt-3 text-xs text-faint">
+            <p className="mt-3 text-xs text-on-surface-variant">
               {tl(lang, 'auth.noPasskeyHint')} {tl(lang, 'auth.addPasskeyLaterHint')}
             </p>
           )
@@ -380,7 +380,7 @@ export function LinkDevice({ code, onDone }: { code: string; onDone: (me: Me) =>
   });
   return (
     <Frame title={tl(lang, 'auth.linkTitle')} subtitle={tl(lang, 'auth.linkSubtitle')}>
-      {!passkeysAvailable() && <p className="mb-3 rounded-xl bg-raised p-3 text-sm text-warn">{tl(lang, 'auth.noPasskeyHint')}</p>}
+      {!passkeysAvailable() && <p className="mb-3 rounded-xl bg-surface-container-high p-3 text-sm text-warn">{tl(lang, 'auth.noPasskeyHint')}</p>}
       <button
         className="btn-primary w-full rounded-full py-3"
         disabled={busy || !passkeysAvailable()}
@@ -397,7 +397,7 @@ export function LinkDevice({ code, onDone }: { code: string; onDone: (me: Me) =>
       <button className="btn-ghost mt-2 w-full rounded-full" onClick={() => navigate('/', true)}>
         {tl(lang, 'common.back')}
       </button>
-      {error && <p className="mt-4 text-sm text-danger anim-fade-in">{error}</p>}
+      {error && <p className="mt-4 text-sm text-error anim-fade-in">{error}</p>}
     </Frame>
   );
 }
