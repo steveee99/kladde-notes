@@ -1,0 +1,8 @@
+{
+  "name": "deepmerge",
+  "version": "4.3.1-kladde.1",
+  "description": "deepmerge 4.3.1 with the fix for GHSA-gcqx-w48m-w2h4 (no upstream release yet); only used at build time by workbox-build",
+  "main": "dist/cjs.js",
+  "types": "index.d.ts",
+  "license": "MIT"
+}

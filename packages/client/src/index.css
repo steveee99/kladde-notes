@@ -544,6 +544,13 @@ html[data-readonly] .edit-only {
   text-decoration-color: rgb(var(--primary) / 0.35);
   text-underline-offset: 3px;
 }
+/* A link or image with a scheme that is not allowed (javascript:, data:, …): shown as text, never clickable */
+.cm-link.cm-link-blocked {
+  color: rgb(var(--on-surface-variant));
+  cursor: not-allowed;
+  text-decoration-style: dashed;
+  text-decoration-color: rgb(var(--on-surface-variant) / 0.5);
+}
 /*
  * External links as Material 3 assist chips: 8px corners, outline, label-large text, a leading icon
  * (the site's favicon) and an on-surface state layer. Height is reduced from 32px so the chip fits the line.

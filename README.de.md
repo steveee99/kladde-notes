@@ -40,7 +40,6 @@
 | **Wissensnetz** | Graph aller Notizen (`/graph`, nach PARA-Rolle eingefärbt, zoom- und verschiebbar) und lokales Netz unter jeder Notiz |
 | **Versionsverlauf** | Verlauf pro Notiz mit bis zu 100 Ständen auf dem Server; Diff-Ansicht mit hinzugefügten/entfernten Zeilen (`git diff`-Stil) oder gerenderter Text; Wiederherstellung per Klick |
 | **Rezept-Import** | Rezepte per Link importieren (schema.org von Chefkoch, EatSmarter, Food-Blogs etc.) einheitlich nach `3 Ressourcen/Rezepte`: Zutaten-Tabelle, nummerierte Schritte, Quelle |
-| **Git-Sync** | Eigene Notizen automatisch als Markdown-Dateien in ein persönliches Git-Repository (GitLab, GitHub etc.) pushen (Branch `main`, anpassbare Commit-Nachricht) |
 | **KI & MCP** | MCP-Server (`/mcp`, Streamable HTTP) für Assistenten wie Claude Desktop, Claude Code, Cursor: OAuth 2.1 oder persönliche Zugriffstoken (PAT); Zugriff isoliert auf eigene Notizen |
 | **Wochenrückblick** | Opt-In unter Einstellungen → Funktionen. `/review`: Inbox, überfällige Aufgaben, Projekte ohne nächsten Schritt, ruhende Bereiche, alte flüchtige und unverbundene Zettel; Erinnerung nach 7 Tagen |
 | **Vorlagen** | Eigene Vorlagen unter Einstellungen → Vorlagen verwalten (`{{title}}`, `{{date}}`, `{{zid}}`), mit Standard-Zielordner und verschlüsselter Synchronisation |

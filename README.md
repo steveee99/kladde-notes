@@ -42,7 +42,6 @@ The app and its UI are available in **English and German**. Some of the guides i
 | **Knowledge graph** | Graph of all notes (`/graph`, colored by PARA role, zoomable and draggable) and a local graph below every note |
 | **Version history** | History per note with up to 100 versions on the server; diff view with added/removed lines (`git diff` style) or rendered text; restore with a click |
 | **Recipe import** | Import recipes by link (schema.org, e.g. from recipe sites and food blogs) into `3 Resources/Recipes`: ingredient table, numbered steps, source |
-| **Git sync** | Push your own notes automatically as Markdown files to a personal Git repository (GitLab, GitHub, etc.) on branch `main`, with a customizable commit message |
 | **AI & MCP** | MCP server (`/mcp`, Streamable HTTP) for assistants such as Claude Desktop, Claude Code, Cursor: OAuth 2.1 or personal access tokens; access limited to your own notes |
 | **Weekly review** | Opt-in under Settings → Features. `/review`: inbox, overdue tasks, projects without a next step, dormant areas, old fleeting and unconnected Zettel; reminder after 7 days |
 | **Templates** | Your own templates under Settings → Templates (`{{title}}`, `{{date}}`, `{{zid}}`), with a default target folder and encrypted sync |

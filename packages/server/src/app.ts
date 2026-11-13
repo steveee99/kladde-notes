@@ -8,10 +8,10 @@ import { AvatarStore } from './AvatarStore.js';
 import { UserRecord, UserStore } from './UserStore.js';
 import { NoteStore } from './NoteStore.js';
 import { FileStore } from './FileStore.js';
-import { GitSync } from './GitSync.js';
 import { ExportMirror } from './ExportMirror.js';
 import { AuditLog } from './security/AuditLog.js';
 import { configuredOrigins, isAllowedOrigin } from './security/origin.js';
+import { appCsp, inlineScriptHashes } from './security/csp.js';
 import { authRouter } from './auth.js';
 import { gitlabConfigFromEnv, openSignupFromEnv } from './gitlabAuth.js';
 import { apiRouter, LiveUpdates } from './api.js';
@@ -56,13 +56,12 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   const audit = new AuditLog(opts.db);
   const live = new LiveUpdates();
   const mirror = ExportMirror.fromEnv((id) => users.getUser(id)?.username ?? null, env);
-  let gitSync: GitSync | undefined;
   const notes = new NoteStore(opts.db, cipher, (event) => {
     live.notify(event.audience);
     mirror?.apply(event);
-    gitSync?.touch(event.ownerId);
   });
-  gitSync = new GitSync(opts.db, cipher, (id) => notes.allOf(id), (id) => users.getUser(id)?.username ?? null, opts.dataDir);
+  // Git sync was removed: its working copies (plain Markdown of the notes) must not stay on disk
+  fs.rmSync(path.join(opts.dataDir, 'git'), { recursive: true, force: true });
   const files = new FileStore(opts.db, cipher, opts.dataDir);
   const avatars = new AvatarStore(opts.db, cipher, opts.dataDir);
   const standaloneUser = opts.standalone ? ensureStandaloneUser(users) : undefined;
@@ -90,7 +89,13 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   if (opts.trustProxy) app.set('trust proxy', 1);
   const allowedOrigins = configuredOrigins(env);
 
+  // The served index.html decides which inline scripts the CSP allows (hashes, no 'unsafe-inline')
+  const indexSource = opts.seaAssets?.get('/index.html')?.data.toString('utf8') ?? (opts.clientDist && fs.existsSync(path.join(opts.clientDist, 'index.html')) ? fs.readFileSync(path.join(opts.clientDist, 'index.html'), 'utf8') : '');
+  const csp = appCsp(inlineScriptHashes(indexSource));
+
   app.use((_req, res, next) => {
+    // Routes with their own policy (attachments, avatars) replace it
+    res.setHeader('Content-Security-Policy', csp);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
@@ -184,7 +189,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   if (!opts.standalone) {
     app.use('/api/admin', adminRouter({ users, audit, status }));
   }
-  app.use('/api', apiRouter(users, notes, files, live, gitSync, { standaloneUser, avatars, meFor }));
+  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, meFor }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
   if (opts.seaAssets && opts.seaAssets.size > 0) {

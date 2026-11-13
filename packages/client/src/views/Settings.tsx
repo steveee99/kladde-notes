@@ -14,7 +14,6 @@ import {
   FolderKanban,
   FolderInput,
   FolderPlus,
-  GitBranch,
   Globe,
   Images,
   Inbox,
@@ -212,12 +211,6 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
           },
         ]
       : []),
-    {
-      path: '/settings/git',
-      Icon: GitBranch,
-      title: tl(lang, 'settings.gitTitle'),
-      desc: tl(lang, 'settings.gitDesc'),
-    },
     {
       path: '/settings/templates',
       Icon: LayoutTemplate,

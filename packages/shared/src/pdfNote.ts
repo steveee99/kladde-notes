@@ -8,6 +8,7 @@
  * ![Bericht.pdf](/api/files/<id>)
  */
 import { parseFrontmatter, setFrontmatter } from './markdown.js';
+import { safeUrl } from './util.js';
 
 /** Markdown of a new PDF note for an uploaded file */
 export function pdfNoteMarkdown(name: string, url: string): string {
@@ -20,7 +21,10 @@ export function pdfNoteOf(content: string): { url: string; name: string } | null
   const { data, body } = parseFrontmatter(content);
   if (data.type?.toLowerCase() !== 'pdf') return null;
   for (const m of body.matchAll(/!\[([^\]\n]*)\]\(([^)\s]+)\)/g)) {
-    const [, name, url] = m;
+    const [, name, raw] = m;
+    // The URL ends up in an iframe: only http(s) or relative, never javascript:
+    const url = safeUrl(raw, 'media');
+    if (!url) continue;
     if (/\.pdf$/i.test(url) || /\.pdf$/i.test(name) || url.startsWith('/api/files/')) return { url, name };
   }
   return null;

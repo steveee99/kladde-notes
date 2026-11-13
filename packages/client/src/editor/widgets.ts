@@ -8,6 +8,7 @@ import {
   parseDate,
   removeTableColumn,
   removeTableRow,
+  safeUrl,
   serializeMarkdownTable,
   setFrontmatter,
   setTableCell,
@@ -330,7 +331,9 @@ export class GalleryWidget extends BlockWidget {
 
 /** Images of a ```gallery / ```carousel block: one per line, as ![alt](url) or a bare URL */
 function blockImages(src: string): { url: string; alt: string }[] {
-  return [...src.matchAll(/!\[([^\]]*)\]\(([^)\s]+)\)|^\s*(https?:\/\/\S+|\/api\/files\/\S+)\s*$/gm)].map((m) => ({ url: m[2] ?? m[3], alt: m[1] ?? '' }));
+  return [...src.matchAll(/!\[([^\]]*)\]\(([^)\s]+)\)|^\s*(https?:\/\/\S+|\/api\/files\/\S+)\s*$/gm)]
+    .map((m) => ({ url: safeUrl(m[2] ?? m[3], 'media', true), alt: m[1] ?? '' }))
+    .filter((i): i is { url: string; alt: string } => i.url !== null);
 }
 
 const chevron = (d: string) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
@@ -422,6 +425,7 @@ export class DiagramWidget extends BlockWidget {
 }
 
 export function openLightbox(url: string) {
+  if (!safeUrl(url, 'media', true)) return;
   const box = document.createElement('div');
   box.className = 'wz-lightbox anim-fade-in';
   const img = document.createElement('img');
@@ -631,8 +635,17 @@ export class LinkWidget extends WidgetType {
     return o.text === this.text && o.url === this.url;
   }
   toDOM() {
+    const href = safeUrl(this.url);
+    if (!href) {
+      // javascript:, data: and other schemes never become a clickable link (stored XSS through shared notes)
+      const s = document.createElement('span');
+      s.className = 'cm-link cm-link-blocked';
+      s.textContent = stripInline(this.text) || this.url;
+      s.title = this.url;
+      return s;
+    }
     const a = document.createElement('a');
-    a.href = this.url;
+    a.href = href;
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
     a.addEventListener('mousedown', (e) => e.preventDefault());
@@ -808,16 +821,27 @@ export class ImageWidget extends WidgetType {
     return o.url === this.url && o.alt === this.alt && o.lang === this.lang;
   }
   toDOM() {
-    if (/\.pdf($|\?)/i.test(this.url) || /\.pdf$/i.test(this.alt)) {
+    const isPdf = /\.pdf($|\?)/i.test(this.url) || /\.pdf$/i.test(this.alt);
+    // Only http(s) and relative URLs reach src/href: a javascript: URL in an iframe would run in the app's origin
+    const src = safeUrl(this.url, 'media', !isPdf);
+    if (!src) {
+      const s = document.createElement('span');
+      s.className = 'cm-link cm-link-blocked';
+      s.textContent = this.alt || this.url;
+      s.title = this.url;
+      return s;
+    }
+    if (isPdf) {
       const wrap = document.createElement('div');
       wrap.className = 'cm-block-widget';
       const obj = document.createElement('iframe');
       obj.className = 'cm-pdf';
-      obj.src = this.url;
+      obj.src = src;
       obj.title = this.alt || 'PDF';
       const link = document.createElement('a');
-      link.href = this.url;
+      link.href = src;
       link.target = '_blank';
+      link.rel = 'noopener noreferrer';
       link.className = 'cm-link text-sm';
       link.textContent = `📄 ${this.alt || (this.lang === 'en' ? 'Open PDF' : 'PDF öffnen')}`;
       wrap.append(link, obj);
@@ -825,10 +849,10 @@ export class ImageWidget extends WidgetType {
     }
     const img = document.createElement('img');
     img.className = 'cm-img';
-    img.src = this.url;
+    img.src = src;
     img.alt = this.alt;
     img.loading = 'lazy';
-    img.addEventListener('click', () => openLightbox(this.url));
+    img.addEventListener('click', () => openLightbox(src));
     return img;
   }
   ignoreEvent() {
