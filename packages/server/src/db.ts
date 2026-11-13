@@ -244,6 +244,13 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 11,
+    description: 'Git sync removed: drop its table (encrypted repository URLs and access tokens)',
+    up: (db) => {
+      db.exec('DROP TABLE IF EXISTS git_sync;');
+    },
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number[] {

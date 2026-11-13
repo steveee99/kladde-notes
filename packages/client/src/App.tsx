@@ -19,7 +19,6 @@ import { ReviewView } from './views/Review';
 import { AdminView } from './views/Admin';
 import { TemplatesView } from './views/Templates';
 import { McpSettingsView } from './views/McpSettings';
-import { GitSettingsView } from './views/GitSettings';
 import { ImportSettingsView } from './views/ImportSettings';
 import { OAuthConsent } from './views/OAuthConsent';
 import { FilesView } from './views/Files';
@@ -148,7 +147,6 @@ export function App() {
   else if (path === '/admin' && !me.standalone) page = <AdminView me={me} />;
   else if (path === '/settings/templates') page = <TemplatesView />;
   else if (path === '/settings/mcp') page = <McpSettingsView />;
-  else if (path === '/settings/git') page = <GitSettingsView />;
   else if (path === '/settings/import' && !me.standalone) page = <ImportSettingsView />;
   else if (path === '/files' || path === '/settings/files') page = <FilesView />;
   else if (path === '/settings')
