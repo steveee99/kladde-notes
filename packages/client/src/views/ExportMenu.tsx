@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Download, FileCode, FileSpreadsheet, FileText, Loader2, Printer } from 'lucide-react';
+import { Download, FileCode, FileSpreadsheet, FileText, Loader2, Printer } from '../lib/icons';
 import { safeExportFilename, stripFrontmatter } from '@kladde/shared';
 import { t, tl, useLang } from '../lib/i18n';
 
@@ -115,50 +115,50 @@ export function ExportMenu({ title, content }: ExportMenuProps) {
             ref={menuRef}
             role="menu"
             style={{ top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? 'visible' : 'hidden' }}
-            className="no-print fixed z-50 w-56 rounded-2xl border border-line bg-surface p-1.5 shadow-soft anim-fade-in"
+            className="no-print fixed z-50 w-56 rounded-2xl border border-outline-variant bg-surface-container-low p-1.5 shadow-soft anim-fade-in"
           >
-            <div className="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-faint">{tl(lang, 'export.headerNoFrontmatter')}</div>
+            <div className="px-2.5 py-1 text-label-m text-on-surface-variant">{tl(lang, 'export.headerNoFrontmatter')}</div>
             <button
               type="button"
               role="menuitem"
-              className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-ink transition-colors hover:bg-raised"
+              className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-high"
               onClick={exportMarkdown}
             >
-              <FileCode size={16} className="shrink-0 text-accent" />
+              <FileCode size={16} className="shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
                 <div className="font-medium">{tl(lang, 'export.mdTitle')}</div>
-                <div className="text-xs text-faint">{tl(lang, 'export.mdDesc')}</div>
+                <div className="text-xs text-on-surface-variant">{tl(lang, 'export.mdDesc')}</div>
               </div>
             </button>
             <button
               type="button"
               role="menuitem"
-              className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-ink transition-colors hover:bg-raised"
+              className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-high"
               onClick={() => void runAsync('word')}
             >
-              <FileSpreadsheet size={16} className="shrink-0 text-accent" />
+              <FileSpreadsheet size={16} className="shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
                 <div className="font-medium">{tl(lang, 'export.wordTitle')}</div>
-                <div className="text-xs text-faint">{tl(lang, 'export.wordDesc')}</div>
+                <div className="text-xs text-on-surface-variant">{tl(lang, 'export.wordDesc')}</div>
               </div>
             </button>
             <button
               type="button"
               role="menuitem"
-              className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-ink transition-colors hover:bg-raised"
+              className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-high"
               onClick={() => void runAsync('pdf')}
             >
-              <FileText size={16} className="shrink-0 text-accent" />
+              <FileText size={16} className="shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
                 <div className="font-medium">{tl(lang, 'export.pdfTitle')}</div>
-                <div className="text-xs text-faint">{tl(lang, 'export.pdfDesc')}</div>
+                <div className="text-xs text-on-surface-variant">{tl(lang, 'export.pdfDesc')}</div>
               </div>
             </button>
-            <div className="my-1 border-t border-line" />
+            <div className="my-1 border-t border-outline-variant" />
             <button
               type="button"
               role="menuitem"
-              className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-muted transition-colors hover:bg-raised hover:text-ink"
+              className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
               onClick={() => {
                 setOpen(false);
                 requestAnimationFrame(() => window.print());

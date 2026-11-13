@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlignJustify, Briefcase, CalendarCheck, CalendarClock, CalendarDays, Inbox as InboxIcon, Kanban, List, ListChecks, Plus, Repeat, X } from 'lucide-react';
+import { AlignJustify, Briefcase, Check, CalendarCheck, CalendarClock, CalendarDays, Inbox as InboxIcon, Kanban, List, ListChecks, Plus, Repeat, X } from '../lib/icons';
 import { INBOX_FOLDER, TASK_STATUSES, Task, TaskBucket, TaskStatus, bucketOf, parseTasks, projectTitleOf, roleOfPath, shortcutDate, projectsOf, splitPath, toDateString } from '@kladde/shared';
 import { openDialog } from '../lib/dialogs';
 import { reviewDue } from './Review';
@@ -20,10 +20,10 @@ interface TaskRow extends Task {
 }
 
 const BUCKETS: { id: TaskBucket; labelKey: I18nKey; tone: string }[] = [
-  { id: 'overdue', labelKey: 'home.bucketOverdue', tone: 'text-danger' },
-  { id: 'today', labelKey: 'home.bucketToday', tone: 'text-warn' },
-  { id: 'upcoming', labelKey: 'home.bucketNext', tone: 'text-accent' },
-  { id: 'someday', labelKey: 'home.taskNoDate', tone: 'text-muted' },
+  { id: 'overdue', labelKey: 'home.bucketOverdue', tone: 'text-error' },
+  { id: 'today', labelKey: 'home.bucketToday', tone: 'text-tertiary' },
+  { id: 'upcoming', labelKey: 'home.bucketNext', tone: 'text-primary' },
+  { id: 'someday', labelKey: 'home.taskNoDate', tone: 'text-on-surface-variant' },
 ];
 
 const REPEATS: { value: string; labelKey: I18nKey }[] = [
@@ -117,7 +117,7 @@ function TaskMeta({ task, className = '' }: { task: TaskRow; className?: string 
       <button
         ref={triggerRef}
         type="button"
-        className={`rounded-full p-1.5 transition-colors ${open ? 'bg-accent/15 text-accent' : 'text-faint hover:bg-raised hover:text-accent'}`}
+        className={`rounded-full p-1.5 transition-colors ${open ? 'bg-primary/15 text-primary' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-primary'}`}
         title={t('home.taskDateAndRepeatAria')}
         aria-label={t('home.taskDateAndRepeatAria')}
         aria-expanded={open}
@@ -135,14 +135,14 @@ function TaskMeta({ task, className = '' }: { task: TaskRow; className?: string 
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => e.stopPropagation()}
             style={{ top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? 'visible' : 'hidden' }}
-            className="card fixed z-[90] w-64 max-w-[calc(100vw-1rem)] space-y-2.5 rounded-2xl border border-line/70 bg-raised p-3 shadow-soft anim-fade-in"
+            className="card fixed z-[90] w-64 max-w-[calc(100vw-1rem)] space-y-2.5 rounded-2xl border border-outline-variant/70 bg-surface-container-high p-3 shadow-soft anim-fade-in"
           >
             <div className="flex flex-wrap gap-1.5">
               {shortcuts.map(([label, kind]) => (
                 <button
                   key={kind}
                   type="button"
-                  className="chip cursor-pointer px-2.5 py-1 text-xs font-medium hover:bg-accent/15 hover:text-accent"
+                  className="chip"
                   onClick={() => {
                     set({ due: shortcutDate(kind) });
                     setOpen(false);
@@ -155,14 +155,14 @@ function TaskMeta({ task, className = '' }: { task: TaskRow; className?: string 
             <div className="flex items-center gap-1.5">
               <input
                 type="date"
-                className="min-w-0 flex-1 rounded-xl border border-line bg-surface px-2.5 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                className="min-w-0 flex-1 rounded-xl border border-outline-variant bg-surface-container-low px-2.5 py-1.5 text-sm text-on-surface outline-none focus:border-primary"
                 value={task.due ?? ''}
                 onChange={(e) => set({ due: e.target.value || null })}
               />
               {task.due && (
                 <button
                   type="button"
-                  className="rounded-full p-1.5 text-faint hover:bg-surface hover:text-danger"
+                  className="rounded-full p-1.5 text-on-surface-variant hover:bg-surface-container-low hover:text-error"
                   title={t('home.taskDateReset')}
                   aria-label={t('home.taskDateReset')}
                   onClick={() => set({ due: null })}
@@ -188,12 +188,12 @@ function TaskMeta({ task, className = '' }: { task: TaskRow; className?: string 
   );
 }
 
-const STATUS_TONE: Record<TaskStatus, string> = { open: 'text-muted', doing: 'text-accent', blocked: 'text-warn', done: 'text-ok' };
+const STATUS_TONE: Record<TaskStatus, string> = { open: 'text-on-surface-variant', doing: 'text-primary', blocked: 'text-warn', done: 'text-ok' };
 
 /** "In Arbeit" / "Blockiert" next to a task in the list (open tasks need no label) */
 function StatusChip({ status }: { status: TaskStatus }) {
   if (status !== 'doing' && status !== 'blocked') return null;
-  return <span className={`chip shrink-0 px-2 py-0 text-[11px] font-medium ${STATUS_TONE[status]}`}>{t(`task.status.${status}`)}</span>;
+  return <span className={`chip shrink-0 px-2 py-0 text-[11px] ${STATUS_TONE[status]}`}>{t(`task.status.${status}`)}</span>;
 }
 
 /** Opens the status picker for a task below `anchor` */
@@ -216,7 +216,7 @@ function TaskItem({ task, compact }: { task: TaskRow; compact: boolean }) {
         if (!task.noteTitle || (e.target as HTMLElement).closest('input,button,select')) return;
         navigate(`/n/${task.noteId}?line=${task.line + 1}`);
       }}
-      className={`group flex gap-3 rounded-xl px-3 transition-all duration-300 hover:bg-raised/60 ${compact ? 'py-1.5' : 'py-2.5'} ${top ? 'items-start' : 'items-center'} ${leaving ? 'translate-x-4 opacity-0' : ''}`}
+      className={`group flex gap-4 rounded-[var(--shape-xs)] bg-surface-container-low px-4 transition-all duration-300 first:rounded-t-2xl last:rounded-b-2xl hover:bg-surface-container ${compact ? 'py-2' : 'py-3'} ${top ? 'items-start' : 'items-center'} ${leaving ? 'translate-x-4 opacity-0' : ''}`}
     >
       <input
         type="checkbox"
@@ -239,9 +239,9 @@ function TaskItem({ task, compact }: { task: TaskRow; compact: boolean }) {
         <>
           <span className="min-w-0 flex-1 truncate text-sm">{task.text || t('home.taskEmpty')}</span>
           <StatusChip status={task.status} />
-          {task.repeat && <Repeat size={11} className="shrink-0 text-faint" />}
+          {task.repeat && <Repeat size={11} className="shrink-0 text-on-surface-variant" />}
           {task.due && <span className={`cm-due shrink-0 ${bucket === 'overdue' ? 'overdue' : bucket === 'today' ? 'today' : ''}`}>{formatDue(task.due)}</span>}
-          <button className="hidden max-w-[30%] shrink-0 truncate text-xs text-faint hover:text-accent sm:block" onClick={() => navigate(`/n/${task.noteId}`)}>
+          <button className="hidden max-w-[30%] shrink-0 truncate text-xs text-on-surface-variant hover:text-primary sm:block" onClick={() => navigate(`/n/${task.noteId}`)}>
             {task.noteTitle}
           </button>
         </>
@@ -264,7 +264,7 @@ function TaskItem({ task, compact }: { task: TaskRow; compact: boolean }) {
                 </span>
               )}
               {task.noteTitle && (
-                <button className="max-w-full truncate text-xs text-faint hover:text-accent" onClick={() => navigate(`/n/${task.noteId}`)}>
+                <button className="max-w-full truncate text-xs text-on-surface-variant hover:text-primary" onClick={() => navigate(`/n/${task.noteId}`)}>
                   {task.noteTitle}
                 </button>
               )}
@@ -301,7 +301,7 @@ function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
             key={status}
             data-testid={`kanban-${status}`}
             className={`flex w-[78vw] max-w-[18rem] shrink-0 snap-start flex-col gap-2 rounded-2xl border p-2 transition-colors sm:w-64 lg:w-auto lg:max-w-none ${
-              over === status ? 'border-accent bg-accent/10' : 'border-line/70 bg-raised/40'
+              over === status ? 'border-primary bg-primary/10' : 'border-outline-variant/70 bg-surface-container-high/40'
             }`}
             onDragOver={(e) => {
               if (locked || !e.dataTransfer.types.includes(DRAG_MIME)) return;
@@ -322,11 +322,11 @@ function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
             }}
           >
             <h3
-              className={`flex items-center gap-2 px-2 pt-1 text-xs font-semibold uppercase tracking-wider ${STATUS_TONE[status]}`}
+              className={`flex items-center gap-2 px-2 pt-1 text-title-s ${STATUS_TONE[status]}`}
               title={status === 'done' ? t('home.kanbanDoneHint') : undefined}
             >
               <span className="cm-checkbox !m-0" data-status={status} />
-              {t(`task.status.${status}`)} <span className="text-faint">· {list.length}</span>
+              {t(`task.status.${status}`)} <span className="text-on-surface-variant">· {list.length}</span>
             </h3>
             {list.map((tk) => {
               const bucket = bucketOf(tk);
@@ -350,7 +350,7 @@ function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
                     navigate(`/n/${tk.noteId}?line=${tk.line + 1}`);
                   }}
                   title={tk.noteTitle ? t('home.taskDoubleClickHint') : undefined}
-                  className={`card flex gap-2 p-2.5 ${hasMeta ? 'items-start' : 'items-center'} transition-all hover:border-accent/40 ${locked ? '' : 'cursor-grab active:cursor-grabbing'}`}
+                  className={`card flex gap-2 p-2.5 ${hasMeta ? 'items-start' : 'items-center'} transition-all hover:bg-surface-container ${locked ? '' : 'cursor-grab active:cursor-grabbing'}`}
                 >
                   <button
                     type="button"
@@ -363,15 +363,15 @@ function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
                     <span className="cm-checkbox !m-0" data-status={tk.status} />
                   </button>
                   <div className="min-w-0 flex-1">
-                    <div className={`break-words text-sm leading-snug ${tk.status === 'done' ? 'text-faint line-through' : ''}`}>{tk.text || t('home.taskEmpty')}</div>
+                    <div className={`break-words text-sm leading-snug ${tk.status === 'done' ? 'text-on-surface-variant line-through' : ''}`}>{tk.text || t('home.taskEmpty')}</div>
                     {hasMeta && (
                       <div className="mt-1 flex flex-wrap items-center gap-1.5">
                         {tk.due && tk.status !== 'done' && (
                           <span className={`cm-due ${bucket === 'overdue' ? 'overdue' : bucket === 'today' ? 'today' : ''}`}>{formatDue(tk.due)}</span>
                         )}
-                        {tk.repeat && <Repeat size={11} className="text-faint" />}
+                        {tk.repeat && <Repeat size={11} className="text-on-surface-variant" />}
                         {tk.noteTitle && (
-                          <button className="max-w-full truncate text-xs text-faint hover:text-accent" onClick={() => navigate(`/n/${tk.noteId}`)}>
+                          <button className="max-w-full truncate text-xs text-on-surface-variant hover:text-primary" onClick={() => navigate(`/n/${tk.noteId}`)}>
                             {tk.noteTitle}
                           </button>
                         )}
@@ -382,7 +382,7 @@ function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
                 </div>
               );
             })}
-            {!list.length && <p className="rounded-xl border border-dashed border-line/70 px-2 py-5 text-center text-xs text-faint">{t('home.kanbanEmpty')}</p>}
+            {!list.length && <p className="rounded-xl border border-dashed border-outline-variant/70 px-2 py-5 text-center text-xs text-on-surface-variant">{t('home.kanbanEmpty')}</p>}
           </div>
         );
       })}
@@ -470,10 +470,10 @@ export function HomeView() {
   return (
     <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
       <header className="mb-6 anim-fade-up">
-        <p className="text-base font-medium text-muted sm:text-lg">{new Date().toLocaleDateString(locale(lang), { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-        <h1 className="mt-1 text-4xl font-semibold tracking-tight leading-tight sm:text-5xl">{greeting} 👋</h1>
-        <p className="mt-3 text-lg font-medium text-ink/90 sm:text-xl">{openCountText}</p>
-        <p className="mt-1 text-base text-muted sm:text-lg">{t(features.para.enabled ? 'home.subtitle' : 'home.subtitleNoPara')}</p>
+        <p className="text-title-m text-on-surface-variant">{new Date().toLocaleDateString(locale(lang), { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+        <h1 className="mt-1 text-display-s sm:text-display-m">{greeting} 👋</h1>
+        <p className="mt-3 text-title-l">{openCountText}</p>
+        <p className="mt-1 text-body-l text-on-surface-variant">{t(features.para.enabled ? 'home.subtitle' : 'home.subtitleNoPara')}</p>
       </header>
 
       {(showDailyBtn || (inboxZero && inboxCount > 0) || reviewDue()) && (
@@ -481,44 +481,45 @@ export function HomeView() {
           {showDailyBtn && (
             <button
               type="button"
-              className="chip cursor-pointer bg-accent-container/70 px-3.5 py-2 text-sm font-medium text-on-accent-container transition-colors hover:bg-accent-container"
+              className="btn-outlined"
               onClick={() => void vault.openDailyNote().then((n) => navigate(`/n/${n.id}`))}
             >
-              <CalendarDays size={15} /> {t('daily.todayBtn')}
+              <CalendarDays size={18} /> {t('daily.todayBtn')}
             </button>
           )}
           {inboxZero && inboxCount > 0 && (
-            <button className="chip px-3.5 py-2 text-sm font-medium text-warn hover:bg-warn/15" onClick={() => navigate('/inbox')}>
-              <InboxIcon size={15} /> {inboxChipText}
+            <button className="chip text-on-surface" onClick={() => navigate('/inbox')}>
+              <InboxIcon size={18} className="text-warn" /> {inboxChipText}
             </button>
           )}
           {reviewDue() && (
-            <button className="chip px-3.5 py-2 text-sm font-medium text-accent hover:bg-accent/15" onClick={() => navigate('/review')}>
-              <CalendarCheck size={15} /> {t('home.reviewDueChip')}
+            <button className="chip text-on-surface" onClick={() => navigate('/review')}>
+              <CalendarCheck size={18} className="text-primary" /> {t('home.reviewDueChip')}
             </button>
           )}
         </div>
       )}
 
-      <hr className="my-7 border-0 border-t border-line/80" />
+      <hr className="my-7 border-0 border-t border-outline-variant/80" />
 
       <section aria-labelledby="home-tasks-heading">
         <div className="mb-3 flex items-center justify-between px-1 anim-fade-up">
-          <h2 id="home-tasks-heading" className="text-xs font-semibold uppercase tracking-wider text-faint">
+          <h2 id="home-tasks-heading" className="text-title-m">
             {t('home.tasksTitle')}
           </h2>
           <div className="flex items-center gap-1">
             {tasks.length > 0 && layout === 'list' && (
               <button
-                className="btn-ghost py-1 text-sm"
+                className="btn-icon"
                 aria-pressed={compact}
                 onClick={() => setCompact(!compact)}
                 title={compact ? t('home.viewNormalTitle') : t('home.viewCompactTitle')}
+                aria-label={compact ? t('home.viewNormal') : t('home.viewCompact')}
               >
-                {compact ? <List size={15} /> : <AlignJustify size={15} />} <span className="max-sm:hidden">{compact ? t('home.viewNormal') : t('home.viewCompact')}</span>
+                {compact ? <List size={24} /> : <AlignJustify size={24} />}
               </button>
             )}
-            <div role="group" aria-label={t('home.layoutAria')} className="flex rounded-full border border-line/70 p-0.5">
+            <div role="group" aria-label={t('home.layoutAria')} className="segmented">
               {(
                 [
                   ['list', ListChecks, 'home.layoutList'],
@@ -531,9 +532,9 @@ export function HomeView() {
                   aria-pressed={layout === id}
                   title={t(key)}
                   onClick={() => setLayout(id)}
-                  className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm transition-colors ${layout === id ? 'bg-accent-container text-on-accent-container' : 'text-muted hover:text-ink'}`}
+                  aria-label={t(key)}
                 >
-                  <Icon size={15} /> <span className="max-sm:hidden">{t(key)}</span>
+                  {layout === id ? <Check size={18} /> : <Icon size={18} />} <span className="max-sm:hidden">{t(key)}</span>
                 </button>
               ))}
             </div>
@@ -541,7 +542,7 @@ export function HomeView() {
         </div>
 
         <form
-          className="edit-only card mb-6 flex items-center gap-2 p-1.5 pl-3 anim-fade-up"
+          className="edit-only mb-6 flex min-h-14 items-center gap-3 rounded-t-[var(--shape-xs)] border-b border-on-surface-variant bg-surface-container-highest py-1 pl-3 pr-2 transition-colors focus-within:border-primary focus-within:shadow-[inset_0_-1px_0_rgb(var(--primary))] anim-fade-up"
           onSubmit={(e) => {
             e.preventDefault();
             if (!input.trim()) return;
@@ -549,14 +550,14 @@ export function HomeView() {
             setInput('');
           }}
         >
-          <Plus size={18} className="shrink-0 text-faint" />
+          <Plus size={24} className="shrink-0 text-on-surface-variant" />
           <input
-            className="min-w-0 flex-1 bg-transparent py-2 outline-none placeholder:text-faint"
+            className="min-w-0 flex-1 bg-transparent py-2 text-body-l outline-none placeholder:text-on-surface-variant"
             placeholder={t('home.taskInputPlaceholder')}
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
-          <button className="btn-primary shrink-0 rounded-full max-sm:!px-3.5 px-4" disabled={!input.trim()}>
+          <button className="btn-tonal max-sm:!px-4" disabled={!input.trim()}>
             {t('home.addBtn')}
           </button>
         </form>
@@ -577,10 +578,10 @@ export function HomeView() {
               }
               return (
                 <div key={b.id} className="anim-fade-up">
-                  <h3 className={`mb-1 px-3 text-xs font-semibold uppercase tracking-wider ${b.tone}`}>
-                    {t(b.labelKey)} <span className="text-faint">· {list.length}</span>
+                  <h3 className={`mb-2 px-4 text-title-s ${b.tone}`}>
+                    {t(b.labelKey)} <span className="text-on-surface-variant">· {list.length}</span>
                   </h3>
-                  <ul className="card stagger divide-y divide-line/60 p-1">
+                  <ul className="stagger flex flex-col gap-0.5">
                     {list.map((tk) => (
                       <TaskItem key={`${tk.noteId}:${tk.line}:${tk.text}`} task={tk} compact={compact} />
                     ))}
@@ -594,28 +595,28 @@ export function HomeView() {
 
       {features.para.enabled && (
         <>
-          <hr className="my-8 border-0 border-t border-line/80" />
+          <hr className="my-8 border-0 border-t border-outline-variant/80" />
 
           <section aria-labelledby="home-projects-heading" className="anim-fade-up">
             <div className="mb-4 flex flex-wrap items-center gap-3 px-1">
-              <h2 id="home-projects-heading" className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wider text-faint">
+              <h2 id="home-projects-heading" className="min-w-0 flex-1 text-title-m">
                 {t('home.projectsTitle')}
               </h2>
               <button
-                className="edit-only ml-auto inline-flex shrink-0 items-center gap-2 rounded-full bg-accent-container px-4 py-2.5 text-sm font-medium text-on-accent-container shadow-soft transition-all hover:brightness-110 active:scale-[0.98] sm:px-5"
+                className="edit-only btn-tonal ml-auto"
                 onClick={() => openDialog({ kind: 'note', folder: features.para.folders.projects })}
               >
                 <Plus size={18} /> {t('home.addProject')}
               </button>
             </div>
             {projects.length === 0 ? (
-              <p className="px-1 text-sm text-faint">{t('home.noProjectsYet')}</p>
+              <p className="px-1 text-sm text-on-surface-variant">{t('home.noProjectsYet')}</p>
             ) : (
               <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {projects.map((p) => (
-                  <button key={p.id} onClick={() => navigate(`/n/${p.id}`)} className="card min-w-0 p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40">
+                  <button key={p.id} onClick={() => navigate(`/n/${p.id}`)} className="card min-w-0 p-4 text-left transition-all duration-200 hover:bg-surface-container">
                     <div className="flex items-center gap-2">
-                      <Briefcase size={15} className="shrink-0 text-accent" />
+                      <Briefcase size={15} className="shrink-0 text-primary" />
                       <span className="truncate font-medium">{p.title}</span>
                       {p.status === 'pausiert' && <span className="chip text-warn">{t('home.statusPaused')}</span>}
                     </div>
@@ -635,11 +636,11 @@ export function HomeView() {
         </>
       )}
 
-      <hr className="my-8 border-0 border-t border-line/80" />
+      <hr className="my-8 border-0 border-t border-outline-variant/80" />
 
       <section aria-labelledby="home-recent-heading">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
-          <h2 id="home-recent-heading" className="text-xs font-semibold uppercase tracking-wider text-faint">
+          <h2 id="home-recent-heading" className="text-title-s text-on-surface-variant">
             {t('home.recentTitle')}
           </h2>
           <ViewSwitch />
@@ -649,7 +650,7 @@ export function HomeView() {
 
       {features.heatmap.enabled && (
         <>
-          <hr className="my-8 border-0 border-t border-line/80" />
+          <hr className="my-8 border-0 border-t border-outline-variant/80" />
           <ActivityHeatmap embedded />
         </>
       )}

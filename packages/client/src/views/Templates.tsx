@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, FilePlus2, LayoutTemplate, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, FilePlus2, LayoutTemplate, Pencil, Trash2 } from '../lib/icons';
 import { INBOX_FOLDER, Template, TEMPLATE_PLACEHOLDERS } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { folderDisplayName, tl, useLang } from '../lib/i18n';
@@ -23,29 +23,29 @@ export function TemplatesView() {
         <button className="btn-icon -ml-2" onClick={() => navigate('/settings')} title={tl(lang, 'templates.backToSettings')}>
           <ArrowLeft size={18} />
         </button>
-        <h1 className="text-2xl font-bold tracking-tight">{tl(lang, 'templates.title')}</h1>
+        <h1 className="text-headline-m">{tl(lang, 'templates.title')}</h1>
       </div>
-      <p className="text-sm text-muted anim-fade-up">{tl(lang, 'templates.intro')}</p>
+      <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'templates.intro')}</p>
 
       {editing ? (
         <TemplateEditor key={editing.id} template={editing} isNew={!templates.some((t) => t.id === editing.id)} onDone={() => setEditing(null)} />
       ) : (
         <>
-          <section className="card divide-y divide-line anim-fade-up">
+          <section className="card divide-y divide-outline-variant anim-fade-up">
             {!templates.length && (
-              <div className="flex flex-col items-center gap-2 p-8 text-center text-sm text-muted">
-                <LayoutTemplate size={28} className="text-faint" />
+              <div className="flex flex-col items-center gap-2 p-8 text-center text-sm text-on-surface-variant">
+                <LayoutTemplate size={28} className="text-on-surface-variant" />
                 {tl(lang, 'templates.empty')}
               </div>
             )}
             {templates.map((t) => (
               <div key={t.id} className="flex items-center gap-3 p-4">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-container/60 text-accent">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary-container text-on-secondary-container">
                   <LayoutTemplate size={18} />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">{t.label}</div>
-                  <div className="truncate text-xs text-faint">{folderDisplayName(t.folder, lang)}</div>
+                  <div className="truncate text-xs text-on-surface-variant">{folderDisplayName(t.folder, lang)}</div>
                 </div>
                 <button className="btn-icon h-8 w-8 shrink-0" disabled={readOnly} title={tl(lang, 'common.edit')} onClick={() => setEditing(t)}>
                   <Pencil size={15} />
@@ -113,9 +113,9 @@ function TemplateEditor({ template, isNew, onDone }: { template: Template; isNew
         if (label.trim()) void save();
       }}
     >
-      <h2 className="font-semibold">{isNew ? tl(lang, 'templates.createTitle') : tl(lang, 'templates.editTitle')}</h2>
+      <h2 className="font-medium">{isNew ? tl(lang, 'templates.createTitle') : tl(lang, 'templates.editTitle')}</h2>
       <input autoFocus={isNew} className="input" placeholder={tl(lang, 'templates.namePlaceholder')} value={label} onChange={(e) => setLabel(e.target.value)} />
-      <div className="flex flex-col gap-1.5 text-sm text-muted sm:flex-row sm:items-center sm:gap-2">
+      <div className="flex flex-col gap-1.5 text-sm text-on-surface-variant sm:flex-row sm:items-center sm:gap-2">
         <span className="shrink-0">{tl(lang, 'templates.folderLabel')}</span>
         <Dropdown
           value={folder}
@@ -135,12 +135,12 @@ function TemplateEditor({ template, isNew, onDone }: { template: Template; isNew
         onChange={(e) => setContent(e.target.value)}
         placeholder={tl(lang, 'templates.contentPlaceholder')}
       />
-      <div className="text-xs text-faint">
+      <div className="text-xs text-on-surface-variant">
         {tl(lang, 'templates.placeholdersLabel')}{' '}
         {TEMPLATE_PLACEHOLDERS.map((p, i) => (
           <span key={p.token}>
             {i > 0 && ' · '}
-            <button type="button" className="font-mono text-muted hover:text-accent" title={tl(lang, 'templates.insertEndTitle')} onClick={() => setContent((c) => c + p.token)}>
+            <button type="button" className="font-mono text-on-surface-variant hover:text-primary" title={tl(lang, 'templates.insertEndTitle')} onClick={() => setContent((c) => c + p.token)}>
               {p.token}
             </button>{' '}
             {placeholderLabel(p.token, p.label)}

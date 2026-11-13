@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, KeyRound, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, KeyRound, Plus, Trash2 } from '../lib/icons';
 import { IMPORT_TOKEN_DAYS, type ImportToken, type ImportTokenCreated } from '@kladde/shared';
 import { api } from '../lib/api';
 import { locale, tl, useLang } from '../lib/i18n';
@@ -54,22 +54,22 @@ export function ImportSettingsView() {
         <button className="btn-icon -ml-2" onClick={() => navigate('/settings')} title={tl(lang, 'templates.backToSettings')}>
           <ArrowLeft size={18} />
         </button>
-        <h1 className="text-2xl font-bold tracking-tight">{tl(lang, 'import.title')}</h1>
+        <h1 className="text-headline-m">{tl(lang, 'import.title')}</h1>
       </div>
-      <p className="text-sm text-muted anim-fade-up">{tl(lang, 'import.intro')}</p>
+      <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'import.intro')}</p>
 
       <section className="card space-y-3 p-5 anim-fade-up">
-        <h2 className="font-semibold">{tl(lang, 'import.cliTitle')}</h2>
-        <p className="text-sm text-muted">{tl(lang, 'import.cliDesc')}</p>
+        <h2 className="font-medium">{tl(lang, 'import.cliTitle')}</h2>
+        <p className="text-sm text-on-surface-variant">{tl(lang, 'import.cliDesc')}</p>
         <CopyField value={command} />
-        {location.protocol === 'http:' && <p className="text-xs text-danger">{tl(lang, 'import.insecureHint')}</p>}
+        {location.protocol === 'http:' && <p className="text-xs text-error">{tl(lang, 'import.insecureHint')}</p>}
       </section>
 
       <section className="card space-y-3 p-5 anim-fade-up">
-        <h2 className="font-semibold">{tl(lang, 'import.createTitle')}</h2>
-        <p className="text-sm text-muted">{tl(lang, 'import.createDesc')}</p>
+        <h2 className="font-medium">{tl(lang, 'import.createTitle')}</h2>
+        <p className="text-sm text-on-surface-variant">{tl(lang, 'import.createDesc')}</p>
         {created ? (
-          <div className="space-y-2 rounded-2xl border border-accent/40 bg-accent-container/15 p-3.5 anim-fade-up">
+          <div className="space-y-2 rounded-2xl border border-primary/40 bg-secondary-container/40 p-3.5 anim-fade-up">
             <p className="text-sm font-medium">{tl(lang, 'import.tokenCreatedTitle', { name: created.token.name })}</p>
             <CopyField value={created.secret} label={tl(lang, 'import.copyTokenTitle')} />
             <CopyField value={`KLADDE_IMPORT_TOKEN=${created.secret}`} />
@@ -86,7 +86,7 @@ export function ImportSettingsView() {
             }}
           >
             <input className="input" placeholder={tl(lang, 'import.tokenNamePlaceholder')} maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
-            <div className="flex flex-col gap-1.5 text-sm text-muted sm:flex-row sm:items-center sm:gap-2">
+            <div className="flex flex-col gap-1.5 text-sm text-on-surface-variant sm:flex-row sm:items-center sm:gap-2">
               <span className="shrink-0">{tl(lang, 'import.validFor')}</span>
               <Dropdown
                 value={String(days)}
@@ -96,32 +96,32 @@ export function ImportSettingsView() {
                 options={[...IMPORT_TOKEN_DAYS].sort((a, b) => a - b).map((d) => ({ value: String(d), label: tl(lang, 'import.days', { n: d }) }))}
               />
             </div>
-            <button className="btn-ghost rounded-full border border-line px-4" type="submit">
+            <button className="btn-ghost rounded-full border border-outline-variant px-4" type="submit">
               <Plus size={16} /> {tl(lang, 'import.tokenCreateBtn')}
             </button>
           </form>
         )}
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
       </section>
 
-      <section className="card divide-y divide-line anim-fade-up">
-        <h2 className="p-5 pb-3 font-semibold">{tl(lang, 'import.tokensTitle')}</h2>
-        {tokens && !tokens.length && <p className="p-5 pt-3 text-sm text-faint">{tl(lang, 'import.tokensEmpty')}</p>}
+      <section className="card divide-y divide-outline-variant anim-fade-up">
+        <h2 className="p-5 pb-3 font-medium">{tl(lang, 'import.tokensTitle')}</h2>
+        {tokens && !tokens.length && <p className="p-5 pt-3 text-sm text-on-surface-variant">{tl(lang, 'import.tokensEmpty')}</p>}
         {tokens?.map((token) => (
           <div key={token.id} className="flex items-center gap-3 p-4">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-container/60 text-accent">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary-container text-on-secondary-container">
               <KeyRound size={18} />
             </span>
             <div className="min-w-0 flex-1">
               <div className="truncate font-medium">{token.name}</div>
-              <div className="truncate text-xs text-faint">
+              <div className="truncate text-xs text-on-surface-variant">
                 {token.expiresAt <= Date.now() ? (
-                  <span className="text-danger">{tl(lang, 'import.expired')}</span>
+                  <span className="text-error">{tl(lang, 'import.expired')}</span>
                 ) : (
                   `${tl(lang, 'import.expires')} ${when(token.expiresAt)}`
                 )}
               </div>
-              <div className="truncate text-xs text-faint">
+              <div className="truncate text-xs text-on-surface-variant">
                 {tl(lang, 'import.created')} {when(token.createdAt)} · {tl(lang, 'import.lastUsed')} {when(token.lastUsedAt)}
               </div>
             </div>

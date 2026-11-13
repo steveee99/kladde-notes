@@ -41,31 +41,31 @@ const proseTheme = EditorView.theme({
 });
 
 const highlight = HighlightStyle.define([
-  { tag: [t.keyword, t.modifier, t.controlKeyword, t.operatorKeyword], color: 'rgb(var(--accent))' },
-  { tag: [t.string, t.special(t.string), t.regexp], color: 'rgb(var(--accent2))' },
+  { tag: [t.keyword, t.modifier, t.controlKeyword, t.operatorKeyword], color: 'rgb(var(--primary))' },
+  { tag: [t.string, t.special(t.string), t.regexp], color: 'rgb(var(--tertiary))' },
   { tag: [t.number, t.bool, t.null, t.atom], color: 'rgb(var(--warn))' },
-  { tag: [t.comment, t.meta], color: 'rgb(var(--faint))', fontStyle: 'italic' },
+  { tag: [t.comment, t.meta], color: 'rgb(var(--outline))', fontStyle: 'italic' },
   { tag: [t.function(t.variableName), t.function(t.propertyName)], color: 'rgb(var(--ok))' },
-  { tag: [t.typeName, t.className, t.tagName], color: 'rgb(var(--danger))' },
-  { tag: [t.propertyName, t.attributeName], color: 'rgb(var(--ink))' },
-  { tag: t.processingInstruction, color: 'rgb(var(--faint))' },
-  { tag: t.url, color: 'rgb(var(--muted))' },
+  { tag: [t.typeName, t.className, t.tagName], color: 'rgb(var(--error))' },
+  { tag: [t.propertyName, t.attributeName], color: 'rgb(var(--on-surface))' },
+  { tag: t.processingInstruction, color: 'rgb(var(--outline))' },
+  { tag: t.url, color: 'rgb(var(--on-surface-variant))' },
 ]);
 
 const sourceCodeHighlight = HighlightStyle.define([
-  { tag: [t.keyword, t.modifier, t.controlKeyword, t.operatorKeyword], color: 'rgb(var(--accent))' },
-  { tag: [t.string, t.special(t.string), t.regexp], color: 'rgb(var(--accent2))' },
+  { tag: [t.keyword, t.modifier, t.controlKeyword, t.operatorKeyword], color: 'rgb(var(--primary))' },
+  { tag: [t.string, t.special(t.string), t.regexp], color: 'rgb(var(--tertiary))' },
   { tag: [t.number, t.bool, t.null, t.atom], color: 'rgb(var(--warn))' },
-  { tag: [t.comment, t.meta], color: 'rgb(var(--faint))', fontStyle: 'italic' },
+  { tag: [t.comment, t.meta], color: 'rgb(var(--outline))', fontStyle: 'italic' },
   { tag: [t.function(t.variableName), t.function(t.propertyName)], color: 'rgb(var(--ok))' },
-  { tag: [t.typeName, t.className, t.tagName], color: 'rgb(var(--danger))' },
-  { tag: [t.propertyName, t.definition(t.propertyName)], color: 'rgb(var(--on-accent-container))' },
+  { tag: [t.typeName, t.className, t.tagName], color: 'rgb(var(--error))' },
+  { tag: [t.propertyName, t.definition(t.propertyName)], color: 'rgb(var(--on-primary-container))' },
   { tag: t.attributeName, color: 'rgb(var(--warn))' },
   { tag: t.attributeValue, color: 'rgb(var(--ok))' },
-  { tag: [t.operator, t.punctuation], color: 'rgb(var(--muted))' },
+  { tag: [t.operator, t.punctuation], color: 'rgb(var(--on-surface-variant))' },
   { tag: [t.escape, t.character], color: 'rgb(var(--warn))' },
-  { tag: [t.angleBracket, t.processingInstruction], color: 'rgb(var(--faint))' },
-  { tag: t.url, color: 'rgb(var(--accent2))' },
+  { tag: [t.angleBracket, t.processingInstruction], color: 'rgb(var(--outline))' },
+  { tag: t.url, color: 'rgb(var(--tertiary))' },
 ]);
 
 const previewExtensions = (source: boolean): Extension =>

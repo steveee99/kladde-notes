@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Bot, Check, Copy, KeyRound, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Bot, Check, Copy, KeyRound, Plus, Trash2 } from '../lib/icons';
 import type { McpConnection, McpTokenCreated } from '@kladde/shared';
 import { api } from '../lib/api';
 import { locale, tl, useLang } from '../lib/i18n';
@@ -10,12 +10,12 @@ export function CopyField({ value, label }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="flex gap-2">
-      <code className="min-w-0 flex-1 truncate rounded-xl border border-line bg-raised px-3 py-2 text-xs" title={value}>
+      <code className="min-w-0 flex-1 truncate rounded-xl border border-outline-variant bg-surface-container-high px-3 py-2 text-xs" title={value}>
         {value}
       </code>
       <button
         type="button"
-        className="btn-ghost shrink-0 rounded-full border border-line px-3"
+        className="btn-ghost shrink-0 rounded-full border border-outline-variant px-3"
         title={label ?? tl(lang, 'common.copy')}
         onClick={() => {
           void navigator.clipboard?.writeText(value);
@@ -70,26 +70,26 @@ export function McpSettingsView() {
         <button className="btn-icon -ml-2" onClick={() => navigate('/settings')} title={tl(lang, 'templates.backToSettings')}>
           <ArrowLeft size={18} />
         </button>
-        <h1 className="text-2xl font-bold tracking-tight">{tl(lang, 'mcp.title')}</h1>
+        <h1 className="text-headline-m">{tl(lang, 'mcp.title')}</h1>
       </div>
-      <p className="text-sm text-muted anim-fade-up">{tl(lang, 'mcp.intro')}</p>
+      <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'mcp.intro')}</p>
 
       <section className="card space-y-3 p-5 anim-fade-up">
-        <h2 className="font-semibold">{tl(lang, 'mcp.connectTitle')}</h2>
-        <p className="text-sm text-muted">{tl(lang, 'mcp.connectDesc')}</p>
+        <h2 className="font-medium">{tl(lang, 'mcp.connectTitle')}</h2>
+        <p className="text-sm text-on-surface-variant">{tl(lang, 'mcp.connectDesc')}</p>
         <CopyField value={url} label={tl(lang, 'mcp.copyUrlTitle')} />
-        <p className="text-xs text-faint">Claude Code:</p>
+        <p className="text-xs text-on-surface-variant">Claude Code:</p>
         <CopyField value={`claude mcp add --transport http kladde ${url}`} />
       </section>
 
       <section className="card space-y-3 p-5 anim-fade-up">
-        <h2 className="font-semibold">{tl(lang, 'mcp.tokensTitle')}</h2>
-        <p className="text-sm text-muted">{tl(lang, 'mcp.tokensDesc')}</p>
+        <h2 className="font-medium">{tl(lang, 'mcp.tokensTitle')}</h2>
+        <p className="text-sm text-on-surface-variant">{tl(lang, 'mcp.tokensDesc')}</p>
         {created ? (
-          <div className="space-y-2 rounded-2xl border border-accent/40 bg-accent-container/15 p-3.5 anim-fade-up">
+          <div className="space-y-2 rounded-2xl border border-primary/40 bg-secondary-container/40 p-3.5 anim-fade-up">
             <p className="text-sm font-medium">{tl(lang, 'mcp.tokenCreatedTitle', { name: created.connection.name })}</p>
             <CopyField value={created.token} label={tl(lang, 'mcp.copyTokenTitle')} />
-            <p className="text-xs text-faint">Claude Code:</p>
+            <p className="text-xs text-on-surface-variant">Claude Code:</p>
             <CopyField value={`claude mcp add --transport http kladde ${url} --header "Authorization: Bearer ${created.token}"`} />
             <button className="btn-ghost rounded-full px-4 text-sm" onClick={() => setCreated(null)}>
               {tl(lang, 'common.done')}
@@ -107,25 +107,25 @@ export function McpSettingsView() {
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" className="accent-accent" checked={canWrite} onChange={(e) => setCanWrite(e.target.checked)} /> {tl(lang, 'mcp.tokenCanWrite')}
             </label>
-            <button className="btn-ghost rounded-full border border-line px-4" type="submit">
+            <button className="btn-ghost rounded-full border border-outline-variant px-4" type="submit">
               <Plus size={16} /> {tl(lang, 'mcp.tokenCreateBtn')}
             </button>
           </form>
         )}
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
       </section>
 
-      <section className="card divide-y divide-line anim-fade-up">
-        <h2 className="p-5 pb-3 font-semibold">{tl(lang, 'mcp.connectionsTitle')}</h2>
-        {connections && !connections.length && <p className="p-5 pt-3 text-sm text-faint">{tl(lang, 'mcp.connectionsEmpty')}</p>}
+      <section className="card divide-y divide-outline-variant anim-fade-up">
+        <h2 className="p-5 pb-3 font-medium">{tl(lang, 'mcp.connectionsTitle')}</h2>
+        {connections && !connections.length && <p className="p-5 pt-3 text-sm text-on-surface-variant">{tl(lang, 'mcp.connectionsEmpty')}</p>}
         {connections?.map((c) => (
           <div key={c.id} className="flex items-center gap-3 p-4">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-container/60 text-accent">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary-container text-on-secondary-container">
               {c.kind === 'oauth' ? <Bot size={18} /> : <KeyRound size={18} />}
             </span>
             <div className="min-w-0 flex-1">
               <div className="truncate font-medium">{c.name}</div>
-              <div className="truncate text-xs text-faint">
+              <div className="truncate text-xs text-on-surface-variant">
                 {c.kind === 'oauth' ? tl(lang, 'mcp.connOAuth') : tl(lang, 'mcp.connToken')} ·{' '}
                 {c.canWrite ? tl(lang, 'mcp.connReadWrite') : tl(lang, 'mcp.connReadOnly')} · {tl(lang, 'mcp.connSince')} {when(c.createdAt)} ·{' '}
                 {tl(lang, 'mcp.connLast')} {when(c.lastUsedAt)}

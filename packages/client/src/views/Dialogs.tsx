@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChefHat, ClipboardPaste, FileText, Lightbulb, Loader2, X } from 'lucide-react';
+import { ChefHat, ClipboardPaste, FileText, Lightbulb, Loader2, X } from '../lib/icons';
 import { INBOX_FOLDER, Recipe, recipeNoteTitle, recipeToMarkdown, Template, ZETTEL_TYPES, ZettelType } from '@kladde/shared';
 import { api } from '../lib/api';
 import { vault } from '../data/vault';
@@ -18,10 +18,10 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
       className="fixed inset-x-0 z-50 flex items-end justify-center sm:items-center"
       style={vp ? { top: `${vp.top}px`, height: `${vp.height}px` } : { top: 0, bottom: 0 }}
     >
-      <div className="fixed inset-0 bg-black/40 anim-fade-in" onClick={onClose} />
-      <div className="relative max-h-[min(90vh,100%)] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface px-5 pt-5 shadow-soft anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-3xl">
+      <div className="fixed inset-0 bg-scrim/[0.32] anim-fade-in" onClick={onClose} />
+      <div className="relative max-h-[min(90vh,100%)] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface-container-high px-6 pt-6 shadow-elevation-3 anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-3xl">
         <div className="mb-4 flex items-center gap-2">
-          <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">{title}</h2>
+          <h2 className="min-w-0 flex-1 truncate text-headline-s">{title}</h2>
           <button className="btn-icon shrink-0" onClick={onClose} title={tl(lang, 'common.close')} aria-label={tl(lang, 'common.close')}>
             <X size={18} />
           </button>
@@ -59,7 +59,7 @@ function NewNoteDialog({ folder }: { folder?: string }) {
               key={t?.id ?? 'leer'}
               onClick={() => choose(t)}
               className={`truncate rounded-2xl border px-2.5 py-2.5 text-sm transition-all duration-150 ${
-                template?.id === t?.id ? 'border-accent/60 bg-accent-container text-on-accent-container' : 'border-line text-muted hover:border-faint hover:text-ink'
+                template?.id === t?.id ? 'border-transparent bg-secondary-container text-on-secondary-container' : 'border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface'
               }`}
             >
               {t?.label ?? tl(lang, 'dialogs.newNoteEmptyTpl')}
@@ -75,7 +75,7 @@ function NewNoteDialog({ folder }: { folder?: string }) {
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && create()}
       />
-      <div className="mb-4 flex flex-col gap-1.5 text-sm text-muted sm:flex-row sm:items-center sm:gap-2">
+      <div className="mb-4 flex flex-col gap-1.5 text-sm text-on-surface-variant sm:flex-row sm:items-center sm:gap-2">
         <span className="shrink-0">{tl(lang, 'dialogs.newNoteFolder')}</span>
         <Dropdown
           value={target}
@@ -91,10 +91,10 @@ function NewNoteDialog({ folder }: { folder?: string }) {
       <button className="btn-primary w-full rounded-full py-2.5" onClick={create}>
         <FileText size={16} /> {tl(lang, 'dialogs.newNoteCreate')}
       </button>
-      <p className="mt-3 text-xs text-faint">
+      <p className="mt-3 text-xs text-on-surface-variant">
         {templates.length ? tl(lang, 'dialogs.newNoteTplEditHint') : tl(lang, 'dialogs.newNoteTplAddHint')}
         <button
-          className="underline hover:text-accent"
+          className="underline hover:text-primary"
           onClick={() => {
             closeDialog();
             navigate('/settings/templates');
@@ -138,11 +138,11 @@ function ZettelDialog() {
               key={t.id}
               onClick={() => setType(t.id)}
               className={`rounded-2xl border p-3 text-left transition-all duration-150 ${
-                active ? 'border-accent/60 bg-accent-container/40' : 'border-line hover:border-faint'
+                active ? 'border-primary/60 bg-secondary-container/60' : 'border-outline-variant hover:border-outline'
               }`}
             >
-              <div className={`text-sm font-medium ${active ? 'text-accent' : ''}`}>{z.label}</div>
-              <div className="text-xs text-muted">{z.hint}</div>
+              <div className={`text-sm font-medium ${active ? 'text-primary' : ''}`}>{z.label}</div>
+              <div className="text-xs text-on-surface-variant">{z.hint}</div>
             </button>
           );
         })}
@@ -158,8 +158,8 @@ function ZettelDialog() {
       <button className="btn-primary w-full rounded-full py-2.5" disabled={!title.trim()} onClick={create}>
         <Lightbulb size={16} /> {tl(lang, 'dialogs.zettelCreate')}
       </button>
-      <p className="mt-3 text-xs text-faint">{tl(lang, 'dialogs.zettelIdHint')}</p>
-      <p className="mt-1 text-xs text-faint">{tl(lang, 'dialogs.zettelSavedIn', { folder: folderDisplayName(targetFolder, lang) })}</p>
+      <p className="mt-3 text-xs text-on-surface-variant">{tl(lang, 'dialogs.zettelIdHint')}</p>
+      <p className="mt-1 text-xs text-on-surface-variant">{tl(lang, 'dialogs.zettelSavedIn', { folder: folderDisplayName(targetFolder, lang) })}</p>
     </Sheet>
   );
 }
@@ -213,15 +213,15 @@ function RecipeDialog({ initialUrl = '' }: { initialUrl?: string }) {
           onChange={(e) => (setUrl(e.target.value), setError(''))}
           onKeyDown={(e) => e.key === 'Enter' && run()}
         />
-        <button className="btn-ghost shrink-0 rounded-xl border border-line" onClick={paste} title={tl(lang, 'dialogs.recipePasteTitle')}>
+        <button className="btn-ghost shrink-0 rounded-xl border border-outline-variant" onClick={paste} title={tl(lang, 'dialogs.recipePasteTitle')}>
           <ClipboardPaste size={16} />
         </button>
       </div>
-      {error && <p className="mb-3 rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger anim-fade-in">{error}</p>}
+      {error && <p className="mb-3 rounded-lg bg-error-container px-4 py-3 text-body-m text-on-error-container anim-fade-in">{error}</p>}
       {existing && !busy && (
-        <p className="mb-3 text-sm text-muted">
+        <p className="mb-3 text-sm text-on-surface-variant">
           {tl(lang, 'dialogs.recipeAlreadyExists')}{' '}
-          <button className="text-accent underline" onClick={() => (closeDialog(), navigate(`/n/${existing.id}`))}>
+          <button className="text-primary underline" onClick={() => (closeDialog(), navigate(`/n/${existing.id}`))}>
             {tl(lang, 'dialogs.recipeOpen')}
           </button>
         </p>
@@ -229,7 +229,7 @@ function RecipeDialog({ initialUrl = '' }: { initialUrl?: string }) {
       <button className="btn-primary w-full rounded-full py-2.5" disabled={!link || busy} onClick={run}>
         {busy ? <Loader2 size={16} className="animate-spin" /> : <ChefHat size={16} />} {busy ? tl(lang, 'dialogs.recipeImporting') : tl(lang, 'dialogs.recipeImport')}
       </button>
-      <p className="mt-3 text-xs text-faint">{tl(lang, 'dialogs.recipeHint', { folder: folderDisplayName(targetFolder, lang) })}</p>
+      <p className="mt-3 text-xs text-on-surface-variant">{tl(lang, 'dialogs.recipeHint', { folder: folderDisplayName(targetFolder, lang) })}</p>
     </Sheet>
   );
 }

@@ -1,11 +1,11 @@
-import { Archive, ArchiveRestore, Briefcase, Hash, Library, Lightbulb, Target, Unlink } from 'lucide-react';
+import { Archive, ArchiveRestore, Briefcase, Hash, Library, Lightbulb, Target, Unlink } from '../lib/icons';
 import { DEFAULT_PARA_FOLDERS, PROJECT_STATUSES, ZETTEL_TYPES, extractMeta, isProjectNote, restoreTarget, roleOfPath, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { ChipSelect } from './ChipSelect';
 import { folderDisplayName, folderLeafDisplayName, projectStatusLabel, t, useLang, zettelTypeLabel } from '../lib/i18n';
 
-const STATUS_TONE: Record<string, string> = { aktiv: 'text-ok', pausiert: 'text-warn', fertig: 'text-faint' };
+const STATUS_TONE: Record<string, string> = { aktiv: 'text-ok', pausiert: 'text-warn', fertig: 'text-on-surface-variant' };
 
 /** Context actions by PARA role inside an open note: inbox quick-file, project status, archive/restore, Zettel type */
 export function ParaBar({ note }: { note: LocalNote }) {
@@ -37,28 +37,28 @@ export function ParaBar({ note }: { note: LocalNote }) {
     <div className="mb-3 flex flex-wrap items-center gap-2 text-sm anim-fade-in">
       {showInboxActions && (
         <>
-          <span className="text-xs font-semibold uppercase tracking-wider text-faint">{t('para.sortLabel')}</span>
+          <span className="text-title-s text-on-surface-variant">{t('para.sortLabel')}</span>
           <div className="edit-only flex flex-wrap items-center gap-1.5">
             {features.para.enabled && (
               <>
-                <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.moveNote(note.id, features.para.folders.projects)}>
+                <button className="chip" onClick={() => void vault.moveNote(note.id, features.para.folders.projects)}>
                   <Briefcase size={13} /> {projectsLabel}
                 </button>
-                <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.moveNote(note.id, features.para.folders.areas)}>
+                <button className="chip" onClick={() => void vault.moveNote(note.id, features.para.folders.areas)}>
                   <Target size={13} /> {shortLabel(features.para.folders.areas)}
                 </button>
-                <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.moveNote(note.id, features.para.folders.resources)}>
+                <button className="chip" onClick={() => void vault.moveNote(note.id, features.para.folders.resources)}>
                   <Library size={13} /> {shortLabel(features.para.folders.resources)}
                 </button>
               </>
             )}
             {features.zettel.enabled && (
-              <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.toZettel(note.id)}>
+              <button className="chip" onClick={() => void vault.toZettel(note.id)}>
                 <Lightbulb size={13} /> {t('para.zettelBtn')}
               </button>
             )}
             {features.para.enabled && (
-              <button className="chip px-2.5 py-1 text-xs transition-colors hover:bg-accent/15 hover:text-accent" onClick={() => void vault.archiveNote(note.id)}>
+              <button className="chip" onClick={() => void vault.archiveNote(note.id)}>
                 <Archive size={13} /> {t('para.archiveBtn')}
               </button>
             )}
@@ -122,7 +122,7 @@ export function ParaBar({ note }: { note: LocalNote }) {
         </button>
       ) : (
         showArchiveBtn && (
-          <button className="btn-ghost ml-auto py-1 text-faint" onClick={() => void vault.archiveNote(note.id)} title={t('para.finishTitle')}>
+          <button className="btn-ghost ml-auto py-1 text-on-surface-variant" onClick={() => void vault.archiveNote(note.id)} title={t('para.finishTitle')}>
             <Archive size={15} /> {t('para.archiveBtn')}
           </button>
         )

@@ -10,7 +10,7 @@ interface SimNode extends SimulationNodeDatum, GraphNode {}
 type SimLink = SimulationLinkDatum<SimNode>;
 
 /** Node colour by PARA role, taken from the theme variables */
-const ROLE_VAR: Record<string, string> = { inbox: '--warn', projects: '--accent', areas: '--ok', resources: '--accent2', archive: '--faint', zettel: '--danger' };
+const ROLE_VAR: Record<string, string> = { inbox: '--warn', projects: '--primary', areas: '--ok', resources: '--tertiary', archive: '--outline', zettel: '--error' };
 const LEGEND: [string, I18nKey][] = [
   ['projects', 'graph.legendProjects'],
   ['areas', 'graph.legendAreas'],
@@ -56,13 +56,13 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: GraphN
     const radius = (n: SimNode) => 4 + Math.sqrt(n.links) * 2.2 + (n.id === focusId ? 3 : 0);
     const fontFamily = getComputedStyle(document.documentElement).getPropertyValue('--font-sans').trim() || 'Roboto, system-ui, sans-serif';
     const colors = () => ({
-      line: cssColor('--line'),
-      lineHi: cssColor('--accent', 0.8),
-      text: cssColor('--ink'),
-      muted: cssColor('--muted'),
-      bg: cssColor('--bg'),
+      line: cssColor('--outline-variant'),
+      lineHi: cssColor('--primary', 0.8),
+      text: cssColor('--on-surface'),
+      muted: cssColor('--on-surface-variant'),
+      bg: cssColor('--surface'),
       role: Object.fromEntries(Object.entries(ROLE_VAR).map(([r, v]) => [r, cssColor(v)])),
-      other: cssColor('--muted'),
+      other: cssColor('--on-surface-variant'),
     });
     let palette = colors();
 
@@ -241,9 +241,9 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: GraphN
   }, [JSON.stringify(nodes.map((n) => [n.id, n.title, n.folder, n.links])), JSON.stringify(edges), roleConfigKey, focusId, height]);
 
   return (
-    <div ref={wrapRef} className="relative w-full touch-none select-none overflow-hidden rounded-2xl border border-line bg-surface">
+    <div ref={wrapRef} className="relative w-full touch-none select-none overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-low">
       <canvas ref={canvasRef} className="block cursor-grab" />
-      {hoverTitle && <div className="pointer-events-none absolute left-3 top-3 rounded-lg bg-raised px-2 py-1 text-xs anim-fade-in">{hoverTitle}</div>}
+      {hoverTitle && <div className="pointer-events-none absolute left-3 top-3 rounded-lg bg-surface-container-high px-2 py-1 text-xs anim-fade-in">{hoverTitle}</div>}
     </div>
   );
 }
@@ -258,7 +258,7 @@ export function GraphLegend() {
     return para.enabled;
   });
   return (
-    <div className="flex flex-wrap gap-3 text-xs text-muted">
+    <div className="flex flex-wrap gap-3 text-xs text-on-surface-variant">
       {visible.map(([role, labelKey]) => (
         <span key={role} className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full" style={{ background: `rgb(var(${ROLE_VAR[role]}))` }} />
@@ -284,14 +284,14 @@ export function GraphView() {
   return (
     <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-8">
       <div className="mb-4 flex flex-wrap items-center gap-3 anim-fade-up">
-        <h1 className="text-2xl font-bold tracking-tight">{t('graph.title')}</h1>
-        <span className="text-sm text-faint">{t('graph.summary', { nodes: nodes.length, edges: edges.length })}</span>
+        <h1 className="text-headline-m">{t('graph.title')}</h1>
+        <span className="text-sm text-on-surface-variant">{t('graph.summary', { nodes: nodes.length, edges: edges.length })}</span>
         {para.enabled && (
-          <label className="ml-auto flex items-center gap-1.5 text-sm text-muted">
+          <label className="ml-auto flex items-center gap-1.5 text-sm text-on-surface-variant">
             <input type="checkbox" checked={hideArchive} onChange={(e) => setHideArchive(e.target.checked)} /> {t('graph.hideArchive')}
           </label>
         )}
-        <label className={`${para.enabled ? '' : 'ml-auto '}flex items-center gap-1.5 text-sm text-muted`}>
+        <label className={`${para.enabled ? '' : 'ml-auto '}flex items-center gap-1.5 text-sm text-on-surface-variant`}>
           <input type="checkbox" checked={onlyLinked} onChange={(e) => setOnlyLinked(e.target.checked)} /> {t('graph.onlyLinked')}
         </label>
       </div>

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { CalendarDays, CalendarRange, FileText, Home, Images, Inbox as InboxIcon, Menu, Network, Pencil, X } from 'lucide-react';
+import { CalendarDays, CalendarRange, FileText, Home, Images, Inbox as InboxIcon, Menu, Network, Pencil, X } from '../lib/icons';
 import { INBOX_FOLDER, Me, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { navigate, usePath } from '../lib/router';
@@ -26,32 +26,60 @@ export function useRightPaneHost(): HTMLDivElement | null {
 
 type Icon = typeof Home;
 
-function RailItem({ to, Icon, label, badge }: { to: string; Icon: Icon; label: string; badge?: number }) {
-  const path = usePath();
-  const active = path === to;
+/**
+ * One navigation destination (M3 navigation rail or navigation bar): an active indicator pill in
+ * secondary-container behind the icon, the filled icon variant while active, and a Label Medium below.
+ */
+function Destination({
+  active,
+  onClick,
+  Icon,
+  icon,
+  label,
+  badge,
+  bar,
+  title,
+  ariaLabel,
+}: {
+  active: boolean;
+  onClick: () => void;
+  Icon?: Icon;
+  icon?: React.ReactNode;
+  label: string;
+  badge?: number;
+  bar?: boolean;
+  title?: string;
+  ariaLabel?: string;
+}) {
   return (
-    <button onClick={() => navigate(to)} aria-current={active ? 'page' : undefined} className={`flex w-20 flex-col items-center gap-1 text-xs font-medium ${active ? 'text-ink' : 'text-muted hover:text-ink'}`}>
-      <span className={`relative flex h-8 w-14 items-center justify-center rounded-full transition-colors duration-200 ${active ? 'bg-accent/20 text-accent' : 'hover:bg-raised'}`}>
-        <Icon size={22} />
-        {!!badge && <span className="absolute right-2.5 top-0 min-w-4 rounded-full bg-danger px-1 text-center text-[11px] font-semibold leading-4 text-bg">{badge}</span>}
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      aria-label={ariaLabel}
+      title={title}
+      className={`group flex min-w-0 flex-col items-center gap-1 text-label-m outline-none ${bar ? 'px-1 pb-1 pt-3' : 'w-20 shrink-0 pb-1'} ${
+        active ? 'text-on-surface' : 'text-on-surface-variant'
+      }`}
+    >
+      <span
+        className={`state-layer relative flex h-8 max-w-full items-center justify-center rounded-full group-focus-visible:ring-2 group-focus-visible:ring-primary ${bar ? 'w-16' : 'w-14'} ${
+          active ? 'bg-secondary-container text-on-secondary-container' : 'group-hover:bg-on-surface/[0.08]'
+        }`}
+      >
+        {Icon ? <Icon size={24} filled={active} /> : icon}
+        {!!badge && (
+          <span className="absolute left-[calc(50%+4px)] top-0.5 min-w-4 rounded-full bg-error px-1 text-center text-label-s text-on-error">{badge}</span>
+        )}
       </span>
-      <span className="max-w-full truncate px-1">{label}</span>
+      <span className={`max-w-full truncate px-1 ${active ? 'font-bold' : ''}`}>{label}</span>
     </button>
   );
 }
 
-function BarItem({ to, Icon, label, badge }: { to: string; Icon: Icon; label: string; badge?: number }) {
+function NavItem({ to, Icon, label, badge, bar }: { to: string; Icon: Icon; label: string; badge?: number; bar?: boolean }) {
   const path = usePath();
-  const active = path === to;
-  return (
-    <button onClick={() => navigate(to)} aria-current={active ? 'page' : undefined} className={`flex min-w-0 flex-col items-center gap-1 px-1 pb-1 pt-3 text-xs font-medium ${active ? 'text-ink' : 'text-muted'}`}>
-      <span className={`relative flex h-8 w-14 max-w-full items-center justify-center rounded-full transition-colors duration-200 sm:w-16 ${active ? 'bg-accent/20 text-accent' : ''}`}>
-        <Icon size={22} />
-        {!!badge && <span className="absolute right-2.5 top-0 min-w-4 rounded-full bg-danger px-1 text-center text-[11px] font-semibold leading-4 text-bg sm:right-3.5">{badge}</span>}
-      </span>
-      <span className="max-w-full truncate">{label}</span>
-    </button>
-  );
+  return <Destination active={path === to} onClick={() => navigate(to)} Icon={Icon} label={label} badge={badge} bar={bar} />;
 }
 
 export function MaterialShell({ me, children, isAdmin }: { me: Me; children: React.ReactNode; isAdmin?: boolean }) {
@@ -86,12 +114,12 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
   }, []);
 
   return (
-    <div className="flex h-full flex-col bg-bg">
-      <div className="sticky top-0 z-20 hidden shrink-0 bg-bg [--pad-top:0.375rem] safe-top [@media(display-mode:standalone)]:md:block" />
+    <div className="flex h-full flex-col bg-surface md:bg-surface-container">
+      <div className="sticky top-0 z-20 hidden shrink-0 bg-surface-container [--pad-top:0.375rem] safe-top [@media(display-mode:standalone)]:md:block" />
       <div className="flex min-h-0 min-w-0 flex-1">
         {sticky ? (
           <aside aria-label={t('nav.navigationLabel')} className="m3-status hidden w-[292px] shrink-0 py-4 pl-4 pr-3 md:flex lg:w-[308px]">
-            <div className="flex min-h-0 w-full flex-col overflow-hidden rounded-[28px] bg-surface">
+            <div className="flex min-h-0 w-full flex-col overflow-hidden">
               <Sidebar
                 me={me}
                 isAdmin={isAdmin}
@@ -99,71 +127,55 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
                   <button
                     type="button"
                     onClick={toggleMaterialSidebarMode}
-                    className="btn-icon hidden h-9 w-9 shrink-0 rounded-full md:inline-flex"
+                    className="btn-icon hidden md:inline-flex"
                     title={t('nav.toggleSidebar')}
                     aria-label={t('nav.toggleSidebar')}
                   >
-                    <Menu size={20} />
+                    <Menu size={24} />
                   </button>
                 }
               />
             </div>
           </aside>
         ) : (
-          <nav aria-label={t('nav.navigationLabel')} className="hidden w-[88px] shrink-0 flex-col items-center gap-3 overflow-y-auto py-4 scrollbar-thin md:flex">
+          <nav aria-label={t('nav.navigationLabel')} className="hidden w-24 shrink-0 flex-col items-center gap-1 overflow-y-auto pb-4 pt-5 scrollbar-thin md:flex">
             <button
               type="button"
-              className="btn-icon shrink-0 rounded-full"
+              className="btn-icon"
               onClick={toggleMaterialSidebarMode}
               title={t('nav.toggleSidebar')}
               aria-label={t('nav.toggleSidebar')}
             >
-              <Menu size={22} />
+              <Menu size={24} />
             </button>
             <button
-              className="edit-only mb-5 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-accent-container text-on-accent-container shadow-soft transition-transform duration-200 ease-spring hover:scale-105 active:scale-95"
+              className="edit-only state-layer mb-7 mt-2 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary-container text-on-primary-container shadow-elevation-3 transition-[box-shadow,transform] duration-200 ease-spring hover:shadow-elevation-3 active:scale-95"
               onClick={() => newNote()}
               aria-label={t('nav.newNote')}
               title={t('nav.newNote')}
             >
-              <Pencil size={22} />
+              <Pencil size={24} />
             </button>
-            <RailItem to="/" Icon={Home} label={t('nav.home')} />
+            <NavItem to="/" Icon={Home} label={t('nav.home')} />
             {showDailyRail && (
-              <button
-                type="button"
-                onClick={() => void openTodayDailyNote()}
-                aria-current={dailyActive ? 'page' : undefined}
-                title={t('daily.todayBtn')}
-                className={`flex w-20 flex-col items-center gap-1 text-xs font-medium ${dailyActive ? 'text-ink' : 'text-muted hover:text-ink'}`}
-              >
-                <span className={`relative flex h-8 w-14 items-center justify-center rounded-full transition-colors duration-200 ${dailyActive ? 'bg-accent/20 text-accent' : 'hover:bg-raised'}`}>
-                  <CalendarDays size={22} />
-                </span>
-                <span className="max-w-full truncate px-1">{t('daily.navShort')}</span>
-              </button>
+              <Destination active={dailyActive} onClick={() => void openTodayDailyNote()} Icon={CalendarDays} label={t('daily.navShort')} title={t('daily.todayBtn')} />
             )}
-            {features.heatmap.enabled && <RailItem to="/calendar" Icon={CalendarRange} label={t('nav.calendar')} />}
-            <RailItem to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} />
-            <RailItem to="/notes" Icon={FileText} label={t('nav.notes')} />
-            <RailItem to="/graph" Icon={Network} label={t('nav.graphShort')} />
-            <RailItem to="/files" Icon={Images} label={t('nav.files')} />
+            {features.heatmap.enabled && <NavItem to="/calendar" Icon={CalendarRange} label={t('nav.calendar')} />}
+            <NavItem to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} />
+            <NavItem to="/notes" Icon={FileText} label={t('nav.notes')} />
+            <NavItem to="/graph" Icon={Network} label={t('nav.graphShort')} />
+            <NavItem to="/files" Icon={Images} label={t('nav.files')} />
             <div className="m3-status mt-auto flex flex-col items-center gap-1 pt-2">
               <ReadOnlyToggle />
               <SyncBadge />
-              <button
-                type="button"
+              <Destination
+                active={settingsActive}
                 onClick={() => navigate('/settings')}
-                aria-current={settingsActive ? 'page' : undefined}
-                aria-label={t('nav.settings')}
+                icon={<Avatar name={me.username} avatarUrl={me.avatarUrl} size="sm" active={settingsActive} />}
+                label={t('nav.options')}
+                ariaLabel={t('nav.settings')}
                 title={me.username}
-                className={`flex w-20 flex-col items-center gap-1 text-xs font-medium ${settingsActive ? 'text-ink' : 'text-muted hover:text-ink'}`}
-              >
-                <span className={`relative flex h-8 w-14 items-center justify-center rounded-full transition-colors duration-200 ${settingsActive ? 'bg-accent/20' : 'hover:bg-raised'}`}>
-                  <Avatar name={me.username} avatarUrl={me.avatarUrl} size="sm" active={settingsActive} />
-                </span>
-                {t('nav.options')}
-              </button>
+              />
             </div>
           </nav>
         )}
@@ -171,9 +183,9 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
         {/* Mobile navigation drawer (< md only) */}
         {drawer && (
           <div className="fixed inset-0 z-40 md:hidden">
-            <div className="absolute inset-0 bg-black/50 anim-fade-in" onClick={() => setDrawer(false)} />
+            <div className="absolute inset-0 bg-scrim/[0.32] anim-fade-in" onClick={() => setDrawer(false)} />
             <aside
-              className="m3-status absolute inset-y-0 left-0 w-[85%] max-w-[360px] rounded-r-2xl bg-surface shadow-soft safe-top safe-bottom"
+              className="m3-status absolute inset-y-0 left-0 w-[85%] max-w-[360px] rounded-r-2xl bg-surface-container-low shadow-elevation-1 safe-top safe-bottom"
               style={{ animation: 'slide-in 300ms var(--ease) both' }}
               onKeyDown={(e) => e.key === 'Escape' && setDrawer(false)}
             >
@@ -185,10 +197,10 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
                   <button
                     type="button"
                     onClick={() => setDrawer(false)}
-                    className="btn-icon h-9 w-9 shrink-0 rounded-full md:hidden"
+                    className="btn-icon md:hidden"
                     aria-label={t('common.close')}
                   >
-                    <X size={18} />
+                    <X size={24} />
                   </button>
                 }
               />
@@ -197,11 +209,11 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
         )}
 
         <div className="flex min-w-0 flex-1 flex-col md:py-4 md:pr-4">
-          <header className="sticky top-0 z-20 flex min-w-0 items-center gap-1 bg-bg pb-1 [--pad-top:0.5rem] [--pad-x:0.25rem] safe-top safe-x md:hidden">
+          <header className="sticky top-0 z-20 flex min-h-16 min-w-0 items-center gap-1 bg-surface [--pad-x:0.25rem] safe-top safe-x md:hidden">
             <button className="btn-icon shrink-0" onClick={() => setDrawer(true)} aria-label={t('nav.openMenu')}>
-              <Menu size={22} />
+              <Menu size={24} />
             </button>
-            <span className="min-w-0 truncate text-[22px]">Kladde</span>
+            <span className="min-w-0 truncate pl-1 text-title-l">Kladde</span>
             <div className="m3-status ml-auto flex shrink-0 items-center gap-1 pr-2">
               <ReadOnlyToggle />
               <SyncBadge />
@@ -215,33 +227,29 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
             </RightPaneHostContext.Provider>
             <div ref={setRightHost} className="no-print hidden shrink-0 lg:flex empty:hidden" />
           </div>
-          <nav aria-label={t('nav.navigationLabel')} className="bottom-bar grid grid-cols-4 bg-surface safe-x md:hidden">
-            <BarItem to="/" Icon={Home} label={t('nav.home')} />
-            <BarItem to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} />
-            <BarItem to="/notes" Icon={FileText} label={t('nav.notes')} />
-            <button
-              type="button"
+          <nav aria-label={t('nav.navigationLabel')} className="bottom-bar grid min-h-20 grid-cols-4 bg-surface-container safe-x md:hidden">
+            <NavItem bar to="/" Icon={Home} label={t('nav.home')} />
+            <NavItem bar to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} />
+            <NavItem bar to="/notes" Icon={FileText} label={t('nav.notes')} />
+            <Destination
+              bar
+              active={settingsActive}
               onClick={() => navigate('/settings')}
-              aria-current={settingsActive ? 'page' : undefined}
-              aria-label={t('nav.settings')}
+              icon={<Avatar name={me.username} avatarUrl={me.avatarUrl} size="sm" active={settingsActive} />}
+              label={t('nav.options')}
+              ariaLabel={t('nav.settings')}
               title={me.username}
-              className={`flex min-w-0 flex-col items-center gap-1 px-1 pb-1 pt-3 text-xs font-medium ${settingsActive ? 'text-ink' : 'text-muted'}`}
-            >
-              <span className={`relative flex h-8 w-14 max-w-full items-center justify-center rounded-full transition-colors duration-200 sm:w-16 ${settingsActive ? 'bg-accent/20' : ''}`}>
-                <Avatar name={me.username} avatarUrl={me.avatarUrl} size="sm" active={settingsActive} />
-              </span>
-              <span className="max-w-full truncate">{t('nav.options')}</span>
-            </button>
+            />
           </nav>
         </div>
       </div>
       {!noteId && (
         <button
-          className="edit-only fixed bottom-[calc(6rem+max(0px,env(safe-area-inset-bottom)-1.5rem))] right-4 z-30 flex h-14 items-center gap-3 rounded-2xl bg-accent-container pl-4 pr-5 text-base font-medium text-on-accent-container shadow-soft transition-transform duration-200 ease-spring hover:scale-[1.03] active:scale-95 md:bottom-[calc(2.5rem+env(safe-area-inset-bottom))] md:right-10"
+          className="edit-only state-layer fixed bottom-[calc(6.5rem+max(0px,env(safe-area-inset-bottom)-1.5rem))] right-4 z-30 flex h-14 items-center gap-3 rounded-2xl bg-primary-container pl-4 pr-5 text-title-m text-on-primary-container shadow-elevation-3 transition-transform duration-200 ease-spring active:scale-95 md:bottom-[calc(2.5rem+env(safe-area-inset-bottom))] md:right-10"
           onClick={() => setCapture(true)}
           title={t('nav.capture')}
         >
-          <Pencil size={22} /> {t('nav.captureShort')}
+          <Pencil size={24} /> {t('nav.captureShort')}
         </button>
       )}
       {capture && <QuickCapture onClose={() => setCapture(false)} />}

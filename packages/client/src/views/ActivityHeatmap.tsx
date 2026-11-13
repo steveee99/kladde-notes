@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Maximize2, Settings } from 'lucide-react';
+import { CalendarDays, Maximize2, Settings } from '../lib/icons';
 import { computeHeatmapData, HeatmapCell, HeatmapRange, parseDate } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { heatmapWeekdayLabels, locale, tl, useLang } from '../lib/i18n';
@@ -96,7 +96,7 @@ export function ActivityHeatmap({ embedded = false }: { embedded?: boolean }) {
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="flex min-w-0 flex-1 basis-40 items-center gap-2">
           <CalendarDays size={18} className="shrink-0 text-ok" />
-          <h2 className="truncate font-semibold">{tl(lang, 'heatmap.title')}</h2>
+          <h2 className="truncate font-medium">{tl(lang, 'heatmap.title')}</h2>
           <span className="chip shrink-0">{activeBadgeText}</span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -123,7 +123,7 @@ export function ActivityHeatmap({ embedded = false }: { embedded?: boolean }) {
 
       <div ref={scrollRef} className="overflow-x-auto pb-1 scrollbar-thin" onMouseLeave={() => setInspectCell(null)}>
         <div className="inline-flex min-w-max items-start gap-2">
-          <div className="flex shrink-0 flex-col gap-[3px] pt-[20px] text-[10px] leading-[12px] text-faint select-none">
+          <div className="flex shrink-0 flex-col gap-[3px] pt-[20px] text-[10px] leading-[12px] text-on-surface-variant select-none">
             {weekdayLabels.map((label, i) => (
               <span key={i} className="h-[12px] w-5 text-right">
                 {label}
@@ -132,7 +132,7 @@ export function ActivityHeatmap({ embedded = false }: { embedded?: boolean }) {
           </div>
 
           <div>
-            <div className="relative mb-1.5 h-[14px] text-[10px] leading-[14px] text-faint select-none" style={{ width: `${gridWidth}px` }}>
+            <div className="relative mb-1.5 h-[14px] text-[10px] leading-[14px] text-on-surface-variant select-none" style={{ width: `${gridWidth}px` }}>
               {data.monthLabels.map((m) => (
                 <span key={`${m.weekIndex}-${m.label}`} className="absolute top-0 whitespace-nowrap" style={{ left: `${m.weekIndex * COL_STEP}px` }}>
                   {m.label}
@@ -162,7 +162,7 @@ export function ActivityHeatmap({ embedded = false }: { embedded?: boolean }) {
                           onMouseEnter={() => setInspectCell(cell)}
                           onFocus={() => setInspectCell(cell)}
                           onClick={() => void openDay(cell.date)}
-                          className="heatmap-cell h-[12px] w-[12px] shrink-0 cursor-pointer hover:ring-2 hover:ring-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                          className="heatmap-cell h-[12px] w-[12px] shrink-0 cursor-pointer hover:ring-2 hover:ring-primary/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         />
                       );
                     }
@@ -190,7 +190,7 @@ export function ActivityHeatmap({ embedded = false }: { embedded?: boolean }) {
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-on-surface-variant">
         <span className="min-w-0 break-words">
           {inspectCell
             ? formatActivityText(inspectCell)
@@ -198,7 +198,7 @@ export function ActivityHeatmap({ embedded = false }: { embedded?: boolean }) {
               ? tl(lang, 'heatmap.hintClickActive')
               : tl(lang, 'heatmap.hintClickInactive')}
         </span>
-        <div className="flex shrink-0 items-center gap-1 text-[11px] text-faint" aria-label={tl(lang, 'heatmap.legendAria')}>
+        <div className="flex shrink-0 items-center gap-1 text-[11px] text-on-surface-variant" aria-label={tl(lang, 'heatmap.legendAria')}>
           <span>{tl(lang, 'heatmap.less')}</span>
           {([0, 1, 2, 3, 4] as const).map((lvl) => (
             <span key={lvl} className="heatmap-cell inline-block h-[11px] w-[11px]" data-level={lvl} />
@@ -222,11 +222,11 @@ export function CalendarView() {
     return (
       <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
         <div className="card max-w-lg space-y-4 p-6 anim-fade-up">
-          <div className="flex items-center gap-2 text-lg font-semibold">
+          <div className="flex items-center gap-2 text-lg font-medium">
             <CalendarDays size={20} className="shrink-0 text-ok" />
             {tl(lang, 'heatmap.optInTitle')}
           </div>
-          <p className="text-sm text-muted">{tl(lang, 'heatmap.optInDesc')}</p>
+          <p className="text-sm text-on-surface-variant">{tl(lang, 'heatmap.optInDesc')}</p>
           <div className="flex flex-wrap gap-2">
             {!locked && (
               <button
@@ -236,7 +236,7 @@ export function CalendarView() {
                 {tl(lang, 'heatmap.enableBtn')}
               </button>
             )}
-            <button className="btn-ghost border border-line" onClick={() => navigate('/settings')}>
+            <button className="btn-ghost border border-outline-variant" onClick={() => navigate('/settings')}>
               <Settings size={16} /> {tl(lang, 'daily.openSettings')}
             </button>
           </div>
@@ -248,8 +248,8 @@ export function CalendarView() {
   return (
     <div className="content-container mx-auto space-y-5 px-4 py-6 sm:px-8 sm:py-10">
       <header className="anim-fade-up">
-        <h1 className="text-2xl font-bold tracking-tight">{tl(lang, 'heatmap.title')}</h1>
-        <p className="mt-1 text-sm text-muted">
+        <h1 className="text-headline-m">{tl(lang, 'heatmap.title')}</h1>
+        <p className="mt-1 text-sm text-on-surface-variant">
           {daily.enabled ? tl(lang, 'heatmap.subtitleDailyOn') : tl(lang, 'heatmap.subtitleDailyOff')}
         </p>
       </header>
@@ -258,8 +258,8 @@ export function CalendarView() {
 
       {!daily.enabled && (
         <div className="card flex flex-wrap items-center justify-between gap-3 p-4 text-sm anim-fade-up">
-          <span className="min-w-0 flex-1 text-muted">{tl(lang, 'heatmap.dailyDisabledNotice')}</span>
-          <button className="btn-ghost shrink-0 border border-line" onClick={() => navigate('/settings')}>
+          <span className="min-w-0 flex-1 text-on-surface-variant">{tl(lang, 'heatmap.dailyDisabledNotice')}</span>
+          <button className="btn-ghost shrink-0 border border-outline-variant" onClick={() => navigate('/settings')}>
             <Settings size={15} /> {tl(lang, 'heatmap.openSettingsBtn')}
           </button>
         </div>

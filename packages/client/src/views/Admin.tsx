@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Ban, Check, Copy, KeyRound, Mail, RotateCcw, ScrollText, ShieldCheck, ShieldOff, Smartphone, Trash2, UserCheck, Users } from 'lucide-react';
+import { Ban, Check, Copy, KeyRound, Mail, RotateCcw, ScrollText, ShieldCheck, ShieldOff, Smartphone, Trash2, UserCheck, Users } from '../lib/icons';
 import type { AdminAuditEntry, AdminInvite, AdminStatus, AdminUser, Me } from '@kladde/shared';
 import { api } from '../lib/api';
 import { I18nKey, Lang, locale, tl, useLang } from '../lib/i18n';
@@ -20,7 +20,7 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
   const [done, setDone] = useState(false);
   return (
     <button
-      className="btn-ghost rounded-full border border-line px-3 py-1 text-xs"
+      className="btn-ghost rounded-full border border-outline-variant px-3 py-1 text-xs"
       onClick={() => {
         void navigator.clipboard?.writeText(text).then(() => {
           setDone(true);
@@ -43,13 +43,13 @@ interface Secret {
 function SecretBox({ secret, onClose }: { secret: Secret; onClose: () => void }) {
   const lang = useLang();
   return (
-    <div className="card mb-4 border-accent/40 bg-accent-container/20 p-4 anim-fade-up">
-      <div className="mb-1 text-sm font-semibold">{secret.title}</div>
+    <div className="card mb-4 border-primary/40 bg-secondary-container/40 p-4 anim-fade-up">
+      <div className="mb-1 text-sm font-medium">{secret.title}</div>
       <div className="flex flex-wrap items-center gap-2">
-        <code className="break-all rounded-xl bg-raised px-2.5 py-1.5 font-mono text-[15px]">{secret.value}</code>
+        <code className="break-all rounded-xl bg-surface-container-high px-2.5 py-1.5 font-mono text-[15px]">{secret.value}</code>
         <CopyButton text={secret.value} />
       </div>
-      <p className="mt-2 text-xs text-muted">{secret.hint}</p>
+      <p className="mt-2 text-xs text-on-surface-variant">{secret.hint}</p>
       <button className="btn-ghost mt-2 px-0 text-xs" onClick={onClose}>
         {tl(lang, 'common.hide')}
       </button>
@@ -85,7 +85,7 @@ function UsersTab({ me, onError }: { me: Me; onError: (msg: string) => void }) {
     }
   };
 
-  if (!users) return <div className="py-10 text-center text-faint">…</div>;
+  if (!users) return <div className="py-10 text-center text-on-surface-variant">…</div>;
   return (
     <>
       {secret && <SecretBox secret={secret} onClose={() => setSecret(null)} />}
@@ -96,15 +96,15 @@ function UsersTab({ me, onError }: { me: Me; onError: (msg: string) => void }) {
             <li key={u.id} className={`card p-4 ${u.bannedAt ? 'opacity-70' : ''}`}>
               <div className="flex flex-wrap items-center gap-2">
                 <Avatar name={u.username} avatarUrl={u.avatarUrl} size="sm" />
-                <span className="font-semibold">{u.username}</span>
+                <span className="font-medium">{u.username}</span>
                 {self && <Badge>{tl(lang, 'admin.selfBadge')}</Badge>}
                 {u.isAdmin && (
-                  <Badge tone="text-accent">
+                  <Badge tone="text-primary">
                     <ShieldCheck size={11} /> {tl(lang, 'admin.adminBadge')}
                   </Badge>
                 )}
                 {u.bannedAt && (
-                  <Badge tone="text-danger">
+                  <Badge tone="text-error">
                     <Ban size={11} /> {tl(lang, 'admin.bannedBadge')}
                   </Badge>
                 )}
@@ -113,7 +113,7 @@ function UsersTab({ me, onError }: { me: Me; onError: (msg: string) => void }) {
                 </Badge>
                 {u.hasPassword && <Badge>{tl(lang, 'admin.passwordBadge')}</Badge>}
               </div>
-              <p className="mt-1 text-xs text-faint">
+              <p className="mt-1 text-xs text-on-surface-variant">
                 {tl(lang, 'admin.userMeta', {
                   created: fmtDate(u.createdAt),
                   notes: u.notes,
@@ -123,7 +123,7 @@ function UsersTab({ me, onError }: { me: Me; onError: (msg: string) => void }) {
               <div className="mt-3 flex flex-wrap gap-2">
                 {!self && (
                   <button
-                    className="btn-ghost rounded-full border border-line px-3 py-1 text-xs"
+                    className="btn-ghost rounded-full border border-outline-variant px-3 py-1 text-xs"
                     disabled={busy === u.id}
                     onClick={() =>
                       confirm(tl(lang, 'admin.resetPwConfirm', { username: u.username })) &&
@@ -143,7 +143,7 @@ function UsersTab({ me, onError }: { me: Me; onError: (msg: string) => void }) {
                 )}
                 {!u.bannedAt && (
                   <button
-                    className="btn-ghost rounded-full border border-line px-3 py-1 text-xs"
+                    className="btn-ghost rounded-full border border-outline-variant px-3 py-1 text-xs"
                     disabled={busy === u.id}
                     title={tl(lang, 'admin.deviceCodeTooltip')}
                     onClick={() =>
@@ -165,7 +165,7 @@ function UsersTab({ me, onError }: { me: Me; onError: (msg: string) => void }) {
                   </button>
                 )}
                 <button
-                  className="btn-ghost rounded-full border border-line px-3 py-1 text-xs"
+                  className="btn-ghost rounded-full border border-outline-variant px-3 py-1 text-xs"
                   disabled={busy === u.id}
                   onClick={() =>
                     (u.isAdmin ? confirm(tl(lang, 'admin.removeAdminConfirm', { username: u.username })) : confirm(tl(lang, 'admin.makeAdminConfirm', { username: u.username }))) &&
@@ -176,7 +176,7 @@ function UsersTab({ me, onError }: { me: Me; onError: (msg: string) => void }) {
                 </button>
                 {!self && (
                   <button
-                    className={`btn-ghost rounded-full border border-line px-3 py-1 text-xs ${u.bannedAt ? '' : 'text-danger'}`}
+                    className={`btn-ghost rounded-full border border-outline-variant px-3 py-1 text-xs ${u.bannedAt ? '' : 'text-error'}`}
                     disabled={busy === u.id}
                     onClick={() =>
                       (u.bannedAt || confirm(tl(lang, 'admin.banConfirm', { username: u.username }))) &&
@@ -223,9 +223,9 @@ function InvitesTab({ onError }: { onError: (msg: string) => void }) {
           }
         }}
       >
-        <Mail size={17} className="shrink-0 text-faint" />
+        <Mail size={17} className="shrink-0 text-on-surface-variant" />
         <input
-          className="min-w-0 flex-1 basis-36 bg-transparent py-2 outline-none placeholder:text-faint"
+          className="min-w-0 flex-1 basis-36 bg-transparent py-2 outline-none placeholder:text-on-surface-variant"
           placeholder={tl(lang, 'admin.invitePlaceholder')}
           maxLength={80}
           value={note}
@@ -234,21 +234,21 @@ function InvitesTab({ onError }: { onError: (msg: string) => void }) {
         <button className="btn-primary shrink-0 rounded-full px-4 sm:px-5">{tl(lang, 'admin.inviteCreateBtn')}</button>
       </form>
       {invites === null ? (
-        <div className="py-10 text-center text-faint">…</div>
+        <div className="py-10 text-center text-on-surface-variant">…</div>
       ) : invites.length === 0 ? (
-        <div className="py-10 text-center text-faint">{tl(lang, 'admin.invitesEmpty')}</div>
+        <div className="py-10 text-center text-on-surface-variant">{tl(lang, 'admin.invitesEmpty')}</div>
       ) : (
-        <ul className="card divide-y divide-line/60 p-1">
+        <ul className="card divide-y divide-outline-variant/60 p-1">
           {invites.map((i) => {
             const state = i.usedBy ? 'used' : i.expiresAt < Date.now() ? 'expired' : 'open';
             return (
-              <li key={i.code} className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5 ${fresh === i.code ? 'bg-accent/5' : ''}`}>
+              <li key={i.code} className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5 ${fresh === i.code ? 'bg-primary/5' : ''}`}>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <code className="font-mono text-sm">{i.code}</code>
                     {i.note && <span className="truncate text-sm">{i.note}</span>}
                   </div>
-                  <div className="text-xs text-faint">
+                  <div className="text-xs text-on-surface-variant">
                     {state === 'used'
                       ? tl(lang, 'admin.inviteUsed', {
                           user: i.usedBy ?? '',
@@ -301,19 +301,19 @@ function AuditTab({ onError }: { onError: (msg: string) => void }) {
   useEffect(() => {
     api<AdminAuditEntry[]>('/admin/audit').then(setEntries, (e) => onError(e.message));
   }, [onError]);
-  if (!entries) return <div className="py-10 text-center text-faint">…</div>;
-  if (!entries.length) return <div className="py-10 text-center text-faint">{tl(lang, 'admin.auditEmpty')}</div>;
+  if (!entries) return <div className="py-10 text-center text-on-surface-variant">…</div>;
+  if (!entries.length) return <div className="py-10 text-center text-on-surface-variant">{tl(lang, 'admin.auditEmpty')}</div>;
   return (
-    <ul className="card divide-y divide-line/60 p-1 text-sm">
+    <ul className="card divide-y divide-outline-variant/60 p-1 text-sm">
       {entries.map((e, i) => (
         <li key={i} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-3 py-2">
-          <span className="w-28 shrink-0 text-xs text-faint">{dateTime(e.at)}</span>
-          <span className={`font-medium ${e.event === 'login_failed' || e.event === 'login_blocked' ? 'text-danger' : e.event === 'admin_command' ? 'text-accent' : ''}`}>
+          <span className="w-28 shrink-0 text-xs text-on-surface-variant">{dateTime(e.at)}</span>
+          <span className={`font-medium ${e.event === 'login_failed' || e.event === 'login_blocked' ? 'text-error' : e.event === 'admin_command' ? 'text-primary' : ''}`}>
             {EVENT_KEYS[e.event] ? tl(lang, EVENT_KEYS[e.event]) : e.event}
           </span>
           {e.username && <span>{e.username}</span>}
-          {e.detail && <span className="min-w-0 break-words text-muted">{e.detail}</span>}
-          {e.ip && <span className="ml-auto text-xs text-faint">{e.ip}</span>}
+          {e.detail && <span className="min-w-0 break-words text-on-surface-variant">{e.detail}</span>}
+          {e.ip && <span className="ml-auto text-xs text-on-surface-variant">{e.ip}</span>}
         </li>
       ))}
     </ul>
@@ -330,7 +330,7 @@ export function AdminView({ me }: { me: Me }) {
     api<AdminStatus>('/admin/status').then(setStatus, (e) => setError(e.message));
   }, []);
 
-  if (!me.isAdmin) return <div className="py-16 text-center text-faint">{tl(lang, 'admin.onlyAdmin')}</div>;
+  if (!me.isAdmin) return <div className="py-16 text-center text-on-surface-variant">{tl(lang, 'admin.onlyAdmin')}</div>;
 
   const tabs: { id: Tab; label: string; Icon: typeof Users }[] = [
     { id: 'users', label: tl(lang, 'admin.tabUsers'), Icon: Users },
@@ -341,9 +341,9 @@ export function AdminView({ me }: { me: Me }) {
   return (
     <div className="content-container px-4 py-6 sm:px-8 sm:py-10">
       <header className="mb-5 anim-fade-up">
-        <h1 className="text-2xl font-bold tracking-tight">{tl(lang, 'admin.title')}</h1>
+        <h1 className="text-headline-m">{tl(lang, 'admin.title')}</h1>
         {status && (
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 text-sm text-on-surface-variant">
             {tl(lang, 'admin.statusSummary', {
               version: status.version,
               users: status.users,
@@ -354,7 +354,7 @@ export function AdminView({ me }: { me: Me }) {
           </p>
         )}
       </header>
-      <div className="mb-5 grid grid-cols-3 gap-1 rounded-full border border-line bg-surface p-1 anim-fade-up">
+      <div className="mb-5 grid grid-cols-3 gap-1 rounded-full border border-outline-variant bg-surface-container-low p-1 anim-fade-up">
         {tabs.map(({ id, label, Icon }) => (
           <button
             key={id}
@@ -363,14 +363,14 @@ export function AdminView({ me }: { me: Me }) {
               setError('');
             }}
             className={`flex min-w-0 items-center justify-center gap-1.5 rounded-full px-1.5 py-2 text-xs font-medium transition-colors sm:px-2 sm:text-sm ${
-              tab === id ? 'bg-accent-container text-on-accent-container shadow-sm' : 'text-muted hover:text-ink'
+              tab === id ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:text-on-surface'
             }`}
           >
             <Icon size={15} className="shrink-0" /> <span className="truncate">{label}</span>
           </button>
         ))}
       </div>
-      {error && <p className="mb-4 text-sm text-danger anim-fade-in">{error}</p>}
+      {error && <p className="mb-4 text-sm text-error anim-fade-in">{error}</p>}
       {tab === 'users' && <UsersTab me={me} onError={setError} />}
       {tab === 'invites' && <InvitesTab onError={setError} />}
       {tab === 'audit' && <AuditTab onError={setError} />}
