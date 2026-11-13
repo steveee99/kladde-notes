@@ -58,7 +58,7 @@ function Destination({
       aria-current={active ? 'page' : undefined}
       aria-label={ariaLabel}
       title={title}
-      className={`group flex min-w-0 flex-col items-center gap-1 text-label-m outline-none ${bar ? 'px-1 pb-1 pt-3' : 'w-20 shrink-0 pb-1'} ${
+      className={`group flex min-w-0 flex-col items-center gap-1 text-label-m outline-none ${bar ? 'px-1 pb-1 pt-3' : 'w-full shrink-0 pb-1'} ${
         active ? 'text-on-surface' : 'text-on-surface-variant'
       }`}
     >

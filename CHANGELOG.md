@@ -9,6 +9,8 @@ All user-visible changes to Kladde.
 - Changed: Navigation rail and navigation bar use the Material 3 sizes; the active destination has a tonal indicator and a filled icon. The editor toolbar is a floating Material 3 toolbar.
 - Changed: Icons are now Material Symbols (Rounded) instead of Lucide; they are bundled with the app and work offline.
 - Changed: On phones the notes list no longer shows a separate "New" button next to the "Capture" button.
+- Fixed: Longer labels in the navigation rail (e.g. "Attachments") are no longer cut off.
+- Fixed: Note previews in lists and cards no longer show the table-of-contents marker (`##TOC##`, `[[TOC]]`) or table pipes and separator rows.
 
 ## [1.0.0] – 2026-11-12
 
