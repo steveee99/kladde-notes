@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Cloud,
   CloudOff,
+  Draw,
   FileText,
   FileType2,
   Folder,
@@ -33,7 +34,9 @@ import {
   X,
 } from '../lib/icons';
 import {
+  excalidrawNoteMarkdown,
   excerpt,
+  isExcalidrawNote,
   INBOX_FOLDER,
   Me,
   pdfNoteMarkdown,
@@ -93,9 +96,19 @@ async function createPdfNote(file: File, folder: string, onNavigate?: () => void
   }
 }
 
+/** Creates an empty drawing note (`type: excalidraw`, see `shared/excalidrawNote.ts`) in `folder` */
+async function createDrawingNote(folder: string) {
+  try {
+    const note = await vault.create(folder, t('nav.drawingDefaultTitle'), excalidrawNoteMarkdown());
+    navigate(`/n/${note.id}`);
+  } catch (err) {
+    alert((err as Error).message);
+  }
+}
+
 /**
  * "+ New note" as a Material 3 split button: the main part creates a note, the chevron opens a menu
- * with the other ways to start one (Zettel and recipe from a URL when those features are on, PDF).
+ * with the other ways to start one (Zettel and recipe from a URL when those features are on, drawing, PDF).
  */
 function NewNoteButton({
   zettel,
@@ -196,6 +209,7 @@ function NewNoteButton({
             {menuItem(FileText, t('nav.newNoteShort'), () => newNote())}
             {zettel && menuItem(Lightbulb, 'Zettel', newZettel, t('nav.zettelTitle'))}
             {recipe && menuItem(ChefHat, t('nav.recipe'), () => importRecipe(), t('quick.recipeTitle'))}
+            {menuItem(Draw, t('nav.drawingNote'), () => void createDrawingNote(folder ?? INBOX_FOLDER), t('nav.drawingNoteTitle'))}
             {/* Not run(): onNavigate may close the mobile drawer, which would drop the file input */}
             <button
               type="button"
@@ -347,7 +361,7 @@ function SidebarNoteRow({
   onNavigate?: () => void;
 }) {
   const name = label ?? splitPath(note.path).name;
-  const Icon = pdfNoteOf(note.content) ? FileType2 : FileText;
+  const Icon = pdfNoteOf(note.content) ? FileType2 : isExcalidrawNote(note.content) ? Draw : FileText;
   const openNote = () => {
     navigate(`/n/${note.id}`);
     onNavigate?.();

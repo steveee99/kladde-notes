@@ -1,10 +1,55 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { createRequire } from 'node:module';
+import fs from 'node:fs';
+import path from 'node:path';
+import type { Plugin } from 'vite';
+
+const require = createRequire(import.meta.url);
+
+/**
+ * Serves Excalidraw's fonts from the app itself under /excalidraw-assets/fonts (ExcalidrawPanel sets
+ * EXCALIDRAW_ASSET_PATH), so drawings work offline and never load fonts from a CDN. Xiaolai (CJK,
+ * ~13 MB) is left out; Chinese/Japanese/Korean text falls back to a system font.
+ */
+function excalidrawFonts(): Plugin {
+  const fontsDir = path.join(path.dirname(require.resolve('@excalidraw/excalidraw')), 'fonts');
+  const PREFIX = '/excalidraw-assets/fonts/';
+  const skip = (rel: string) => rel.startsWith('Xiaolai');
+  const list = (dir: string): string[] =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? list(path.join(dir, e.name)) : [path.join(dir, e.name)]));
+  return {
+    name: 'kladde-excalidraw-fonts',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const url = req.url?.split('?')[0] ?? '';
+        if (!url.startsWith(PREFIX)) return next();
+        const rel = decodeURIComponent(url.slice(PREFIX.length));
+        const file = path.join(fontsDir, rel);
+        if (skip(rel) || !file.startsWith(fontsDir + path.sep) || !fs.existsSync(file)) {
+          res.statusCode = 404;
+          return res.end();
+        }
+        res.setHeader('Content-Type', 'font/woff2');
+        fs.createReadStream(file).pipe(res);
+      });
+    },
+    generateBundle() {
+      for (const file of list(fontsDir)) {
+        const rel = path.relative(fontsDir, file).split(path.sep).join('/');
+        if (!skip(rel)) this.emitFile({ type: 'asset', fileName: `excalidraw-assets/fonts/${rel}`, source: fs.readFileSync(file) });
+      }
+    },
+  };
+}
 
 export default defineConfig({
+  // Excalidraw's build reads this (see its Vite integration notes)
+  define: { 'process.env.IS_PREACT': JSON.stringify('false') },
   plugins: [
     react(),
+    excalidrawFonts(),
     VitePWA({
       // lib/update.ts decides when the waiting new version takes over (not while the user types)
       registerType: 'prompt',
