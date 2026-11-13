@@ -4,6 +4,7 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Drawing notes with Excalidraw (#2). "New note" → "Drawing" creates a note marked `type: excalidraw` that opens as a full-size canvas for sketches and diagrams. The drawing is stored as Excalidraw JSON in the note text, so it syncs, works offline, is encrypted and appears in the history like any other note; The canvas fills the page and can be switched to full screen; "Edit as text" (in the drawing menu) shows the JSON. Public links show the drawing (view only) instead of the JSON. The canvas follows the app's color scheme and language, and its fonts are served by Kladde itself instead of a CDN.
 - Changed: The design now follows Material 3 throughout. Colors are the full set of Material 3 color roles (scheme "Tonal Spot" from the previous blue), in both the dark and the light color scheme. Text uses the Material 3 type scale (no more uppercase section labels), corners follow the Material 3 shape scale, and depth comes from tonal surfaces instead of shadows.
 - Changed: Buttons, text fields, chips, segmented buttons, cards, lists, menus, dialogs, switches and checkboxes use their Material 3 forms, including hover and press state layers. Short messages appear as a snackbar.
 - Changed: Navigation rail and navigation bar use the Material 3 sizes; the active destination has a tonal indicator and a filled icon. The editor toolbar is a floating Material 3 toolbar.

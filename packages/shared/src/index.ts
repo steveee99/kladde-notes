@@ -17,3 +17,4 @@ export * from './semantic.js';
 export * from './export.js';
 export * from './table.js';
 export * from './pdfNote.js';
+export * from './excalidrawNote.js';

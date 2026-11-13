@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { EditorView } from '@codemirror/view';
 import {
@@ -18,6 +18,7 @@ import {
   FileSpreadsheet,
   FileText,
   FileType2,
+  Draw,
   Folder,
   FolderInput,
   Heading,
@@ -48,8 +49,10 @@ import {
   isFolderProjectHome,
   isProjectNote,
   isSingleProjectFile,
+  excalidrawSceneOf,
   pdfNoteOf,
   projectTitleOf,
+  setExcalidrawScene,
   safeExportFilename,
   splitPath,
   stripFrontmatter,
@@ -821,6 +824,9 @@ function NoteInspectorPane({
   );
 }
 
+// Excalidraw is large: only drawing notes load it
+const ExcalidrawPanel = lazy(() => import('./ExcalidrawPanel'));
+
 /** A PDF note (`type: pdf`) as a full-size viewer; a HEAD check replaces the frame with a message when the file can't load */
 function PdfPanel({ url, name, onEditText }: { url: string; name: string; onEditText: () => void }) {
   const [failed, setFailed] = useState(false);
@@ -876,6 +882,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const titleRef = useRef<HTMLTextAreaElement>(null);
   // PDF notes show the viewer until the user switches to the text (per visit, NoteView is keyed by id)
   const [pdfAsText, setPdfAsText] = useState(false);
+  // Drawing notes likewise show the canvas until the user switches to the text
+  const [drawingAsText, setDrawingAsText] = useState(false);
   const name = note ? splitPath(note.path).name : '';
   const isProjectHome = !!note && note.access === 'owner' && isFolderProjectHome(note.path, rc);
   const displayName = note ? projectTitleOf(note.path, note.content, rc) : '';
@@ -969,7 +977,10 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const local = index.localGraph(id, 2);
   const headings = extractHeadings(note.content);
   const pdf = pdfNoteOf(note.content);
-  const showPdf = !!pdf && !pdfAsText;
+  const drawing = excalidrawSceneOf(note.content);
+  // Full-size panels replace the editor: a PDF viewer or a drawing canvas
+  const showPdf = (!!pdf && !pdfAsText) || (drawing !== null && !drawingAsText);
+  const showDrawing = drawing !== null && !drawingAsText;
 
   const copyMarkdown = async () => {
     const clean = stripFrontmatter(note.content);
@@ -1139,8 +1150,30 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               <ParaBar note={note} />
             </div>
           )}
-          {pdf && showPdf && <PdfPanel key={pdf.url} url={pdf.url} name={pdf.name} onEditText={() => setPdfAsText(true)} />}
-          {pdf && !showPdf && (
+          {/* "Edit as text" and fullscreen live inside the canvas, so the drawing gets the room */}
+          {showDrawing && (
+            <Suspense fallback={<div className="flex min-h-[60vh] flex-1 items-center justify-center text-sm text-on-surface-variant">{t('common.loading')}</div>}>
+              <ExcalidrawPanel
+                scene={drawing}
+                readOnly={readOnly}
+                lang={lang}
+                onSave={(json) => {
+                  const current = vault.get(id);
+                  if (current) void vault.update(id, { content: setExcalidrawScene(current.content, json) });
+                }}
+                onEditText={() => setDrawingAsText(true)}
+              />
+            </Suspense>
+          )}
+          {drawing !== null && !showDrawing && (
+            <div className="no-print mb-2">
+              <button type="button" className="btn-ghost" onClick={() => setDrawingAsText(false)}>
+                <Draw size={16} /> {t('note.drawingShow')}
+              </button>
+            </div>
+          )}
+          {pdf && !pdfAsText && !showDrawing && <PdfPanel key={pdf.url} url={pdf.url} name={pdf.name} onEditText={() => setPdfAsText(true)} />}
+          {pdf && pdfAsText && !showDrawing && (
             <div className="no-print mb-2">
               <button type="button" className="btn-ghost" onClick={() => setPdfAsText(false)}>
                 <FileType2 size={16} /> {t('note.pdfShow')}
