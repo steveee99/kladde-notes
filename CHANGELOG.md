@@ -4,6 +4,10 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.0.1] – 2026-11-13
+
+- Fixed: The Docker image builds again. The patched `deepmerge` copy in `vendor/` was left out of the build context, so the client build stopped with "Cannot find module …/deepmerge/dist/cjs.js".
+
 ## [2.0.0] – 2026-11-13
 
 - Security: Links, images and PDF embeds in notes only accept `http`, `https`, relative addresses and (for links) `mailto:`/`tel:`. Before, a `javascript:` address in a shared note or behind a public link could run code in the reader's session (stored XSS). Such links are now shown as plain text.
