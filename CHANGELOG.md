@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- Fixed: Pressing Enter on an empty task or list item right after the first one ends the list instead of inserting an empty line and another item (#1).
+
 ## [1.0.0] – 2026-11-12
 
 - Changed: First stable release, Kladde is now open source under the MIT license. The README and this changelog are now in English (the README is also available in German as `README.de.md`).
