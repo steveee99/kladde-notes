@@ -56,7 +56,7 @@ export function ViewSwitch() {
   useLang();
   const [mode, setMode] = useNoteViewMode();
   return (
-    <div className="inline-flex shrink-0 gap-0.5" role="group" aria-label={t('list.viewLabel')}>
+    <div className="segmented shrink-0" role="group" aria-label={t('list.viewLabel')}>
       {MODES.map(({ id, labelKey, Icon }) => (
         <button
           key={id}
@@ -64,9 +64,7 @@ export function ViewSwitch() {
           aria-pressed={mode === id}
           onClick={() => setMode(id)}
           aria-label={t(labelKey)}
-          className={`state-layer inline-flex h-10 w-12 items-center justify-center transition-[border-radius,background-color] duration-200 ease-spring first:rounded-l-full last:rounded-r-full ${
-            mode === id ? 'rounded-full bg-secondary-container text-on-secondary-container' : 'rounded-lg bg-surface-container text-on-surface-variant'
-          }`}
+          className="w-12 !px-0"
         >
           <Icon size={20} filled={mode === id} />
         </button>
