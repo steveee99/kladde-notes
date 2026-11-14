@@ -11,15 +11,15 @@
   },
   "dependencies": {
     "@kladde/shared": "*",
-    "@simplewebauthn/server": "^13.1.1",
-    "express": "^4.21.2"
+    "@simplewebauthn/server": "^14.1.0",
+    "express": "^5.3.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
-    "@types/node": "^22.13.10",
+    "@types/node": "^26.6.6",
     "cross-env": "^10.1.0",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.2",
-    "vitest": "^4.1.12"
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   }
 }
