@@ -211,6 +211,12 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
             title: tl(lang, 'settings.importTitle'),
             desc: tl(lang, 'settings.importDesc'),
           },
+          {
+            path: '/settings/calendar',
+            Icon: CalendarDays,
+            title: tl(lang, 'settings.calendarTitle'),
+            desc: tl(lang, 'settings.calendarDesc'),
+          },
         ]
       : []),
     {

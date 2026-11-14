@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Calendar feed for due tasks (#34). Settings → Calendar feed creates a secret address (`/api/calendar/<token>.ics`) that calendar apps can subscribe to. It lists your own open tasks with a due date as all-day events, repeating tasks as a series (`RRULE`), each with a link back to its note. Options: also show done tasks, only one folder or tag, and hide the task text (every entry is then just "Task"). Like import tokens, feeds expire after the chosen time, can be revoked, at most 5 per account, and only a hash of the secret is stored; the filter options are encrypted.
+
 ## [2.1.0] – 2026-11-14
 
 - New: Browser-only demo on GitHub Pages (#24). `npm run build:demo` builds Kladde without a server: notes, drawings, tasks and the trash work and stay in the visitor's browser; sharing, attachments, history and AI access say they need a server. A workflow publishes it for every push to `main`. The app also runs under a sub path now (`/kladde-notes/…`).

@@ -20,6 +20,8 @@ import { McpTokenStore } from './mcp/McpTokenStore.js';
 import { mcpRouters } from './mcp/router.js';
 import { ImportTokenStore } from './import/ImportTokenStore.js';
 import { importRouters } from './import/router.js';
+import { CalendarFeedStore } from './calendar/CalendarFeedStore.js';
+import { calendarRouters } from './calendar/router.js';
 import { EmbeddedAsset, ensureStandaloneUser } from './standalone.js';
 import { trashRetentionDays } from './trash.js';
 
@@ -184,6 +186,10 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     const imports = importRouters({ users, notes, files, tokens: new ImportTokenStore(opts.db), audit });
     app.use('/api/import', imports.bearerRouter);
     app.use('/api/import-tokens', imports.accountRouter);
+    // Calendar feeds: the feed is read by calendar apps through its secret address (no cookies)
+    const calendar = calendarRouters({ users, notes, feeds: new CalendarFeedStore(opts.db, cipher), audit, publicUrl: opts.publicUrl });
+    app.use('/api/calendar', calendar.feedRouter);
+    app.use('/api/calendar-feeds', calendar.accountRouter);
   }
 
   app.use('/api', (req, res, next) =>

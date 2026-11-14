@@ -21,3 +21,4 @@ export * from './excalidrawNote.js';
 export * from './writing.js';
 export * from './share.js';
 export * from './outline.js';
+export * from './calendar.js';

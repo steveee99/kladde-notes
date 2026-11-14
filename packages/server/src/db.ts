@@ -268,6 +268,25 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 13,
+    description: 'Calendar feeds (ICS) for due tasks: hashed secrets, filter options encrypted',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE calendar_feeds (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          token_hash TEXT NOT NULL UNIQUE,
+          options BLOB NOT NULL,
+          created_at INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL,
+          last_used_at INTEGER
+        );
+        CREATE INDEX calendar_feeds_user ON calendar_feeds(user_id);
+      `);
+    },
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number[] {

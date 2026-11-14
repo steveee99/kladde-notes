@@ -271,6 +271,41 @@ export interface ImportTokenCreated {
   secret: string;
 }
 
+/** What a calendar feed contains */
+export interface CalendarFeedOptions {
+  /** Also list finished tasks (marked ✓) */
+  includeDone: boolean;
+  /** Only notes in this folder (and below); empty = all */
+  folder: string;
+  /** Only tasks whose note has this tag or that contain it as #tag; empty = all */
+  tag: string;
+  /** false shows every event as "Task" instead of the task text */
+  showTitles: boolean;
+  /** Language of the placeholder title */
+  lang: 'de' | 'en';
+}
+
+/** A calendar feed (`/api/calendar/<token>.ics`) with the user's own tasks that have a due date */
+export interface CalendarFeed {
+  id: string;
+  name: string;
+  createdAt: number;
+  /** The feed stops working after this */
+  expiresAt: number;
+  lastUsedAt: number | null;
+  options: CalendarFeedOptions;
+}
+
+/** How long a new calendar feed may live, in days (the first is the default) */
+export const CALENDAR_FEED_DAYS = [365, 30, 90] as const;
+
+/** A new calendar feed: its secret address is shown exactly once */
+export interface CalendarFeedCreated {
+  feed: CalendarFeed;
+  /** Path of the feed (`/api/calendar/<token>.ics`); the client puts its origin in front */
+  path: string;
+}
+
 /** What the consent page shows before an AI assistant gets access */
 export interface OAuthRequestInfo {
   clientName: string;

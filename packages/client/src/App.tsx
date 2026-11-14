@@ -21,6 +21,7 @@ import { AdminView } from './views/Admin';
 import { TemplatesView } from './views/Templates';
 import { McpSettingsView } from './views/McpSettings';
 import { ImportSettingsView } from './views/ImportSettings';
+import { CalendarSettingsView } from './views/CalendarSettings';
 import { OAuthConsent } from './views/OAuthConsent';
 import { FilesView } from './views/Files';
 import { TrashView } from './views/Trash';
@@ -152,6 +153,7 @@ export function App() {
   else if (path === '/settings/templates') page = <TemplatesView />;
   else if (path === '/settings/mcp') page = <McpSettingsView />;
   else if (path === '/settings/import' && !me.standalone) page = <ImportSettingsView />;
+  else if (path === '/settings/calendar' && !me.standalone) page = <CalendarSettingsView />;
   else if (path === '/files' || path === '/settings/files') page = <FilesView />;
   else if (path === '/trash') page = <TrashView />;
   else if (path === '/settings')

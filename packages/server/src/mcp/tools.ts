@@ -51,7 +51,12 @@ function space(ctx: ToolContext): SyncedNote[] {
 
 /** Due date for tasks without one: tasks in a daily note belong to its day (settings note of the client) */
 function taskDue(ctx: ToolContext): (path: string) => string | null {
-  const settings = ctx.notes.ownedNotes(ctx.userId).find((n) => n.id === `syssettings-${ctx.userId}`);
+  return taskDueOf(ctx.notes, ctx.userId);
+}
+
+/** Same as `taskDue`, for callers outside the MCP (the calendar feed) */
+export function taskDueOf(notes: NoteStore, userId: string): (path: string) => string | null {
+  const settings = notes.ownedNotes(userId).find((n) => n.id === `syssettings-${userId}`);
   let raw: unknown;
   try {
     raw = settings ? (JSON.parse(settings.content) as Record<string, unknown>)[FEATURES_SETTING] : undefined;
