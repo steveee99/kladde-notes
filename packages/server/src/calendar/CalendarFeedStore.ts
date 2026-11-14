@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import crypto from 'crypto';
-import { CALENDAR_FEED_DAYS, type CalendarFeed, type CalendarFeedOptions } from '@kladde/shared';
+import { CALENDAR_FEED_DAYS, trimSlashes, type CalendarFeed, type CalendarFeedOptions } from '@kladde/shared';
 import { DataCipher, randomToken, sha256 } from '../crypto.js';
 import { AccountError } from '../UserStore.js';
 
@@ -26,7 +26,7 @@ export function cleanFeedOptions(raw: unknown): CalendarFeedOptions {
   const text = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
   return {
     includeDone: o.includeDone === true,
-    folder: text(o.folder, 300).replace(/^\/+|\/+$/g, ''),
+    folder: trimSlashes(text(o.folder, 300)),
     tag: text(o.tag, 60).replace(/^#/, ''),
     showTitles: o.showTitles !== false,
     lang: o.lang === 'en' ? 'en' : 'de',

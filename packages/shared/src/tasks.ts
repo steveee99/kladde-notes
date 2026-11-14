@@ -44,10 +44,19 @@ export interface Task {
 }
 
 /** Matches a task line; group 2 is the status character */
-export const TASK_LINE = /^(\s*[-*+]\s+)\[([ xXoOhH])\]\s+(.*)$/;
+// The text group starts with a non-space (or is empty), so the whitespace before it can only match one way
+// (an overlapping `\s+(.*)` backtracks quadratically on long runs of spaces)
+export const TASK_LINE = /^(\s*[-*+]\s+)\[([ xXoOhH])\]\s+(\S.*|)$/;
 const DUE = /(?:📅\s*|\bdue:)(\d{4}-\d{2}-\d{2}|heute|morgen|today|tomorrow)/i;
 const REPEAT = /(?:🔁\s*|\bevery:)((?:\d+\s*)?[\p{L},]+)/iu;
-const DONE_DATE = /\s*✅\s*(\d{4}-\d{2}-\d{2})/;
+// Starts at the ✅ (a leading `\s*` would rescan every run of spaces from each position)
+const DONE_DATE = /✅\s*(\d{4}-\d{2}-\d{2})/;
+
+/** Removes "✅ YYYY-MM-DD" together with the whitespace in front of it */
+function withoutDoneDate(s: string): string {
+  const m = DONE_DATE.exec(s);
+  return m ? s.slice(0, m.index).trimEnd() + s.slice(m.index + m[0].length) : s;
+}
 /** "⏰ 9:00", "⏰ 09.30", "remind:18:15" */
 export const TIME = /(?:⏰\s*|\bremind:)([01]?\d|2[0-3])[:.]([0-5]\d)(?!\d)/i;
 
@@ -96,7 +105,7 @@ export function parseTasks(content: string, today = new Date(), defaultDue: stri
     const due = DUE.exec(rest);
     const repeat = REPEAT.exec(rest);
     const time = TIME.exec(rest);
-    const text = rest.replace(DUE, '').replace(REPEAT, '').replace(TIME, '').replace(DONE_DATE, '').replace(/\s+/g, ' ').trim();
+    const text = withoutDoneDate(rest).replace(DUE, '').replace(REPEAT, '').replace(TIME, '').replace(/\s+/g, ' ').trim();
     // An empty checkbox is a placeholder (e.g. from a template), not a task
     if (!text) return;
     tasks.push({
@@ -137,7 +146,7 @@ export function nextDue(rule: string, from: string | null, today = new Date()): 
       if (days.includes(cand.getDay())) return toDateString(cand);
     }
   }
-  const m = /^(\d+)?\s*(.+)$/.exec(r);
+  const m = /^(\d+)?\s*(\S.*)$/.exec(r);
   if (!m) return null;
   const n = m[1] ? Number(m[1]) : 1;
   const unit = m[2];
@@ -185,11 +194,11 @@ export function setTaskStatus(content: string, line: number, status: TaskStatus,
   const was = statusOfMarker(m[2]);
   if (was === status) return content;
   if (status !== 'done') {
-    lines[line] = `${m[1]}[${STATUS_CHAR[status]}] ${m[3].replace(DONE_DATE, '')}`;
+    lines[line] = `${m[1]}[${STATUS_CHAR[status]}] ${withoutDoneDate(m[3])}`;
     return lines.join('\n');
   }
   const [task] = parseTasks(raw, today);
-  lines[line] = `${m[1]}[x] ${m[3].replace(DONE_DATE, '')} ✅ ${toDateString(today)}`;
+  lines[line] = `${m[1]}[x] ${withoutDoneDate(m[3])} ✅ ${toDateString(today)}`;
   if (task?.repeat) {
     const next = nextDue(task.repeat, task.due, today);
     if (next) {
@@ -226,8 +235,9 @@ export function setTaskMeta(content: string, line: number, meta: { due?: string 
   const m = raw !== undefined ? TASK_LINE.exec(raw) : null;
   if (!m) return content;
   let rest = m[3];
-  const doneDate = DONE_DATE.exec(rest)?.[0] ?? '';
-  rest = rest.replace(DONE_DATE, '');
+  const done = DONE_DATE.exec(rest);
+  const doneDate = done ? ` ✅ ${done[1]}` : '';
+  rest = withoutDoneDate(rest);
   if (meta.due !== undefined) {
     rest = rest.replace(DUE, '').replace(/\s+/g, ' ').trim();
     if (meta.due) rest = `${rest} 📅 ${meta.due}`;

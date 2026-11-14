@@ -57,7 +57,17 @@ const depth = (s: string) => /^\s*/.exec(s)![0].replace(/\t/g, '    ').length;
 
 /** Removes `^block-id` markers at line ends (the line count stays the same) */
 export function stripBlockIds(text: string): string {
-  return text.replace(/[ \t]+\^[\w-]+[ \t]*$/gm, '').replace(/^\^[\w-]+[ \t]*$/gm, '');
+  // Per line from the "^" (a regex starting with `[ \t]+` would rescan long runs of whitespace from every position)
+  return text
+    .split('\n')
+    .map((line) => {
+      const m = /\^[\w-]+[ \t]*$/.exec(line);
+      if (!m) return line;
+      if (m.index === 0) return '';
+      const before = line.slice(0, m.index);
+      return /[ \t]$/.test(before) ? before.trimEnd() : line;
+    })
+    .join('\n');
 }
 
 function trimLines(lines: string[], start: number): EmbedSection {

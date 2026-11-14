@@ -379,9 +379,11 @@ function build(state: EditorState): DecorationSet {
         const from = ln.from + m.index!;
         replace(from, from + m[0].length, Decoration.replace({ widget: new DueWidget(`${m[1].padStart(2, '0')}:${m[2]}`, 'time', lang) }));
       }
-      for (const m of ln.text.matchAll(/\s*✅\s*\d{4}-\d{2}-\d{2}/g)) {
-        const from = ln.from + m.index!;
-        replace(from, from + m[0].length);
+      for (const m of ln.text.matchAll(/✅\s*\d{4}-\d{2}-\d{2}/g)) {
+        // Hide the space in front too (found by hand: a leading `\s*` in the regex backtracks quadratically)
+        let start = m.index!;
+        while (start > 0 && /\s/.test(ln.text[start - 1])) start--;
+        replace(ln.from + start, ln.from + m.index! + m[0].length);
       }
     }
     const matcher = getAutoLinkMatcher(state.facet(noteIdFacet), stamp);

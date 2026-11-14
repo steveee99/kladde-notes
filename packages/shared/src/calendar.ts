@@ -30,7 +30,7 @@ export function rruleOf(rule: string): string | null {
   const parts = r.split(',').map((d) => d.trim());
   const days = parts.filter((d) => d.length <= 3).map((d) => WEEKDAY_CODES[d.slice(0, 2)]).filter(Boolean);
   if (days.length && days.length === parts.length) return `FREQ=WEEKLY;BYDAY=${[...new Set(days)].join(',')}`;
-  const m = /^(\d+)?\s*(.+)$/.exec(r);
+  const m = /^(\d+)?\s*(\S.*)$/.exec(r);
   if (!m) return null;
   const n = m[1] ? Number(m[1]) : 1;
   if (n < 1) return null;
@@ -76,6 +76,22 @@ export function foldLine(line: string): string {
 
 const icsDate = (iso: string) => iso.replace(/-/g, '');
 
+/** Strips leading and trailing slashes (a loop: `/\/+$/` is quadratic on long runs of slashes) */
+export function trimSlashes(s: string): string {
+  let from = 0;
+  let to = s.length;
+  while (from < to && s[from] === '/') from++;
+  while (to > from && s[to - 1] === '/') to--;
+  return s.slice(from, to);
+}
+
+/** Strips trailing slashes only */
+function trimTrailingSlashes(s: string): string {
+  let to = s.length;
+  while (to > 0 && s[to - 1] === '/') to--;
+  return s.slice(0, to);
+}
+
 function nextDay(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
   const next = new Date(Date.UTC(y, m - 1, d + 1));
@@ -105,7 +121,7 @@ function matchesTag(task: Task, noteTags: string[], tag: string): boolean {
 /** Tasks that belong into the feed, in a stable order */
 export function calendarTasks(notes: CalendarNote[], opts: CalendarBuildOptions): { note: CalendarNote; title: string; task: Task }[] {
   const now = opts.now ?? new Date();
-  const folder = opts.folder.trim().replace(/^\/+|\/+$/g, '').toLowerCase();
+  const folder = trimSlashes(opts.folder.trim()).toLowerCase();
   const tag = opts.tag.trim();
   const out: { note: CalendarNote; title: string; task: Task }[] = [];
   for (const note of notes) {
@@ -125,7 +141,7 @@ export function calendarTasks(notes: CalendarNote[], opts: CalendarBuildOptions)
 export function buildCalendar(notes: CalendarNote[], opts: CalendarBuildOptions): string {
   const now = opts.now ?? new Date();
   const stamp = icsStamp(now);
-  const base = opts.baseUrl.replace(/\/+$/, '');
+  const base = trimTrailingSlashes(opts.baseUrl);
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Kladde//Calendar feed//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:${icsText(opts.name)}`];
   // Calendar apps poll at most this often (Apple, Outlook, Google read one of the two)
   lines.push('REFRESH-INTERVAL;VALUE=DURATION:PT1H', 'X-PUBLISHED-TTL:PT1H');
