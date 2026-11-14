@@ -11,6 +11,7 @@ import { Avatar } from './Avatar';
 import { t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
 import { useReadOnly } from '../lib/readOnly';
+import { setFocusMode, useFocusMode } from '../lib/focus';
 
 /*
  * Shell of Kladde (Material 3): a navigation rail or sticky navigation drawer on tablet and desktop
@@ -101,6 +102,14 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
   const dailyActive = path === '/daily' || path.startsWith('/daily/') || (!!dailyNote && noteId === dailyNote.id);
   const showDailyRail = features.daily.enabled && (!locked || !!dailyNote);
   const settingsActive = path === '/settings' || path.startsWith('/settings/');
+  // Focus mode: only the open note remains, without navigation or side panels
+  const focusMode = useFocusMode();
+  const focus = focusMode && !!noteId && features.focus.enabled;
+
+  // Focus mode belongs to a note: leaving it (or turning the feature off) ends it
+  useEffect(() => {
+    if (focusMode && (!noteId || !features.focus.enabled)) setFocusMode(false);
+  }, [focusMode, noteId, features.focus.enabled]);
 
   useEffect(() => {
     const onOpenSearch = () => {
@@ -117,7 +126,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
     <div className="flex h-full flex-col bg-surface md:bg-surface-container">
       <div className="sticky top-0 z-20 hidden shrink-0 bg-surface-container [--pad-top:0.375rem] safe-top [@media(display-mode:standalone)]:md:block" />
       <div className="flex min-h-0 min-w-0 flex-1">
-        {sticky ? (
+        {focus ? null : sticky ? (
           <aside aria-label={t('nav.navigationLabel')} className="m3-status hidden w-[292px] shrink-0 py-4 pl-4 pr-3 md:flex lg:w-[308px]">
             <div className="flex min-h-0 w-full flex-col overflow-hidden">
               <Sidebar
@@ -208,8 +217,8 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
           </div>
         )}
 
-        <div className="flex min-w-0 flex-1 flex-col md:py-4 md:pr-4">
-          <header className="sticky top-0 z-20 flex min-h-16 min-w-0 items-center gap-1 bg-surface [--pad-x:0.25rem] safe-top safe-x md:hidden">
+        <div className={`flex min-w-0 flex-1 flex-col ${focus ? 'bg-surface safe-top' : 'md:py-4 md:pr-4'}`}>
+          <header className={`sticky top-0 z-20 min-h-16 min-w-0 items-center gap-1 bg-surface [--pad-x:0.25rem] safe-top safe-x md:hidden ${focus ? 'hidden' : 'flex'}`}>
             <button className="btn-icon shrink-0" onClick={() => setDrawer(true)} aria-label={t('nav.openMenu')}>
               <Menu size={24} />
             </button>
@@ -221,13 +230,13 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
           </header>
           <div className="flex min-h-0 min-w-0 flex-1 md:gap-3">
             <RightPaneHostContext.Provider value={rightHost}>
-              <main className={`vt-main min-h-0 min-w-0 flex-1 overflow-y-auto scrollbar-thin md:rounded-[28px] md:bg-surface ${!noteId ? 'pb-24' : ''}`}>
+              <main className={`vt-main min-h-0 min-w-0 flex-1 overflow-y-auto scrollbar-thin md:bg-surface ${focus ? '' : 'md:rounded-[28px]'} ${!noteId ? 'pb-24' : ''}`}>
                 {children}
               </main>
             </RightPaneHostContext.Provider>
-            <div ref={setRightHost} className="no-print hidden shrink-0 lg:flex empty:hidden" />
+            <div ref={setRightHost} className={`no-print hidden shrink-0 empty:hidden ${focus ? '' : 'lg:flex'}`} />
           </div>
-          <nav aria-label={t('nav.navigationLabel')} className="bottom-bar grid min-h-20 grid-cols-4 bg-surface-container safe-x md:hidden">
+          <nav aria-label={t('nav.navigationLabel')} className={`bottom-bar min-h-20 grid-cols-4 bg-surface-container safe-x md:hidden ${focus ? 'hidden' : 'grid'}`}>
             <NavItem bar to="/" Icon={Home} label={t('nav.home')} />
             <NavItem bar to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} />
             <NavItem bar to="/notes" Icon={FileText} label={t('nav.notes')} />

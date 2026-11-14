@@ -161,6 +161,8 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       heatmap: { enabled: false },
       review: { enabled: false },
       favorites: { enabled: false },
+      writingStats: { enabled: true },
+      focus: { enabled: true, dim: false },
     });
 
     const upgraded = normalizeFeatures(undefined, ['0 Inbox', '1 Projekte', 'Zettelkasten', '3 Ressourcen/Rezepte']);
@@ -172,6 +174,8 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       heatmap: { enabled: false },
       review: { enabled: false },
       favorites: { enabled: false },
+      writingStats: { enabled: true },
+      focus: { enabled: true, dim: false },
     });
 
     const explicitDisabled = normalizeFeatures(
@@ -183,6 +187,8 @@ describe('frontmatter, PARA, templates, daily notes', () => {
         heatmap: { enabled: true },
         review: { enabled: true },
         favorites: { enabled: 'yes' },
+        writingStats: { enabled: false },
+        focus: { enabled: 'no', dim: true },
       },
       ['1 Projekte', 'Zettelkasten']
     );
@@ -193,6 +199,8 @@ describe('frontmatter, PARA, templates, daily notes', () => {
     expect(explicitDisabled.heatmap).toEqual({ enabled: true });
     expect(explicitDisabled.review).toEqual({ enabled: true });
     expect(explicitDisabled.favorites).toEqual({ enabled: false });
+    expect(explicitDisabled.writingStats).toEqual({ enabled: false });
+    expect(explicitDisabled.focus).toEqual({ enabled: true, dim: true });
 
     const guarded = normalizeFeatures({ daily: { folder: '.kladde/hack', format: '../../.kladde/evil.md' } }, []);
     expect(guarded.daily).toEqual(defaultDaily);

@@ -16,6 +16,7 @@ import { editorHost } from './host';
 import { merge3, textChanges } from '@kladde/shared';
 import { slashCompletion } from './slash';
 import { remoteCursors } from './remoteCursors';
+import { focusDim } from './focusDim';
 import { useReadOnly } from '../lib/readOnly';
 import { t as i18n, useLang } from '../lib/i18n';
 
@@ -206,13 +207,19 @@ export interface EditorProps {
   source?: boolean;
   /** Synced note: shows the cursors of the other devices/tabs on it and reports this one's */
   presenceNote?: string;
+  /** Focus mode: fade every paragraph but the one with the cursor */
+  dim?: boolean;
+  /** Called after the text or the selection changed (e.g. for the word count) */
+  onActivity?: (view: EditorView) => void;
 }
 
-export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote }: EditorProps) {
+export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote, dim = false, onActivity }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const changeRef = useRef(onChange);
   changeRef.current = onChange;
+  const activityRef = useRef(onActivity);
+  activityRef.current = onActivity;
   const lockedEverywhere = useReadOnly();
   const locked = readOnly || lockedEverywhere;
   const lang = useLang();
@@ -220,6 +227,9 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   const lockConf = useRef(new Compartment());
   const placeholderConf = useRef(new Compartment());
   const previewConf = useRef(new Compartment());
+  const dimConf = useRef(new Compartment());
+  const dimRef = useRef(dim);
+  dimRef.current = dim;
   const lockedRef = useRef(locked);
   lockedRef.current = locked;
   const sourceRef = useRef(source);
@@ -257,7 +267,9 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           placeholderConf.current.of(cmPlaceholder(resolvedPlaceholder)),
           autocompletion({ override: [wikiCompletion, slashCompletion(insertFiles)], icons: false }),
           fileHandlers(),
+          dimConf.current.of(dimRef.current ? focusDim : []),
           EditorView.updateListener.of((u) => {
+            if (u.docChanged || u.selectionSet) activityRef.current?.(u.view);
             if (!u.docChanged) return;
             if (timer) clearTimeout(timer);
             timer = setTimeout(flush, 350);
@@ -297,6 +309,11 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   useEffect(() => {
     view.current?.dispatch({ effects: previewConf.current.reconfigure(previewExtensions(source)) });
   }, [source]);
+
+  // Dimming on/off without rebuilding the editor
+  useEffect(() => {
+    view.current?.dispatch({ effects: dimConf.current.reconfigure(dim ? focusDim : []) });
+  }, [dim]);
 
   // Reconfigure placeholder cleanly when language or custom placeholder changes
   useEffect(() => {

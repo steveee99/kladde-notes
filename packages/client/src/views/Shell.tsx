@@ -57,6 +57,7 @@ import { isReadOnly, setReadOnly, useReadOnly } from '../lib/readOnly';
 import { ShareDialog } from './ShareDialog';
 import { MaterialShell } from './MaterialShell';
 import { Avatar } from './Avatar';
+import { getFocusMode, setFocusMode, toggleFocusMode } from '../lib/focus';
 import { editorHost } from '../editor/host';
 import { folderDisplayName, locale, t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
@@ -1111,6 +1112,33 @@ function useDailyShortcut() {
   }, []);
 }
 
+/** Strg/⌘+Shift+F turns focus mode on/off for the open note; Escape leaves it */
+function useFocusShortcut() {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey || e.altKey) return;
+      if (e.key.toLowerCase() !== 'f' && e.code !== 'KeyF') return;
+      if (!vault.features().focus.enabled) return;
+      const id = openNoteId();
+      if (!id || !vault.get(id)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      toggleFocusMode();
+    };
+    // Bubble phase: an Escape that closed an autocomplete popup or a menu was already handled there
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || !getFocusMode()) return;
+      setFocusMode(false);
+    };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keydown', onEscape);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('keydown', onEscape);
+    };
+  }, []);
+}
+
 /** The note open in the current route (`/n/<id>`), if any */
 function openNoteId(): string | null {
   const p = window.location.pathname;
@@ -1168,6 +1196,7 @@ export function Shell({ me, children, isAdmin }: { me: Me; children: React.React
   useSaveShortcut(showToast);
   useDailyShortcut();
   useFavoriteShortcut(showToast);
+  useFocusShortcut();
 
   return (
     <>

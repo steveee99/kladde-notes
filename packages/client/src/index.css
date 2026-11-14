@@ -410,6 +410,27 @@ body {
       max-width: 100%;
     }
   }
+  /* Focus mode: centered text with a comfortable line length (about 70 characters) */
+  .content-container.focus-container {
+    max-width: min(100%, 46rem);
+  }
+  /* The exit button stays out of the way until it is needed */
+  .focus-exit {
+    opacity: 0.45;
+    transition: opacity 150ms var(--ease);
+  }
+  .focus-exit:hover,
+  .focus-exit:focus-visible {
+    opacity: 1;
+  }
+  /* Focus mode "dim other paragraphs" (editor/focusDim.ts): lines and block widgets outside the current paragraph fade */
+  .cm-focus-dim .cm-content > :not(.cm-focus-current) {
+    opacity: 0.35;
+    transition: opacity 200ms var(--ease);
+  }
+  .cm-focus-dim .cm-content > .cm-focus-current {
+    transition: opacity 200ms var(--ease);
+  }
 }
 
 @layer utilities {
@@ -2015,6 +2036,9 @@ span.cm-checkbox {
   }
   .cm-content {
     padding: 0 !important;
+  }
+  .cm-focus-dim .cm-content > * {
+    opacity: 1 !important;
   }
   .wz-table,
   .wz-diagram,

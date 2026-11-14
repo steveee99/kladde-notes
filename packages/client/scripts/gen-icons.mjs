@@ -14,7 +14,7 @@ const out = join(dirname(fileURLToPath(import.meta.url)), '../src/lib/icons.tsx'
 const MAP = {
   AlertTriangle: 'warning', AlignJustify: 'density_small', Archive: 'archive', ArchiveRestore: 'unarchive',
   ArrowDownAZ: 'sort_by_alpha', ArrowDownToLine: 'vertical_align_bottom', ArrowLeft: 'arrow_back', ArrowRight: 'arrow_forward',
-  Ban: 'block', Bold: 'format_bold', Bot: 'smart_toy', Briefcase: 'work', CalendarCheck: 'event_available',
+  Ban: 'block', Bold: 'format_bold', CenterFocus: 'center_focus_strong', CloseFullscreen: 'fullscreen_exit', Bot: 'smart_toy', Briefcase: 'work', CalendarCheck: 'event_available',
   CalendarClock: 'edit_calendar', CalendarDays: 'today', CalendarPlus: 'calendar_add_on', CalendarRange: 'date_range',
   Camera: 'photo_camera', Check: 'check', CheckCircle2: 'check_circle', CheckSquare: 'check_box', ChefHat: 'chef_hat',
   ChevronDown: 'keyboard_arrow_down', ChevronLeft: 'chevron_left', ChevronRight: 'chevron_right', ClipboardPaste: 'content_paste',
