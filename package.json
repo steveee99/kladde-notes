@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
-    "concurrently": "^9.1.2",
+    "concurrently": "^10.0.7",
     "deepmerge": "file:vendor/deepmerge",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
