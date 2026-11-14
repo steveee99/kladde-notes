@@ -69,6 +69,15 @@ export interface FeatureSettings {
   favorites: {
     enabled: boolean;
   };
+  /** Status line under a note: words, characters, reading time (on unless turned off) */
+  writingStats: {
+    enabled: boolean;
+  };
+  /** Focus mode (Ctrl/⌘+Shift+F): hides navigation and panels; `dim` fades all paragraphs but the current one */
+  focus: {
+    enabled: boolean;
+    dim: boolean;
+  };
 }
 
 /** Configurable folder mapping per role; `null` disables matching for that role */
@@ -113,6 +122,11 @@ export function cleanDailyFormat(raw: unknown, fallback = DEFAULT_DAILY_FORMAT):
     .filter((p) => p && p !== '.' && p !== '..');
   if (!parts.length || parts[0].toLowerCase() === '.kladde') return fallback;
   return parts.join('/');
+}
+
+/** Only `{ enabled: false }` turns an opt-out feature off; anything else leaves it on */
+function optOutFlag(raw: unknown): boolean {
+  return !(raw && typeof raw === 'object' && (raw as Record<string, unknown>).enabled === false);
 }
 
 /** `{ enabled: true }` turns an opt-in feature on; anything else leaves it off */
@@ -187,6 +201,13 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
     },
     favorites: {
       enabled: optInFlag(obj.favorites),
+    },
+    writingStats: {
+      enabled: optOutFlag(obj.writingStats),
+    },
+    focus: {
+      enabled: optOutFlag(obj.focus),
+      dim: !!obj.focus && typeof obj.focus === 'object' && (obj.focus as Record<string, unknown>).dim === true,
     },
   };
 }

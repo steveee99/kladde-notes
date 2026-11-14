@@ -930,6 +930,8 @@ class Vault {
       heatmap: { enabled: false },
       review: { enabled: false },
       favorites: { enabled: false },
+      writingStats: { enabled: true },
+      focus: { enabled: true, dim: false },
     } satisfies FeatureSettings);
     for (const w of welcomeNotes(getLang())) await this.insert(w.folder, w.title, w.content);
   }

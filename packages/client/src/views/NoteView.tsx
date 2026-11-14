@@ -5,11 +5,13 @@ import {
   ArrowLeft,
   Bold,
   CalendarPlus,
+  CenterFocus,
   Check,
   CheckCircle2,
   CheckSquare,
   ChevronDown,
   ChevronRight,
+  CloseFullscreen,
   Code,
   Copy,
   Download,
@@ -80,6 +82,8 @@ import { setNoteSplitOpen, setNoteSplitTab, setSourceMode, useNoteSplitOpen, use
 import { isCoarsePointer } from '../lib/viewport';
 import { useRightPaneHost } from './MaterialShell';
 import { DailyCarryOver, DailyNoteBar } from './DailyNoteBar';
+import { NoteStats } from './NoteStats';
+import { setFocusMode, useFocusMode } from '../lib/focus';
 
 const IS_APPLE = /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -301,6 +305,8 @@ function NoteOverflowMenu({
   onToggleFavorite,
   sourceMode,
   onToggleSource,
+  focusMode,
+  onToggleFocus,
   onFinishProject,
   onConvertProject,
   onAddProperty,
@@ -321,6 +327,9 @@ function NoteOverflowMenu({
   /** null: the note cannot be edited, so there is no code view */
   sourceMode: boolean | null;
   onToggleSource: () => void;
+  /** null: focus mode is turned off in the settings */
+  focusMode: boolean | null;
+  onToggleFocus: () => void;
   /** Only for project notes the user owns */
   onFinishProject?: () => void;
   /** Only for single-file projects */
@@ -468,6 +477,17 @@ function NoteOverflowMenu({
                 onClick={() => {
                   setOpen(false);
                   onToggleSource();
+                }}
+              />
+            )}
+            {focusMode !== null && (
+              <MenuItem
+                icon={CenterFocus}
+                label={t('focus.menuLabel')}
+                active={focusMode}
+                onClick={() => {
+                  setOpen(false);
+                  onToggleFocus();
                 }}
               />
             )}
@@ -875,6 +895,10 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const splitOpen = useNoteSplitOpen();
   const sourceMode = useSourceMode();
   const splitTab = useNoteSplitTab();
+  const focusMode = useFocusMode();
+  // Bumped (debounced) on every edit or selection change in the editor, for the live word count
+  const [statsTick, setStatsTick] = useState(0);
+  const statsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rightHost = useRightPaneHost();
   const [copiedMd, setCopiedMd] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -897,6 +921,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   useEffect(() => {
     return () => {
       if (copyTimer.current) clearTimeout(copyTimer.current);
+      if (statsTimer.current) clearTimeout(statsTimer.current);
     };
   }, []);
 
@@ -971,6 +996,11 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const isProject = isOwner && features.para.enabled && isProjectNote(note.path, rc);
   const isSingleProject = isProject && isSingleProjectFile(note.path, rc);
   const dailyDate = features.daily.enabled && note.access === 'owner' ? extractDailyNoteDate(note.path, features.daily) : null;
+  const focus = focusMode && features.focus.enabled;
+  const onEditorActivity = () => {
+    if (statsTimer.current) clearTimeout(statsTimer.current);
+    statsTimer.current = setTimeout(() => setStatsTick((n) => n + 1), 150);
+  };
   const index = vault.links();
   const backlinks = index.backlinks(id).map((b) => vault.get(b)!).filter(Boolean);
   const mentions = index.unlinkedMentions(id).map((m) => vault.get(m)!).filter((n) => n && n.access !== 'read');
@@ -1015,8 +1045,19 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   return (
     <div className="flex h-full min-h-0 flex-col print:block print:h-auto print:overflow-visible">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto scrollbar-thin print:block print:h-auto print:overflow-visible">
-        <div className={`content-container mx-auto w-full flex-1 px-4 pt-4 sm:px-8 sm:pt-8 ${showPdf ? 'flex flex-col' : ''}`}>
-          <div className="no-print mb-3 flex items-center gap-2 text-sm text-on-surface-variant anim-fade-in">
+        <div className={`content-container mx-auto w-full flex-1 px-4 pt-4 sm:px-8 sm:pt-8 ${showPdf ? 'flex flex-col' : ''} ${focus ? 'focus-container' : ''}`}>
+          {focus && (
+            <button
+              type="button"
+              className="focus-exit no-print btn-icon fixed right-4 top-[calc(env(safe-area-inset-top)+0.75rem)] z-30 rounded-full bg-surface-container-high"
+              onClick={() => setFocusMode(false)}
+              title={t('focus.exit')}
+              aria-label={t('focus.exit')}
+            >
+              <CloseFullscreen size={20} />
+            </button>
+          )}
+          <div className={`no-print mb-3 items-center gap-2 text-sm text-on-surface-variant anim-fade-in ${focus ? 'hidden' : 'flex'}`}>
             <button className="btn-icon -ml-2 shrink-0 rounded-full" onClick={() => history.back()} title={t('common.back')} aria-label={t('common.back')}>
               <ArrowLeft size={18} />
             </button>
@@ -1097,6 +1138,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 onToggleFavorite={() => void vault.toggleFavorite(id).catch(() => undefined)}
                 sourceMode={readOnly ? null : sourceMode}
                 onToggleSource={() => setSourceMode(!sourceMode)}
+                focusMode={features.focus.enabled && !showPdf ? focus : null}
+                onToggleFocus={() => setFocusMode(!focus)}
                 onFinishProject={isProject ? () => confirm(t('para.finishConfirm')) && void vault.archiveProject(id) : undefined}
                 onAddProperty={
                   !readOnly && view
@@ -1120,7 +1163,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             </div>
           )}
 
-          {dailyDate && (
+          {dailyDate && !focus && (
             <div className="no-print">
               <DailyNoteBar date={dailyDate} />
               {!readOnly && <DailyCarryOver noteId={id} date={dailyDate} />}
@@ -1145,7 +1188,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             }}
           />
           <h1 className="mb-3 hidden break-words text-headline-l print:block">{title || displayName}</h1>
-          {!locked && (
+          {!locked && !focus && (
             <div className="no-print">
               <ParaBar note={note} />
             </div>
@@ -1188,13 +1231,15 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               source={sourceMode && !readOnly}
               stamp={version}
               presenceNote={id}
+              dim={focus && features.focus.dim}
               onChange={(content) => void vault.update(id, { content })}
               onView={setView}
+              onActivity={features.writingStats.enabled ? onEditorActivity : undefined}
             />
           )}
 
           {/* Bottom links/graph overview remains visible when the right split pane is collapsed */}
-          {!showPdf && !splitOpen && (backlinks.length > 0 || mentions.length > 0 || local.nodes.length > 1) && (
+          {!showPdf && !splitOpen && !focus && (backlinks.length > 0 || mentions.length > 0 || local.nodes.length > 1) && (
             <div className="no-print mb-10 space-y-6 border-t border-outline-variant pt-4">
               {backlinks.length > 0 && (
                 <section className="anim-fade-in">
@@ -1237,11 +1282,27 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             </div>
           )}
         </div>
-        {!readOnly && !showPdf && <Toolbar view={view} lang={lang} />}
+        {!showPdf && (features.writingStats.enabled || !readOnly) && (
+          <div className="no-print sticky bottom-0 z-20">
+            {features.writingStats.enabled && (
+              <div className="bg-surface/95 backdrop-blur">
+                <div className={`content-container mx-auto ${focus ? 'focus-container' : ''}`}>
+                  <NoteStats content={note.content} view={view} tick={statsTick} lang={lang} />
+                </div>
+              </div>
+            )}
+            {!readOnly && (
+              <div className={focus ? 'md:hidden' : ''}>
+                <Toolbar view={view} lang={lang} />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Desktop right Splitview Supporting Pane (lg+, detached card like the left sidebar) */}
       {splitOpen &&
+        !focus &&
         rightHost &&
         createPortal(
           <aside
@@ -1265,6 +1326,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
 
       {/* Tablet / Mobile Splitview Slide-over Sheet (< lg) – portal escapes .vt-main stacking context */}
       {splitOpen &&
+        !focus &&
         createPortal(
           <div data-splitview-sheet="true" className="no-print fixed inset-0 z-50 lg:hidden">
             <div className="absolute inset-0 bg-scrim/[0.32] anim-fade-in" onClick={() => setNoteSplitOpen(false)} />

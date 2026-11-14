@@ -7,10 +7,12 @@ import {
   CalendarCheck,
   CalendarRange,
   Camera,
+  CenterFocus,
   Check,
   ChefHat,
   ChevronRight,
   Copy,
+  AlignJustify,
   FolderKanban,
   FolderInput,
   FolderPlus,
@@ -934,6 +936,71 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
             onChange={(enabled) => save({ ...features, favorites: { enabled } })}
           />
         </div>
+      </div>
+
+      <hr className="my-5 border-outline-variant" />
+
+      {/* writing stats (on by default) */}
+      <div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            <AlignJustify size={18} className="mt-0.5 shrink-0 text-primary" />
+            <div className="min-w-0 flex-1">
+              <label htmlFor="feature-stats-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
+                {tl(lang, 'settings.statsTitle')}
+              </label>
+              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.statsDesc')}</p>
+            </div>
+          </div>
+          <Switch
+            id="feature-stats-switch"
+            checked={features.writingStats.enabled}
+            disabled={locked}
+            label={tl(lang, 'settings.statsToggleLabel')}
+            onChange={(enabled) => save({ ...features, writingStats: { enabled } })}
+          />
+        </div>
+      </div>
+
+      <hr className="my-5 border-outline-variant" />
+
+      {/* focus mode (on by default) */}
+      <div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            <CenterFocus size={18} className="mt-0.5 shrink-0 text-primary" />
+            <div className="min-w-0 flex-1">
+              <label htmlFor="feature-focus-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
+                {tl(lang, 'settings.focusTitle')}
+              </label>
+              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.focusDesc')}</p>
+            </div>
+          </div>
+          <Switch
+            id="feature-focus-switch"
+            checked={features.focus.enabled}
+            disabled={locked}
+            label={tl(lang, 'settings.focusToggleLabel')}
+            onChange={(enabled) => save({ ...features, focus: { ...features.focus, enabled } })}
+          />
+        </div>
+        {features.focus.enabled && (
+          <div className="mt-3 flex items-center justify-between gap-4 rounded-2xl border border-outline-variant bg-surface-container-high/50 p-4 anim-fade-in">
+            <div className="min-w-0 flex-1">
+              <label htmlFor="feature-focus-dim-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
+                {tl(lang, 'settings.focusDimTitle')}
+              </label>
+              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.focusDimDesc')}</p>
+            </div>
+            <Switch
+              id="feature-focus-dim-switch"
+              checked={features.focus.dim}
+              disabled={locked}
+              label={tl(lang, 'settings.focusDimTitle')}
+              onChange={(dim) => save({ ...features, focus: { ...features.focus, dim } })}
+            />
+          </div>
+        )}
       </div>
 
       <hr className="my-5 border-outline-variant" />
