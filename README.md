@@ -77,7 +77,10 @@ npm run dev
 npm run build   # shared → server → client
 npm run test    # query language, tasks, note/user store, sync, MCP, import, …
 npm run lint
+npm run build:demo   # browser-only demo without server → packages/client/dist-demo
 ```
+
+**Demo:** `npm run build:demo` builds a version that runs entirely in the browser (no server, no sync: notes stay in the visitor's browser; sharing, attachments, history and AI access are off). `.github/workflows/pages.yml` publishes it on GitHub Pages for every push to `main` (enable *Settings → Pages → Source: GitHub Actions* once). `DEMO_BASE` sets the sub path (default `/kladde-notes/`).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute and [AGENTS.md](AGENTS.md) for the architecture and rules of the codebase.
 

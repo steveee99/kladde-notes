@@ -74,7 +74,10 @@ npm run dev
 ```bash
 npm run build   # shared → server → client
 npm run test    # Abfragesprache, Aufgaben, Notiz-/Benutzer-Store
+npm run build:demo   # Demo nur im Browser, ohne Server → packages/client/dist-demo
 ```
+
+**Demo:** `npm run build:demo` baut eine Version, die komplett im Browser läuft (kein Server, keine Synchronisation: die Notizen bleiben im Browser der Besucher; Teilen, Anhänge, Verlauf und KI-Zugriff sind aus). `.github/workflows/pages.yml` veröffentlicht sie bei jedem Push auf `main` auf GitHub Pages (einmalig *Settings → Pages → Source: GitHub Actions* einstellen). `DEMO_BASE` setzt den Unterpfad (Standard `/kladde-notes/`).
 
 ---
 

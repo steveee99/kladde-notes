@@ -4,7 +4,7 @@ import { KeyRound, LogIn, Smartphone, Sparkles, UserPlus } from '../lib/icons';
 import { PASSWORD_MIN_LENGTH, type AuthProviders, type Me } from '@kladde/shared';
 import { api } from '../lib/api';
 import { Lang, setLang, t, tl, useLang } from '../lib/i18n';
-import { navigate } from '../lib/router';
+import { appUrl, navigate } from '../lib/router';
 
 function errorText(err: unknown): string {
   const e = err as Error;
@@ -116,7 +116,7 @@ export function Frame({ title, subtitle, children }: { title: string; subtitle: 
     <div className="flex min-h-full items-center justify-center px-4 [--pad-top:1rem] [--pad-bottom:1rem] safe-top safe-bottom">
       <div className="card w-full max-w-sm rounded-3xl p-6 anim-fade-up">
         <div className="mb-4 flex items-start justify-between gap-2">
-          <img src="/icons/icon.svg" alt="" className="h-14 w-14 anim-pop" />
+          <img src={appUrl('/icons/icon.svg')} alt="" className="h-14 w-14 anim-pop" />
           <div className="inline-flex rounded-full border border-outline-variant bg-surface-container-high p-0.5" role="group" aria-label={tl(lang, 'common.language')}>
             {(['de', 'en'] as Lang[]).map((code) => (
               <button

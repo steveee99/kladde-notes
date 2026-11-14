@@ -31,4 +31,4 @@ Rules for agents:
 6. Never put private infrastructure details (hostnames, IPs, registries, SSH targets, e-mail addresses) into this repository.
 
 ### CI and releases
-`.github/workflows/ci.yml` runs lint, build and tests on GitHub-hosted runners for every push to `main` and every pull request. This repository contains no deploy pipeline and no self-hosted runner. Versions are bumped with `npm run release -- patch|minor|major` (see `scripts/release.mjs`), then committed and tagged by hand.
+`.github/workflows/ci.yml` runs lint, build and tests on GitHub-hosted runners for every push to `main` and every pull request. `.github/workflows/pages.yml` publishes the browser-only demo (`npm run build:demo`, `client/src/demo/demoApi.ts` answers `/api` in the browser; routes go through `lib/router.ts`, which knows the base path) on GitHub Pages; there is no other deploy pipeline and no self-hosted runner. Versions are bumped with `npm run release -- patch|minor|major` (see `scripts/release.mjs`), then committed and tagged by hand.

@@ -20,6 +20,7 @@
   "scripts": {
     "dev": "concurrently -n \"shared,server,client\" -c \"blue,green,magenta\" \"npm run build:watch --workspace=packages/shared\" \"npm run dev --workspace=packages/server\" \"npm run dev --workspace=packages/client\"",
     "build": "npm run build --workspace=packages/shared && npm run build --workspace=packages/server && npm run build --workspace=packages/client",
+    "build:demo": "npm run build --workspace=packages/shared && npm run build:demo --workspace=packages/client",
     "build:desktop": "node scripts/build-desktop.mjs",
     "build:exe": "node scripts/build-desktop.mjs --win",
     "test": "npm run test --workspace=packages/shared && npm run test --workspace=packages/server",

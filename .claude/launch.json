@@ -9,6 +9,15 @@
         "npx concurrently -n shared,server,client -c blue,green,magenta \"npm run build:watch --workspace=packages/shared\" \"npm run dev --workspace=packages/server\" \"npm run dev --workspace=packages/client -- --host\""
       ],
       "port": 5174
+    },
+    {
+      "name": "demo",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd packages/client && npx vite preview --mode demo --outDir dist-demo --port 4174 --strictPort"
+      ],
+      "port": 4174
     }
   ]
 }
