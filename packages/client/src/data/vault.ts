@@ -843,9 +843,12 @@ class Vault {
     return true;
   }
 
-  /** Quick capture: appends a line to the inbox note of the day-independent "Eingang" note */
-  /** Quick capture: tasks are collected in "0 Inbox/Eingang", every thought becomes its own inbox note */
-  async capture(text: string, asTask: boolean): Promise<LocalNote | undefined> {
+  /**
+   * Quick capture: tasks are collected in "0 Inbox/Eingang", every thought becomes its own inbox note.
+   * With a `title` (shared from another app) the whole text becomes the content of a note with that title.
+   */
+  async capture(text: string, asTask: boolean, title?: string): Promise<LocalNote | undefined> {
+    if (!asTask && title?.trim()) return this.create(INBOX_FOLDER, title.trim(), `${text}\n`);
     if (!asTask) {
       const firstLine = text.split('\n')[0];
       const title = excerpt(firstLine, 50).replace(/[\\/:#[\]|]/g, ' ').trim() || t('home.welcomeDefaultNoteName');

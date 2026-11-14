@@ -70,8 +70,22 @@ export default defineConfig({
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
+        // "Share → Kladde" from other apps; public/share-target.js receives the POST in the service worker
+        share_target: {
+          action: '/share',
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: {
+            title: 'title',
+            text: 'text',
+            url: 'url',
+            files: [{ name: 'files', accept: ['image/*', 'application/pdf', '.pdf'] }],
+          },
+        },
       },
       workbox: {
+        // Runs before Workbox's own routes, so it sees the share target's POST first
+        importScripts: ['/share-target.js'],
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         navigateFallback: '/index.html',

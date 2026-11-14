@@ -6,6 +6,7 @@ All user-visible changes to Kladde.
 
 - New: Word count and reading time (#35). A small status line below each note shows words, characters and reading time; with a selection it also shows how many words are selected. Frontmatter and code blocks are not counted.
 - New: Focus mode (#35). `Ctrl/⌘+Shift+F` or ⋮ → "Focus mode" hides the navigation, the header and the side panels and centers the text with a comfortable line length; `Esc` or the button in the corner leaves it. Optionally all paragraphs except the one with the cursor are dimmed. Both features can be turned off under Settings → Features.
+- New: "Share → Kladde" (#27). The installed app appears in the share menu of other apps on the phone. Shared links, text, images and PDFs open Quick Capture prefilled: a link becomes `[title](url)`, text is taken over as is, files are attached like a paste. "Save" creates a new note in the inbox. Offline, files cannot be attached yet; Kladde says so and saves the text.
 
 ## [2.0.1] – 2026-11-13
 

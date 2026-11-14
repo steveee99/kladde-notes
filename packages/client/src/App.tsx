@@ -14,6 +14,7 @@ import { NoteView } from './views/NoteView';
 import { SearchView } from './views/Search';
 import { SettingsView } from './views/Settings';
 import { InboxView } from './views/Inbox';
+import { ShareCaptureView } from './views/ShareCapture';
 import { GraphView } from './views/Graph';
 import { ReviewView } from './views/Review';
 import { AdminView } from './views/Admin';
@@ -138,6 +139,8 @@ export function App() {
   else if (dailyDate) page = <DailyNoteEmptyView key={dailyDate.date} date={dailyDate.date} />;
   else if (path === '/calendar') page = <CalendarView />;
   else if (path === '/inbox' || path === `/f/${encodeURIComponent(INBOX_FOLDER)}`) page = <InboxView />;
+  // "Share → Kladde" from another app (PWA share target)
+  else if (path === '/share') page = <ShareCaptureView key={location.search} />;
   else if (path === '/graph') page = <GraphView />;
   else if (path === '/review') page = <ReviewView />;
   else if (path.startsWith('/f/')) page = <NoteList key={path} mode="folder" folder={decodeURIComponent(path.slice(3))} />;

@@ -738,6 +738,10 @@ const de = {
   'quick.saveBtn': 'Ablegen',
   'quick.taskHint': 'Aufgaben landen in „0 Inbox/Eingang“.',
   'quick.noteHint': 'Wird eine eigene Notiz in der Inbox – zum späteren Einsortieren.',
+  'quick.shareOffline': 'Offline: Dateien lassen sich erst mit Verbindung anhängen. „Ablegen“ speichert nur den Text – teile die Dateien später noch einmal.',
+  'quick.shareUploadFailed': 'Anhang konnte nicht hochgeladen werden: {error}',
+  'quick.shareRemoveFile': '{name} entfernen',
+  'quick.shareMissing': 'Der geteilte Inhalt ist nicht angekommen. Öffne Kladde einmal mit Verbindung und teile dann erneut.',
 
   // Share Dialog
   'share.noteTitle': 'Teilen',
@@ -1701,6 +1705,10 @@ const en: Record<I18nKey, string> = {
   'quick.saveBtn': 'Save',
   'quick.taskHint': 'Tasks are added to “0 Inbox/Eingang”.',
   'quick.noteHint': 'Creates a note in your Inbox to sort later.',
+  'quick.shareOffline': 'Offline: files can only be attached with a connection. “Save” keeps just the text – share the files again later.',
+  'quick.shareUploadFailed': 'Could not upload the attachment: {error}',
+  'quick.shareRemoveFile': 'Remove {name}',
+  'quick.shareMissing': 'The shared content did not arrive. Open Kladde once while online, then share again.',
 
   // Share Dialog
   'share.noteTitle': 'Share',
