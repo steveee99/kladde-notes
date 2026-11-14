@@ -11,6 +11,20 @@ describe('tasks', () => {
     expect(tasks[1]).toMatchObject({ text: 'Müll', due: '2026-11-09', repeat: 'week', done: true });
   });
 
+  it('parses reminder times in both notations and keeps them out of the text', () => {
+    const [a, b, c] = parseTasks('- [ ] Zahnarzt 📅 2026-11-20 ⏰ 9:30\n- [ ] Anrufen due:heute remind:18.05\n- [ ] Ohne ⏰ 25:00', today);
+    expect(a).toMatchObject({ text: 'Zahnarzt', due: '2026-11-20', time: '09:30' });
+    expect(b).toMatchObject({ text: 'Anrufen', due: '2026-11-08', time: '18:05' });
+    expect(c.time).toBeNull();
+    expect(setTaskMeta('- [ ] Zahnarzt ⏰ 9:30', 0, { time: '7:15' })).toBe('- [ ] Zahnarzt ⏰ 07:15');
+    expect(setTaskMeta('- [ ] Zahnarzt ⏰ 9:30', 0, { time: null })).toBe('- [ ] Zahnarzt');
+  });
+
+  it('keeps the reminder time on the next occurrence of a repeating task', () => {
+    const next = setTaskStatus('- [ ] Gießen 📅 2026-11-08 🔁 täglich ⏰ 08:00', 0, 'done', today).split('\n')[0];
+    expect(parseTasks(next, today)[0]).toMatchObject({ due: '2026-11-09', time: '08:00', done: false });
+  });
+
   it('ignores checkboxes inside code fences and empty placeholders', () => {
     expect(parseTasks('```\n- [ ] no\n```\n- [ ] yes\n- [ ] \n- [ ]  📅 2026-11-08')).toHaveLength(1);
   });

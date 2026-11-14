@@ -23,6 +23,7 @@ import { TemplatesView } from './views/Templates';
 import { McpSettingsView } from './views/McpSettings';
 import { ImportSettingsView } from './views/ImportSettings';
 import { CalendarSettingsView } from './views/CalendarSettings';
+import { NotificationSettingsView } from './views/NotificationSettings';
 import { OAuthConsent } from './views/OAuthConsent';
 import { FilesView } from './views/Files';
 import { TrashView } from './views/Trash';
@@ -114,6 +115,18 @@ export function App() {
     setMe(null);
   }, []);
 
+  // A click on a reminder opens its note in this window (public/push.js)
+  useEffect(() => {
+    const sw = navigator.serviceWorker;
+    if (!sw) return;
+    const onMessage = (e: MessageEvent) => {
+      const data = e.data as { type?: string; url?: unknown } | null;
+      if (data?.type === 'kladde:navigate' && typeof data.url === 'string' && data.url.startsWith('/') && !data.url.startsWith('//')) navigate(data.url);
+    };
+    sw.addEventListener('message', onMessage);
+    return () => sw.removeEventListener('message', onMessage);
+  }, []);
+
   useEffect(() => {
     vault.onUnauthorized = signedOut;
     vault.onBeforeFlush = () => {
@@ -163,6 +176,7 @@ export function App() {
   else if (path === '/settings/mcp') page = <McpSettingsView />;
   else if (path === '/settings/import' && !me.standalone) page = <ImportSettingsView />;
   else if (path === '/settings/calendar' && !me.standalone) page = <CalendarSettingsView />;
+  else if (path === '/settings/notifications' && !me.standalone) page = <NotificationSettingsView />;
   else if (path === '/files' || path === '/settings/files') page = <FilesView />;
   else if (path === '/trash') page = <TrashView />;
   else if (path === '/settings')

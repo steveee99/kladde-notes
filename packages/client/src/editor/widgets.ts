@@ -870,7 +870,7 @@ export class ImageWidget extends WidgetType {
 export class DueWidget extends WidgetType {
   constructor(
     readonly date: string,
-    readonly kind: 'due' | 'repeat',
+    readonly kind: 'due' | 'repeat' | 'time',
     readonly lang: Lang = getLang()
   ) {
     super();
@@ -880,9 +880,9 @@ export class DueWidget extends WidgetType {
   }
   toDOM() {
     const s = document.createElement('span');
-    if (this.kind === 'repeat') {
+    if (this.kind === 'repeat' || this.kind === 'time') {
       s.className = 'cm-due';
-      s.textContent = `🔁 ${this.date}`;
+      s.textContent = `${this.kind === 'repeat' ? '🔁' : '⏰'} ${this.date}`;
       return s;
     }
     const today = toDateString(new Date());

@@ -3,6 +3,7 @@ import { startRegistration } from '@simplewebauthn/browser';
 import {
   ArrowRight,
   Bot,
+  Bell,
   CalendarDays,
   CalendarCheck,
   CalendarRange,
@@ -216,6 +217,12 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
             Icon: CalendarDays,
             title: tl(lang, 'settings.calendarTitle'),
             desc: tl(lang, 'settings.calendarDesc'),
+          },
+          {
+            path: '/settings/notifications',
+            Icon: Bell,
+            title: tl(lang, 'settings.notifyTitle'),
+            desc: tl(lang, 'settings.notifyDesc'),
           },
         ]
       : []),

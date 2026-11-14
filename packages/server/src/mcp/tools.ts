@@ -279,7 +279,7 @@ export const TOOLS: ToolDef[] = [
     name: 'list_tasks',
     title: 'Aufgaben auflisten',
     description:
-      'Lists Markdown tasks ("- [ ] …") from all of the user\'s notes, sorted by due date. Due dates are written "📅 YYYY-MM-DD", repeats "🔁 weekly". Use toggle_task to tick one off.',
+      'Lists Markdown tasks ("- [ ] …") from all of the user\'s notes, sorted by due date. Due dates are written "📅 YYYY-MM-DD", repeats "🔁 weekly", reminder times "⏰ 09:00". Use toggle_task to tick one off.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -298,7 +298,7 @@ export const TOOLS: ToolDef[] = [
       const tasks = space(ctx).flatMap((n) =>
         parseTasks(n.content, today, dueOf(n.path))
           .filter((t) => (includeDone || !t.done) && (!until || (t.due !== null && t.due <= until)))
-          .map((t) => ({ note_id: n.id, note: splitPath(n.path).name, path: n.path, line: t.line, text: t.text, done: t.done, status: t.status, due: t.due, repeat: t.repeat }))
+          .map((t) => ({ note_id: n.id, note: splitPath(n.path).name, path: n.path, line: t.line, text: t.text, done: t.done, status: t.status, due: t.due, time: t.time, repeat: t.repeat }))
       );
       tasks.sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999') || a.path.localeCompare(b.path) || a.line - b.line);
       return { today: toDateString(today), total: tasks.length, tasks: tasks.slice(0, int(args, 'limit', 200, 500)) };
@@ -312,7 +312,7 @@ export const TOOLS: ToolDef[] = [
       'TABLE title, status, updated FROM "1 Projekte" WHERE status != "fertig" SORT updated DESC LIMIT 20',
       'LIST WHERE tags contains "rezept"',
       'TASKS WHERE done = false AND due <= today',
-      'Fields: title, path, folder, created, updated, tags, links, any frontmatter key; for TASKS also text, due, done, note.',
+      'Fields: title, path, folder, created, updated, tags, links, any frontmatter key; for TASKS also text, due, time, done, note.',
       'Operators: = != < <= > >= contains ~ (substring). AND binds tighter than OR. Values: "text", numbers, YYYY-MM-DD, today, tomorrow, true/false.',
     ].join('\n'),
     inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },

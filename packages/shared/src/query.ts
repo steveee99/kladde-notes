@@ -9,7 +9,7 @@
  *
  * Modes: TABLE <fields> | LIST | TASKS | KANBAN BY <field> [VALUES "a", "b", …].
  * KANBAN makes one column per value of the status field (default: the distinct values found). All clauses are optional and case-insensitive.
- * Fields: title, path, folder, created, updated, tags, links, due, done, status (tasks: open|doing|blocked|done) and any frontmatter key.
+ * Fields: title, path, folder, created, updated, tags, links, due, time (tasks: reminder HH:MM), done, status (tasks: open|doing|blocked|done) and any frontmatter key.
  * Operators: = != < <= > >= contains ~ (substring, case-insensitive). AND binds tighter than OR.
  * Values: "text", numbers, YYYY-MM-DD, today, tomorrow, true/false.
  */
@@ -226,7 +226,7 @@ export function runQuery(src: string | Query, notes: QueryNote[], today = new Da
           noteId: note.id,
           path: note.path,
           line: t.line,
-          values: { ...base, note: meta.title, text: t.text, due: t.due ?? '', done: t.done, status: t.status, repeat: t.repeat ?? '' },
+          values: { ...base, note: meta.title, text: t.text, due: t.due ?? '', time: t.time ?? '', done: t.done, status: t.status, repeat: t.repeat ?? '' },
         });
       }
     } else {

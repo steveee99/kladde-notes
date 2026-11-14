@@ -375,6 +375,10 @@ function build(state: EditorState): DecorationSet {
         const from = ln.from + m.index!;
         replace(from, from + m[0].length, Decoration.replace({ widget: new DueWidget(m[1], 'repeat', lang) }));
       }
+      for (const m of ln.text.matchAll(/(?:⏰\s*|\bremind:)([01]?\d|2[0-3])[:.]([0-5]\d)(?!\d)/gi)) {
+        const from = ln.from + m.index!;
+        replace(from, from + m[0].length, Decoration.replace({ widget: new DueWidget(`${m[1].padStart(2, '0')}:${m[2]}`, 'time', lang) }));
+      }
       for (const m of ln.text.matchAll(/\s*✅\s*\d{4}-\d{2}-\d{2}/g)) {
         const from = ln.from + m.index!;
         replace(from, from + m[0].length);

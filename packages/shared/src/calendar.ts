@@ -135,7 +135,9 @@ export function buildCalendar(notes: CalendarNote[], opts: CalendarBuildOptions)
     const text = plainTaskText(task.text);
     const summary = opts.showTitles ? (task.done ? `✓ ${text}` : text) : task.done ? `✓ ${hiddenTitle}` : hiddenTitle;
     lines.push('BEGIN:VEVENT', `UID:${note.id}-${task.line}@kladde`, `DTSTAMP:${stamp}`);
-    lines.push(`DTSTART;VALUE=DATE:${icsDate(task.due!)}`, `DTEND;VALUE=DATE:${icsDate(nextDay(task.due!))}`);
+    // With a reminder time: a 30-minute event in "floating" local time (the calendar's own time zone)
+    if (task.time) lines.push(`DTSTART:${icsDate(task.due!)}T${task.time.replace(':', '')}00`, 'DURATION:PT30M');
+    else lines.push(`DTSTART;VALUE=DATE:${icsDate(task.due!)}`, `DTEND;VALUE=DATE:${icsDate(nextDay(task.due!))}`);
     lines.push(`SUMMARY:${icsText(summary)}`, 'TRANSP:TRANSPARENT', `URL:${url}`);
     lines.push(`DESCRIPTION:${icsText(opts.showTitles ? `${title}\n${url}` : url)}`);
     const rrule = !task.done && task.repeat ? rruleOf(task.repeat) : null;

@@ -66,6 +66,12 @@ describe('calendar feed', () => {
     expect(calendarTasks(notes, opts({ tag: 'privat', defaultDue })).map((t) => t.task.text)).toEqual(['Arzt anrufen #privat']);
   });
 
+  it('gives tasks with a reminder time a timed event', () => {
+    const ics = buildCalendar([{ id: 'n9', path: 'Termin.md', content: '- [ ] Zahnarzt 📅 2026-11-20 ⏰ 9:30' }], opts());
+    expect(ics).toContain('DTSTART:20261120T093000\r\nDURATION:PT30M');
+    expect(ics).toContain('SUMMARY:Zahnarzt\r\n');
+  });
+
   it('hides the task text when asked to', () => {
     const ics = buildCalendar(notes, opts({ showTitles: false, lang: 'en' }));
     expect(ics.match(/SUMMARY:Task\r\n/g)).toHaveLength(3);

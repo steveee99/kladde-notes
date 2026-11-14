@@ -318,6 +318,44 @@ export interface CalendarFeedCreated {
   path: string;
 }
 
+/** Reminder settings of one device (Settings → Notifications) */
+export interface PushSettings {
+  /** Daily digest ("3 tasks due today, 1 overdue") at this local time "HH:MM"; null = off */
+  digestTime: string | null;
+  /** No notifications from … to … (local "HH:MM", may wrap midnight); both null = off */
+  quietStart: string | null;
+  quietEnd: string | null;
+  /** Put the task text into the notification (passes the push service, end-to-end encrypted) */
+  showText: boolean;
+  /** IANA time zone of the device, e.g. "Europe/Berlin" */
+  timeZone: string;
+  lang: 'de' | 'en';
+}
+
+/** A device that receives reminders */
+export interface PushDevice {
+  id: string;
+  /** Short label from the browser, e.g. "Chrome · Android" */
+  name: string;
+  createdAt: number;
+  lastSentAt: number | null;
+  settings: PushSettings;
+}
+
+/** What a push message carries (encrypted for the device); no note text unless `showText` is on */
+export interface PushPayload {
+  title: string;
+  body: string;
+  /** Replaces an older notification with the same tag */
+  tag: string;
+  /** App path a click opens */
+  url: string;
+  /** For the "Done" / "Tomorrow" actions of a single task */
+  task?: { noteId: string; line: number; check: string };
+  /** Language of the action buttons */
+  lang?: 'de' | 'en';
+}
+
 /** What the consent page shows before an AI assistant gets access */
 export interface OAuthRequestInfo {
   clientName: string;
