@@ -1,4 +1,4 @@
-FROM node:24-alpine AS builder
+FROM node:25-alpine AS builder
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ RUN npm run build --workspace=packages/server
 RUN npm run build --workspace=packages/client
 
 # Production runner stage
-FROM node:24-alpine AS runner
+FROM node:25-alpine AS runner
 
 # su-exec: the entrypoint drops from root to the "node" user after fixing the volume's owner
 RUN apk add --no-cache su-exec
