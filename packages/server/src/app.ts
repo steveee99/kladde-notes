@@ -104,6 +104,9 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
 
   app.get('/health', (_req, res) => res.json({ ok: true, version: APP_VERSION, standalone: opts.standalone }));
+  // PWA share target: the service worker normally answers this POST (client/public/share-target.js). Without it
+  // (not installed yet, cleared site data) the shared content cannot be read here, so the app shows a hint instead.
+  app.post('/share', (_req, res) => res.redirect(303, '/share?error=1'));
   // MCP for AI assistants (bearer tokens, so outside the /api origin check)
   app.use(mcp.publicRouter);
 
