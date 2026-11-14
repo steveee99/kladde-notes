@@ -1,16 +1,29 @@
 # Dependabot keeps dependencies and the CI actions up to date.
 # Security updates are switched on separately in Settings → Code security.
+#
+# Every ecosystem opens at most a few grouped pull requests per month instead of
+# one per package:
+# - npm: one PR for all minor and patch updates, one PR for all major updates
+#   (majors often need code changes, so they stay apart from the safe ones),
+#   and one PR for security fixes.
+# - GitHub Actions and Docker: one PR each.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 10
+      interval: monthly
+    open-pull-requests-limit: 5
     groups:
-      # One PR for all minor and patch updates instead of many small ones.
-      minor-and-patch:
+      npm-minor-and-patch:
+        applies-to: version-updates
         update-types: [minor, patch]
+      npm-major:
+        applies-to: version-updates
+        update-types: [major]
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
     commit-message:
       prefix: chore
       include: scope
@@ -18,14 +31,25 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    groups:
+      github-actions:
+        patterns: ["*"]
     commit-message:
       prefix: ci
 
   - package-ecosystem: docker
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    ignore:
+      # Stay on Node.js LTS lines: odd majors (25, 27, …) are short-lived
+      # current releases. Move to the next LTS major by hand.
+      - dependency-name: node
+        update-types: [version-update:semver-major]
+    groups:
+      docker:
+        patterns: ["*"]
     commit-message:
       prefix: chore
       include: scope
