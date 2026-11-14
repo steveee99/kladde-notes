@@ -143,6 +143,8 @@ Without access to the server you can import a local folder (e.g. an Obsidian vau
 | `BACKUP_KEEP` | Daily database backups in `data/backups` (default 7, `0` = off) |
 | `EXPORT_DIR` | Plain-text mirror of the notes (e.g. NAS), empty = off |
 | `TRASH_RETENTION_DAYS` | Days deleted notes stay in the trash before they are purged (default 30, `0` = until emptied by hand) |
+| `VAPID_SUBJECT` | Contact for Web Push services (`mailto:…` or `https://…`), sent with every reminder. Default: `PUBLIC_URL` if it is https |
+| `PUSH_ALLOWED_HOSTS` | Extra push service hosts (comma-separated) besides Google, Mozilla, Apple and Microsoft; other endpoints are refused |
 
 **Sign in with GitLab** (detailed guide for self-hosted instances, networking, custom certificates and troubleshooting: [`docs/GITLAB.md`](docs/GITLAB.md), German):
 

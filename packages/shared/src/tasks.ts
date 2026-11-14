@@ -5,6 +5,7 @@
  *   - [ ] Müll rausbringen due:morgen every:week
  *
  * Due date: "📅 YYYY-MM-DD" or "due:YYYY-MM-DD" (also due:heute / due:morgen, turned into a date on save).
+ * Reminder time: "⏰ 09:00" or "remind:9:00" (on the due day; Web Push reminders, calendar feed).
  * Repeat: "🔁 <rule>" or "every:<rule>" with day|week|month|year, täglich|wöchentlich|monatlich|jährlich,
  * or "2 weeks", "3 tage", or weekdays like "mo,do".
  * Completing a repeating task ticks it and inserts the next open one with the following due date above.
@@ -34,6 +35,8 @@ export interface Task {
   doneDate: string | null;
   due: string | null;
   repeat: string | null;
+  /** Reminder time on the due day, "HH:MM" */
+  time: string | null;
   /** Indentation + list marker, kept when rewriting */
   indent: string;
   /** The due date is not written in the task but comes from its note (a daily note's date) */
@@ -41,10 +44,27 @@ export interface Task {
 }
 
 /** Matches a task line; group 2 is the status character */
-export const TASK_LINE = /^(\s*[-*+]\s+)\[([ xXoOhH])\]\s+(.*)$/;
+// The text group starts with a non-space (or is empty), so the whitespace before it can only match one way
+// (an overlapping `\s+(.*)` backtracks quadratically on long runs of spaces)
+export const TASK_LINE = /^(\s*[-*+]\s+)\[([ xXoOhH])\]\s+(\S.*|)$/;
 const DUE = /(?:📅\s*|\bdue:)(\d{4}-\d{2}-\d{2}|heute|morgen|today|tomorrow)/i;
 const REPEAT = /(?:🔁\s*|\bevery:)((?:\d+\s*)?[\p{L},]+)/iu;
-const DONE_DATE = /\s*✅\s*(\d{4}-\d{2}-\d{2})/;
+// Starts at the ✅ (a leading `\s*` would rescan every run of spaces from each position)
+const DONE_DATE = /✅\s*(\d{4}-\d{2}-\d{2})/;
+
+/** Removes "✅ YYYY-MM-DD" together with the whitespace in front of it */
+function withoutDoneDate(s: string): string {
+  const m = DONE_DATE.exec(s);
+  return m ? s.slice(0, m.index).trimEnd() + s.slice(m.index + m[0].length) : s;
+}
+/** "⏰ 9:00", "⏰ 09.30", "remind:18:15" */
+export const TIME = /(?:⏰\s*|\bremind:)([01]?\d|2[0-3])[:.]([0-5]\d)(?!\d)/i;
+
+/** "9:05" → "09:05"; null when there is no valid time */
+export function parseTime(s: string | null | undefined): string | null {
+  const m = /^\s*([01]?\d|2[0-3])[:.]([0-5]\d)\s*$/.exec(s ?? '');
+  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : null;
+}
 
 export function toDateString(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0');
@@ -84,7 +104,8 @@ export function parseTasks(content: string, today = new Date(), defaultDue: stri
     const rest = m[3];
     const due = DUE.exec(rest);
     const repeat = REPEAT.exec(rest);
-    const text = rest.replace(DUE, '').replace(REPEAT, '').replace(DONE_DATE, '').replace(/\s+/g, ' ').trim();
+    const time = TIME.exec(rest);
+    const text = withoutDoneDate(rest).replace(DUE, '').replace(REPEAT, '').replace(TIME, '').replace(/\s+/g, ' ').trim();
     // An empty checkbox is a placeholder (e.g. from a template), not a task
     if (!text) return;
     tasks.push({
@@ -95,6 +116,7 @@ export function parseTasks(content: string, today = new Date(), defaultDue: stri
       doneDate: DONE_DATE.exec(rest)?.[1] ?? null,
       due: due ? resolveDue(due[1], today) : defaultDue,
       repeat: repeat ? repeat[1].trim() : null,
+      time: time ? `${time[1].padStart(2, '0')}:${time[2]}` : null,
       indent: m[1],
       ...(!due && defaultDue ? { dueFromNote: true } : {}),
     });
@@ -112,6 +134,18 @@ function addMonths(d: Date, n: number): void {
 
 const WEEKDAYS: Record<string, number> = { so: 0, su: 0, mo: 1, di: 2, tu: 2, mi: 3, we: 3, do: 4, th: 4, fr: 5, sa: 6 };
 
+/**
+ * "2 wochen" → { n: 2, unit: "wochen" }, "weekly" → { n: 1, unit: "weekly" }; null without a unit.
+ * Parsed by hand: a regex like `^(\d+)?\s*(\S.*)$` can split long digit runs in many ways (ReDoS).
+ */
+export function splitRepeatRule(rule: string): { n: number; unit: string } | null {
+  let i = 0;
+  while (i < rule.length && rule[i] >= '0' && rule[i] <= '9') i++;
+  const unit = rule.slice(i).trim();
+  if (!unit) return null;
+  return { n: i ? Number(rule.slice(0, i)) : 1, unit };
+}
+
 /** Next due date for a repeat rule, counted from the old due date (or today); null for unknown rules */
 export function nextDue(rule: string, from: string | null, today = new Date()): string | null {
   const base = from ? parseDate(from) : today;
@@ -124,10 +158,9 @@ export function nextDue(rule: string, from: string | null, today = new Date()): 
       if (days.includes(cand.getDay())) return toDateString(cand);
     }
   }
-  const m = /^(\d+)?\s*(.+)$/.exec(r);
-  if (!m) return null;
-  const n = m[1] ? Number(m[1]) : 1;
-  const unit = m[2];
+  const step = splitRepeatRule(r);
+  if (!step) return null;
+  const { n, unit } = step;
   const d = new Date(base);
   if (/^(day|days|tag|tage|täglich|daily)$/.test(unit)) d.setDate(d.getDate() + n);
   else if (/^(week|weeks|woche|wochen|wöchentlich|weekly)$/.test(unit)) d.setDate(d.getDate() + 7 * n);
@@ -172,11 +205,11 @@ export function setTaskStatus(content: string, line: number, status: TaskStatus,
   const was = statusOfMarker(m[2]);
   if (was === status) return content;
   if (status !== 'done') {
-    lines[line] = `${m[1]}[${STATUS_CHAR[status]}] ${m[3].replace(DONE_DATE, '')}`;
+    lines[line] = `${m[1]}[${STATUS_CHAR[status]}] ${withoutDoneDate(m[3])}`;
     return lines.join('\n');
   }
   const [task] = parseTasks(raw, today);
-  lines[line] = `${m[1]}[x] ${m[3].replace(DONE_DATE, '')} ✅ ${toDateString(today)}`;
+  lines[line] = `${m[1]}[x] ${withoutDoneDate(m[3])} ✅ ${toDateString(today)}`;
   if (task?.repeat) {
     const next = nextDue(task.repeat, task.due, today);
     if (next) {
@@ -206,15 +239,16 @@ export function shortcutDate(kind: DueShortcut, today = new Date()): string {
   return toDateString(addDays(today, ((8 - today.getDay()) % 7) || 7));
 }
 
-/** Rewrites the open task in `line` with a new due date (null removes it) and/or repeat rule (undefined keeps, null removes) */
-export function setTaskMeta(content: string, line: number, meta: { due?: string | null; repeat?: string | null }): string {
+/** Rewrites the open task in `line` with a new due date (null removes it), repeat rule or reminder time (undefined keeps, null removes) */
+export function setTaskMeta(content: string, line: number, meta: { due?: string | null; repeat?: string | null; time?: string | null }): string {
   const lines = content.split('\n');
   const raw = lines[line];
   const m = raw !== undefined ? TASK_LINE.exec(raw) : null;
   if (!m) return content;
   let rest = m[3];
-  const doneDate = DONE_DATE.exec(rest)?.[0] ?? '';
-  rest = rest.replace(DONE_DATE, '');
+  const done = DONE_DATE.exec(rest);
+  const doneDate = done ? ` ✅ ${done[1]}` : '';
+  rest = withoutDoneDate(rest);
   if (meta.due !== undefined) {
     rest = rest.replace(DUE, '').replace(/\s+/g, ' ').trim();
     if (meta.due) rest = `${rest} 📅 ${meta.due}`;
@@ -222,6 +256,11 @@ export function setTaskMeta(content: string, line: number, meta: { due?: string 
   if (meta.repeat !== undefined) {
     rest = rest.replace(REPEAT, '').replace(/\s+/g, ' ').trim();
     if (meta.repeat) rest = `${rest} 🔁 ${meta.repeat}`;
+  }
+  if (meta.time !== undefined) {
+    rest = rest.replace(TIME, '').replace(/\s+/g, ' ').trim();
+    const time = parseTime(meta.time);
+    if (time) rest = `${rest} ⏰ ${time}`;
   }
   lines[line] = `${m[1]}[${m[2]}] ${rest.trim()}${doneDate}`;
   return lines.join('\n');

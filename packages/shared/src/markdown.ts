@@ -26,8 +26,9 @@ export function parseFrontmatter(content: string): { data: Record<string, string
   if (!m) return { data: {}, body: content };
   const data: Record<string, string> = {};
   for (const line of m[1].split('\n')) {
-    const kv = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
-    if (kv) data[kv[1].toLowerCase()] = kv[2].replace(/^["']|["']$/g, '').trim();
+    // The value is trimmed in code: `:\s*(.*)$` lets both parts match the same spaces (quadratic backtracking)
+    const kv = /^([A-Za-z0-9_-]+):(.*)$/.exec(line);
+    if (kv) data[kv[1].toLowerCase()] = kv[2].trim().replace(/^["']|["']$/g, '').trim();
   }
   return { data, body: content.slice(m[0].length) };
 }
@@ -124,6 +125,15 @@ export function cleanHeadingText(raw: string): string {
     .trim();
 }
 
+/** "Title ##" → "Title": optional closing hashes of an ATX heading (they need a space in front) */
+function withoutClosingHashes(raw: string): string {
+  const s = raw.trimEnd();
+  let i = s.length;
+  while (i > 0 && s[i - 1] === '#') i--;
+  if (i === s.length || i === 0 || (s[i - 1] !== ' ' && s[i - 1] !== '\t')) return s.trim();
+  return s.slice(0, i).trim();
+}
+
 /** Extracts ATX headings (# .. ######) outside frontmatter and fenced code blocks */
 export function extractHeadings(content: string): NoteHeading[] {
   const lines = content.split('\n');
@@ -166,9 +176,10 @@ export function extractHeadings(content: string): NoteHeading[] {
     }
 
     if (!inFence) {
-      const m = /^\s{0,3}(#{1,6})\s+(.+?)(?:\s+#+\s*)?$/.exec(lineText);
+      // Closing hashes ("## Title ##") are cut off in code; a regex with `\s+(.+?)(?:\s+#+\s*)?$` backtracks quadratically
+      const m = /^[ \t]{0,3}(#{1,6})[ \t](.*)$/.exec(lineText);
       if (m) {
-        const text = cleanHeadingText(m[2]);
+        const text = cleanHeadingText(withoutClosingHashes(m[2]));
         if (text) {
           out.push({
             level: m[1].length as 1 | 2 | 3 | 4 | 5 | 6,

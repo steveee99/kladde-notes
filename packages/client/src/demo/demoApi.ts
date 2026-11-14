@@ -126,7 +126,7 @@ function handle(path: string, method: string, body: unknown): Response {
     return json({ purged: trash.length - read<DemoTrashEntry[]>(TRASH_KEY, []).length });
   }
   if (parts[0] === 'notes' && parts[2] === 'versions' && parts.length === 3) return json([]);
-  if (path === '/mcp/connections' || path === '/import-tokens') return method === 'GET' ? json([]) : unavailable();
+  if (path === '/mcp/connections' || path === '/import-tokens' || path === '/calendar-feeds' || path === '/push/devices') return method === 'GET' ? json([]) : unavailable();
   if (path === '/auth/providers') return json({});
   return unavailable();
 }

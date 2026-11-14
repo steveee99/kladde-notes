@@ -89,7 +89,7 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         // Runs before Workbox's own routes, so it sees the share target's POST first
-        importScripts: ['/share-target.js'],
+        importScripts: ['/share-target.js', '/push.js'],
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         navigateFallback: '/index.html',

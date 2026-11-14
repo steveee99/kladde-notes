@@ -9,6 +9,8 @@ import type { SyntaxNode } from '@lezer/common';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 import { tags as t } from '@lezer/highlight';
 import { livePreview, noteIdFacet, previewAll, refreshEffect } from './livePreview';
+import { configureEmbeds } from './embed';
+import { embedResolverFacet, type EmbedResolver } from './embedContext';
 import { statusTaskList } from './taskStatus';
 import { useLigatures } from '../lib/prefs';
 import { sourceHighlight } from './sourceHighlight';
@@ -72,6 +74,17 @@ const sourceCodeHighlight = HighlightStyle.define([
 
 const previewExtensions = (source: boolean): Extension =>
   source ? [sourceTheme, syntaxHighlighting(sourceCodeHighlight), sourceHighlight()] : [syntaxHighlighting(highlight), livePreview()];
+
+// The read-only editor inside an embed renders like a read-only note
+configureEmbeds((noteId) => [
+  markdown({ base: markdownLanguage, codeLanguages: languages, extensions: [statusTaskList], addKeymap: false }),
+  proseTheme,
+  EditorView.lineWrapping,
+  syntaxHighlighting(highlight),
+  livePreview(),
+  noteIdFacet.of(noteId),
+  readOnlyExtensions(true),
+]);
 
 /** [[ opens a list of note titles */
 function wikiCompletion(ctx: CompletionContext) {
@@ -198,6 +211,8 @@ export interface EditorProps {
   docKey: string;
   value: string;
   readOnly?: boolean;
+  /** Resolves `![[embeds]]` instead of the app's notes (public links) */
+  resolveEmbed?: EmbedResolver;
   /** Changes when other notes change: queries and link targets are re-rendered */
   stamp?: number;
   onChange?: (value: string) => void;
@@ -214,7 +229,7 @@ export interface EditorProps {
   onActivity?: (view: EditorView) => void;
 }
 
-export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote, dim = false, onActivity }: EditorProps) {
+export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote, dim = false, onActivity, resolveEmbed }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const changeRef = useRef(onChange);
@@ -278,6 +293,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           }),
           EditorView.domEventHandlers({ blur: () => flush() }),
           presenceNote ? remoteCursors(presenceNote) : [],
+          resolveEmbed ? embedResolverFacet.of(resolveEmbed) : [],
         ],
       }),
     });

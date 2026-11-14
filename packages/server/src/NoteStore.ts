@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, cleanPath, splitPath } from '@kladde/shared';
+import { NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, embedsOf, extractMeta, splitPath } from '@kladde/shared';
 import { DataCipher, randomToken } from './crypto.js';
 import { transaction } from './db.js';
 
@@ -723,13 +723,45 @@ export class NoteStore {
       .get(token) as (NoteRow & { owner_name: string; owner_avatar: string | null }) | undefined;
     if (!row) return null;
     const p = this.payload(row);
+    const embeds = this.publicEmbeds(row.owner_id, row.id, p.content);
     return {
       path: p.path,
       content: p.content,
       owner: row.owner_name,
       ...(row.owner_avatar ? { ownerAvatar: `/api/avatars/${row.owner_avatar}` } : {}),
       updatedAt: row.updated_at,
+      ...(embeds.length ? { embeds } : {}),
     };
+  }
+
+  /**
+   * Embeds a public note may show: only notes of the same owner that have a public link themselves, so a
+   * link never reveals a note its owner did not publish. Embeds inside them are followed down to the depth limit.
+   */
+  private publicEmbeds(ownerId: string, noteId: string, content: string): PublicEmbed[] {
+    if (!embedsOf(content).length) return [];
+    const rows = this.db
+      .prepare('SELECT notes.*, public_links.token AS public_token FROM public_links JOIN notes ON notes.id = public_links.note_id WHERE notes.owner_id = ? AND notes.deleted = 0')
+      .all(ownerId) as unknown as (NoteRow & { public_token: string })[];
+    const published = new Map(rows.map((r) => [r.id, { ...this.payload(r), id: r.id, token: r.public_token }]));
+    const index = new LinkIndex([...published.values()]);
+    const out = new Map<string, PublicEmbed>();
+    let frontier = [{ id: noteId, content }];
+    for (let level = 0; level < MAX_EMBED_DEPTH && frontier.length; level++) {
+      const next: { id: string; content: string }[] = [];
+      for (const note of frontier) {
+        for (const ref of embedsOf(note.content)) {
+          const key = ref.target.toLowerCase();
+          if (out.has(key)) continue;
+          const target = published.get(index.resolve(ref.target) ?? '');
+          if (!target) continue;
+          out.set(key, { target: key, title: extractMeta(target.path, target.content).title, content: target.content, token: target.token });
+          next.push(target);
+        }
+      }
+      frontier = next;
+    }
+    return [...out.values()];
   }
 
   /** Bumps share sequence numbers and returns recipient user ids when an owner updates or removes their avatar */

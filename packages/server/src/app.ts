@@ -20,6 +20,12 @@ import { McpTokenStore } from './mcp/McpTokenStore.js';
 import { mcpRouters } from './mcp/router.js';
 import { ImportTokenStore } from './import/ImportTokenStore.js';
 import { importRouters } from './import/router.js';
+import { CalendarFeedStore } from './calendar/CalendarFeedStore.js';
+import { calendarRouters } from './calendar/router.js';
+import { PushStore } from './push/PushStore.js';
+import { pushRouter } from './push/router.js';
+import { runReminders, vapidSubject } from './push/reminders.js';
+import { allowedPushHosts } from './push/webpush.js';
 import { EmbeddedAsset, ensureStandaloneUser } from './standalone.js';
 import { trashRetentionDays } from './trash.js';
 
@@ -46,6 +52,8 @@ export interface KladdeAppContext {
   audit: AuditLog;
   live: LiveUpdates;
   standaloneUser?: UserRecord;
+  /** One run of the Web Push reminder job (not in standalone mode); returns the number of messages sent */
+  sendReminders?: (now?: Date) => Promise<number>;
 }
 
 /** Builds the Express app and stores for either multi-user server mode or single-user desktop standalone mode */
@@ -66,6 +74,8 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   const files = new FileStore(opts.db, cipher, opts.dataDir);
   const avatars = new AvatarStore(opts.db, cipher, opts.dataDir);
   const standaloneUser = opts.standalone ? ensureStandaloneUser(users) : undefined;
+  const push = opts.standalone ? undefined : new PushStore(opts.db, cipher, allowedPushHosts(env));
+  const pushSubject = vapidSubject(env, opts.publicUrl);
   const mcp = mcpRouters({
     users,
     notes,
@@ -184,6 +194,12 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     const imports = importRouters({ users, notes, files, tokens: new ImportTokenStore(opts.db), audit });
     app.use('/api/import', imports.bearerRouter);
     app.use('/api/import-tokens', imports.accountRouter);
+    // Calendar feeds: the feed is read by calendar apps through its secret address (no cookies)
+    const calendar = calendarRouters({ users, notes, feeds: new CalendarFeedStore(opts.db, cipher), audit, publicUrl: opts.publicUrl });
+    app.use('/api/calendar', calendar.feedRouter);
+    app.use('/api/calendar-feeds', calendar.accountRouter);
+    // Web Push reminders (the standalone desktop app has no service worker)
+    app.use('/api/push', pushRouter({ users, notes, store: push!, subject: pushSubject }));
   }
 
   app.use('/api', (req, res, next) =>
@@ -246,5 +262,6 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     res.status(500).json({ error: 'Serverfehler' });
   });
 
-  return { app, users, notes, files, avatars, audit, live, standaloneUser };
+  const sendReminders = push ? (now?: Date) => runReminders(push, notes, pushSubject, now) : undefined;
+  return { app, users, notes, files, avatars, audit, live, standaloneUser, sendReminders };
 }

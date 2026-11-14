@@ -5,6 +5,7 @@ import { t } from './lib/i18n';
 import { match, navigate, usePath } from './lib/router';
 import { vault } from './data/vault';
 import { editorHost } from './editor/host';
+import { isReadOnly } from './lib/readOnly';
 import { Invite, LinkDevice, Login } from './views/Auth';
 import { PublicNote } from './views/Public';
 import { Shell } from './views/Shell';
@@ -21,6 +22,8 @@ import { AdminView } from './views/Admin';
 import { TemplatesView } from './views/Templates';
 import { McpSettingsView } from './views/McpSettings';
 import { ImportSettingsView } from './views/ImportSettings';
+import { CalendarSettingsView } from './views/CalendarSettings';
+import { NotificationSettingsView } from './views/NotificationSettings';
 import { OAuthConsent } from './views/OAuthConsent';
 import { FilesView } from './views/Files';
 import { TrashView } from './views/Trash';
@@ -49,6 +52,14 @@ Object.assign(editorHost, {
   },
   wikiExists: (title: string) => !!vault.findByTitle(title),
   openNote: (id: string) => navigate(`/n/${id}`),
+  // Only through the link index (title, frontmatter id, Zettel id); the vault only holds notes this reader may see
+  resolveEmbed: (target: string) => {
+    const links = vault.links();
+    const id = links.resolve(target);
+    const note = id ? vault.get(id) : undefined;
+    if (!note || note.deleted) return null;
+    return { id: note.id, title: links.notes.get(note.id)?.title ?? target, content: note.content, canWrite: note.access !== 'read' && !isReadOnly() };
+  },
   runQuery: (src: string) => {
     try {
       return runQuery(src, vault.list(), new Date(), { defaultDue: vault.taskDueResolver() });
@@ -104,6 +115,18 @@ export function App() {
     setMe(null);
   }, []);
 
+  // A click on a reminder opens its note in this window (public/push.js)
+  useEffect(() => {
+    const sw = navigator.serviceWorker;
+    if (!sw) return;
+    const onMessage = (e: MessageEvent) => {
+      const data = e.data as { type?: string; url?: unknown } | null;
+      if (data?.type === 'kladde:navigate' && typeof data.url === 'string' && data.url.startsWith('/') && !data.url.startsWith('//')) navigate(data.url);
+    };
+    sw.addEventListener('message', onMessage);
+    return () => sw.removeEventListener('message', onMessage);
+  }, []);
+
   useEffect(() => {
     vault.onUnauthorized = signedOut;
     vault.onBeforeFlush = () => {
@@ -152,6 +175,8 @@ export function App() {
   else if (path === '/settings/templates') page = <TemplatesView />;
   else if (path === '/settings/mcp') page = <McpSettingsView />;
   else if (path === '/settings/import' && !me.standalone) page = <ImportSettingsView />;
+  else if (path === '/settings/calendar' && !me.standalone) page = <CalendarSettingsView />;
+  else if (path === '/settings/notifications' && !me.standalone) page = <NotificationSettingsView />;
   else if (path === '/files' || path === '/settings/files') page = <FilesView />;
   else if (path === '/trash') page = <TrashView />;
   else if (path === '/settings')

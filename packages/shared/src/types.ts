@@ -218,6 +218,18 @@ export interface PublicNote {
   owner: string;
   ownerAvatar?: string | null;
   updatedAt: number;
+  /** Notes the public note embeds (`![[…]]`) that the owner published too; others show "Not available" */
+  embeds?: PublicEmbed[];
+}
+
+/** An embedded note on a public link */
+export interface PublicEmbed {
+  /** The link target as written in the embed, lower case */
+  target: string;
+  title: string;
+  content: string;
+  /** Its own public link */
+  token: string;
 }
 
 export const USERNAME_PATTERN = /^[A-Za-z0-9_.-]{3,20}$/;
@@ -269,6 +281,79 @@ export const IMPORT_TOKEN_DAYS = [30, 7, 90, 365] as const;
 export interface ImportTokenCreated {
   token: ImportToken;
   secret: string;
+}
+
+/** What a calendar feed contains */
+export interface CalendarFeedOptions {
+  /** Also list finished tasks (marked ✓) */
+  includeDone: boolean;
+  /** Only notes in this folder (and below); empty = all */
+  folder: string;
+  /** Only tasks whose note has this tag or that contain it as #tag; empty = all */
+  tag: string;
+  /** false shows every event as "Task" instead of the task text */
+  showTitles: boolean;
+  /** Language of the placeholder title */
+  lang: 'de' | 'en';
+}
+
+/** A calendar feed (`/api/calendar/<token>.ics`) with the user's own tasks that have a due date */
+export interface CalendarFeed {
+  id: string;
+  name: string;
+  createdAt: number;
+  /** The feed stops working after this */
+  expiresAt: number;
+  lastUsedAt: number | null;
+  options: CalendarFeedOptions;
+}
+
+/** How long a new calendar feed may live, in days (the first is the default) */
+export const CALENDAR_FEED_DAYS = [365, 30, 90] as const;
+
+/** A new calendar feed: its secret address is shown exactly once */
+export interface CalendarFeedCreated {
+  feed: CalendarFeed;
+  /** Path of the feed (`/api/calendar/<token>.ics`); the client puts its origin in front */
+  path: string;
+}
+
+/** Reminder settings of one device (Settings → Notifications) */
+export interface PushSettings {
+  /** Daily digest ("3 tasks due today, 1 overdue") at this local time "HH:MM"; null = off */
+  digestTime: string | null;
+  /** No notifications from … to … (local "HH:MM", may wrap midnight); both null = off */
+  quietStart: string | null;
+  quietEnd: string | null;
+  /** Put the task text into the notification (passes the push service, end-to-end encrypted) */
+  showText: boolean;
+  /** IANA time zone of the device, e.g. "Europe/Berlin" */
+  timeZone: string;
+  lang: 'de' | 'en';
+}
+
+/** A device that receives reminders */
+export interface PushDevice {
+  id: string;
+  /** Short label from the browser, e.g. "Chrome · Android" */
+  name: string;
+  createdAt: number;
+  lastSentAt: number | null;
+  settings: PushSettings;
+}
+
+/** What a push message carries (encrypted for the device); no note text unless `showText` is on */
+export interface PushPayload {
+  title: string;
+  body: string;
+  /** Replaces an older notification with the same tag */
+  tag: string;
+  /** App path a click opens */
+  url: string;
+  /** For the "Done" / "Tomorrow" actions of a single task */
+  task?: { noteId: string; line: number; check: string };
+  /** Language of the action buttons */
+  lang?: 'de' | 'en';
 }
 
 /** What the consent page shows before an AI assistant gets access */

@@ -16,7 +16,9 @@ export type AuditEvent =
   | 'external_linked'
   | 'external_unlinked'
   | 'import_token_created'
-  | 'import_token_revoked';
+  | 'import_token_revoked'
+  | 'calendar_feed_created'
+  | 'calendar_feed_revoked';
 
 export interface AuditEntry {
   at: number;

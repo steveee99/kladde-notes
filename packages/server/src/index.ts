@@ -115,7 +115,7 @@ async function main(): Promise<void> {
   const TRUST_PROXY = !standalone && (env.TRUST_PROXY === '1' || env.TRUST_PROXY === 'true');
   const clientDist = path.resolve(baseDir, '..', '..', 'client', 'dist');
 
-  const { app, users, audit, live, notes, files } = createKladdeApp({
+  const { app, users, audit, live, notes, files, sendReminders } = createKladdeApp({
     db,
     dataDir: DATA_DIR,
     env,
@@ -166,6 +166,23 @@ async function main(): Promise<void> {
     };
     setTimeout(runPurge, 30_000).unref();
     setInterval(runPurge, 6 * 60 * 60 * 1000).unref();
+  }
+
+  // Task reminders and daily digests via Web Push: checked every minute
+  if (sendReminders) {
+    let running = false;
+    const runReminders = async () => {
+      if (running) return;
+      running = true;
+      try {
+        await sendReminders();
+      } catch (err) {
+        console.error('Reminders failed:', err);
+      } finally {
+        running = false;
+      }
+    };
+    setInterval(() => void runReminders(), 60_000).unref();
   }
 
   let closing = false;
