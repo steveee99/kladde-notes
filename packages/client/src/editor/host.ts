@@ -1,4 +1,5 @@
 import type { QueryResult } from '@kladde/shared';
+import type { EmbedNote } from './embedContext';
 import { t } from '../lib/i18n';
 
 /** What the editor widgets need from the app (set once by the app, read at render time) */
@@ -6,6 +7,8 @@ export interface EditorHost {
   openWiki(title: string): void;
   wikiExists(title: string): boolean;
   openNote(id: string): void;
+  /** The note an embed `![[target]]` shows (resolved like links), null if the reader has none by that name */
+  resolveEmbed(target: string): EmbedNote | null;
   runQuery(src: string): QueryResult | { error: string };
   toggleTask(noteId: string, line: number): void;
   /** Opens the note a task lives in, scrolled to the task's line */
@@ -25,6 +28,7 @@ export const editorHost: EditorHost = {
   openWiki: () => {},
   wikiExists: () => true,
   openNote: () => {},
+  resolveEmbed: () => null,
   runQuery: () => ({ error: t('editor.notAvailable') }),
   toggleTask: () => {},
   openTask: () => {},

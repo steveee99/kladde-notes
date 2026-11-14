@@ -5,6 +5,7 @@ import { t } from './lib/i18n';
 import { match, navigate, usePath } from './lib/router';
 import { vault } from './data/vault';
 import { editorHost } from './editor/host';
+import { isReadOnly } from './lib/readOnly';
 import { Invite, LinkDevice, Login } from './views/Auth';
 import { PublicNote } from './views/Public';
 import { Shell } from './views/Shell';
@@ -50,6 +51,14 @@ Object.assign(editorHost, {
   },
   wikiExists: (title: string) => !!vault.findByTitle(title),
   openNote: (id: string) => navigate(`/n/${id}`),
+  // Only through the link index (title, frontmatter id, Zettel id); the vault only holds notes this reader may see
+  resolveEmbed: (target: string) => {
+    const links = vault.links();
+    const id = links.resolve(target);
+    const note = id ? vault.get(id) : undefined;
+    if (!note || note.deleted) return null;
+    return { id: note.id, title: links.notes.get(note.id)?.title ?? target, content: note.content, canWrite: note.access !== 'read' && !isReadOnly() };
+  },
   runQuery: (src: string) => {
     try {
       return runQuery(src, vault.list(), new Date(), { defaultDue: vault.taskDueResolver() });

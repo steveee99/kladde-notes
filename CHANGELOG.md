@@ -5,6 +5,7 @@ All user-visible changes to Kladde.
 ## [Unreleased]
 
 - New: Calendar feed for due tasks (#34). Settings → Calendar feed creates a secret address (`/api/calendar/<token>.ics`) that calendar apps can subscribe to. It lists your own open tasks with a due date as all-day events, repeating tasks as a series (`RRULE`), each with a link back to its note. Options: also show done tasks, only one folder or tag, and hide the task text (every entry is then just "Task"). Like import tokens, feeds expire after the chosen time, can be revoked, at most 5 per account, and only a hash of the secret is stored; the filter options are encrypted.
+- New: Embed notes and sections (#29). A line with only `![[Note]]`, `![[Note#Heading]]` or `![[Note#^block-id]]` shows the note, the section (with its subsections) or the block read-only inside the current note, in a subtle frame with the source title on top (a click opens it). Tasks inside an embed can be ticked and are written back to the source note when you may edit it. Embeds resolve like links (title, frontmatter `id`, Zettel id), count as links for backlinks and the graph, and are rewritten when the note is renamed. Embeds nest down to 3 levels, a note that embeds itself is not shown again, and notes you cannot access show "Not available". On public links, embeds only show notes of the same owner that have a public link themselves.
 
 ## [2.1.0] – 2026-11-14
 

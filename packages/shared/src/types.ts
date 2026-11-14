@@ -218,6 +218,18 @@ export interface PublicNote {
   owner: string;
   ownerAvatar?: string | null;
   updatedAt: number;
+  /** Notes the public note embeds (`![[…]]`) that the owner published too; others show "Not available" */
+  embeds?: PublicEmbed[];
+}
+
+/** An embedded note on a public link */
+export interface PublicEmbed {
+  /** The link target as written in the embed, lower case */
+  target: string;
+  title: string;
+  content: string;
+  /** Its own public link */
+  token: string;
 }
 
 export const USERNAME_PATTERN = /^[A-Za-z0-9_.-]{3,20}$/;

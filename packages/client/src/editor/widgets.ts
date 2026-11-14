@@ -24,10 +24,11 @@ import {
 import { getLang, locale, tl, type Lang } from '../lib/i18n';
 import { dataTable, openTableCell, parseMarkdownTable, stripInline, type CellRef, type TableEditing } from './datatable';
 import { editorHost } from './host';
+import { embedContext } from './embedContext';
 import { DiagramKind, drawDiagram, openDiagram } from './diagram';
 
 /** Moves the cursor into a block so it shows its source (the "✎" button of block widgets) */
-function editButton(view: EditorView, pos: () => number, lang: Lang): HTMLElement {
+export function editButton(view: EditorView, pos: () => number, lang: Lang): HTMLElement {
   const b = document.createElement('button');
   b.className = 'wz-edit';
   b.title = tl(lang, 'common.edit');
@@ -496,7 +497,13 @@ export class CheckboxWidget extends WidgetType {
     box.addEventListener('mousedown', (e) => e.preventDefault());
     box.addEventListener('click', (e) => {
       e.preventDefault();
-      if (!view.state.readOnly) toggleLine(view, this.line);
+      if (!view.state.readOnly) {
+        toggleLine(view, this.line);
+        return;
+      }
+      // Inside an embed: the task lives in the embedded note, so the change goes there
+      const source = view.state.facet(embedContext).source;
+      if (source?.canWrite) editorHost.toggleTask(source.noteId, source.startLine + this.line);
     });
     box.addEventListener('contextmenu', (e) => {
       if (view.state.readOnly) return;

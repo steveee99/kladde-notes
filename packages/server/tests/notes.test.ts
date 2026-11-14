@@ -75,6 +75,31 @@ describe('NoteStore', () => {
     expect(notes.publicNote(token)).toBeNull();
   });
 
+  it('public links only carry embeds of the owner that are published themselves', () => {
+    const { notes, anna, ben } = setup();
+    notes.push(anna.id, [
+      change('note-0001', '![[Status]]\n![[Tagebuch]]\n![[Bens Notiz]]\n![[Kette]]', 0, 'Projekt.md'),
+      change('note-0002', '## Stand\nfertig', 0, 'Status.md'),
+      change('note-0003', 'privat', 0, 'Tagebuch.md'),
+      change('note-0004', '![[Tiefer]]', 0, 'Kette.md'),
+      change('note-0005', 'ganz unten', 0, 'Tiefer.md'),
+    ]);
+    notes.push(ben.id, [change('note-0006', 'von Ben', 0, 'Bens Notiz.md')]);
+    notes.share(ben.id, 'note-0006', anna.id, true);
+    notes.setPublic(ben.id, 'note-0006', true);
+    const token = notes.setPublic(anna.id, 'note-0001', true)!;
+    const statusToken = notes.setPublic(anna.id, 'note-0002', true)!;
+    notes.setPublic(anna.id, 'note-0004', true);
+    notes.setPublic(anna.id, 'note-0005', true);
+    const embeds = notes.publicNote(token)!.embeds!;
+    expect(embeds.map((e) => e.target).sort()).toEqual(['kette', 'status', 'tiefer']);
+    expect(embeds.find((e) => e.target === 'status')).toMatchObject({ title: 'Status', content: '## Stand\nfertig', token: statusToken });
+    expect(JSON.stringify(embeds)).not.toContain('privat');
+    expect(JSON.stringify(embeds)).not.toContain('von Ben');
+    notes.setPublic(anna.id, 'note-0002', false);
+    expect(notes.publicNote(token)!.embeds!.map((e) => e.target)).not.toContain('status');
+  });
+
   it('rejects path traversal', () => {
     const { notes, anna } = setup();
     notes.push(anna.id, [change('note-0001', 'x', 0, '../../etc/passwd')]);

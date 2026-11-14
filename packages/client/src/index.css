@@ -1179,6 +1179,66 @@ span.cm-checkbox {
 .wz-block {
   position: relative;
 }
+
+/* Embedded note or section (![[Note]]): a Material 3 outlined card (uniform 1 dp outline, medium shape)
+   with the source title on top as label; primary only for the link, like a text button */
+.wz-embed {
+  margin: 0.4em 0;
+  border: 1px solid rgb(var(--outline-variant));
+  border-radius: var(--shape-md);
+  background: rgb(var(--surface-container-low));
+  overflow: hidden;
+}
+.wz-embed-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 40px 8px 16px;
+  border-bottom: 1px solid rgb(var(--outline-variant));
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+  color: rgb(var(--on-surface-variant));
+}
+.wz-embed-head::before {
+  content: '↳';
+}
+.wz-embed-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: rgb(var(--primary));
+  text-decoration: none;
+  cursor: pointer;
+}
+.wz-embed-title:hover {
+  text-decoration: underline;
+}
+.wz-embed-missing-title {
+  color: rgb(var(--on-surface-variant));
+  cursor: default;
+}
+.wz-embed-missing-title:hover {
+  text-decoration: none;
+}
+.wz-embed-body {
+  padding: 4px 16px;
+}
+.wz-embed-body .cm-editor {
+  background: transparent;
+}
+.wz-embed-body .cm-content {
+  padding: 0.2em 0;
+}
+.wz-embed-problem {
+  padding: 12px 16px;
+  font-size: 0.9em;
+  font-style: italic;
+  color: rgb(var(--on-surface-variant));
+}
 .wz-edit {
   position: absolute;
   top: 6px;

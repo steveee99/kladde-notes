@@ -2,7 +2,7 @@ import { EditorState, Extension, Facet, Range, StateEffect, StateField } from '@
 import { Decoration, DecorationSet, EditorView } from '@codemirror/view';
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
-import { escapeRegExp, extractHeadings, TOC_ANCHOR_RE, type NoteHeading } from '@kladde/shared';
+import { escapeRegExp, extractHeadings, parseEmbedLine, TOC_ANCHOR_RE, type NoteHeading } from '@kladde/shared';
 import { getLang } from '../lib/i18n';
 import {
   AutoLinkWidget,
@@ -25,6 +25,8 @@ import {
   WikiWidget,
 } from './widgets';
 import { editorHost } from './host';
+import { embedContext } from './embedContext';
+import { embedWidgetFor } from './embed';
 import { markerStatus } from './taskStatus';
 import { getLigatures } from '../lib/prefs';
 
@@ -97,6 +99,9 @@ function build(state: EditorState): DecorationSet {
   const stamp = state.field(stampField);
   const lang = getLang();
   const ligatures = getLigatures();
+  // Inside an embed the editor is read-only, but its tasks may still be ticked (written to the source note)
+  const embedSource = state.facet(embedContext).source;
+  const tasksLocked = state.readOnly && !embedSource?.canWrite;
   const active = new Set<number>();
   if (!all) {
     for (const r of state.selection.ranges) {
@@ -259,7 +264,7 @@ function build(state: EditorState): DecorationSet {
           const ln = doc.lineAt(node.from);
           if (status === 'done') decos.push(mark('cm-task-done').range(node.to, ln.to));
           if (!isActive(node.from, node.to)) {
-            replace(node.from, node.to + (doc.sliceString(node.to, node.to + 1) === ' ' ? 1 : 0), Decoration.replace({ widget: new CheckboxWidget(status, ln.number - 1, state.readOnly, lang) }));
+            replace(node.from, node.to + (doc.sliceString(node.to, node.to + 1) === ' ' ? 1 : 0), Decoration.replace({ widget: new CheckboxWidget(status, ln.number - 1, tasksLocked, lang) }));
           }
           return;
         }
@@ -323,6 +328,13 @@ function build(state: EditorState): DecorationSet {
     if (codeLines.has(l) || doc.line(l).to <= fmEnd) continue;
     const ln = doc.line(l);
     const lineActive = !all && active.has(l);
+
+    // ![[Note]], ![[Note#Heading]], ![[Note#^block]] on their own line: the referenced text, read-only
+    const embed = lineActive ? null : parseEmbedLine(ln.text);
+    if (embed && free(ln.from, ln.to)) {
+      replace(ln.from, ln.to, Decoration.replace({ widget: embedWidgetFor(state, embed, state.facet(noteIdFacet), lang), block: true }));
+      continue;
+    }
 
     if (!lineActive && TOC_ANCHOR_RE.test(ln.text)) {
       tocHeadings ??= extractHeadings(doc.toString());
