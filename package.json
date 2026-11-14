@@ -34,7 +34,7 @@
     "deepmerge": "file:vendor/deepmerge",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
-    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.14.0",
     "postject": "^1.0.0-alpha.6",
     "typescript": "^5.8.2",
