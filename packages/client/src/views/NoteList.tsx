@@ -5,6 +5,7 @@ import type { SharedFolder } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { navigate } from '../lib/router';
+import { openDialog } from '../lib/dialogs';
 import { FolderNameInput, newNote } from './Shell';
 import { dragSource, useDropTarget } from '../lib/dnd';
 import { describePermissions } from './ShareDialog';
@@ -247,7 +248,6 @@ function ParentRow({ folder }: { folder: string }) {
 
 /** One folder another user shares with me: its notes, and a new note in it when that is allowed */
 function SharedFolderSection({ shared, notes }: { shared: SharedFolder; notes: LocalNote[] }) {
-  const [creating, setCreating] = useState(false);
   const folderLabel = shared.folder.split('/').pop() ?? shared.folder;
   return (
     <section className="anim-fade-up">
@@ -262,23 +262,12 @@ function SharedFolderSection({ shared, notes }: { shared: SharedFolder; notes: L
             {shared.owner} · {describePermissions(shared)}
           </span>
         </span>
-        {shared.canCreate && !creating && (
-          <button className="edit-only btn-ghost ml-auto shrink-0 max-sm:!px-2.5" onClick={() => setCreating(true)}>
+        {shared.canCreate && (
+          <button className="edit-only btn-ghost ml-auto shrink-0 max-sm:!px-2.5" onClick={() => openDialog({ kind: 'note', shared })}>
             <Plus size={16} /> <span className="hidden sm:inline">{t('nav.newNote')}</span>
           </button>
         )}
       </div>
-      {creating && (
-        <div className="mb-3">
-          <FolderNameInput
-            placeholder={t('list.newNoteInSharedPlaceholder', { folder: folderLabel })}
-            onDone={(title) => {
-              setCreating(false);
-              if (title) void vault.createShared(shared, title.replace(/[\\/]/g, '-')).then((n) => navigate(`/n/${n.id}`));
-            }}
-          />
-        </div>
-      )}
       {notes.length === 0 ? (
         <p className="px-1 text-sm text-on-surface-variant">{t('list.emptySharedFolder')}</p>
       ) : (

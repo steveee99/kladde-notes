@@ -609,11 +609,13 @@ class Vault {
     return this.create(zettel.folder, `${zid} ${title}`.trim(), fm + body);
   }
 
-  async createFromTemplate(template: Template | null, title: string, folder: string): Promise<LocalNote> {
-    if (!template) return this.create(folder, title, '');
+  /** A note from a template (or a blank one); with `shared` it goes into that shared folder instead of `folder` */
+  async createFromTemplate(template: Template | null, title: string, folder: string, shared?: SharedFolder): Promise<LocalNote> {
+    const make = (name: string, content: string) => (shared ? this.createShared(shared, name, content) : this.create(folder, name, content));
+    if (!template) return make(title, '');
     const zid = zettelId();
     const content = fillTemplate(template.content, { title, zid });
-    return this.create(folder, templateUsesZettelId(template.content) ? `${zid} ${title}` : title, content);
+    return make(templateUsesZettelId(template.content) ? `${zid} ${title}` : title, content);
   }
 
   /** Own templates, kept in the synced settings (none at first) */

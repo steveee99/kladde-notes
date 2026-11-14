@@ -34,14 +34,11 @@ import {
   X,
 } from '../lib/icons';
 import {
-  excalidrawNoteMarkdown,
   excerpt,
   isExcalidrawNote,
   INBOX_FOLDER,
   Me,
-  pdfNoteMarkdown,
   pdfNoteOf,
-  pdfNoteTitle,
   projectTitleOf,
   splitPath,
   toDateString,
@@ -62,6 +59,7 @@ import { editorHost } from '../editor/host';
 import { folderDisplayName, locale, t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
 import { setMaterialSidebarMode } from '../lib/sidebarMode';
+import { createDrawingNote, createPdfNote } from '../lib/newNote';
 
 export function newNote(folder?: string) {
   openDialog({ kind: 'note', folder });
@@ -73,38 +71,6 @@ export function importRecipe(url?: string) {
 
 export function newZettel() {
   openDialog({ kind: 'zettel' });
-}
-
-/** Uploads a PDF and creates a PDF note for it (`type: pdf`, see `shared/pdfNote.ts`) in `folder` */
-async function createPdfNote(file: File, folder: string, onNavigate?: () => void) {
-  if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
-    alert(t('nav.pdfOnly'));
-    return;
-  }
-  let result: { url: string; name: string };
-  try {
-    result = await editorHost.upload(file);
-  } catch (err) {
-    alert(t('editor.uploadFailed', { error: (err as Error).message }));
-    return;
-  }
-  try {
-    const note = await vault.create(folder, pdfNoteTitle(file.name), pdfNoteMarkdown(result.name, result.url));
-    navigate(`/n/${note.id}`);
-    onNavigate?.();
-  } catch (err) {
-    alert((err as Error).message);
-  }
-}
-
-/** Creates an empty drawing note (`type: excalidraw`, see `shared/excalidrawNote.ts`) in `folder` */
-async function createDrawingNote(folder: string) {
-  try {
-    const note = await vault.create(folder, t('nav.drawingDefaultTitle'), excalidrawNoteMarkdown());
-    navigate(`/n/${note.id}`);
-  } catch (err) {
-    alert((err as Error).message);
-  }
 }
 
 /**
@@ -188,7 +154,7 @@ function NewNoteButton({
         onChange={(e) => {
           const file = e.target.files?.[0];
           e.target.value = '';
-          if (file) void createPdfNote(file, folder ?? INBOX_FOLDER, onNavigate);
+          if (file) void createPdfNote(file, folder ?? INBOX_FOLDER).then((note) => note && onNavigate?.());
         }}
       />
       {open &&
