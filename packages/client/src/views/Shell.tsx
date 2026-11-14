@@ -895,6 +895,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
             })}
             {navIcon('graph', Network, t('nav.graph'), { to: '/graph' })}
             {navIcon('files', Images, t('nav.files'), { to: '/files' })}
+            {navIcon('trash', Trash2, t('nav.trash'), { to: '/trash' })}
             {features.review.enabled &&
               navIcon('review', CalendarCheck, reviewDue() ? `${t('nav.review')} · ${t('home.reviewDueChip')}` : t('nav.review'), {
                 to: '/review',

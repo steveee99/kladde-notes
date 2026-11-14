@@ -181,6 +181,7 @@ class Vault {
       createdAt: n.createdAt,
       updatedAt: n.updatedAt,
       ...(n.version === 0 && n.access !== 'owner' && n.owner ? { owner: n.owner } : {}),
+      ...(n.deleted && n.trashBatch ? { trashBatch: n.trashBatch, trashFolder: n.trashFolder } : {}),
     }));
     const body = JSON.stringify({ changes });
     // Fetch keepalive allows up to ~64 KiB; chunk larger payloads cleanly if needed
@@ -838,7 +839,8 @@ class Vault {
   async deleteFolderWithNotes(folder: string): Promise<boolean> {
     if (!folder || isReadOnly()) return false;
     const now = Date.now();
-    for (const note of this.notesBelow(folder)) await this.put({ ...note, deleted: true, updatedAt: now, dirty: true });
+    const trashBatch = newId();
+    for (const note of this.notesBelow(folder)) await this.put({ ...note, deleted: true, updatedAt: now, dirty: true, trashBatch, trashFolder: folder });
     await this.setFolders(this.storedFolders().filter((f) => f !== folder && !f.startsWith(`${folder}/`)));
     this.schedule(0);
     if (!this.standalone) void api('/folders/deleted', { method: 'POST', json: { folder } }).catch(() => {});
@@ -957,6 +959,8 @@ class Vault {
           updatedAt: n.updatedAt,
           // New note in a folder someone shares with us: it is created in their space
           ...(n.version === 0 && n.access !== 'owner' && n.owner ? { owner: n.owner } : {}),
+          // Deleted with a folder: the trash restores the whole folder as one unit
+          ...(n.deleted && n.trashBatch ? { trashBatch: n.trashBatch, trashFolder: n.trashFolder } : {}),
         })),
       },
     });

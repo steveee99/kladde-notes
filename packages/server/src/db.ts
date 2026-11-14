@@ -251,6 +251,23 @@ export const MIGRATIONS: Migration[] = [
       db.exec('DROP TABLE IF EXISTS git_sync;');
     },
   },
+  {
+    version: 12,
+    description: 'Trash: deleted notes keep their path and content (encrypted) until restored or purged',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE trash (
+          note_id TEXT PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+          owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          deleted_at INTEGER NOT NULL,
+          deleted_by TEXT,
+          batch TEXT,
+          payload BLOB NOT NULL
+        );
+        CREATE INDEX trash_owner ON trash(owner_id, deleted_at);
+      `);
+    },
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number[] {

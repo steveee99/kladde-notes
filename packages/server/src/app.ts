@@ -21,6 +21,7 @@ import { mcpRouters } from './mcp/router.js';
 import { ImportTokenStore } from './import/ImportTokenStore.js';
 import { importRouters } from './import/router.js';
 import { EmbeddedAsset, ensureStandaloneUser } from './standalone.js';
+import { trashRetentionDays } from './trash.js';
 
 export interface KladdeAppOptions {
   db: DatabaseSync;
@@ -192,7 +193,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   if (!opts.standalone) {
     app.use('/api/admin', adminRouter({ users, audit, status }));
   }
-  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, meFor }));
+  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, meFor, trashDays: trashRetentionDays(env) }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
   if (opts.seaAssets && opts.seaAssets.size > 0) {

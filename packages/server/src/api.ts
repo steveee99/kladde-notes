@@ -1,9 +1,10 @@
 import express, { Response } from 'express';
-import type { AttachmentInfo, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange } from '@kladde/shared';
+import type { AttachmentInfo, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
 import { Presence } from './Presence.js';
 import { attachmentUsageMap } from './cliActions.js';
 import { AvatarStore, MAX_AVATAR_BYTES } from './AvatarStore.js';
-import { NoteStore } from './NoteStore.js';
+import { NoteStore, TrashPathTaken } from './NoteStore.js';
+import { DEFAULT_TRASH_DAYS, dropUnusedAttachments } from './trash.js';
 import { FileStore, MAX_FILE_BYTES } from './FileStore.js';
 import { UserRecord, UserStore } from './UserStore.js';
 import { handle, rateLimit, requireUser } from './http.js';
@@ -50,6 +51,8 @@ export interface ApiRouterOptions {
   standaloneUser?: UserRecord;
   avatars?: AvatarStore;
   meFor?: (user: UserRecord) => Me;
+  /** Days a deleted note stays in the trash (0: until purged by hand) */
+  trashDays?: number;
 }
 
 export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, live: LiveUpdates, opts: ApiRouterOptions = {}): express.Router {
@@ -158,6 +161,51 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
   );
 
   const notFound = (res: Response) => res.status(404).json({ error: 'Notiz nicht gefunden (oder nicht deine).' });
+
+  // ---------------------------------------------------------------- trash (only the owner's own deleted notes)
+
+  router.get('/trash', (req, res) => {
+    const list: TrashList = { entries: notes.trash(req.user!.id), retentionDays: opts.trashDays ?? DEFAULT_TRASH_DAYS };
+    res.json(list);
+  });
+
+  const restore = (res: Response, run: () => { id: string; path: string }[]) => {
+    try {
+      res.json({ restored: run() });
+    } catch (err) {
+      if (err instanceof TrashPathTaken) {
+        const body: TrashConflict = { error: 'Unter diesem Pfad liegt inzwischen eine andere Notiz.', conflict: true, suggestion: err.suggestion };
+        res.status(409).json(body);
+      } else if ((err as Error).message === 'invalid path') res.status(400).json({ error: 'Ungültiger Pfad.' });
+      else res.status(404).json({ error: 'Nicht im Papierkorb.' });
+    }
+  };
+
+  router.post('/trash/batch/:batch/restore', (req, res) => {
+    const ids = notes.trashBatch(req.user!.id, req.params.batch);
+    if (!ids.length) return void res.status(404).json({ error: 'Nicht im Papierkorb.' });
+    restore(res, () => notes.restore(req.user!.id, ids, { rename: true }));
+  });
+
+  router.post('/trash/:id/restore', express.json({ limit: '16kb' }), (req, res) => {
+    restore(res, () => notes.restore(req.user!.id, [req.params.id], { path: req.body?.path ?? undefined }));
+  });
+
+  const purge = (userId: string, ids: string[] | null) => {
+    const contents = notes.purge(userId, ids);
+    dropUnusedAttachments(notes, files, userId, contents);
+    return contents.length;
+  };
+
+  router.delete('/trash/:id', (req, res) => {
+    const n = purge(req.user!.id, [req.params.id]);
+    if (!n) return void res.status(404).json({ error: 'Nicht im Papierkorb.' });
+    res.json({ purged: n });
+  });
+
+  router.delete('/trash', (req, res) => {
+    res.json({ purged: purge(req.user!.id, null) });
+  });
 
   router.get('/notes/:id/versions', (req, res) => {
     try {

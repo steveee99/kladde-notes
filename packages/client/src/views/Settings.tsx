@@ -225,6 +225,12 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
       title: tl(lang, 'settings.filesTitle'),
       desc: tl(lang, 'settings.filesDesc'),
     },
+    {
+      path: '/trash',
+      Icon: Trash2,
+      title: tl(lang, 'settings.trashTitle'),
+      desc: tl(lang, 'settings.trashDesc'),
+    },
   ];
 
   const linkTextParts = link

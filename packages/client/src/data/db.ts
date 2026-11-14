@@ -7,6 +7,9 @@ export interface LocalNote extends SyncedNote {
   /** Only while dirty: content and path of the synced `version` the local edits started from (three-way merge base) */
   base?: string;
   basePath?: string;
+  /** Only while a deletion is pushed: the folder deletion this note was part of (restored as one unit from the trash) */
+  trashBatch?: string;
+  trashFolder?: string;
 }
 
 interface Schema extends DBSchema {

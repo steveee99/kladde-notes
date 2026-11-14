@@ -23,6 +23,7 @@ import { McpSettingsView } from './views/McpSettings';
 import { ImportSettingsView } from './views/ImportSettings';
 import { OAuthConsent } from './views/OAuthConsent';
 import { FilesView } from './views/Files';
+import { TrashView } from './views/Trash';
 import { DailyNoteEmptyView } from './views/DailyNoteBar';
 import { CalendarView } from './views/ActivityHeatmap';
 
@@ -152,6 +153,7 @@ export function App() {
   else if (path === '/settings/mcp') page = <McpSettingsView />;
   else if (path === '/settings/import' && !me.standalone) page = <ImportSettingsView />;
   else if (path === '/files' || path === '/settings/files') page = <FilesView />;
+  else if (path === '/trash') page = <TrashView />;
   else if (path === '/settings')
     page = (
       <SettingsView

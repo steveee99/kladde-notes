@@ -243,7 +243,7 @@ describe('UserStore', () => {
 });
 
 describe('note history', () => {
-  it('keeps encrypted versions, merges quick saves and drops them on delete', () => {
+  it('keeps encrypted versions, merges quick saves and drops them when the note leaves the trash', () => {
     const { db, notes, anna, ben } = setup();
     notes.push(anna.id, [change('note-hist1', 'eins')]);
     notes.push(anna.id, [change('note-hist1', 'zwei', 1)]);
@@ -257,6 +257,10 @@ describe('note history', () => {
     expect(Buffer.from(raw.payload).toString('utf8')).not.toContain('zwei');
     expect(() => notes.versions(ben.id, 'note-hist1')).toThrow();
     notes.push(anna.id, [{ ...change('note-hist1', '', 3), deleted: true }]);
+    // In the trash the history stays (hidden), purging drops it
+    expect(() => notes.versions(anna.id, 'note-hist1')).toThrow();
+    expect(db.prepare('SELECT COUNT(*) AS n FROM note_versions').get()).toEqual({ n: 2 });
+    notes.purge(anna.id, ['note-hist1']);
     expect(db.prepare('SELECT COUNT(*) AS n FROM note_versions').get()).toEqual({ n: 0 });
   });
 });

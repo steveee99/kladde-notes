@@ -139,6 +139,7 @@ Without access to the server you can import a local folder (e.g. an Obsidian vau
 | `GITLAB_LABEL` | Button label, e.g. the name of your own instance (default `GitLab`) |
 | `BACKUP_KEEP` | Daily database backups in `data/backups` (default 7, `0` = off) |
 | `EXPORT_DIR` | Plain-text mirror of the notes (e.g. NAS), empty = off |
+| `TRASH_RETENTION_DAYS` | Days deleted notes stay in the trash before they are purged (default 30, `0` = until emptied by hand) |
 
 **Sign in with GitLab** (detailed guide for self-hosted instances, networking, custom certificates and troubleshooting: [`docs/GITLAB.md`](docs/GITLAB.md), German):
 
