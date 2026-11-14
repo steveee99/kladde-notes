@@ -1,6 +1,6 @@
 {
   "name": "kladde",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Self-hosted, offline-first Markdown notes app (PWA)",
   "private": true,
   "license": "MIT",
