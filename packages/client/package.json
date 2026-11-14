@@ -22,7 +22,7 @@
     "@lezer/common": "^1.5.5",
     "@lezer/highlight": "^1.2.1",
     "@lezer/markdown": "^1.8.1",
-    "@simplewebauthn/browser": "^13.1.0",
+    "@simplewebauthn/browser": "^14.0.0",
     "d3-force": "^3.0.1",
     "docx": "^9.15.3",
     "idb": "^8.0.2",
