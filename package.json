@@ -33,7 +33,7 @@
     "concurrently": "^9.1.2",
     "deepmerge": "file:vendor/deepmerge",
     "esbuild": "^0.28.2",
-    "eslint": "^9.39.5",
+    "eslint": "^10.14.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^17.14.0",
     "postject": "^1.0.0-alpha.6",
