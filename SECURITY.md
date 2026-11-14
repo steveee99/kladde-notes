@@ -8,8 +8,8 @@ Only the latest release receives security fixes. Please update before reporting,
 
 | Version | Supported |
 | --- | --- |
-| 1.x (latest) | ✅ |
-| < 1.0 | ❌ |
+| 2.x (latest) | ✅ |
+| < 2.0 | ❌ |
 
 ## Reporting a vulnerability
 
