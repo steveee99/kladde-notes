@@ -4,6 +4,7 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Outline panel (#30). The "Contents" tab of the note's side panel (a sheet on phones) is now "Outline": it lists the headings indented by level, highlights the section you are reading while you scroll, and updates while you type and when others edit. A click jumps to the heading, the arrow next to it folds or unfolds the section in the editor ("Collapse all" / "Expand all" for every section), and dragging a heading moves the whole section with its subsections as one edit, so a single undo restores it.
 - New: Every "New note" button offers the same kinds of notes (#9). The dialog behind the rail button, the "New" button of a folder, "Full note" in Quick Capture and the button of a shared folder now let you pick note (with templates), drawing, PDF and, when turned on, Zettel and recipe. A shared folder offers notes and drawings.
 - New: Word count and reading time (#35). A small status line below each note shows words, characters and reading time; with a selection it also shows how many words are selected. Frontmatter and code blocks are not counted.
 - New: Focus mode (#35). `Ctrl/⌘+Shift+F` or ⋮ → "Focus mode" hides the navigation, the header and the side panels and centers the text with a comfortable line length; `Esc` or the button in the corner leaves it. Optionally all paragraphs except the one with the cursor are dimmed. Both features can be turned off under Settings → Features.
