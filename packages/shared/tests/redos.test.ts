@@ -17,6 +17,8 @@ describe('regexes stay linear on hostile input', () => {
     fast(() => setTaskMeta(`* [ ] x${' '.repeat(N)}✅`, 0, { due: '2026-11-20' }));
     fast(() => nextDue(`${' '.repeat(N)}x`, null));
     fast(() => rruleOf(`1${' '.repeat(N)}`));
+    fast(() => rruleOf(`!${'00'.repeat(N)}`));
+    fast(() => nextDue(`${'00'.repeat(N)}!`, null));
   });
 
   it('frontmatter, headings, block ids and slashes', () => {
@@ -36,6 +38,10 @@ describe('the rewritten regexes keep their results', () => {
     expect(setTaskStatus('- [x] a ✅ 2026-11-01', 0, 'open')).toBe('- [ ] a');
     expect(setTaskMeta('- [x] a 📅 2026-11-01 ✅ 2026-11-02', 0, { due: '2026-11-05' })).toBe('- [x] a 📅 2026-11-05 ✅ 2026-11-02');
     expect(nextDue('2 wochen', '2026-11-01')).toBe('2026-11-15');
+    expect(nextDue('3tage', '2026-11-01')).toBe('2026-11-04');
+    expect(nextDue('1234', '2026-11-01')).toBeNull();
+    expect(rruleOf('0 weeks')).toBeNull();
+    expect(rruleOf('12 monate')).toBe('FREQ=MONTHLY;INTERVAL=12');
   });
 
   it('frontmatter values and headings with closing hashes', () => {

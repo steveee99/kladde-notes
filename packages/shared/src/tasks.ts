@@ -134,6 +134,18 @@ function addMonths(d: Date, n: number): void {
 
 const WEEKDAYS: Record<string, number> = { so: 0, su: 0, mo: 1, di: 2, tu: 2, mi: 3, we: 3, do: 4, th: 4, fr: 5, sa: 6 };
 
+/**
+ * "2 wochen" → { n: 2, unit: "wochen" }, "weekly" → { n: 1, unit: "weekly" }; null without a unit.
+ * Parsed by hand: a regex like `^(\d+)?\s*(\S.*)$` can split long digit runs in many ways (ReDoS).
+ */
+export function splitRepeatRule(rule: string): { n: number; unit: string } | null {
+  let i = 0;
+  while (i < rule.length && rule[i] >= '0' && rule[i] <= '9') i++;
+  const unit = rule.slice(i).trim();
+  if (!unit) return null;
+  return { n: i ? Number(rule.slice(0, i)) : 1, unit };
+}
+
 /** Next due date for a repeat rule, counted from the old due date (or today); null for unknown rules */
 export function nextDue(rule: string, from: string | null, today = new Date()): string | null {
   const base = from ? parseDate(from) : today;
@@ -146,10 +158,9 @@ export function nextDue(rule: string, from: string | null, today = new Date()): 
       if (days.includes(cand.getDay())) return toDateString(cand);
     }
   }
-  const m = /^(\d+)?\s*(\S.*)$/.exec(r);
-  if (!m) return null;
-  const n = m[1] ? Number(m[1]) : 1;
-  const unit = m[2];
+  const step = splitRepeatRule(r);
+  if (!step) return null;
+  const { n, unit } = step;
   const d = new Date(base);
   if (/^(day|days|tag|tage|täglich|daily)$/.test(unit)) d.setDate(d.getDate() + n);
   else if (/^(week|weeks|woche|wochen|wöchentlich|weekly)$/.test(unit)) d.setDate(d.getDate() + 7 * n);

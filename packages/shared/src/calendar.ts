@@ -3,7 +3,7 @@
  * show them next to the appointments. Read-only; the feed is reached through a secret URL.
  */
 import { extractMeta } from './markdown.js';
-import { parseTasks, type Task } from './tasks.js';
+import { parseTasks, splitRepeatRule, type Task } from './tasks.js';
 import type { CalendarFeedOptions } from './types.js';
 
 export interface CalendarNote {
@@ -30,11 +30,9 @@ export function rruleOf(rule: string): string | null {
   const parts = r.split(',').map((d) => d.trim());
   const days = parts.filter((d) => d.length <= 3).map((d) => WEEKDAY_CODES[d.slice(0, 2)]).filter(Boolean);
   if (days.length && days.length === parts.length) return `FREQ=WEEKLY;BYDAY=${[...new Set(days)].join(',')}`;
-  const m = /^(\d+)?\s*(\S.*)$/.exec(r);
-  if (!m) return null;
-  const n = m[1] ? Number(m[1]) : 1;
-  if (n < 1) return null;
-  const unit = m[2];
+  const step = splitRepeatRule(r);
+  if (!step || step.n < 1) return null;
+  const { n, unit } = step;
   const freq = /^(day|days|tag|tage|täglich|daily)$/.test(unit)
     ? 'DAILY'
     : /^(week|weeks|woche|wochen|wöchentlich|weekly)$/.test(unit)
