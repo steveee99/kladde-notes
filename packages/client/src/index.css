@@ -478,6 +478,19 @@ body {
 .cm-editor.cm-focused {
   outline: none;
 }
+/* A section folded from the outline: a small tonal pill after the heading, click to unfold */
+.cm-editor .cm-foldPlaceholder {
+  margin-left: 0.5em;
+  padding: 0 0.6em;
+  border: 0;
+  border-radius: 9999px;
+  background: rgb(var(--secondary-container));
+  color: rgb(var(--on-secondary-container));
+  font-size: 0.8em;
+  line-height: 1.6;
+  vertical-align: middle;
+  cursor: pointer;
+}
 .cm-scroller {
   font-family: var(--font-sans);
   overflow: visible !important;

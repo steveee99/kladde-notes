@@ -45,7 +45,7 @@ export interface CliResult {
   data?: unknown;
 }
 
-const FILE_URL_RE = /\/api\/files\/([A-Za-z0-9_-]{22})/g;
+export const FILE_URL_RE = /\/api\/files\/([A-Za-z0-9_-]{22})/g;
 
 interface ParsedArgs {
   positionals: string[];

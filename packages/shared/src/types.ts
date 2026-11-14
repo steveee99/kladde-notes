@@ -55,6 +55,39 @@ export interface PushChange {
   updatedAt: number;
   /** New note in a folder another user shares with the caller: that user's name; the note belongs to them */
   owner?: string;
+  /** Deleted together with a folder: a random id shared by all notes of that deletion (restored as one unit) */
+  trashBatch?: string;
+  /** The folder that was deleted with this note (shown in the trash) */
+  trashFolder?: string;
+}
+
+/** A deleted note in its owner's trash (`GET /api/trash`); restorable until it is purged */
+export interface TrashEntry {
+  id: string;
+  path: string;
+  deletedAt: number;
+  /** Username of whoever deleted it when that was not the owner (a shared folder with delete permission) */
+  deletedBy: string | null;
+  /** Notes deleted together with a folder share this id */
+  batch: string | null;
+  /** The folder deleted with the note */
+  folder: string | null;
+  /** Size of the content in bytes */
+  size: number;
+}
+
+export interface TrashList {
+  entries: TrashEntry[];
+  /** Days after which the server purges trashed notes (0: never) */
+  retentionDays: number;
+}
+
+/** `POST /api/trash/:id/restore` answers 409 with this when the old path is taken again */
+export interface TrashConflict {
+  error: string;
+  conflict: true;
+  /** A free path next to the old one */
+  suggestion: string;
 }
 
 export type PushResult =

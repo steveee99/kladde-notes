@@ -1,10 +1,12 @@
-import type { AttachmentInfo, DeleteFilesResponse, Me } from '@kladde/shared';
+import type { AttachmentInfo, DeleteFilesResponse, Me, TrashList } from '@kladde/shared';
 import { t } from './i18n';
 
 export class ApiError extends Error {
   constructor(
     message: string,
-    public readonly status: number
+    public readonly status: number,
+    /** The JSON body of the error response */
+    public readonly data: unknown = {}
   ) {
     super(message);
   }
@@ -19,7 +21,7 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
     body: json !== undefined ? JSON.stringify(json) : rest.body,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError((data as { error?: string }).error ?? t('common.errorStatus', { status: res.status }), res.status);
+  if (!res.ok) throw new ApiError((data as { error?: string }).error ?? t('common.errorStatus', { status: res.status }), res.status, data);
   return data as T;
 }
 
@@ -98,4 +100,29 @@ export function deleteFile(id: string): Promise<{ ok: true; id: string }> {
 
 export function deleteFiles(ids: string[]): Promise<DeleteFilesResponse> {
   return api<DeleteFilesResponse>('/files/delete', { method: 'POST', json: { ids } });
+}
+
+// ---------------------------------------------------------------- trash (#25)
+
+export function listTrash(): Promise<TrashList> {
+  return api<TrashList>('/trash');
+}
+
+export type RestoreResult = { restored: { id: string; path: string }[] };
+
+/** Puts a note back; a 409 `ApiError` carries a `TrashConflict` (the path is taken) in `data` */
+export function restoreTrash(id: string, path?: string): Promise<RestoreResult> {
+  return api<RestoreResult>(`/trash/${encodeURIComponent(id)}/restore`, { method: 'POST', json: path ? { path } : {} });
+}
+
+export function restoreTrashBatch(batch: string): Promise<RestoreResult> {
+  return api<RestoreResult>(`/trash/batch/${encodeURIComponent(batch)}/restore`, { method: 'POST', json: {} });
+}
+
+export function purgeTrash(id: string): Promise<{ purged: number }> {
+  return api(`/trash/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export function emptyTrash(): Promise<{ purged: number }> {
+  return api('/trash', { method: 'DELETE' });
 }

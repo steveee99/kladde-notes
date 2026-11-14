@@ -9,12 +9,13 @@ import '@excalidraw/excalidraw/index.css';
 import type { ExcalidrawImperativeAPI, AppState, BinaryFiles, ExcalidrawInitialDataState } from '@excalidraw/excalidraw/types';
 import type { ExcalidrawElement } from '@excalidraw/excalidraw/element/types';
 import { mergeExcalidrawElements } from '@kladde/shared';
+import { appUrl } from '../lib/router';
 import { useResolvedScheme } from '../lib/theme';
 import { t, type Lang } from '../lib/i18n';
 import { FileText, Maximize2, Minimize2 } from '../lib/icons';
 
 // Fonts are served by the app itself (copied by the Vite plugin in vite.config.ts), never from a CDN
-(window as unknown as { EXCALIDRAW_ASSET_PATH?: string }).EXCALIDRAW_ASSET_PATH = '/excalidraw-assets/';
+(window as unknown as { EXCALIDRAW_ASSET_PATH?: string }).EXCALIDRAW_ASSET_PATH = appUrl('/excalidraw-assets/');
 
 const SAVE_DELAY = 600;
 

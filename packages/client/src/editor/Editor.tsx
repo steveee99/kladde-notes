@@ -17,6 +17,7 @@ import { merge3, textChanges } from '@kladde/shared';
 import { slashCompletion } from './slash';
 import { remoteCursors } from './remoteCursors';
 import { focusDim } from './focusDim';
+import { outlineSupport } from './outline';
 import { useReadOnly } from '../lib/readOnly';
 import { t as i18n, useLang } from '../lib/i18n';
 
@@ -268,6 +269,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           autocompletion({ override: [wikiCompletion, slashCompletion(insertFiles)], icons: false }),
           fileHandlers(),
           dimConf.current.of(dimRef.current ? focusDim : []),
+          outlineSupport,
           EditorView.updateListener.of((u) => {
             if (u.docChanged || u.selectionSet) activityRef.current?.(u.view);
             if (!u.docChanged) return;

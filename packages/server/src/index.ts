@@ -4,6 +4,7 @@ import type express from 'express';
 import { APP_VERSION } from '@kladde/shared';
 import { createKladdeApp } from './app.js';
 import { backupDatabase, openDatabase } from './db.js';
+import { purgeExpiredTrash, trashRetentionDays } from './trash.js';
 import { launchDesktopWindow, probeRunningKladde, startDesktopLifecycle } from './desktop.js';
 import {
   isSeaRuntime,
@@ -114,7 +115,7 @@ async function main(): Promise<void> {
   const TRUST_PROXY = !standalone && (env.TRUST_PROXY === '1' || env.TRUST_PROXY === 'true');
   const clientDist = path.resolve(baseDir, '..', '..', 'client', 'dist');
 
-  const { app, users, audit, live } = createKladdeApp({
+  const { app, users, audit, live, notes, files } = createKladdeApp({
     db,
     dataDir: DATA_DIR,
     env,
@@ -150,6 +151,21 @@ async function main(): Promise<void> {
     };
     setTimeout(runBackup, 60_000).unref();
     setInterval(runBackup, 24 * 60 * 60 * 1000).unref();
+  }
+
+  // Deleted notes older than TRASH_RETENTION_DAYS leave the trash for good (shortly after start, then every 6 hours)
+  const trashDays = trashRetentionDays(env);
+  if (trashDays > 0) {
+    const runPurge = () => {
+      try {
+        const n = purgeExpiredTrash(notes, files, trashDays);
+        if (n) console.log(`🗑️  ${n} Notiz(en) endgültig aus dem Papierkorb entfernt (älter als ${trashDays} Tage)`);
+      } catch (err) {
+        console.error('Trash purge failed:', err);
+      }
+    };
+    setTimeout(runPurge, 30_000).unref();
+    setInterval(runPurge, 6 * 60 * 60 * 1000).unref();
   }
 
   let closing = false;

@@ -34,14 +34,11 @@ import {
   X,
 } from '../lib/icons';
 import {
-  excalidrawNoteMarkdown,
   excerpt,
   isExcalidrawNote,
   INBOX_FOLDER,
   Me,
-  pdfNoteMarkdown,
   pdfNoteOf,
-  pdfNoteTitle,
   projectTitleOf,
   splitPath,
   toDateString,
@@ -51,7 +48,7 @@ import { openDialog } from '../lib/dialogs';
 import { reviewDue } from './Review';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
-import { navigate, usePath } from '../lib/router';
+import { appUrl, currentPath, navigate, usePath } from '../lib/router';
 import { dragSource, useDropTarget } from '../lib/dnd';
 import { isReadOnly, setReadOnly, useReadOnly } from '../lib/readOnly';
 import { ShareDialog } from './ShareDialog';
@@ -62,6 +59,8 @@ import { editorHost } from '../editor/host';
 import { folderDisplayName, locale, t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
 import { setMaterialSidebarMode } from '../lib/sidebarMode';
+import { createDrawingNote, createPdfNote } from '../lib/newNote';
+import { DEMO } from '../demo/demoApi';
 
 export function newNote(folder?: string) {
   openDialog({ kind: 'note', folder });
@@ -73,38 +72,6 @@ export function importRecipe(url?: string) {
 
 export function newZettel() {
   openDialog({ kind: 'zettel' });
-}
-
-/** Uploads a PDF and creates a PDF note for it (`type: pdf`, see `shared/pdfNote.ts`) in `folder` */
-async function createPdfNote(file: File, folder: string, onNavigate?: () => void) {
-  if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
-    alert(t('nav.pdfOnly'));
-    return;
-  }
-  let result: { url: string; name: string };
-  try {
-    result = await editorHost.upload(file);
-  } catch (err) {
-    alert(t('editor.uploadFailed', { error: (err as Error).message }));
-    return;
-  }
-  try {
-    const note = await vault.create(folder, pdfNoteTitle(file.name), pdfNoteMarkdown(result.name, result.url));
-    navigate(`/n/${note.id}`);
-    onNavigate?.();
-  } catch (err) {
-    alert((err as Error).message);
-  }
-}
-
-/** Creates an empty drawing note (`type: excalidraw`, see `shared/excalidrawNote.ts`) in `folder` */
-async function createDrawingNote(folder: string) {
-  try {
-    const note = await vault.create(folder, t('nav.drawingDefaultTitle'), excalidrawNoteMarkdown());
-    navigate(`/n/${note.id}`);
-  } catch (err) {
-    alert((err as Error).message);
-  }
 }
 
 /**
@@ -188,7 +155,7 @@ function NewNoteButton({
         onChange={(e) => {
           const file = e.target.files?.[0];
           e.target.value = '';
-          if (file) void createPdfNote(file, folder ?? INBOX_FOLDER, onNavigate);
+          if (file) void createPdfNote(file, folder ?? INBOX_FOLDER).then((note) => note && onNavigate?.());
         }}
       />
       {open &&
@@ -265,6 +232,14 @@ export function SyncBadge() {
             ? t('common.syncPending', { n: pending })
             : t('common.idle');
   const Icon = state === 'syncing' ? Loader2 : state === 'offline' ? CloudOff : state === 'error' ? AlertTriangle : Cloud;
+  // The demo has no server: say where the notes are instead of a sync state
+  if (DEMO)
+    return (
+      <span title={t('demo.badgeTitle')} className="chip text-tertiary">
+        <CloudOff size={18} />
+        <span className="hidden sm:inline">{t('demo.badge')}</span>
+      </span>
+    );
   return (
     <button onClick={vault.kick} title={`${label} — ${t('common.syncAction')}`} aria-label={label} className={`chip ${state === 'offline' ? 'text-warn' : state === 'error' ? 'text-error' : ''}`}>
       <Icon size={18} className={state === 'syncing' ? 'animate-spin' : ''} />
@@ -821,7 +796,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
     >
       <div className="mb-2 flex min-w-0 shrink-0 items-center gap-1.5 px-1">
         {headerAction}
-        <img src="/icons/icon.svg" className="h-7 w-7 shrink-0" alt="" />
+        <img src={appUrl('/icons/icon.svg')} className="h-7 w-7 shrink-0" alt="" />
         <span className="min-w-0 truncate font-medium tracking-tight">Kladde</span>
         <div className="ml-auto flex shrink-0 items-center gap-1">
           <ReadOnlyToggle />
@@ -929,6 +904,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
             })}
             {navIcon('graph', Network, t('nav.graph'), { to: '/graph' })}
             {navIcon('files', Images, t('nav.files'), { to: '/files' })}
+            {navIcon('trash', Trash2, t('nav.trash'), { to: '/trash' })}
             {features.review.enabled &&
               navIcon('review', CalendarCheck, reviewDue() ? `${t('nav.review')} · ${t('home.reviewDueChip')}` : t('nav.review'), {
                 to: '/review',
@@ -1141,7 +1117,7 @@ function useFocusShortcut() {
 
 /** The note open in the current route (`/n/<id>`), if any */
 function openNoteId(): string | null {
-  const p = window.location.pathname;
+  const p = currentPath();
   return p.startsWith('/n/') ? decodeURIComponent(p.slice(3)) : null;
 }
 

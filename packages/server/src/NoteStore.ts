@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, MAX_NOTE_BYTES, cleanPath } from '@kladde/shared';
+import { NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, cleanPath, splitPath } from '@kladde/shared';
 import { DataCipher, randomToken } from './crypto.js';
 import { transaction } from './db.js';
 
@@ -34,6 +34,39 @@ interface VersionRow {
 interface Payload {
   path: string;
   content: string;
+}
+
+interface TrashRow {
+  note_id: string;
+  owner_id: string;
+  deleted_at: number;
+  deleted_by: string | null;
+  batch: string | null;
+  payload: Uint8Array;
+}
+
+/** What the trash keeps of a deleted note (encrypted, the note id as AAD) */
+interface TrashPayload {
+  path: string;
+  content: string;
+  folder: string | null;
+}
+
+/** Restoring would overwrite a note that took the old path in the meantime */
+export class TrashPathTaken extends Error {
+  constructor(readonly suggestion: string) {
+    super('path taken');
+  }
+}
+
+/** `path` itself, or the first "Name 2.md", "Name 3.md", … that is not in `taken` */
+export function freePath(path: string, taken: Set<string>): string {
+  if (!taken.has(path)) return path;
+  const { folder, name } = splitPath(path);
+  for (let i = 2; ; i++) {
+    const candidate = `${folder ? `${folder}/` : ''}${name} ${i}.md`;
+    if (!taken.has(candidate)) return candidate;
+  }
 }
 
 /** A folder share with the folder path decrypted */
@@ -247,7 +280,9 @@ export class NoteStore {
         this.db
           .prepare('UPDATE notes SET version = version + 1, seq = ?, updated_at = ?, deleted = ?, payload = ? WHERE id = ?')
           .run(seq, updatedAt, deleted ? 1 : 0, this.cipher.encryptJson({ path, content: deleted ? '' : content }, `note:${row.id}`), row.id);
-        if (deleted) this.db.prepare('DELETE FROM note_versions WHERE note_id = ?').run(row.id);
+        // A deleted note goes to its owner's trash (history kept until it is purged); system notes are gone for good
+        if (deleted && !old.path.startsWith(SYSTEM_PREFIX)) this.toTrash(row, userId, old.path, content || old.content, change, now);
+        else if (deleted) this.db.prepare('DELETE FROM note_versions WHERE note_id = ?').run(row.id);
         else if (path !== old.path || content !== old.content) this.recordVersion(row.id, path, content, now);
         const audience = this.audience(row);
         if (deleted) this.dropShares(row.id, seq);
@@ -310,6 +345,132 @@ export class NoteStore {
     for (const u of users) this.db.prepare('INSERT INTO share_revocations (note_id, user_id, seq) VALUES (?, ?, ?)').run(noteId, u.user_id, seq);
     this.db.prepare('DELETE FROM shares WHERE note_id = ?').run(noteId);
     this.db.prepare('DELETE FROM public_links WHERE note_id = ?').run(noteId);
+  }
+
+  // ------------------------------------------------------------------ trash
+
+  private toTrash(row: NoteRow, userId: string, path: string, content: string, change: PushChange, now: number): void {
+    const batch = typeof change.trashBatch === 'string' && ID_PATTERN.test(change.trashBatch) ? change.trashBatch : null;
+    const folder = batch && typeof change.trashFolder === 'string' ? change.trashFolder.slice(0, 400) : null;
+    this.db
+      .prepare('INSERT OR REPLACE INTO trash (note_id, owner_id, deleted_at, deleted_by, batch, payload) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(row.id, row.owner_id, now, userId === row.owner_id ? null : userId, batch, this.cipher.encryptJson({ path, content, folder } satisfies TrashPayload, `trash:${row.id}`));
+  }
+
+  private trashPayload(r: TrashRow): TrashPayload {
+    return this.cipher.decryptJson<TrashPayload>(r.payload, `trash:${r.note_id}`);
+  }
+
+  /** The owner's deleted notes, newest first */
+  trash(userId: string): TrashEntry[] {
+    const rows = this.db
+      .prepare('SELECT trash.*, users.username AS deleted_by_name FROM trash LEFT JOIN users ON users.id = trash.deleted_by WHERE trash.owner_id = ? ORDER BY deleted_at DESC')
+      .all(userId) as unknown as (TrashRow & { deleted_by_name: string | null })[];
+    return rows.map((r) => {
+      const p = this.trashPayload(r);
+      return {
+        id: r.note_id,
+        path: p.path,
+        deletedAt: r.deleted_at,
+        deletedBy: r.deleted_by ? (r.deleted_by_name ?? '?') : null,
+        batch: r.batch,
+        folder: p.folder,
+        size: Buffer.byteLength(p.content),
+      };
+    });
+  }
+
+  /** Paths of the owner's notes that are not deleted */
+  private livePaths(userId: string): Set<string> {
+    const rows = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND deleted = 0').all(userId) as unknown as NoteRow[];
+    return new Set(rows.map((r) => this.payload(r).path));
+  }
+
+  /**
+   * Puts trashed notes back (only their owner may): each takes a new `seq`, so every device pulls it.
+   * `path` moves a single note elsewhere; without it a taken path throws `TrashPathTaken` (single
+   * note) or gets a free name next to it (`rename`, used for a whole folder).
+   */
+  restore(userId: string, noteIds: string[], opts: { path?: unknown; rename?: boolean } = {}): { id: string; path: string }[] {
+    const events: NoteChangeEvent[] = [];
+    const restored = transaction(this.db, () => {
+      const taken = this.livePaths(userId);
+      let cached: FolderShare[] | undefined;
+      const out: { id: string; path: string }[] = [];
+      for (const noteId of noteIds) {
+        const t = this.db.prepare('SELECT * FROM trash WHERE note_id = ? AND owner_id = ?').get(noteId, userId) as TrashRow | undefined;
+        const row = t && this.getRow(noteId);
+        if (!t || !row || !row.deleted) throw new Error('not found');
+        const p = this.trashPayload(t);
+        let path = opts.path !== undefined && noteIds.length === 1 ? cleanPath(opts.path) : p.path;
+        if (taken.has(path)) {
+          if (!opts.rename) throw new TrashPathTaken(freePath(path, taken));
+          path = freePath(path, taken);
+        }
+        taken.add(path);
+        const now = Date.now();
+        const seq = this.nextSeq();
+        this.db
+          .prepare('UPDATE notes SET version = version + 1, seq = ?, updated_at = ?, deleted = 0, payload = ? WHERE id = ?')
+          .run(seq, now, this.cipher.encryptJson({ path, content: p.content }, `note:${noteId}`), noteId);
+        this.db.prepare('DELETE FROM trash WHERE note_id = ?').run(noteId);
+        this.recordVersion(noteId, path, p.content, now);
+        const added = this.applyFolderShares(userId, noteId, path, seq, (cached ??= this.folderSharesOf(userId)));
+        events.push({ noteId, ownerId: userId, audience: [...new Set([userId, ...added])], path, previousPath: null, content: p.content, deleted: false });
+        out.push({ id: noteId, path });
+      }
+      return out;
+    });
+    for (const e of events) this.onChange(e);
+    return restored;
+  }
+
+  /** Ids of the owner's trashed notes deleted together (one folder deletion) */
+  trashBatch(userId: string, batch: string): string[] {
+    const rows = this.db.prepare('SELECT note_id FROM trash WHERE owner_id = ? AND batch = ?').all(userId, batch) as { note_id: string }[];
+    return rows.map((r) => r.note_id);
+  }
+
+  /**
+   * Deletes trashed notes for good: their content and history. The tombstone stays for sync. `ids` null
+   * empties the whole trash. Returns the purged contents (to find attachments nothing uses any more).
+   */
+  purge(userId: string, ids: string[] | null): string[] {
+    return transaction(this.db, () => {
+      const rows = (
+        ids === null
+          ? this.db.prepare('SELECT * FROM trash WHERE owner_id = ?').all(userId)
+          : ids.map((id) => this.db.prepare('SELECT * FROM trash WHERE note_id = ? AND owner_id = ?').get(id, userId)).filter(Boolean)
+      ) as unknown as TrashRow[];
+      return rows.map((r) => this.purgeRow(r));
+    });
+  }
+
+  private purgeRow(r: TrashRow): string {
+    const content = this.trashPayload(r).content;
+    this.db.prepare('DELETE FROM trash WHERE note_id = ?').run(r.note_id);
+    this.db.prepare('DELETE FROM note_versions WHERE note_id = ?').run(r.note_id);
+    return content;
+  }
+
+  /** Purges every trashed note deleted before `before`; returns the purged contents per owner */
+  purgeOlderThan(before: number): Map<string, string[]> {
+    return transaction(this.db, () => {
+      const rows = this.db.prepare('SELECT * FROM trash WHERE deleted_at < ?').all(before) as unknown as TrashRow[];
+      const out = new Map<string, string[]>();
+      for (const r of rows) {
+        let list = out.get(r.owner_id);
+        if (!list) out.set(r.owner_id, (list = []));
+        list.push(this.purgeRow(r));
+      }
+      return out;
+    });
+  }
+
+  /** Contents of the owner's trashed notes (their attachments are still in use) */
+  trashedContents(userId: string): string[] {
+    const rows = this.db.prepare('SELECT * FROM trash WHERE owner_id = ?').all(userId) as unknown as TrashRow[];
+    return rows.map((r) => this.trashPayload(r).content);
   }
 
   // ------------------------------------------------------------------ sharing

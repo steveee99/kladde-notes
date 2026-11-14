@@ -47,7 +47,6 @@ import { undo } from '@codemirror/commands';
 import {
   excerpt,
   extractDailyNoteDate,
-  extractHeadings,
   isFolderProjectHome,
   isProjectNote,
   isSingleProjectFile,
@@ -61,7 +60,6 @@ import {
   toDateString,
   type GraphEdge,
   type GraphNode,
-  type NoteHeading,
 } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
@@ -69,6 +67,8 @@ import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
 import { Editor, insertAtLineStart, insertText, toggleCode, toggleWrap, wrapSelection } from '../editor/Editor';
 import { editorHost } from '../editor/host';
+import { useOutline, type Outline } from '../editor/outline';
+import { OutlinePanel } from './OutlinePanel';
 import { applyFrontmatter } from '../editor/widgets';
 import { ShareDialog } from './ShareDialog';
 import { HistoryDialog } from './History';
@@ -701,10 +701,12 @@ function MoveNoteSheet({ noteTitle, currentFolder, onMove, onClose }: { noteTitl
   );
 }
 
-/** Supporting split pane on the right of a note: TOC, Links (Backlinks + Mentions), and Local Graph */
+/** Supporting split pane on the right of a note: Outline, Links (Backlinks + Mentions), and Local Graph */
 function NoteInspectorPane({
   noteId,
-  headings,
+  outline,
+  view,
+  canEdit,
   backlinks,
   mentions,
   local,
@@ -714,7 +716,9 @@ function NoteInspectorPane({
   onClose,
 }: {
   noteId: string;
-  headings: NoteHeading[];
+  outline: Outline;
+  view: EditorView | null;
+  canEdit: boolean;
   backlinks: LocalNote[];
   mentions: LocalNote[];
   local: { nodes: GraphNode[]; edges: GraphEdge[] };
@@ -726,7 +730,7 @@ function NoteInspectorPane({
   useLang();
   const rc = vault.roleConfig();
   const tabs: { id: NoteSplitTab; label: string; Icon: typeof ListTree; count?: number }[] = [
-    { id: 'toc', label: t('note.tabToc'), Icon: ListTree, count: headings.length || undefined },
+    { id: 'toc', label: t('note.tabToc'), Icon: ListTree, count: outline.headings.length || undefined },
     { id: 'links', label: t('note.tabLinks'), Icon: Link2, count: backlinks.length + mentions.length || undefined },
     { id: 'graph', label: t('note.tabGraph'), Icon: Network, count: local.nodes.length > 1 ? local.nodes.length - 1 : undefined },
   ];
@@ -764,26 +768,7 @@ function NoteInspectorPane({
       </div>
 
       <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto scrollbar-thin pr-0.5">
-        {tab === 'toc' && (
-          <div className="space-y-1">
-            {headings.length === 0 ? (
-              <p className="py-8 text-center text-sm text-on-surface-variant">{t('note.tocEmpty')}</p>
-            ) : (
-              headings.map((h, i) => (
-                <button
-                  key={`${h.line}-${i}`}
-                  type="button"
-                  onClick={() => onJump(h.from)}
-                  title={t('note.tocJumpHint', { text: h.text })}
-                  style={{ paddingLeft: `${12 + (h.level - 1) * 12}px` }}
-                  className={`block w-full truncate rounded-full py-1.5 pr-3 text-left transition-colors hover:bg-surface-container-high hover:text-primary ${h.level === 1 ? 'text-sm font-medium text-on-surface' : h.level === 2 ? 'text-sm text-on-surface/90' : 'text-xs text-on-surface-variant'}`}
-                >
-                  {h.text}
-                </button>
-              ))
-            )}
-          </div>
-        )}
+        {tab === 'toc' && <OutlinePanel outline={outline} view={view} canEdit={canEdit} onJump={onJump} />}
 
         {tab === 'links' && (
           <div className="space-y-5">
@@ -971,6 +956,9 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
     history.replaceState(null, '', location.pathname);
   }, [view, hasNote]);
 
+  // Headings for the outline, live from the editor while the side panel is open
+  const outline = useOutline(splitOpen && !focusMode ? view : null, note?.content ?? '');
+
   if (!note) {
     return (
       <div className="p-10 text-center text-on-surface-variant anim-fade-in">
@@ -1005,7 +993,6 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const backlinks = index.backlinks(id).map((b) => vault.get(b)!).filter(Boolean);
   const mentions = index.unlinkedMentions(id).map((m) => vault.get(m)!).filter((n) => n && n.access !== 'read');
   const local = index.localGraph(id, 2);
-  const headings = extractHeadings(note.content);
   const pdf = pdfNoteOf(note.content);
   const drawing = excalidrawSceneOf(note.content);
   // Full-size panels replace the editor: a PDF viewer or a drawing canvas
@@ -1311,7 +1298,9 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           >
             <NoteInspectorPane
               noteId={id}
-              headings={headings}
+              outline={outline}
+              view={view}
+              canEdit={!readOnly && !showPdf}
               backlinks={backlinks}
               mentions={mentions}
               local={local}
@@ -1333,7 +1322,9 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             <div className="absolute inset-y-0 right-0 flex w-[90%] max-w-sm flex-col rounded-l-3xl bg-surface-container-low p-4 shadow-soft safe-top safe-bottom">
               <NoteInspectorPane
                 noteId={id}
-                headings={headings}
+                outline={outline}
+              view={view}
+              canEdit={!readOnly && !showPdf}
                 backlinks={backlinks}
                 mentions={mentions}
                 local={local}

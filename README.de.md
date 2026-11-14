@@ -74,7 +74,10 @@ npm run dev
 ```bash
 npm run build   # shared → server → client
 npm run test    # Abfragesprache, Aufgaben, Notiz-/Benutzer-Store
+npm run build:demo   # Demo nur im Browser, ohne Server → packages/client/dist-demo
 ```
+
+**Demo:** `npm run build:demo` baut eine Version, die komplett im Browser läuft (kein Server, keine Synchronisation: die Notizen bleiben im Browser der Besucher; Teilen, Anhänge, Verlauf und KI-Zugriff sind aus). `.github/workflows/pages.yml` veröffentlicht sie bei jedem Push auf `main` auf GitHub Pages (einmalig *Settings → Pages → Source: GitHub Actions* einstellen). `DEMO_BASE` setzt den Unterpfad (Standard `/kladde-notes/`).
 
 ---
 
@@ -132,6 +135,7 @@ Ohne Zugriff auf den Server importierst du einen lokalen Ordner (z. B. einen Obs
 | `GITLAB_ALLOW_SIGNUP` | Ältere Schreibweise für `SIGNUP_WITHOUT_INVITE=gitlab` (funktioniert weiter) |
 | `GITLAB_LABEL` | Beschriftung des Knopfs, z. B. Name der eigenen Instanz (Standard `GitLab`) |
 | `BACKUP_KEEP` | Tägliche Datenbank-Backups in `data/backups` (Standard 7, `0` = aus) |
+| `TRASH_RETENTION_DAYS` | Tage, die gelöschte Notizen im Papierkorb bleiben, bevor sie endgültig gelöscht werden (Standard 30, `0` = bis zum manuellen Leeren) |
 | `EXPORT_DIR` | Klartext-Spiegel der Notizen (z. B. NAS), leer = aus |
 
 **Anmelden mit GitLab** (ausführliche Anleitung für selbst gehostete Instanzen, Netzwerk, eigene Zertifikate und Fehlersuche: [`docs/GITLAB.md`](docs/GITLAB.md)):

@@ -44,13 +44,17 @@ function excalidrawFonts(): Plugin {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  // The browser-only demo (`--mode demo`, see .env.demo) runs under a sub path on GitHub Pages
+  base: mode === 'demo' ? (process.env.DEMO_BASE ?? '/kladde-notes/') : '/',
   // Excalidraw's build reads this (see its Vite integration notes)
   define: { 'process.env.IS_PREACT': JSON.stringify('false') },
   plugins: [
     react(),
     excalidrawFonts(),
     VitePWA({
+      // The demo is a plain web page without service worker (no install, no share target)
+      disable: mode === 'demo',
       // lib/update.ts decides when the waiting new version takes over (not while the user types)
       registerType: 'prompt',
       // Registered in lib/update.ts, which also forces updates
@@ -112,4 +116,4 @@ export default defineConfig({
       '^/oauth/(token|register|revoke)': { target: 'http://localhost:3002' },
     },
   },
-});
+}));

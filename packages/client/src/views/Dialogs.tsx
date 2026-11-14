@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChefHat, ClipboardPaste, FileText, Lightbulb, Loader2, X } from '../lib/icons';
-import { INBOX_FOLDER, Recipe, recipeNoteTitle, recipeToMarkdown, Template, ZETTEL_TYPES, ZettelType } from '@kladde/shared';
+import { ChefHat, ClipboardPaste, Draw, FileText, FileType2, Lightbulb, Loader2, X } from '../lib/icons';
+import { INBOX_FOLDER, Recipe, recipeNoteTitle, recipeToMarkdown, SharedFolder, Template, ZETTEL_TYPES, ZettelType } from '@kladde/shared';
 import { api } from '../lib/api';
 import { vault } from '../data/vault';
-import { closeDialog, useDialog } from '../lib/dialogs';
+import { closeDialog, openDialog, useDialog } from '../lib/dialogs';
+import { createDrawingNote, createPdfNote, type NewNoteKind } from '../lib/newNote';
 import { folderDisplayName, tl, useLang, zettelTypeLabel } from '../lib/i18n';
 import { navigate } from '../lib/router';
 import { isCoarsePointer, useVisualViewport } from '../lib/viewport';
@@ -33,26 +34,75 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
   );
 }
 
-function NewNoteDialog({ folder }: { folder?: string }) {
+function NewNoteDialog({ folder, type, shared }: { folder?: string; type?: NewNoteKind; shared?: SharedFolder }) {
   const lang = useLang();
   const templates: Template[] = vault.templates();
+  const features = vault.features();
+  // PDFs are uploaded into the own space, so a shared folder offers notes and drawings only
+  const [kind, setKind] = useState<NewNoteKind>(shared && type === 'pdf' ? 'note' : (type ?? 'note'));
   const [template, setTemplate] = useState<Template | null>(null);
   const [title, setTitle] = useState('');
-  const [target, setTarget] = useState(folder ?? INBOX_FOLDER);
+  const [target, setTarget] = useState(shared?.folder ?? folder ?? INBOX_FOLDER);
+  const [busy, setBusy] = useState(false);
+  const pdfInput = useRef<HTMLInputElement>(null);
   const folders = vault.folders();
   const choose = (t: Template | null) => {
     setTemplate(t);
     // A template brings its home folder, unless the user started from a specific folder
-    if (!folder && t) setTarget(t.folder);
+    if (!folder && !shared && t) setTarget(t.folder);
   };
   const create = async () => {
-    const note = await vault.createFromTemplate(template, title.trim() || (template?.label ?? tl(lang, 'common.newNote')), target);
-    closeDialog();
-    navigate(`/n/${note.id}${title.trim() ? '' : '?new=1'}`);
+    if (busy) return;
+    if (kind === 'pdf') {
+      pdfInput.current?.click();
+      return;
+    }
+    setBusy(true);
+    try {
+      if (kind === 'drawing') {
+        if (await createDrawingNote(target, title, shared)) closeDialog();
+        return;
+      }
+      const note = await vault.createFromTemplate(template, title.trim() || (template?.label ?? tl(lang, 'common.newNote')), target, shared);
+      closeDialog();
+      navigate(`/n/${note.id}${title.trim() ? '' : '?new=1'}`);
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
   };
+  const kinds: { value: NewNoteKind | 'zettel' | 'recipe'; label: string; Icon: typeof FileText; hint?: string }[] = [
+    { value: 'note', label: tl(lang, 'nav.newNoteShort'), Icon: FileText },
+    { value: 'drawing', label: tl(lang, 'nav.drawingNote'), Icon: Draw, hint: tl(lang, 'nav.drawingNoteTitle') },
+  ];
+  if (!shared) {
+    kinds.push({ value: 'pdf', label: tl(lang, 'nav.pdfNote'), Icon: FileType2, hint: tl(lang, 'nav.pdfNoteTitle') });
+    if (features.zettel.enabled) kinds.push({ value: 'zettel', label: 'Zettel', Icon: Lightbulb, hint: tl(lang, 'nav.zettelTitle') });
+    if (features.recipe.enabled) kinds.push({ value: 'recipe', label: tl(lang, 'nav.recipe'), Icon: ChefHat, hint: tl(lang, 'quick.recipeTitle') });
+  }
+  const CreateIcon = kind === 'drawing' ? Draw : kind === 'pdf' ? FileType2 : FileText;
   return (
     <Sheet title={tl(lang, 'dialogs.newNoteTitle')} onClose={closeDialog}>
-      {templates.length > 0 && (
+      <div role="group" aria-label={tl(lang, 'dialogs.newNoteKind')} className="mb-4 flex flex-wrap gap-2">
+        {kinds.map(({ value, label, Icon, hint }) => (
+          <button
+            key={value}
+            type="button"
+            title={hint}
+            aria-pressed={kind === value}
+            className={`chip state-layer !h-9 !px-3 ${kind === value ? '!border-transparent bg-secondary-container text-on-secondary-container' : ''}`}
+            onClick={() => {
+              if (value === 'zettel') openDialog({ kind: 'zettel' });
+              else if (value === 'recipe') openDialog({ kind: 'recipe' });
+              else setKind(value);
+            }}
+          >
+            <Icon size={16} /> {label}
+          </button>
+        ))}
+      </div>
+      {kind === 'note' && templates.length > 0 && (
         <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {[null, ...templates].map((t) => (
             <button
@@ -70,39 +120,65 @@ function NewNoteDialog({ folder }: { folder?: string }) {
       <input
         autoFocus={!isCoarsePointer()}
         className="input mb-3"
-        placeholder={tl(lang, 'dialogs.newNoteTitlePlaceholder')}
+        placeholder={kind === 'pdf' ? tl(lang, 'dialogs.newNotePdfTitlePlaceholder') : tl(lang, 'dialogs.newNoteTitlePlaceholder')}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && create()}
       />
       <div className="mb-4 flex flex-col gap-1.5 text-sm text-on-surface-variant sm:flex-row sm:items-center sm:gap-2">
         <span className="shrink-0">{tl(lang, 'dialogs.newNoteFolder')}</span>
-        <Dropdown
-          value={target}
-          onChange={setTarget}
-          aria-label={tl(lang, 'dialogs.newNoteFolder')}
-          className="flex-1"
-          options={[...new Set([target, ...folders, ''])].map((f) => ({
-            value: f,
-            label: folderDisplayName(f, lang),
-          }))}
-        />
+        {shared ? (
+          <span className="chip min-w-0 flex-1" title={shared.folder}>
+            <span className="truncate">
+              {shared.folder} · {shared.owner}
+            </span>
+          </span>
+        ) : (
+          <Dropdown
+            value={target}
+            onChange={setTarget}
+            aria-label={tl(lang, 'dialogs.newNoteFolder')}
+            className="flex-1"
+            options={[...new Set([target, ...folders, ''])].map((f) => ({
+              value: f,
+              label: folderDisplayName(f, lang),
+            }))}
+          />
+        )}
       </div>
-      <button className="btn-primary w-full rounded-full py-2.5" onClick={create}>
-        <FileText size={16} /> {tl(lang, 'dialogs.newNoteCreate')}
+      <input
+        ref={pdfInput}
+        type="file"
+        accept="application/pdf,.pdf"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          setBusy(true);
+          void createPdfNote(file, target, title)
+            .then((note) => note && closeDialog())
+            .finally(() => setBusy(false));
+        }}
+      />
+      <button className="btn-primary w-full rounded-full py-2.5" disabled={busy} onClick={create}>
+        {busy ? <Loader2 size={16} className="animate-spin" /> : <CreateIcon size={16} />}{' '}
+        {kind === 'pdf' ? tl(lang, 'dialogs.newNoteChoosePdf') : tl(lang, 'dialogs.newNoteCreate')}
       </button>
-      <p className="mt-3 text-xs text-on-surface-variant">
-        {templates.length ? tl(lang, 'dialogs.newNoteTplEditHint') : tl(lang, 'dialogs.newNoteTplAddHint')}
-        <button
-          className="underline hover:text-primary"
-          onClick={() => {
-            closeDialog();
-            navigate('/settings/templates');
-          }}
-        >
-          {tl(lang, 'dialogs.newNoteTplLink')}
-        </button>
-      </p>
+      {kind === 'note' && (
+        <p className="mt-3 text-xs text-on-surface-variant">
+          {templates.length ? tl(lang, 'dialogs.newNoteTplEditHint') : tl(lang, 'dialogs.newNoteTplAddHint')}
+          <button
+            className="underline hover:text-primary"
+            onClick={() => {
+              closeDialog();
+              navigate('/settings/templates');
+            }}
+          >
+            {tl(lang, 'dialogs.newNoteTplLink')}
+          </button>
+        </p>
+      )}
     </Sheet>
   );
 }
@@ -236,7 +312,8 @@ function RecipeDialog({ initialUrl = '' }: { initialUrl?: string }) {
 
 export function Dialogs() {
   const dialog = useDialog();
-  if (dialog?.kind === 'note') return <NewNoteDialog folder={dialog.folder} />;
+  if (dialog?.kind === 'note')
+    return <NewNoteDialog key={`${dialog.type ?? ''}:${dialog.shared?.folder ?? dialog.folder ?? ''}`} folder={dialog.folder} type={dialog.type} shared={dialog.shared} />;
   if (dialog?.kind === 'zettel') return <ZettelDialog />;
   if (dialog?.kind === 'recipe') return <RecipeDialog initialUrl={dialog.url} />;
   return null;
