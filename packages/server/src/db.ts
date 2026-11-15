@@ -336,6 +336,22 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 16,
+    description: 'Text of PDF and image attachments for the full-text search (encrypted, #37)',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE attachment_text (
+          file_id TEXT PRIMARY KEY REFERENCES files(id) ON DELETE CASCADE,
+          status TEXT NOT NULL,
+          pages BLOB,
+          ocr INTEGER NOT NULL DEFAULT 0,
+          error TEXT,
+          updated_at INTEGER NOT NULL
+        );
+      `);
+    },
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number[] {

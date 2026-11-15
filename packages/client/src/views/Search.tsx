@@ -3,12 +3,15 @@ import { Search as SearchIcon } from '../lib/icons';
 import { projectTitleOf } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { tl, useLang } from '../lib/i18n';
+import { navigate } from '../lib/router';
 import { NoteCollection, ViewSwitch } from './NoteList';
+import { AttachmentHitList, useAttachmentSearch } from './AttachmentHits';
 
 export function SearchView() {
   useVault();
   const lang = useLang();
   const [q, setQ] = useState('');
+  const attachmentHits = useAttachmentSearch(q);
   const rc = vault.roleConfig();
   const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
   const results = terms.length
@@ -39,6 +42,7 @@ export function SearchView() {
         <ViewSwitch />
       </div>
       <NoteCollection notes={results} cols="sm:grid-cols-2" />
+      <AttachmentHitList hits={attachmentHits} onOpen={(id) => navigate(`/n/${id}`)} />
     </div>
   );
 }

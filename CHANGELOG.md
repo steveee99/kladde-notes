@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Full-text search in PDFs and images (#37). The server reads the text of every PDF attachment (pdf.js, bundled, no CDN) right after the upload and stores it encrypted next to the attachment; attachments from before the update are read once in the background after the start. The sidebar search and the search page show matches in attachments below the notes ("In attachments", online only) with file name, page number and a snippet, and lead to the notes that embed the file. The MCP tools `search_notes` and `semantic_search` report them as `attachments` with page, snippet and embedding notes. Only attachments embedded in notes you can read are searched. Optional OCR for images and scanned PDF pages with `OCR=true` (Tesseract compiled to WebAssembly, German and English language data bundled, `OCR_LANGS` to choose): off by default because it costs CPU; turning it on reads existing images and scanned pages once in the background. Not available in the desktop app.
+
 ## [2.4.0] – 2026-11-15
 
 - New: Task page (#45). "Tasks" in the navigation (with a badge for overdue and today's tasks, also in the phone's navigation bar) opens `/tasks` with every task of your vault, including the ones without a due date: as a list grouped by overdue, today, upcoming and no date, or as a Kanban board. Filter by status and folder/project, sort by due date, note or text, and show done tasks; layout and filters are remembered per device.

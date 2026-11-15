@@ -60,6 +60,7 @@ import { ShareDialog } from './ShareDialog';
 import { MaterialShell } from './MaterialShell';
 import { Avatar } from './Avatar';
 import { AppLogo } from './AppLogo';
+import { AttachmentHitList, useAttachmentSearch } from './AttachmentHits';
 import { getFocusMode, setFocusMode, toggleFocusMode } from '../lib/focus';
 import { editorHost } from '../editor/host';
 import { folderDisplayName, locale, t, useLang } from '../lib/i18n';
@@ -724,6 +725,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
   const inboxCount = (notesByFolder.get(INBOX_FOLDER) ?? []).length;
 
   const terms = useMemo(() => query.trim().toLowerCase().split(/\s+/).filter(Boolean), [query]);
+  const attachmentHits = useAttachmentSearch(query);
   const searchResults = useMemo(() => {
     if (!terms.length) return [];
     const rc = vault.roleConfig();
@@ -878,7 +880,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
             )}
           </div>
           {searchResults.length === 0 ? (
-            <p className="px-2 py-6 text-center text-sm text-on-surface-variant">{t('search.noResults')}</p>
+            !attachmentHits.length && <p className="px-2 py-6 text-center text-sm text-on-surface-variant">{t('search.noResults')}</p>
           ) : (
             <ul id="sidebar-search-results" role="listbox" className="space-y-1">
               {searchResults.map((n, i) => {
@@ -907,6 +909,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
               })}
             </ul>
           )}
+          <AttachmentHitList compact hits={attachmentHits} onOpen={(id) => nav(`/n/${id}`)} />
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto scrollbar-thin">

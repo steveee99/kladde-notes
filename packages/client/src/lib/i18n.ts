@@ -250,6 +250,9 @@ const de = {
   'search.clear': 'Suche leeren',
   'search.resultsCount': '{n} Treffer',
   'search.noResults': 'Keine passenden Notizen gefunden.',
+  'search.inAttachments': 'In Anhängen',
+  'search.attachmentPage': 'S. {n}',
+  'search.attachmentOcr': 'Texterkennung',
 
   // Home
   'home.greetingMorning': 'Guten Morgen',
@@ -1457,6 +1460,9 @@ const en: Record<I18nKey, string> = {
   'search.clear': 'Clear search',
   'search.resultsCount': '{n} matches',
   'search.noResults': 'No matching notes found.',
+  'search.inAttachments': 'In attachments',
+  'search.attachmentPage': 'p. {n}',
+  'search.attachmentOcr': 'text recognition',
 
   // Home
   'home.greetingMorning': 'Good morning',

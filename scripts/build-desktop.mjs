@@ -388,7 +388,8 @@ async function main() {
     platform: 'node',
     format: 'cjs',
     target: 'node22',
-    external: ['node:*'],
+    // OCR (tesseract.js runs its own worker script) and the native canvas module cannot be bundled: OCR stays off in the desktop app
+    external: ['node:*', 'tesseract.js', '@napi-rs/canvas'],
     define: {
       'import.meta.url': 'undefined',
     },

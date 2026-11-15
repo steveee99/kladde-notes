@@ -12,7 +12,11 @@
   "dependencies": {
     "@kladde/shared": "*",
     "@simplewebauthn/server": "^13.1.1",
-    "express": "^4.21.2"
+    "@tesseract.js-data/deu": "^1.0.0",
+    "@tesseract.js-data/eng": "^1.0.0",
+    "express": "^4.21.2",
+    "pdfjs-dist": "^6.5.438",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

@@ -103,6 +103,8 @@ function handle(path: string, method: string, body: unknown): Response {
   if (path === '/sync') return method === 'POST' ? json({ results: push(((body as { changes?: PushChange[] })?.changes ?? []).slice(0, 500)) }) : json(pull());
   if (path === '/presence' || path === '/presence/cursor') return json(null);
   if (path === '/files' && method === 'GET') return json([]);
+  // The demo has no server that reads PDFs (#37)
+  if (path === '/attachments/search') return json({ hits: [], pending: 0 });
   if (path === '/trash') {
     if (method === 'DELETE') {
       const n = read<DemoTrashEntry[]>(TRASH_KEY, []).length;

@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import type { OAuthRequestInfo } from '@kladde/shared';
 import { NoteStore } from '../NoteStore.js';
 import type { FileStore } from '../FileStore.js';
+import type { AttachmentTextStore } from '../attachments/AttachmentTextStore.js';
 import { AccountError, UserRecord, UserStore } from '../UserStore.js';
 import { AuditLog } from '../security/AuditLog.js';
 import { handle, rateLimit, requireUser } from '../http.js';
@@ -19,6 +20,8 @@ export interface McpOptions {
   notes: NoteStore;
   /** Attachments, for reading voice notes */
   files?: FileStore;
+  /** Extracted text of attachments (#37), for search_notes and semantic_search */
+  attachmentTexts?: { texts: AttachmentTextStore; ocr: boolean };
   tokens: McpTokenStore;
   audit: AuditLog;
   /** PUBLIC_URL; otherwise the address the request came in on */
@@ -259,7 +262,7 @@ export function mcpRouters(opts: McpOptions): { publicRouter: express.Router; ac
     },
     (req: Request, res: Response) => {
       const grant = req.mcpGrant!;
-      const answer = handleBody(req.body, { userId: grant.userId, canWrite: grant.canWrite, notes, files: opts.files });
+      const answer = handleBody(req.body, { userId: grant.userId, canWrite: grant.canWrite, notes, files: opts.files, attachmentTexts: opts.attachmentTexts });
       if (answer === null) res.status(202).end();
       else res.json(answer);
     }

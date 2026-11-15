@@ -30,6 +30,9 @@ import { allowedPushHosts } from './push/webpush.js';
 import { EmbeddedAsset, ensureStandaloneUser } from './standalone.js';
 import { trashRetentionDays } from './trash.js';
 import { transcriberFromEnv } from './transcribe.js';
+import { AttachmentTextStore } from './attachments/AttachmentTextStore.js';
+import { AttachmentIndexer } from './attachments/AttachmentIndexer.js';
+import { ocrFromEnv } from './attachments/ocr.js';
 
 export interface KladdeAppOptions {
   db: DatabaseSync;
@@ -51,6 +54,8 @@ export interface KladdeAppContext {
   notes: NoteStore;
   files: FileStore;
   avatars: AvatarStore;
+  /** Text extraction of PDF/image attachments for the search (#37) */
+  attachmentIndexer: AttachmentIndexer;
   audit: AuditLog;
   live: LiveUpdates;
   standaloneUser?: UserRecord;
@@ -75,6 +80,11 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   fs.rmSync(path.join(opts.dataDir, 'git'), { recursive: true, force: true });
   const files = new FileStore(opts.db, cipher, opts.dataDir);
   const transcriber = transcriberFromEnv(env);
+  // Full-text search in attachments (#37): every new PDF (and image, with OCR) is indexed in the background
+  const attachmentTexts = new AttachmentTextStore(opts.db, cipher);
+  const attachmentIndexer = new AttachmentIndexer(files, attachmentTexts, ocrFromEnv(env, opts.dataDir));
+  files.onSaved((id, mime) => attachmentIndexer.enqueue(id, mime));
+  const attachmentSearch = { files, texts: attachmentTexts, ocr: !!attachmentIndexer.ocr };
   const avatars = new AvatarStore(opts.db, cipher, opts.dataDir);
   const standaloneUser = opts.standalone ? ensureStandaloneUser(users) : undefined;
   const push = opts.standalone ? undefined : new PushStore(opts.db, cipher, allowedPushHosts(env));
@@ -83,6 +93,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     users,
     notes,
     files,
+    attachmentTexts: { texts: attachmentTexts, ocr: attachmentSearch.ocr },
     tokens: new McpTokenStore(opts.db),
     audit,
     publicUrl: opts.publicUrl,
@@ -221,7 +232,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   if (!opts.standalone) {
     app.use('/api/admin', adminRouter({ users, audit, status }));
   }
-  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, meFor, trashDays: trashRetentionDays(env), transcriber }));
+  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
   if (opts.seaAssets && opts.seaAssets.size > 0) {
@@ -275,5 +286,5 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
 
   const sendReminders = push ? (now?: Date) => runReminders(push, notes, pushSubject, now) : undefined;
-  return { app, users, notes, files, avatars, audit, live, standaloneUser, sendReminders };
+  return { app, users, notes, files, avatars, attachmentIndexer, audit, live, standaloneUser, sendReminders };
 }

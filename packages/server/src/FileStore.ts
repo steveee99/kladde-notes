@@ -39,6 +39,7 @@ const toMeta = (r: FileRow): StoredFileMeta => ({
 /** Attachments (images, PDFs), encrypted on disk below <data>/files. Ids are random and act as the access key */
 export class FileStore {
   private readonly dir: string;
+  private readonly savedListeners: ((id: string, mime: string) => void)[] = [];
 
   constructor(
     private readonly db: DatabaseSync,
@@ -61,7 +62,31 @@ export class FileStore {
     this.db
       .prepare('INSERT INTO files (id, owner_id, name, mime, size, created_at) VALUES (?, ?, ?, ?, ?, ?)')
       .run(id, ownerId, name.slice(0, 200), mime, data.length, Date.now());
+    for (const fn of this.savedListeners) {
+      try {
+        fn(id, mime);
+      } catch (err) {
+        console.error('File listener failed:', err);
+      }
+    }
     return { id, mime };
+  }
+
+  /** Called after every new attachment (e.g. to extract its text for the search) */
+  onSaved(fn: (id: string, mime: string) => void): void {
+    this.savedListeners.push(fn);
+  }
+
+  exists(id: string): boolean {
+    if (!/^[A-Za-z0-9_-]{22}$/.test(id)) return false;
+    return !!this.db.prepare('SELECT 1 FROM files WHERE id = ?').get(id);
+  }
+
+  /** Metadata by id alone: the random id is the access key (like GET /api/files/:id) */
+  meta(id: string): StoredFileMeta | null {
+    if (!/^[A-Za-z0-9_-]{22}$/.test(id)) return null;
+    const row = this.db.prepare('SELECT id, owner_id, name, mime, size, created_at FROM files WHERE id = ?').get(id) as FileRow | undefined;
+    return row ? toMeta(row) : null;
   }
 
   load(id: string): { mime: string; name: string; data: Buffer } | null {
