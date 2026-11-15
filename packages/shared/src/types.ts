@@ -277,6 +277,9 @@ export interface ImportToken {
 /** How long a new import token may live, in days (the first is the default) */
 export const IMPORT_TOKEN_DAYS = [30, 7, 90, 365] as const;
 
+/** How long a new Apple Shortcuts token may live, in days (the first is the default): it sits on a phone for long */
+export const SHORTCUT_TOKEN_DAYS = [365, 90, 30, 7] as const;
+
 /** A new import token: the secret is shown exactly once */
 export interface ImportTokenCreated {
   token: ImportToken;

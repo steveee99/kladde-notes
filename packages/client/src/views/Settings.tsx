@@ -213,6 +213,12 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
             desc: tl(lang, 'settings.importDesc'),
           },
           {
+            path: '/settings/shortcuts',
+            Icon: Smartphone,
+            title: tl(lang, 'settings.shortcutsTitle'),
+            desc: tl(lang, 'settings.shortcutsDesc'),
+          },
+          {
             path: '/settings/calendar',
             Icon: CalendarDays,
             title: tl(lang, 'settings.calendarTitle'),

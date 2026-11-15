@@ -43,6 +43,7 @@ The app and its UI are available in **English and German**. Some of the guides i
 | **Version history** | History per note with up to 100 versions on the server; diff view with added/removed lines (`git diff` style) or rendered text; restore with a click |
 | **Recipe import** | Import recipes by link (schema.org, e.g. from recipe sites and food blogs) into `3 Resources/Recipes`: ingredient table, numbered steps, source |
 | **AI & MCP** | MCP server (`/mcp`, Streamable HTTP) for assistants such as Claude Desktop, Claude Code, Cursor: OAuth 2.1 or personal access tokens; access limited to your own notes |
+| **Apple Shortcuts** | Token-protected API (`/api/shortcuts`) for the iOS Shortcuts app: save links, text, photos and PDFs from the share sheet, quick notes into the daily note, new tasks, and a morning automation with the tasks due today. See [docs/SHORTCUTS.md](docs/SHORTCUTS.md) |
 | **Weekly review** | Opt-in under Settings → Features. `/review`: inbox, overdue tasks, projects without a next step, dormant areas, old fleeting and unconnected Zettel; reminder after 7 days |
 | **Templates** | Your own templates under Settings → Templates (`{{title}}`, `{{date}}`, `{{zid}}`), with a default target folder and encrypted sync |
 | **Media** | Images and PDFs by paste, drag and drop or button; image grid with ```` ```gallery ```` and carousel with ```` ```carousel ````; embedded PDF viewer and PDF notes; code blocks with syntax highlighting and copy button |

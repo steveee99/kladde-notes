@@ -1,0 +1,160 @@
+import { useEffect, useState } from 'react';
+import { ArrowLeft, ExternalLink, KeyRound, Plus, Trash2 } from '../lib/icons';
+import { SHORTCUT_TOKEN_DAYS, type ImportToken, type ImportTokenCreated } from '@kladde/shared';
+import { api } from '../lib/api';
+import { locale, tl, useLang, type I18nKey } from '../lib/i18n';
+import { navigate } from '../lib/router';
+import { Dropdown } from './Dropdown';
+import { CopyField } from './McpSettings';
+
+const DOCS = 'https://github.com/steveee99/kladde-notes/blob/main/docs/SHORTCUTS.md';
+const DOCS_DE = 'https://github.com/steveee99/kladde-notes/blob/main/docs/SHORTCUTS.de.md';
+
+/** The ready-made shortcuts of the guide: what each one does and which request it sends */
+const RECIPES: { title: I18nKey; desc: I18nKey; method: 'POST' | 'GET'; route: string; body: string }[] = [
+  { title: 'shortcuts.recipeSaveTitle', desc: 'shortcuts.recipeSaveDesc', method: 'POST', route: 'capture', body: '{ "url": "…", "text": "…" }' },
+  { title: 'shortcuts.recipePhotoTitle', desc: 'shortcuts.recipePhotoDesc', method: 'POST', route: 'attachment?name=Foto.jpg', body: '<Datei / file>' },
+  { title: 'shortcuts.recipeNoteTitle', desc: 'shortcuts.recipeNoteDesc', method: 'POST', route: 'append', body: '{ "text": "…" }' },
+  { title: 'shortcuts.recipeTaskTitle', desc: 'shortcuts.recipeTaskDesc', method: 'POST', route: 'task', body: '{ "text": "…", "due": "2026-11-30" }' },
+  { title: 'shortcuts.recipeDueTitle', desc: 'shortcuts.recipeDueDesc', method: 'GET', route: 'tasks?days=0', body: '' },
+];
+
+/** Tokens and recipes for Apple Shortcuts (#46): share sheet, Siri, Action Button and automations on iOS */
+export function ShortcutsSettingsView() {
+  const lang = useLang();
+  const loc = locale(lang);
+  const when = (ms: number | null) => (ms ? new Date(ms).toLocaleDateString(loc, { dateStyle: 'medium' }) : tl(lang, 'import.never'));
+  const [tokens, setTokens] = useState<ImportToken[] | null>(null);
+  const [created, setCreated] = useState<ImportTokenCreated | null>(null);
+  const [name, setName] = useState('');
+  const [days, setDays] = useState<number>(SHORTCUT_TOKEN_DAYS[0]);
+  const [error, setError] = useState('');
+  const apiBase = `${location.origin}/api/shortcuts`;
+
+  useEffect(() => {
+    api<ImportToken[]>('/shortcut-tokens').then(setTokens, (err) => setError((err as Error).message));
+  }, []);
+
+  const createToken = async () => {
+    setError('');
+    try {
+      const result = await api<ImportTokenCreated>('/shortcut-tokens', { method: 'POST', json: { name, days } });
+      setCreated(result);
+      setName('');
+      setTokens((list) => [result.token, ...(list ?? [])]);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const revoke = async (token: ImportToken) => {
+    if (!confirm(tl(lang, 'shortcuts.revokeConfirm', { name: token.name }))) return;
+    setError('');
+    try {
+      setTokens(await api<ImportToken[]>(`/shortcut-tokens/${encodeURIComponent(token.id)}`, { method: 'DELETE' }));
+      if (created?.token.id === token.id) setCreated(null);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  return (
+    <div className="content-container space-y-6 px-4 py-6 sm:px-8 sm:py-10">
+      <div className="flex items-center gap-2 anim-fade-up">
+        <button className="btn-icon -ml-2" onClick={() => navigate('/settings')} title={tl(lang, 'templates.backToSettings')}>
+          <ArrowLeft size={18} />
+        </button>
+        <h1 className="text-headline-m">{tl(lang, 'shortcuts.title')}</h1>
+      </div>
+      <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'shortcuts.intro')}</p>
+
+      <section className="card space-y-3 p-5 anim-fade-up">
+        <h2 className="font-medium">{tl(lang, 'shortcuts.serverTitle')}</h2>
+        <p className="text-sm text-on-surface-variant">{tl(lang, 'shortcuts.serverDesc')}</p>
+        <CopyField value={apiBase} />
+        {location.protocol === 'http:' && <p className="text-xs text-error">{tl(lang, 'shortcuts.insecureHint')}</p>}
+        <a className="btn-text -ml-3" href={lang === 'de' ? DOCS_DE : DOCS} target="_blank" rel="noopener noreferrer">
+          <ExternalLink size={18} /> {tl(lang, 'shortcuts.guideLink')}
+        </a>
+      </section>
+
+      <section className="card space-y-3 p-5 anim-fade-up">
+        <h2 className="font-medium">{tl(lang, 'shortcuts.createTitle')}</h2>
+        <p className="text-sm text-on-surface-variant">{tl(lang, 'shortcuts.createDesc')}</p>
+        {created ? (
+          <div className="space-y-2 rounded-2xl border border-primary/40 bg-secondary-container/40 p-3.5 anim-fade-up">
+            <p className="text-sm font-medium">{tl(lang, 'import.tokenCreatedTitle', { name: created.token.name })}</p>
+            <CopyField value={created.secret} label={tl(lang, 'import.copyTokenTitle')} />
+            <p className="text-xs text-on-surface-variant">{tl(lang, 'shortcuts.headerHint')}</p>
+            <CopyField value={`Bearer ${created.secret}`} />
+            <button className="btn-ghost rounded-full px-4 text-sm" onClick={() => setCreated(null)}>
+              {tl(lang, 'common.done')}
+            </button>
+          </div>
+        ) : (
+          <form
+            className="space-y-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void createToken();
+            }}
+          >
+            <input className="input" placeholder={tl(lang, 'shortcuts.tokenNamePlaceholder')} maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
+            <div className="flex flex-col gap-1.5 text-sm text-on-surface-variant sm:flex-row sm:items-center sm:gap-2">
+              <span className="shrink-0">{tl(lang, 'import.validFor')}</span>
+              <Dropdown
+                value={String(days)}
+                onChange={(v) => setDays(Number(v))}
+                aria-label={tl(lang, 'import.validFor')}
+                className="sm:w-auto sm:min-w-[14rem]"
+                options={[...SHORTCUT_TOKEN_DAYS].sort((a, b) => a - b).map((d) => ({ value: String(d), label: tl(lang, 'import.days', { n: d }) }))}
+              />
+            </div>
+            <button className="btn-ghost rounded-full border border-outline-variant px-4" type="submit">
+              <Plus size={16} /> {tl(lang, 'import.tokenCreateBtn')}
+            </button>
+          </form>
+        )}
+        {error && <p className="text-sm text-error">{error}</p>}
+      </section>
+
+      <section className="card divide-y divide-outline-variant anim-fade-up">
+        <h2 className="p-5 pb-3 font-medium">{tl(lang, 'shortcuts.recipesTitle')}</h2>
+        {RECIPES.map((r) => (
+          <div key={r.route} className="space-y-1.5 p-4">
+            <div className="font-medium">{tl(lang, r.title)}</div>
+            <p className="text-sm text-on-surface-variant">{tl(lang, r.desc)}</p>
+            <code className="block overflow-x-auto whitespace-nowrap rounded-xl bg-surface-container-high px-3 py-2 text-xs scrollbar-thin">
+              {r.method} /api/shortcuts/{r.route}
+              {r.body && <span className="text-on-surface-variant"> · {r.body}</span>}
+            </code>
+          </div>
+        ))}
+      </section>
+
+      <section className="card divide-y divide-outline-variant anim-fade-up">
+        <h2 className="p-5 pb-3 font-medium">{tl(lang, 'shortcuts.tokensTitle')}</h2>
+        {tokens && !tokens.length && <p className="p-5 pt-3 text-sm text-on-surface-variant">{tl(lang, 'shortcuts.tokensEmpty')}</p>}
+        {tokens?.map((token) => (
+          <div key={token.id} className="flex items-center gap-3 p-4">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary-container text-on-secondary-container">
+              <KeyRound size={18} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-medium">{token.name}</div>
+              <div className="truncate text-xs text-on-surface-variant">
+                {token.expiresAt <= Date.now() ? <span className="text-error">{tl(lang, 'import.expired')}</span> : `${tl(lang, 'import.expires')} ${when(token.expiresAt)}`}
+              </div>
+              <div className="truncate text-xs text-on-surface-variant">
+                {tl(lang, 'import.created')} {when(token.createdAt)} · {tl(lang, 'import.lastUsed')} {when(token.lastUsedAt)}
+              </div>
+            </div>
+            <button className="btn-icon h-8 w-8 shrink-0" title={tl(lang, 'import.revoke')} aria-label={tl(lang, 'import.revoke')} onClick={() => void revoke(token)}>
+              <Trash2 size={15} />
+            </button>
+          </div>
+        ))}
+      </section>
+    </div>
+  );
+}

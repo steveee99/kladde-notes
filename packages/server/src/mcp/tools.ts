@@ -16,6 +16,7 @@ import {
   splitPath,
   toDateString,
   toggleTask,
+  type FeatureSettings,
   type SyncedNote,
 } from '@kladde/shared';
 import { MAX_NOTE_BYTES, NoteStore } from '../NoteStore.js';
@@ -56,6 +57,11 @@ function taskDue(ctx: ToolContext): (path: string) => string | null {
 
 /** Same as `taskDue`, for callers outside the MCP (the calendar feed) */
 export function taskDueOf(notes: NoteStore, userId: string): (path: string) => string | null {
+  return dailyDueResolver(featuresOf(notes, userId).daily);
+}
+
+/** The feature settings the client keeps in the user's settings note (daily notes, PARA, …) */
+export function featuresOf(notes: NoteStore, userId: string): FeatureSettings {
   const settings = notes.ownedNotes(userId).find((n) => n.id === `syssettings-${userId}`);
   let raw: unknown;
   try {
@@ -63,7 +69,7 @@ export function taskDueOf(notes: NoteStore, userId: string): (path: string) => s
   } catch {
     raw = undefined;
   }
-  return dailyDueResolver(normalizeFeatures(raw).daily);
+  return normalizeFeatures(raw);
 }
 
 const str = (args: Record<string, unknown>, key: string, required = false): string | undefined => {

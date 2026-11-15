@@ -41,6 +41,7 @@
 | **Versionsverlauf** | Verlauf pro Notiz mit bis zu 100 Ständen auf dem Server; Diff-Ansicht mit hinzugefügten/entfernten Zeilen (`git diff`-Stil) oder gerenderter Text; Wiederherstellung per Klick |
 | **Rezept-Import** | Rezepte per Link importieren (schema.org von Chefkoch, EatSmarter, Food-Blogs etc.) einheitlich nach `3 Ressourcen/Rezepte`: Zutaten-Tabelle, nummerierte Schritte, Quelle |
 | **KI & MCP** | MCP-Server (`/mcp`, Streamable HTTP) für Assistenten wie Claude Desktop, Claude Code, Cursor: OAuth 2.1 oder persönliche Zugriffstoken (PAT); Zugriff isoliert auf eigene Notizen |
+| **Apple Kurzbefehle** | Token-geschützte API (`/api/shortcuts`) für die Kurzbefehle-App: Links, Text, Fotos und PDFs aus dem Teilen-Menü sichern, schnelle Notizen in die Tagesnotiz, neue Aufgaben und eine Automation am Morgen mit den heute fälligen Aufgaben. Siehe [docs/SHORTCUTS.de.md](docs/SHORTCUTS.de.md) |
 | **Wochenrückblick** | Opt-In unter Einstellungen → Funktionen. `/review`: Inbox, überfällige Aufgaben, Projekte ohne nächsten Schritt, ruhende Bereiche, alte flüchtige und unverbundene Zettel; Erinnerung nach 7 Tagen |
 | **Vorlagen** | Eigene Vorlagen unter Einstellungen → Vorlagen verwalten (`{{title}}`, `{{date}}`, `{{zid}}`), mit Standard-Zielordner und verschlüsselter Synchronisation |
 | **Medien** | Bilder und PDFs per Einfügen/Ziehen/Button; Bilder-Grid mit ```` ```gallery ```` ; PDF eingebettet; Code-Blöcke mit Syntax-Highlighting und Kopieren |

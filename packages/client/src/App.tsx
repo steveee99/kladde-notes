@@ -31,6 +31,7 @@ import { TrashView } from './views/Trash';
 import { DailyNoteEmptyView } from './views/DailyNoteBar';
 import { CalendarView } from './views/ActivityHeatmap';
 import { TasksView } from './views/TasksView';
+import { ShortcutsSettingsView } from './views/ShortcutsSettings';
 
 const ME_KEY = 'kladde_me';
 
@@ -183,6 +184,7 @@ export function App() {
   else if (path === '/settings/mcp') page = <McpSettingsView />;
   else if (path === '/settings/import' && !me.standalone) page = <ImportSettingsView />;
   else if (path === '/settings/calendar' && !me.standalone) page = <CalendarSettingsView />;
+  else if (path === '/settings/shortcuts' && !me.standalone) page = <ShortcutsSettingsView />;
   else if (path === '/settings/notifications' && !me.standalone) page = <NotificationSettingsView />;
   else if (path === '/files' || path === '/settings/files') page = <FilesView />;
   else if (path === '/trash') page = <TrashView />;
