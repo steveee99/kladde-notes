@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 
 export const WIDESCREEN_PRESETS = [50, 80, 100] as const;
 export const DEFAULT_PERCENT = 80;
-export const MIN_PERCENT = 35;
+export const MIN_PERCENT = 50;
 export const MAX_PERCENT = 100;
 
 export interface WidescreenConfig {

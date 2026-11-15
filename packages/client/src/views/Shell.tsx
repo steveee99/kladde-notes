@@ -5,7 +5,6 @@ import {
   Globe,
   ListChecks,
   CalendarDays,
-  CalendarRange,
   CheckCircle2,
   ChefHat,
   ChevronDown,
@@ -19,7 +18,6 @@ import {
   FolderOpen,
   FolderPlus,
   Home,
-  Images,
   Inbox as InboxIcon,
   Lightbulb,
   Loader2,
@@ -60,6 +58,7 @@ import { ShareDialog } from './ShareDialog';
 import { MaterialShell } from './MaterialShell';
 import { Avatar } from './Avatar';
 import { AppLogo } from './AppLogo';
+import { NavBadge } from './NavBadge';
 import { AttachmentHitList, useAttachmentSearch } from './AttachmentHits';
 import { ConfluenceDialog } from './ConfluenceDialog';
 import { confluenceAvailable } from '../lib/confluence';
@@ -100,7 +99,7 @@ function NewNoteButton({
   onNavigate?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ left: number; bottom: number; width: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const pdfInput = useRef<HTMLInputElement>(null);
@@ -109,7 +108,7 @@ function NewNoteButton({
     if (!open) return;
     const place = () => {
       const r = wrapRef.current?.getBoundingClientRect();
-      if (r) setPos({ left: r.left, bottom: window.innerHeight - r.top + 6, width: r.width });
+      if (r) setPos({ left: r.left, top: r.bottom + 6, width: r.width });
     };
     place();
     const onDown = (e: PointerEvent) => {
@@ -141,7 +140,7 @@ function NewNoteButton({
   );
 
   return (
-    <div ref={wrapRef} className="edit-only mt-2 flex shrink-0 gap-0.5">
+    <div ref={wrapRef} className="edit-only flex shrink-0 gap-0.5">
       <button className="btn-primary min-w-0 flex-1 !rounded-r-md" onClick={() => run(() => newNote())}>
         <Plus size={16} /> <span className="truncate">{t('nav.newNote')}</span>
       </button>
@@ -173,7 +172,7 @@ function NewNoteButton({
             ref={menuRef}
             role="menu"
             aria-label={t('nav.newNoteMore')}
-            style={{ left: pos?.left ?? 0, bottom: pos?.bottom ?? 0, minWidth: pos?.width ?? 0, visibility: pos ? 'visible' : 'hidden' }}
+            style={{ left: pos?.left ?? 0, top: pos?.top ?? 0, minWidth: pos?.width ?? 0, visibility: pos ? 'visible' : 'hidden' }}
             className="m3-menu anim-m3-menu fixed z-[90]"
             onKeyDown={(e) => {
               if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
@@ -226,7 +225,7 @@ export async function openTodayDailyNote(): Promise<void> {
   navigate(`/n/${note.id}`);
 }
 
-export function SyncBadge() {
+export function SyncBadge({ compact }: { compact?: boolean } = {}) {
   useVault();
   useLang();
   const pending = vault.pendingCount();
@@ -248,9 +247,9 @@ export function SyncBadge() {
   // The demo has no server: say where the notes are instead of a sync state
   if (DEMO)
     return (
-      <span title={t('demo.badgeTitle')} className="chip text-tertiary">
-        <CloudOff size={18} />
-        <span className="hidden sm:inline">{t('demo.badge')}</span>
+      <span title={t('demo.badgeTitle')} className={compact ? 'flex h-10 w-10 shrink-0 items-center justify-center text-tertiary' : 'chip text-tertiary'}>
+        <CloudOff size={compact ? 20 : 18} />
+        {!compact && <span className="hidden sm:inline">{t('demo.badge')}</span>}
       </span>
     );
   return (
@@ -258,16 +257,20 @@ export function SyncBadge() {
       onClick={() => (files && !navigator.onLine ? navigate('/files') : vault.kick())}
       title={`${fullLabel} — ${t('common.syncAction')}`}
       aria-label={fullLabel}
-      className={`chip ${state === 'offline' ? 'text-warn' : state === 'error' ? 'text-error' : ''}`}
+      className={`${compact ? 'btn-icon relative' : 'chip'} ${state === 'offline' ? 'text-warn' : state === 'error' ? 'text-error' : ''}`}
     >
-      <Icon size={18} className={state === 'syncing' ? 'animate-spin' : ''} />
-      <span className="hidden sm:inline">{label}</span>
+      <Icon size={compact ? 20 : 18} className={state === 'syncing' ? 'animate-spin' : ''} />
+      {compact ? (
+        (pending > 0 || files > 0) && <span aria-hidden className="absolute right-2 top-2 h-2 w-2 rounded-full bg-warn" />
+      ) : (
+        <span className="hidden sm:inline">{label}</span>
+      )}
     </button>
   );
 }
 
 /** Switches the read-only mode for every page on this device */
-export function ReadOnlyToggle() {
+export function ReadOnlyToggle({ compact }: { compact?: boolean } = {}) {
   const on = useReadOnly();
   useLang();
   const label = on ? t('nav.readOnlyOn') : t('nav.readOnlyOff');
@@ -277,10 +280,10 @@ export function ReadOnlyToggle() {
       title={on ? t('nav.readOnlyDisableTitle') : t('nav.readOnlyEnableTitle')}
       aria-pressed={on}
       aria-label={label}
-      className="chip"
+      className={compact ? `btn-icon ${on ? '!bg-secondary-container !text-on-secondary-container' : ''}` : 'chip'}
     >
-      {on ? <Lock size={18} /> : <LockOpen size={18} />}
-      {on && <span>{t('nav.readOnlyBadge')}</span>}
+      {on ? <Lock size={compact ? 20 : 18} /> : <LockOpen size={compact ? 20 : 18} />}
+      {on && !compact && <span>{t('nav.readOnlyBadge')}</span>}
     </button>
   );
 }
@@ -523,7 +526,9 @@ function FolderItem({
               </button>
             )}
           </span>
-          <span className={`w-5 shrink-0 text-right text-xs text-on-surface-variant ${locked ? '' : 'group-hover:hidden [@media(hover:none)]:hidden'}`}>{folderNotes.length || ''}</span>
+          <span className={`flex shrink-0 ${locked ? '' : 'group-hover:hidden [@media(hover:none)]:hidden'}`}>
+            <NavBadge tone="plain" count={folderNotes.length} />
+          </span>
         </div>
       )}
       {/* Portal: the sidebar may be transformed (mobile drawer), which would trap a fixed overlay */}
@@ -607,6 +612,7 @@ function SectionHeader({
   open,
   onToggle,
   count,
+  badge,
   children,
 }: {
   icon?: typeof Star;
@@ -614,20 +620,23 @@ function SectionHeader({
   open: boolean;
   onToggle: () => void;
   count?: number;
+  /** Shown instead of `count` while the section is closed (e.g. urgent counts of the navigation) */
+  badge?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
-    <div className="mt-2 mb-0.5 flex shrink-0 items-center gap-1 pl-1 pr-3 text-title-s text-on-surface-variant">
+    <div className="mt-2 mb-0.5 flex shrink-0 items-center gap-1 pl-1 pr-1.5 text-title-s text-on-surface-variant">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex min-w-0 flex-1 items-center gap-1 rounded-full px-2 py-1 text-left transition-colors hover:bg-surface-container-high hover:text-on-surface"
+        className="flex min-w-0 flex-1 items-center gap-1 rounded-full py-1 pl-2 pr-0 text-left transition-colors hover:bg-surface-container-high hover:text-on-surface"
       >
         {open ? <ChevronDown size={13} className="shrink-0" /> : <ChevronRight size={13} className="shrink-0" />}
         {Icon && <Icon size={12} className="shrink-0" />}
         <span className="min-w-0 flex-1 truncate">{label}</span>
-        {!open && count ? <span className="font-medium normal-case tracking-normal opacity-75">{count}</span> : null}
+        {!open && badge}
+        {!open && !badge && count ? <NavBadge tone="plain" count={count} /> : null}
       </button>
       {children}
     </div>
@@ -645,6 +654,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
   const [activeResult, setActiveResult] = useState(0);
   const [favoritesOpen, setFavoritesOpen] = useSectionOpen('favorites', () => window.innerHeight >= 700);
   const [foldersOpen, setFoldersOpen] = useSectionOpen('folders', () => true);
+  const [navOpen, setNavOpen] = useSectionOpen('nav', () => true);
   const [revealRequest, setRevealRequest] = useState<RevealRequest | null>(null);
   const [flashNoteId, setFlashNoteId] = useState<string | null>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -776,12 +786,12 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
     navigate(to);
     onNavigate?.();
   };
-  /** Compact navigation: one round icon button per destination, the label as tooltip, counts as a corner badge */
-  const navIcon = (
+  /** One navigation destination as a list row: icon, label, then a trailing count or badge */
+  const navRow = (
     key: string,
     Icon: typeof Home,
     label: string,
-    opts: { to?: string; onClick?: () => void; active?: boolean; badge?: React.ReactNode; dataAttrs?: Record<string, string> } = {}
+    opts: { to?: string; onClick?: () => void; active?: boolean; badge?: React.ReactNode; trailing?: number; title?: string; dataAttrs?: Record<string, string> } = {}
   ) => {
     const active = opts.active ?? (opts.to ? path === opts.to : false);
     return (
@@ -791,27 +801,18 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
         {...opts.dataAttrs}
         onClick={opts.onClick ?? (() => opts.to && nav(opts.to))}
         aria-current={active ? 'page' : undefined}
-        aria-label={label}
-        title={label}
-        className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${
+        title={opts.title}
+        className={`flex h-10 w-full shrink-0 items-center gap-3 rounded-full pl-3.5 pr-1.5 text-left text-sm font-medium transition-colors ${
           active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
         }`}
       >
-        <Icon size={19} />
+        <Icon size={20} filled={active} className="shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        {typeof opts.trailing === 'number' && <NavBadge tone="plain" count={opts.trailing} />}
         {opts.badge}
       </button>
     );
   };
-  const countBadge = (n: number, tone: 'warn' | 'muted' = 'muted') =>
-    n > 0 ? (
-      <span
-        className={`absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full px-1 text-center text-[10px] font-medium leading-[1.1rem] ${
-          tone === 'warn' ? 'bg-warn text-surface-container-low' : 'bg-surface-container-high text-on-surface-variant ring-1 ring-outline-variant'
-        }`}
-      >
-        {n > 99 ? '99+' : n}
-      </span>
-    ) : null;
   const ownNotes = notes.filter((n) => n.access === 'owner').length;
   const urgentTasks = urgentTaskCount(version);
 
@@ -821,17 +822,24 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
       className="flex h-full flex-col gap-1 overflow-hidden p-3"
       onClick={(e) => (e.target as HTMLElement).closest('[data-close]') && onNavigate?.()}
     >
-      <div className="flex min-w-0 shrink-0 items-center gap-1.5 px-1">
+      {/* Menu button, the brand next to it and Home on the right */}
+      <div className="flex min-w-0 shrink-0 items-center gap-2.5">
         {headerAction}
-        <div className="ml-auto flex shrink-0 items-center gap-1">
-          <ReadOnlyToggle />
-          <SyncBadge />
-        </div>
+        <AppLogo size={32} />
+        <span className="min-w-0 flex-1 truncate text-title-l text-on-surface">Kladde</span>
+        <button
+          type="button"
+          onClick={() => nav('/')}
+          aria-current={path === '/' ? 'page' : undefined}
+          title={t('nav.home')}
+          aria-label={t('nav.home')}
+          className={`btn-icon shrink-0 ${path === '/' ? '!bg-secondary-container !text-on-secondary-container' : ''}`}
+        >
+          <Home size={24} filled={path === '/'} />
+        </button>
       </div>
-      {/* Brand on its own row: tonal logo tile and the name in Headline Small */}
-      <div className="mb-3 mt-1 flex min-w-0 shrink-0 items-center gap-3 px-2">
-        <AppLogo size={48} />
-        <span className="min-w-0 truncate text-headline-s text-on-surface">Kladde</span>
+      <div className="mb-1.5 mt-2 shrink-0">
+        <NewNoteButton zettel={features.zettel.enabled} recipe={features.recipe.enabled} folder={activeFolder} onNavigate={onNavigate} />
       </div>
 
       {/* Inline Material 3 search bar in the sidebar */}
@@ -922,39 +930,46 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto scrollbar-thin">
-          <nav aria-label={t('nav.main')} className="grid shrink-0 grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] justify-items-center gap-y-1 pb-1">
-            {navIcon('home', Home, t('nav.home'), { to: '/' })}
-            {features.daily.enabled &&
-              (!locked || !!dailyNote) &&
-              navIcon('daily', CalendarDays, t('daily.todayBtn'), { active: dailyRouteActive, onClick: () => void openTodayDailyNote().then(() => onNavigate?.()) })}
-            {features.heatmap.enabled && navIcon('calendar', CalendarRange, t('nav.calendar'), { to: '/calendar' })}
-            {navIcon('tasks', ListChecks, urgentTasks ? `${t('nav.tasks')} (${urgentTasks})` : t('nav.tasks'), {
-              to: '/tasks',
-              badge: countBadge(urgentTasks, 'warn'),
-            })}
-            {navIcon('notes', FileText, `${t('nav.allNotes')} (${ownNotes})`, { to: '/notes' })}
-            {navIcon('inbox', InboxIcon, inboxCount > 0 ? `${t('nav.inbox')} (${inboxCount})` : t('nav.inbox'), {
-              to: '/inbox',
-              badge: inboxZero ? countBadge(inboxCount, 'warn') : null,
-            })}
-            {navIcon('graph', Network, t('nav.graph'), { to: '/graph' })}
-            {navIcon('tags', Tags, t('nav.tags'), { to: '/tags', active: path === '/tags' || path.startsWith('/tags/') })}
-            {navIcon('files', Images, t('nav.files'), { to: '/files' })}
-            {navIcon('trash', Trash2, t('nav.trash'), { to: '/trash' })}
-            {features.review.enabled &&
-              navIcon('review', CalendarCheck, reviewDue() ? `${t('nav.review')} · ${t('home.reviewDueChip')}` : t('nav.review'), {
-                to: '/review',
-                badge: reviewDue() ? <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary" /> : null,
+          <SectionHeader
+            label={t('nav.navigationLabel')}
+            open={navOpen}
+            onToggle={() => setNavOpen(!navOpen)}
+            badge={<NavBadge tone="warn" count={urgentTasks + (inboxZero ? inboxCount : 0)} />}
+          />
+          {navOpen && (
+            <nav aria-label={t('nav.main')} className="flex shrink-0 flex-col gap-0.5 pb-1 pl-4">
+              {features.daily.enabled &&
+                (!locked || !!dailyNote) &&
+                navRow('daily', CalendarDays, t('daily.navShort'), {
+                  active: dailyRouteActive,
+                  title: t('daily.todayBtn'),
+                  onClick: () => void openTodayDailyNote().then(() => onNavigate?.()),
+                })}
+              {navRow('tasks', ListChecks, t('nav.tasks'), { to: '/tasks', badge: <NavBadge tone="warn" count={urgentTasks} /> })}
+              {navRow('inbox', InboxIcon, t('nav.inbox'), {
+                to: '/inbox',
+                badge: inboxZero ? <NavBadge tone="warn" count={inboxCount} /> : null,
+                trailing: inboxZero || !inboxCount ? undefined : inboxCount,
               })}
-            {(shared > 0 || vault.sharedFolders.length > 0) &&
-              !vault.standalone &&
-              navIcon('shared', Share2, t('nav.sharedWithMe'), { to: '/shared', badge: countBadge(shared), dataAttrs: { 'data-tree-shared': 'true' } })}
-          </nav>
+              {navRow('notes', FileText, t('nav.allNotes'), { to: '/notes', trailing: ownNotes || undefined })}
+              {navRow('graph', Network, t('nav.graph'), { to: '/graph' })}
+              {navRow('tags', Tags, t('nav.tags'), { to: '/tags', active: path === '/tags' || path.startsWith('/tags/') })}
+              {features.review.enabled &&
+                navRow('review', CalendarCheck, t('nav.review'), {
+                  to: '/review',
+                  title: reviewDue() ? t('home.reviewDueChip') : undefined,
+                  badge: reviewDue() ? <NavBadge dot className="mr-1.5" /> : null,
+                })}
+              {(shared > 0 || vault.sharedFolders.length > 0) &&
+                !vault.standalone &&
+                navRow('shared', Share2, t('nav.sharedWithMe'), { to: '/shared', badge: <NavBadge count={shared} />, dataAttrs: { 'data-tree-shared': 'true' } })}
+            </nav>
+          )}
           {favoriteNotes.length > 0 && (
             <>
               <SectionHeader icon={Star} label={t('nav.favorites')} open={favoritesOpen} onToggle={() => setFavoritesOpen(!favoritesOpen)} count={favoriteNotes.length} />
               {favoritesOpen && (
-                <ul data-favorites-list className="max-h-[10.75rem] shrink-0 overflow-y-auto scrollbar-thin">
+                <ul data-favorites-list className="max-h-[10.75rem] shrink-0 overflow-y-auto pl-6 scrollbar-thin">
                   {favoriteNotes.map((n) => (
                     <SidebarNoteRow key={n.id} note={n} label={projectTitleOf(n.path, n.content, roleConfig)} active={activeNoteId === n.id} depth={0} onNavigate={onNavigate} />
                   ))}
@@ -986,7 +1001,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
               <FolderPlus size={14} />
             </button>
           </SectionHeader>
-          <ul className={`min-h-[8rem] flex-1 overflow-y-auto scrollbar-thin ${foldersOpen ? '' : 'hidden'}`}>
+          <ul className={`min-h-[8rem] flex-1 overflow-y-auto pl-6 scrollbar-thin ${foldersOpen ? '' : 'hidden'}`}>
             {newRoot && (
               <li className="px-1">
                 <FolderNameInput
@@ -1029,24 +1044,23 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
             </li>
           </ul>
           {!foldersOpen && <div className="flex-1" aria-hidden />}
-          <NewNoteButton
-            zettel={features.zettel.enabled}
-            recipe={features.recipe.enabled}
-            folder={activeFolder}
-            onNavigate={onNavigate}
-          />
-          <button
-            type="button"
-            onClick={() => nav('/settings')}
-            aria-current={settingsActive ? 'page' : undefined}
-            className={`flex w-full shrink-0 items-center gap-3 rounded-full px-3 py-2 text-sm font-medium transition-colors ${
-              settingsActive ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
-            }`}
-          >
-            <Avatar name={me.username} avatarUrl={me.avatarUrl} size="xs" active={settingsActive} />
-            <span className="flex-1 truncate text-left">{t('nav.settings')}</span>
-            <span className="truncate text-xs opacity-70">{me.username}</span>
-          </button>
+          {/* Settings with the device status (read-only, sync) next to it */}
+          <div className="m3-status mt-1 flex shrink-0 items-center gap-1 border-t border-outline-variant/60 pt-1.5">
+            <button
+              type="button"
+              onClick={() => nav('/settings')}
+              aria-current={settingsActive ? 'page' : undefined}
+              title={me.username}
+              className={`flex min-w-0 flex-1 items-center gap-3 rounded-full px-3 py-2 text-sm font-medium transition-colors ${
+                settingsActive ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+              }`}
+            >
+              <Avatar name={me.username} avatarUrl={me.avatarUrl} size="xs" active={settingsActive} />
+              <span className="min-w-0 flex-1 truncate text-left">{t('nav.settings')}</span>
+            </button>
+            <ReadOnlyToggle compact />
+            <SyncBadge compact />
+          </div>
         </div>
       )}
     </div>
