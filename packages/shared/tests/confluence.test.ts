@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cdata, confluenceLabel, markdownToConfluence, runQuery, xmlEscape } from '../src';
+import { cdata, confluenceLabel, markdownToConfluence, runQuery, trimChar, xmlEscape } from '../src';
 
 describe('markdownToConfluence (#48)', () => {
   it('converts headings, paragraphs, inline formatting and links, and drops the frontmatter and a repeated H1', () => {
@@ -85,5 +85,14 @@ describe('markdownToConfluence (#48)', () => {
     expect(xmlEscape('a & "b" <c>')).toBe('a &amp; &quot;b&quot; &lt;c&gt;');
     expect(cdata('x]]>y')).toBe('<![CDATA[x]]]]><![CDATA[>y]]>');
     expect(confluenceLabel('#Bereich/Gesundheit')).toBe('bereich-gesundheit');
+  });
+});
+
+describe('Confluence helpers on long input', () => {
+  it('handle long runs of separators quickly', () => {
+    const started = Date.now();
+    expect(confluenceLabel(`${'-'.repeat(100_000)}a`)).toBe('a');
+    expect(trimChar('//a/b//', '/')).toBe('a/b');
+    expect(Date.now() - started).toBeLessThan(500);
   });
 });

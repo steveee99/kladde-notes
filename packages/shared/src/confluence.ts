@@ -132,14 +132,22 @@ export function cdata(text: string): string {
   return `<![CDATA[${text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').replace(/]]>/g, ']]]]><![CDATA[>')}]]>`;
 }
 
+/** Removes a character from both ends without a regex (linear also for long runs of it) */
+export function trimChar(text: string, ch: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && text[start] === ch) start++;
+  while (end > start && text[end - 1] === ch) end--;
+  return text.slice(start, end);
+}
+
 /** Confluence labels: lowercase, no spaces or punctuation besides - and _ */
 export function confluenceLabel(tag: string): string {
-  return tag
+  const dashed = tag
     .toLowerCase()
     .replace(/^#/, '')
-    .replace(/[\s/:;,.?&[\]()#^*@!<>"'|\\]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 255);
+    .replace(/[\s/:;,.?&[\]()#^*@!<>"'|\\]+/g, '-');
+  return trimChar(dashed, '-').slice(0, 255);
 }
 
 const CALLOUTS: Record<string, string> = {

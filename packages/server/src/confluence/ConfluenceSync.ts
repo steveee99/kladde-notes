@@ -141,7 +141,8 @@ export class ConfluenceSync {
       if (record) throw new ConfluenceError('Diese Notiz wird schon synchronisiert.', 409);
       return this.store.createSync(userId, { kind: 'note', noteId: note.id, folder: null, ...base });
     }
-    const folder = String(input.folder ?? '').replace(/^\/+|\/+$/g, '');
+    // Split instead of a trimming regex: linear for any input (also collapses double slashes)
+    const folder = String(input.folder ?? '').split('/').filter(Boolean).join('/');
     if (!folder || folder.startsWith(SYSTEM_PREFIX.slice(0, -1)) || folder.split('/').some((p) => p === '..' || p === '.')) throw new ConfluenceError('Ungültiger Ordner.');
     if (this.store.syncs(userId).some((s) => s.kind === 'folder' && s.folder === folder)) throw new ConfluenceError('Dieser Ordner wird schon synchronisiert.', 409);
     return this.store.createSync(userId, { kind: 'folder', noteId: null, folder, ...base });
