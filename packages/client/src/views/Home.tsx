@@ -459,6 +459,7 @@ export function HomeView() {
   const projects = features.para.enabled
     ? projectsOf(own, new Date(), roleConfig).sort((a, b) => (a.status === b.status ? b.updatedAt - a.updatedAt : a.status === 'aktiv' ? -1 : 1))
     : [];
+  const todayStr = toDateString(new Date());
   const inboxCount = own.filter((n) => splitPath(n.path).folder === INBOX_FOLDER).length;
   const recent = [...notes].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6);
   const hour = new Date().getHours();
@@ -620,13 +621,19 @@ export function HomeView() {
                       <span className="truncate font-medium">{p.title}</span>
                       {p.status === 'pausiert' && <span className="chip text-warn">{t('home.statusPaused')}</span>}
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       {p.openTasks ? (
                         <span className="chip">{t('home.projectOpenTasks', { n: p.openTasks })}</span>
                       ) : (
                         <span className="chip text-warn">{t('home.projectNoNextStep')}</span>
                       )}
-                      {p.nextDue && <span className="cm-due">📅 {formatDue(p.nextDue)}</span>}
+                      {p.nextDue && (
+                        // A chip like its neighbours: the bare `.cm-due` pill stretched to the 32 dp row and left its text at the top
+                        <span className={`chip ${p.nextDue < todayStr ? 'text-error' : p.nextDue === todayStr ? 'text-warn' : ''}`}>
+                          <CalendarDays size={18} className="shrink-0" />
+                          {formatDue(p.nextDue)}
+                        </span>
+                      )}
                     </div>
                   </button>
                 ))}
