@@ -38,6 +38,10 @@ describe('tags and graph filters stay linear', () => {
     fast(() => tagBeforeCursor(`${' #'.repeat(N)}${'a'.repeat(N)}`));
     fast(() => tagBeforeCursor(`${'a'.repeat(N)}!`));
     fast(() => filterGraph(new LinkIndex([]), [], { folder: `${'/'.repeat(N)}x${'/'.repeat(N)}` }));
+    const feed = { name: 'x', baseUrl: 'https://a', includeDone: false, folder: '', showTitles: true, lang: 'de' as const };
+    const notes = [{ id: '1', path: 'a.md', content: `- [ ] x${' #'.repeat(N)}a 📅 2026-01-01`, updatedAt: 0 }];
+    fast(() => buildCalendar(notes, { ...feed, tag: `${' '.repeat(N)}#${'('.repeat(N)}` }));
+    fast(() => buildCalendar(notes, { ...feed, tag: 'a'.repeat(N) }));
   });
 
   it('keeps the results', () => {

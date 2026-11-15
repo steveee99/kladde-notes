@@ -104,11 +104,15 @@ function plainTaskText(text: string): string {
     .trim();
 }
 
+/** `#tags` in a task's text, with the same characters as `extractMeta` */
+const TASK_TAG = /(^|\s)#([\p{L}\p{N}_/-]+)/gu;
+
 function matchesTag(task: Task, noteTags: string[], tag: string): boolean {
-  const wanted = tag.replace(/^#/, '').toLowerCase();
-  // A parent tag includes its children (`#area` matches `#area/health`)
-  if (noteTags.some((t) => tagMatches(t, wanted))) return true;
-  return new RegExp(`(^|\\s)#${wanted.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[\\s/.,;:!?])`, 'iu').test(task.text);
+  // A parent tag includes its children (`#area` matches `#area/health`). The tags of the text are
+  // compared one by one: no regex is built from the feed's tag option (CodeQL regex injection / ReDoS)
+  if (noteTags.some((t) => tagMatches(t, tag))) return true;
+  for (const m of task.text.matchAll(TASK_TAG)) if (tagMatches(m[2], tag)) return true;
+  return false;
 }
 
 /** Tasks that belong into the feed, in a stable order */
