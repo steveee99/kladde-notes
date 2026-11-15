@@ -25,3 +25,4 @@ export * from './calendar.js';
 export * from './embed.js';
 export * from './tags.js';
 export * from './graph.js';
+export * from './webclip.js';

@@ -9,6 +9,7 @@ import { FileStore, MAX_FILE_BYTES } from './FileStore.js';
 import { UserRecord, UserStore } from './UserStore.js';
 import { handle, rateLimit, requireUser } from './http.js';
 import { ImportError, importRecipe } from './RecipeImport.js';
+import { clipPage } from './WebClip.js';
 
 /** Open event streams per user: a ping makes every device pull right away */
 export class LiveUpdates {
@@ -324,6 +325,22 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       const url = typeof req.body?.url === 'string' ? req.body.url.slice(0, 2000) : '';
       try {
         res.json(await importRecipe(url));
+      } catch (err) {
+        if (err instanceof ImportError) res.status(422).json({ error: err.message });
+        else throw err;
+      }
+    })
+  );
+
+  // Web clipper (#32): article as Markdown, optionally with its images stored as attachments
+  router.post(
+    '/clip',
+    rateLimit(30, 10 * 60_000),
+    handle(async (req, res) => {
+      const url = typeof req.body?.url === 'string' ? req.body.url.slice(0, 2000) : '';
+      const userId = req.user!.id;
+      try {
+        res.json(await clipPage(url, { images: req.body?.images === true, save: (name, mime, data) => `/api/files/${files.save(userId, name, mime, data).id}` }));
       } catch (err) {
         if (err instanceof ImportError) res.status(422).json({ error: err.message });
         else throw err;

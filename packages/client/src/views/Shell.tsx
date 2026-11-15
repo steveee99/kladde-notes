@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CalendarCheck,
+  Globe,
   ListChecks,
   CalendarDays,
   CalendarRange,
@@ -180,6 +181,7 @@ function NewNoteButton({
           >
             {menuItem(FileText, t('nav.newNoteShort'), () => newNote())}
             {zettel && menuItem(Lightbulb, 'Zettel', newZettel, t('nav.zettelTitle'))}
+            {menuItem(Globe, t('clip.kind'), () => openDialog({ kind: 'clip' }), t('clip.title'))}
             {recipe && menuItem(ChefHat, t('nav.recipe'), () => importRecipe(), t('quick.recipeTitle'))}
             {menuItem(Draw, t('nav.drawingNote'), () => void createDrawingNote(folder ?? INBOX_FOLDER), t('nav.drawingNoteTitle'))}
             {/* Not run(): onNavigate may close the mobile drawer, which would drop the file input */}
