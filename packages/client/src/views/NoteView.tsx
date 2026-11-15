@@ -78,7 +78,7 @@ import { Sheet } from './Dialogs';
 import { Avatar } from './Avatar';
 import { PresenceBar, useAnnouncePresence } from './PresenceBar';
 import { folderDisplayName, t, useLang, type Lang } from '../lib/i18n';
-import { setNoteSplitOpen, setNoteSplitTab, setSourceMode, useNoteSplitOpen, useNoteSplitTab, useSourceMode, type NoteSplitTab } from '../lib/prefs';
+import { setLocalGraphDepth, setNoteSplitOpen, setNoteSplitTab, setSourceMode, useLocalGraphDepth, useNoteSplitOpen, useNoteSplitTab, useSourceMode, type NoteSplitTab } from '../lib/prefs';
 import { isCoarsePointer } from '../lib/viewport';
 import { useRightPaneHost } from './MaterialShell';
 import { DailyCarryOver, DailyNoteBar } from './DailyNoteBar';
@@ -729,6 +729,7 @@ function NoteInspectorPane({
 }) {
   useLang();
   const rc = vault.roleConfig();
+  const graphDepth = useLocalGraphDepth();
   const tabs: { id: NoteSplitTab; label: string; Icon: typeof ListTree; count?: number }[] = [
     { id: 'toc', label: t('note.tabToc'), Icon: ListTree, count: outline.headings.length || undefined },
     { id: 'links', label: t('note.tabLinks'), Icon: Link2, count: backlinks.length + mentions.length || undefined },
@@ -833,6 +834,19 @@ function NoteInspectorPane({
                 <GraphLegend />
               </div>
             )}
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              {/* Without a direct neighbour no depth adds anything */}
+              <div className={`segmented h-8 ${local.nodes.length <= 1 ? 'hidden' : ''}`} role="group" aria-label={t('graph.depth')}>
+                {[1, 2, 3].map((d) => (
+                  <button key={d} type="button" aria-pressed={graphDepth === d} onClick={() => setLocalGraphDepth(d)} title={t('graph.depthTitle', { n: d })}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="btn-text ml-auto" onClick={() => navigate(`/graph?focus=${encodeURIComponent(noteId)}`)}>
+                <Network size={18} /> {t('graph.openInGraph')}
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -891,6 +905,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const splitOpen = useNoteSplitOpen();
   const sourceMode = useSourceMode();
   const splitTab = useNoteSplitTab();
+  const graphDepth = useLocalGraphDepth();
   const focusMode = useFocusMode();
   // Bumped (debounced) on every edit or selection change in the editor, for the live word count
   const [statsTick, setStatsTick] = useState(0);
@@ -1003,7 +1018,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const index = vault.links();
   const backlinks = index.backlinks(id).map((b) => vault.get(b)!).filter(Boolean);
   const mentions = index.unlinkedMentions(id).map((m) => vault.get(m)!).filter((n) => n && n.access !== 'read');
-  const local = index.localGraph(id, 2);
+  const local = index.localGraph(id, graphDepth);
   const pdf = pdfNoteOf(note.content);
   const drawing = excalidrawSceneOf(note.content);
   // Full-size panels replace the editor: a PDF viewer or a drawing canvas

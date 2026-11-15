@@ -157,3 +157,34 @@ export function setLigatures(on: boolean): void {
 export function useLigatures(): boolean {
   return useSyncExternalStore(subscribe, () => ligatures);
 }
+
+const GRAPH_DEPTH_KEY = 'kladde_local_graph_depth';
+
+function readGraphDepth(): number {
+  try {
+    const n = Number(typeof localStorage !== 'undefined' ? localStorage.getItem(GRAPH_DEPTH_KEY) : null);
+    if (n === 1 || n === 2 || n === 3) return n;
+  } catch {
+    // ignore
+  }
+  return 2;
+}
+
+let graphDepth = readGraphDepth();
+
+/** Hops shown in a note's local graph, 1–3 (per device) */
+export function setLocalGraphDepth(depth: number): void {
+  const next = Math.max(1, Math.min(3, Math.round(depth)));
+  if (graphDepth === next) return;
+  graphDepth = next;
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(GRAPH_DEPTH_KEY, String(next));
+  } catch {
+    // ignore
+  }
+  listeners.forEach((l) => l());
+}
+
+export function useLocalGraphDepth(): number {
+  return useSyncExternalStore(subscribe, () => graphDepth);
+}
