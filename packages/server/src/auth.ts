@@ -32,6 +32,8 @@ export interface AuthOptions {
   publicUrl: string | null;
   secureCookies: boolean;
   devLogin: boolean;
+  /** The server transcribes voice notes (shown to the client in /auth/me) */
+  transcription?: boolean;
   /** "Sign in with GitLab", null/undefined = off */
   gitlab?: GitLabConfig | null;
   /** Replaces fetch for the GitLab token/user lookups (tests) */
@@ -152,6 +154,7 @@ export function authRouter(opts: AuthOptions): express.Router {
       isAdmin: user.isAdmin,
       avatarUrl: user.avatarUrl,
       externalLogins: users.externalLoginsOf(user.id),
+      transcription: !!opts.transcription,
     };
   };
 

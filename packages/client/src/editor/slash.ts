@@ -106,6 +106,16 @@ function commands(insertFiles: FileInserter, lang: Lang): SlashCommand[] {
         input.click();
       },
     },
+    {
+      label: tl(lang, 'editor.slash.audio'),
+      detail: tl(lang, 'editor.slash.audioDetail'),
+      keywords: 'audio voice sprachnotiz aufnahme mikrofon diktat',
+      run: (view, from, to) => {
+        view.dispatch({ changes: { from, to, insert: '' } });
+        // The recording is stored like a pasted file (also offline, #28)
+        void editorHost.recordVoice().then((file) => file && insertFiles(view, [file], Math.min(from, view.state.doc.length)));
+      },
+    },
   ];
 }
 

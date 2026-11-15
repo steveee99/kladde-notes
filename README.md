@@ -47,7 +47,7 @@ The app and its UI are available in **English and German**. Some of the guides i
 | **Apple Shortcuts** | Token-protected API (`/api/shortcuts`) for the iOS Shortcuts app: save links, text, photos and PDFs from the share sheet, quick notes into the daily note, new tasks, and a morning automation with the tasks due today. See [docs/SHORTCUTS.md](docs/SHORTCUTS.md) |
 | **Weekly review** | Opt-in under Settings → Features. `/review`: inbox, overdue tasks, projects without a next step, dormant areas, old fleeting and unconnected Zettel; reminder after 7 days |
 | **Templates** | Your own templates under Settings → Templates (`{{title}}`, `{{date}}`, `{{zid}}`), with a default target folder and encrypted sync |
-| **Media** | Images and PDFs by paste, drag and drop or button; image grid with ```` ```gallery ```` and carousel with ```` ```carousel ````; embedded PDF viewer and PDF notes; code blocks with syntax highlighting and copy button |
+| **Media** | Images and PDFs by paste, drag and drop or button; image grid with ```` ```gallery ```` and carousel with ```` ```carousel ````; embedded PDF viewer and PDF notes; **voice notes** (record in Quick Capture or with `/audio`, optional transcription); attachments also work offline; code blocks with syntax highlighting and copy button |
 | **Offline & sync** | IndexedDB per account, sync via cursor + versions; concurrent changes (another device, another person, offline edits synced later) are merged with a three-way merge, line by line and word by word within a paragraph; only if both change the same words, the local text is kept as a "(Conflict …)" copy; live updates via Server-Sent Events |
 | **Collaboration** | Real-time co-editing (shared notes and your own devices/tabs): changes appear immediately in the open editor without cursor or undo history jumping; avatars with "Live" in the note header show who has the note open; colored remote cursors and selections in the editor |
 | **App & design** | PWA (installable, service worker), Material 3 design in dark and light with a navigation rail on desktop/tablet and a navigation bar on phones; note lists switchable between tiles, list and table |
@@ -144,6 +144,7 @@ Without access to the server you can import a local folder (e.g. an Obsidian vau
 | `BACKUP_KEEP` | Daily database backups in `data/backups` (default 7, `0` = off) |
 | `EXPORT_DIR` | Plain-text mirror of the notes (e.g. NAS), empty = off |
 | `TRASH_RETENTION_DAYS` | Days deleted notes stay in the trash before they are purged (default 30, `0` = until emptied by hand) |
+| `TRANSCRIBE_URL` | Optional speech-to-text for voice notes: an OpenAI-compatible transcription endpoint you run yourself, e.g. a local Whisper (`http://whisper:8000/v1/audio/transcriptions`). Unset = no transcription; recordings never go to a third-party service by default. `TRANSCRIBE_MODEL` (default `whisper-1`) and `TRANSCRIBE_API_KEY` are optional |
 | `VAPID_SUBJECT` | Contact for Web Push services (`mailto:…` or `https://…`), sent with every reminder. Default: `PUBLIC_URL` if it is https |
 | `PUSH_ALLOWED_HOSTS` | Extra push service hosts (comma-separated) besides Google, Mozilla, Apple and Microsoft; other endpoints are refused |
 

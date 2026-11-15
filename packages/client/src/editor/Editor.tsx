@@ -173,7 +173,7 @@ function fileHandlers() {
       return true;
     },
     drop(e, view) {
-      const files = [...(e.dataTransfer?.files ?? [])].filter((f) => /^(image\/|application\/pdf)/.test(f.type));
+      const files = [...(e.dataTransfer?.files ?? [])].filter((f) => /^(image\/|application\/pdf|audio\/)/.test(f.type));
       if (!files.length) return false;
       e.preventDefault();
       insertFiles(view, files, view.posAtCoords({ x: e.clientX, y: e.clientY }) ?? view.state.doc.length);

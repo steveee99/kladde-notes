@@ -130,6 +130,8 @@ export interface Me {
   standalone?: boolean;
   /** Local data directory path shown in standalone diagnostics/settings */
   dataDir?: string;
+  /** The server can transcribe voice notes (TRANSCRIBE_URL is set) */
+  transcription?: boolean;
 }
 
 export const PASSWORD_MIN_LENGTH = 8;

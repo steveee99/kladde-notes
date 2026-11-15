@@ -45,7 +45,7 @@
 | **Apple Kurzbefehle** | Token-geschützte API (`/api/shortcuts`) für die Kurzbefehle-App: Links, Text, Fotos und PDFs aus dem Teilen-Menü sichern, schnelle Notizen in die Tagesnotiz, neue Aufgaben und eine Automation am Morgen mit den heute fälligen Aufgaben. Siehe [docs/SHORTCUTS.de.md](docs/SHORTCUTS.de.md) |
 | **Wochenrückblick** | Opt-In unter Einstellungen → Funktionen. `/review`: Inbox, überfällige Aufgaben, Projekte ohne nächsten Schritt, ruhende Bereiche, alte flüchtige und unverbundene Zettel; Erinnerung nach 7 Tagen |
 | **Vorlagen** | Eigene Vorlagen unter Einstellungen → Vorlagen verwalten (`{{title}}`, `{{date}}`, `{{zid}}`), mit Standard-Zielordner und verschlüsselter Synchronisation |
-| **Medien** | Bilder und PDFs per Einfügen/Ziehen/Button; Bilder-Grid mit ```` ```gallery ```` ; PDF eingebettet; Code-Blöcke mit Syntax-Highlighting und Kopieren |
+| **Medien** | Bilder und PDFs per Einfügen/Ziehen/Button; Bilder-Grid mit ```` ```gallery ```` ; PDF eingebettet; **Sprachnotizen** (Aufnahme in Quick Capture oder mit `/audio`, optionale Transkription); Anhänge auch offline; Code-Blöcke mit Syntax-Highlighting und Kopieren |
 | **Offline & Sync** | IndexedDB pro Konto, Sync über Cursor + Versionen; gleichzeitige Änderungen (anderes Gerät, andere Person, nachträglich synchronisierte Offline-Bearbeitung) werden per Drei-Wege-Merge zusammengeführt – zeilenweise, im selben Absatz wortweise; nur wenn beide dieselben Wörter ändern, bleibt der lokale Text als „(Konflikt …)“-Kopie erhalten; Live-Updates per Server-Sent Events |
 | **Zusammenarbeit** | Gemeinsames Bearbeiten in Echtzeit (geteilte Notizen und eigene Geräte/Tabs): Änderungen erscheinen sofort im offenen Editor, ohne dass Cursor oder Rückgängig-Verlauf springen; im Notizkopf zeigen Profilbilder mit „Live“, wer die Notiz gerade offen hat (mit Geräteanzahl); im Editor steht an der Schreibstelle der anderen ein farbiger Cursor mit kleinem Profilbild, ihre Markierung ist eingefärbt |
 | **App & Design** | PWA (installierbar, Service Worker), Designs Hell und Dunkel (Material 3 mit Navigation Rail am Desktop/Tablet und Navigation Bar am Handy); Notizlisten umschaltbar (Kacheln/Liste/Tabelle) |
@@ -137,6 +137,7 @@ Ohne Zugriff auf den Server importierst du einen lokalen Ordner (z. B. einen Obs
 | `GITLAB_LABEL` | Beschriftung des Knopfs, z. B. Name der eigenen Instanz (Standard `GitLab`) |
 | `BACKUP_KEEP` | Tägliche Datenbank-Backups in `data/backups` (Standard 7, `0` = aus) |
 | `TRASH_RETENTION_DAYS` | Tage, die gelöschte Notizen im Papierkorb bleiben, bevor sie endgültig gelöscht werden (Standard 30, `0` = bis zum manuellen Leeren) |
+| `TRANSCRIBE_URL` | Optionale Spracherkennung für Sprachnotizen: ein OpenAI-kompatibler Transkriptions-Endpunkt, den du selbst betreibst, z. B. ein lokales Whisper (`http://whisper:8000/v1/audio/transcriptions`). Nicht gesetzt = keine Transkription; Aufnahmen gehen standardmäßig nie an einen fremden Dienst. `TRANSCRIBE_MODEL` (Standard `whisper-1`) und `TRANSCRIBE_API_KEY` sind optional |
 | `EXPORT_DIR` | Klartext-Spiegel der Notizen (z. B. NAS), leer = aus |
 
 **Anmelden mit GitLab** (ausführliche Anleitung für selbst gehostete Instanzen, Netzwerk, eigene Zertifikate und Fehlersuche: [`docs/GITLAB.md`](docs/GITLAB.md)):

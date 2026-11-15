@@ -34,6 +34,7 @@ const MAP = {
   SlidersHorizontal: 'tune', Smartphone: 'mobile', Sparkles: 'wand_stars', Star: 'star', SunMoon: 'contrast',
   Table2: 'table', Tags: 'sell', Target: 'target', Trash2: 'delete', Undo2: 'undo', Unlink: 'link_off', Upload: 'upload',
   UnfoldLess: 'unfold_less', UnfoldMore: 'unfold_more', Merge: 'merge', Filter: 'filter_list',
+  Mic: 'mic', StopCircle: 'stop_circle', Subtitles: 'subtitles',
   UserCheck: 'how_to_reg', UserPlus: 'person_add', Users: 'group', X: 'close', Zap: 'bolt',
 };
 

@@ -4,6 +4,8 @@ import { api, ApiError, uploadFile } from './lib/api';
 import { match, navigate, usePath } from './lib/router';
 import { vault } from './data/vault';
 import { uploads } from './data/uploads';
+import { recordVoice } from './views/VoiceRecorder';
+import { getLang } from './lib/i18n';
 import { editorHost } from './editor/host';
 import { isReadOnly } from './lib/readOnly';
 import { Invite, LinkDevice, Login } from './views/Auth';
@@ -83,6 +85,7 @@ Object.assign(editorHost, {
   // Offline (or on a network error) the file waits on this device and the note links it as kladde-pending:<id> (#28)
   upload: (file: File) => (vault.standalone ? uploadFile(file) : uploads.upload(file)),
   pendingUrl: (id: string) => uploads.objectUrl(id),
+  recordVoice,
 });
 
 export function App() {
@@ -99,6 +102,11 @@ export function App() {
 
   const signedIn = useCallback((user: Me) => {
     vault.standalone = !!user.standalone;
+    // Voice notes: the server transcribes when its admin set up a speech-to-text service
+    editorHost.transcribe = user.transcription
+      ? (url: string) =>
+          api<{ text: string }>(`${url.replace(/^\/api/, '')}/transcribe`, { method: 'POST', json: { lang: getLang() } }).then((r) => r.text)
+      : null;
     try {
       localStorage.setItem(ME_KEY, JSON.stringify(user));
     } catch {

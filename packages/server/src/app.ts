@@ -29,6 +29,7 @@ import { runReminders, vapidSubject } from './push/reminders.js';
 import { allowedPushHosts } from './push/webpush.js';
 import { EmbeddedAsset, ensureStandaloneUser } from './standalone.js';
 import { trashRetentionDays } from './trash.js';
+import { transcriberFromEnv } from './transcribe.js';
 
 export interface KladdeAppOptions {
   db: DatabaseSync;
@@ -73,6 +74,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   // Git sync was removed: its working copies (plain Markdown of the notes) must not stay on disk
   fs.rmSync(path.join(opts.dataDir, 'git'), { recursive: true, force: true });
   const files = new FileStore(opts.db, cipher, opts.dataDir);
+  const transcriber = transcriberFromEnv(env);
   const avatars = new AvatarStore(opts.db, cipher, opts.dataDir);
   const standaloneUser = opts.standalone ? ensureStandaloneUser(users) : undefined;
   const push = opts.standalone ? undefined : new PushStore(opts.db, cipher, allowedPushHosts(env));
@@ -80,6 +82,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   const mcp = mcpRouters({
     users,
     notes,
+    files,
     tokens: new McpTokenStore(opts.db),
     audit,
     publicUrl: opts.publicUrl,
@@ -111,7 +114,8 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    // The microphone only for the app itself (voice notes, #33), never for embedded pages
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), geolocation=()');
     next();
   });
 
@@ -150,6 +154,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
         avatarUrl: user.avatarUrl,
         standalone: true,
         dataDir: opts.dataDir,
+        transcription: !!transcriber,
       };
     }
     return {
@@ -161,6 +166,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       isAdmin: user.isAdmin,
       avatarUrl: user.avatarUrl,
       externalLogins: users.externalLoginsOf(user.id),
+      transcription: !!transcriber,
     };
   };
 
@@ -180,6 +186,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       authRouter({
         users,
         audit,
+        transcription: !!transcriber,
         publicUrl: opts.publicUrl,
         secureCookies: opts.isProduction && (opts.publicUrl?.startsWith('https://') ?? false),
         devLogin: !opts.isProduction && env.DEV_LOGIN === '1',
@@ -214,7 +221,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   if (!opts.standalone) {
     app.use('/api/admin', adminRouter({ users, audit, status }));
   }
-  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, meFor, trashDays: trashRetentionDays(env) }));
+  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, meFor, trashDays: trashRetentionDays(env), transcriber }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
   if (opts.seaAssets && opts.seaAssets.size > 0) {

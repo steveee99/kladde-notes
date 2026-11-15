@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, ChefHat, CheckSquare, FileText, Image, Loader2, Send, X } from '../lib/icons';
+import { AlertTriangle, ChefHat, CheckSquare, FileText, Image, Loader2, Mic, Send, X } from '../lib/icons';
+import { VoiceRecorderPanel, canRecord } from './VoiceRecorder';
 import { useVault, vault } from '../data/vault';
 import { editorHost } from '../editor/host';
 import { tl, useLang } from '../lib/i18n';
@@ -51,6 +52,7 @@ export function QuickCapture({
   const [asTask, setAsTask] = useState(!shared);
   const [files, setFiles] = useState<File[]>(shared?.files ?? []);
   const [busy, setBusy] = useState(false);
+  const [recording, setRecording] = useState(false);
   const [error, setError] = useState('');
   const online = useOnline() || vault.standalone;
   // Offline, attachments wait on this device and upload once online (#28)
@@ -107,7 +109,7 @@ export function QuickCapture({
           <div className="mt-3 flex flex-wrap gap-2">
             {files.map((f, i) => (
               <span key={`${f.name}-${i}`} className="chip max-w-full gap-1.5 pr-1">
-                {f.type.startsWith('image/') ? <Image size={16} /> : <FileText size={16} />}
+                {f.type.startsWith('image/') ? <Image size={16} /> : f.type.startsWith('audio/') ? <Mic size={16} /> : <FileText size={16} />}
                 <span className="truncate">{f.name}</span>
                 <button
                   className="btn-icon h-7 w-7"
@@ -119,6 +121,16 @@ export function QuickCapture({
                 </button>
               </span>
             ))}
+          </div>
+        )}
+        {recording && (
+          <div className="mt-3">
+            <VoiceRecorderPanel
+              onDone={(file) => {
+                setRecording(false);
+                if (file) setFiles((list) => [...list, file]);
+              }}
+            />
           </div>
         )}
         {files.length > 0 && !online && !vault.standalone && (
@@ -139,6 +151,17 @@ export function QuickCapture({
           >
             <CheckSquare size={16} /> {tl(lang, 'quick.taskBtn')}
           </button>
+          {canRecord() && (
+            <button
+              type="button"
+              className="btn-ghost rounded-full px-3"
+              disabled={recording || busy}
+              onClick={() => setRecording(true)}
+              title={tl(lang, 'voice.recordTitle')}
+            >
+              <Mic size={16} /> {tl(lang, 'voice.recordBtn')}
+            </button>
+          )}
           <button
             className="btn-ghost rounded-full px-3"
             onClick={() => {

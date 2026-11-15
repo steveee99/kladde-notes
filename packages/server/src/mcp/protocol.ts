@@ -1,5 +1,5 @@
 import { APP_VERSION } from '@kladde/shared';
-import { ToolContext, ToolError, TOOLS, toolsFor } from './tools.js';
+import { ToolContent, ToolContext, ToolError, TOOLS, toolsFor } from './tools.js';
 
 /** Newest first; an unknown version requested by the client gets the newest */
 export const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
@@ -66,6 +66,7 @@ export function handleMessage(msg: unknown, ctx: ToolContext): RpcResponse | nul
       const args = params.arguments && typeof params.arguments === 'object' && !Array.isArray(params.arguments) ? (params.arguments as Record<string, unknown>) : {};
       try {
         const result = tool.run(args, ctx);
+        if (result instanceof ToolContent) return ok({ content: result.content });
         return ok({ content: [{ type: 'text', text: JSON.stringify(result, null, 1) }], structuredContent: result });
       } catch (err) {
         if (err instanceof ToolError) return ok({ content: [{ type: 'text', text: err.message }], isError: true });
