@@ -33,7 +33,7 @@ export function OutlinePanel({
     activeRef.current?.scrollIntoView({ block: 'nearest' });
   }, [active]);
 
-  if (headings.length === 0) return <p className="py-8 text-center text-sm text-on-surface-variant">{t('note.tocEmpty')}</p>;
+  if (headings.length === 0) return <p className="py-8 text-center text-body-m text-on-surface-variant">{t('note.tocEmpty')}</p>;
 
   const canDrag = canEdit && !!view;
   // A section may not go into itself or stay where it is
@@ -72,11 +72,11 @@ export function OutlinePanel({
         <div className="mb-2 flex justify-end">
           <button
             type="button"
-            className="btn-text h-8 !px-2.5 text-xs"
+            className="btn-text"
             onClick={() => setAllSectionsFolded(view, headings, !anyFolded)}
             title={anyFolded ? t('note.outlineExpandAll') : t('note.outlineCollapseAll')}
           >
-            {anyFolded ? <UnfoldMore size={16} /> : <UnfoldLess size={16} />}
+            {anyFolded ? <UnfoldMore size={18} /> : <UnfoldLess size={18} />}
             {anyFolded ? t('note.outlineExpandAll') : t('note.outlineCollapseAll')}
           </button>
         </div>
@@ -90,15 +90,15 @@ export function OutlinePanel({
             <li key={`${h.from}-${i}`} {...dropProps(i)} className="relative">
               {over === i && <div aria-hidden className="pointer-events-none absolute inset-x-2 -top-px h-0.5 rounded-full bg-primary" />}
               <div
-                className={`group flex items-center rounded-full transition-colors ${dragging === i ? 'opacity-40' : ''} ${
-                  isActive ? 'bg-secondary-container text-on-secondary-container' : 'hover:bg-surface-container-high'
+                className={`state-layer group flex min-h-10 items-center rounded-full ${dragging === i ? 'opacity-40' : ''} ${
+                  isActive ? 'bg-secondary-container text-on-secondary-container' : ''
                 }`}
                 style={{ paddingLeft: `${(h.level - 1) * 12}px` }}
               >
                 <button
                   type="button"
                   disabled={!foldable}
-                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-opacity hover:bg-on-surface/10 disabled:opacity-0 ${
+                  className={`state-layer flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-opacity disabled:opacity-0 ${
                     isFolded ? '' : 'opacity-60 group-hover:opacity-100'
                   }`}
                   aria-label={isFolded ? t('note.outlineExpand', { text: h.text }) : t('note.outlineCollapse', { text: h.text })}
@@ -106,7 +106,7 @@ export function OutlinePanel({
                   title={isFolded ? t('note.outlineExpand', { text: h.text }) : t('note.outlineCollapse', { text: h.text })}
                   onClick={() => view && toggleSectionFold(view, h.from)}
                 >
-                  {isFolded ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                  {isFolded ? <ChevronRight size={20} /> : <ChevronDown size={20} />}
                 </button>
                 <button
                   ref={isActive ? activeRef : undefined}
@@ -124,8 +124,8 @@ export function OutlinePanel({
                   }}
                   onClick={() => onJump(h.from)}
                   title={canDrag ? t('note.outlineItemHint', { text: h.text }) : t('note.tocJumpHint', { text: h.text })}
-                  className={`min-w-0 flex-1 truncate py-1.5 pr-3 text-left ${
-                    h.level === 1 ? 'text-sm font-medium' : h.level === 2 ? 'text-sm' : 'text-xs'
+                  className={`min-w-0 flex-1 truncate py-2 pr-4 text-left ${
+                    h.level === 1 ? 'text-label-l' : h.level === 2 ? 'text-body-m' : 'text-body-s'
                   } ${isActive ? '' : h.level <= 2 ? 'text-on-surface' : 'text-on-surface-variant'} ${canDrag ? 'cursor-grab active:cursor-grabbing' : ''}`}
                 >
                   {h.text}
