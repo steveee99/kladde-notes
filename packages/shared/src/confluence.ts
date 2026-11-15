@@ -1,0 +1,407 @@
+import { parseMarkdownForExport, type ExportBlock, type ExportInline, type ExportListItem } from './export.js';
+import { extractMeta } from './markdown.js';
+import { formatValue, type QueryResult } from './query.js';
+import { safeUrl } from './util.js';
+
+// ------------------------------------------------------------------ API types (#48)
+
+export type ConfluenceKind = 'cloud' | 'datacenter';
+
+/** The saved connection as the client sees it: the token never leaves the server again */
+export interface ConfluenceConnectionInfo {
+  url: string;
+  kind: ConfluenceKind;
+  /** Cloud: the Atlassian account e-mail that goes with the API token */
+  email: string;
+  accountName: string;
+  updatedAt: number;
+}
+
+export interface ConfluenceConnectionInput {
+  url: string;
+  kind: ConfluenceKind;
+  email?: string;
+  /** Empty when only the other fields change: the saved token stays */
+  token?: string;
+}
+
+export interface ConfluenceSpace {
+  key: string;
+  name: string;
+}
+
+export interface ConfluencePageRef {
+  id: string;
+  title: string;
+  spaceKey: string;
+  url: string;
+}
+
+export type ConfluenceNoteStatus = 'pending' | 'ok' | 'error' | 'conflict';
+
+/** Sync state of one note (side panel, note dialog) */
+export interface ConfluenceNoteState {
+  noteId: string;
+  syncId: string;
+  pageId: string | null;
+  pageUrl: string | null;
+  status: ConfluenceNoteStatus;
+  error: string | null;
+  lastSyncAt: number | null;
+}
+
+export interface ConfluenceSyncInput {
+  kind: 'note' | 'folder';
+  noteId?: string;
+  folder?: string;
+  spaceKey: string;
+  parentId?: string | null;
+  parentTitle?: string | null;
+  /** Deleting (or moving a note out of a synced folder) moves its page to the Confluence trash */
+  trashOnDelete?: boolean;
+}
+
+export interface ConfluenceSyncInfo {
+  id: string;
+  kind: 'note' | 'folder';
+  /** Note title or folder path */
+  label: string;
+  noteId: string | null;
+  folder: string | null;
+  spaceKey: string;
+  parentId: string | null;
+  parentTitle: string | null;
+  trashOnDelete: boolean;
+  createdAt: number;
+  /** Folder page (folder sync) or the note's page */
+  pageUrl: string | null;
+  notes: number;
+  errors: number;
+  conflicts: number;
+  lastSyncAt: number | null;
+}
+
+export interface ConfluenceOverview {
+  connection: ConfluenceConnectionInfo | null;
+  syncs: ConfluenceSyncInfo[];
+  /** Note id → state, for the badge in the note view */
+  notes: Record<string, ConfluenceNoteStatus>;
+}
+
+// ------------------------------------------------------------------ conversion
+
+/** What the converter needs to know about the rest of the space */
+export interface ConfluenceConvertContext {
+  /** The page title a `[[link]]` target is synced as (null: not synced, the link becomes plain text) */
+  linkTitle?: (target: string) => string | null;
+  /** Attachment by URL (`/api/files/<id>`): the file name it gets on the page */
+  attachment?: (url: string) => { fileId: string; filename: string; mime: string } | null;
+  /** Current result of a `query` block (null: left out with a hint) */
+  query?: (source: string) => QueryResult | null;
+  spaceKey?: string;
+}
+
+export interface ConfluencePage {
+  title: string;
+  /** XHTML in the Confluence storage format */
+  body: string;
+  labels: string[];
+  /** Attachments the body references; they must be uploaded to the page */
+  attachments: { fileId: string; filename: string; mime: string }[];
+}
+
+const KLADDE_ONLY: Record<string, string> = {
+  mermaid: 'Mermaid-Diagramm',
+  mindmap: 'Mindmap',
+  excalidraw: 'Zeichnung',
+  datatable: 'Datentabelle',
+};
+
+/** XML text escaping for the storage format (XHTML: no named entities besides the XML ones) */
+export function xmlEscape(text: string): string {
+  return text
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** CDATA cannot contain "]]>": split it across two sections */
+export function cdata(text: string): string {
+  return `<![CDATA[${text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').replace(/]]>/g, ']]]]><![CDATA[>')}]]>`;
+}
+
+/** Confluence labels: lowercase, no spaces or punctuation besides - and _ */
+export function confluenceLabel(tag: string): string {
+  return tag
+    .toLowerCase()
+    .replace(/^#/, '')
+    .replace(/[\s/:;,.?&[\]()#^*@!<>"'|\\]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 255);
+}
+
+const CALLOUTS: Record<string, string> = {
+  note: 'info',
+  info: 'info',
+  abstract: 'info',
+  summary: 'info',
+  todo: 'info',
+  quote: 'info',
+  example: 'info',
+  tip: 'tip',
+  hint: 'tip',
+  important: 'tip',
+  success: 'tip',
+  check: 'tip',
+  done: 'tip',
+  question: 'note',
+  help: 'note',
+  faq: 'note',
+  warning: 'note',
+  caution: 'note',
+  attention: 'note',
+  danger: 'warning',
+  error: 'warning',
+  bug: 'warning',
+  failure: 'warning',
+  fail: 'warning',
+};
+
+const EMBED_LINE = /^\s*!\[\[([^\]|\n]+)(?:\|[^\]\n]*)?\]\]\s*$/;
+
+/** Turns a note into a Confluence page (title, storage format body, labels and attachments to upload) */
+export function markdownToConfluence(path: string, content: string, ctx: ConfluenceConvertContext = {}): ConfluencePage {
+  const meta = extractMeta(path, content);
+  const attachments = new Map<string, { fileId: string; filename: string; mime: string }>();
+  const useAttachment = (url: string) => {
+    const a = ctx.attachment?.(url) ?? null;
+    if (a) attachments.set(a.fileId, a);
+    return a;
+  };
+
+  // Embeds of other notes (![[Note]]) are Kladde-only: they become a link or a hint (marked before parsing)
+  const embeds: string[] = [];
+  const prepared = content
+    .split('\n')
+    .map((line) => {
+      const m = EMBED_LINE.exec(line);
+      if (!m) return line;
+      embeds.push(m[1].split('#')[0].trim());
+      return `KLADDEEMBED${embeds.length - 1}KLADDEEMBED`;
+    })
+    .join('\n');
+
+  const doc = parseMarkdownForExport(meta.title, prepared);
+  let blocks = doc.blocks;
+  // Confluence shows the title above the page: drop a leading H1 that repeats it
+  if (doc.hasLeadingH1 && blocks[0].type === 'heading' && inlineText(blocks[0].inlines).trim() === meta.title.trim()) blocks = blocks.slice(1);
+
+  const inline = (spans: ExportInline[]): string => spans.map(renderInline).join('');
+
+  const renderInline = (span: ExportInline): string => {
+    switch (span.type) {
+      case 'text':
+        return xmlEscape(span.text);
+      case 'strong':
+        return `<strong>${xmlEscape(span.text)}</strong>`;
+      case 'em':
+        return `<em>${xmlEscape(span.text)}</em>`;
+      case 'strike':
+        return `<s>${xmlEscape(span.text)}</s>`;
+      case 'code':
+        return `<code>${xmlEscape(span.text)}</code>`;
+      case 'tag':
+        return xmlEscape(span.text);
+      case 'footnoteRef':
+        return `<sup>[${xmlEscape(span.id)}]</sup>`;
+      case 'wikilink': {
+        const title = ctx.linkTitle?.(span.target) ?? null;
+        if (!title) return xmlEscape(span.label);
+        const space = ctx.spaceKey ? ` ri:space-key="${xmlEscape(ctx.spaceKey)}"` : '';
+        return `<ac:link><ri:page ri:content-title="${xmlEscape(title)}"${space} /><ac:plain-text-link-body>${cdata(span.label)}</ac:plain-text-link-body></ac:link>`;
+      }
+      case 'link': {
+        const file = useAttachment(span.url);
+        if (file) {
+          return `<ac:link><ri:attachment ri:filename="${xmlEscape(file.filename)}" /><ac:plain-text-link-body>${cdata(span.text.replace(/^\[|\]$/g, ''))}</ac:plain-text-link-body></ac:link>`;
+        }
+        const href = safeUrl(span.url);
+        if (!href || !/^(https?:|mailto:)/i.test(href)) return xmlEscape(span.text);
+        return `<a href="${xmlEscape(href)}">${xmlEscape(span.text)}</a>`;
+      }
+    }
+  };
+
+  const image = (alt: string, url: string): string => {
+    const file = useAttachment(url);
+    if (file) {
+      if (file.mime === 'application/pdf') {
+        return `<ac:structured-macro ac:name="view-file"><ac:parameter ac:name="name"><ri:attachment ri:filename="${xmlEscape(file.filename)}" /></ac:parameter><ac:parameter ac:name="height">600</ac:parameter></ac:structured-macro>`;
+      }
+      if (file.mime.startsWith('image/')) {
+        return `<p><ac:image${alt ? ` ac:alt="${xmlEscape(alt)}"` : ''}><ri:attachment ri:filename="${xmlEscape(file.filename)}" /></ac:image></p>`;
+      }
+      return `<p><ac:link><ri:attachment ri:filename="${xmlEscape(file.filename)}" /></ac:link></p>`;
+    }
+    const href = safeUrl(url);
+    if (href && /^https?:/i.test(href)) return `<p><ac:image${alt ? ` ac:alt="${xmlEscape(alt)}"` : ''}><ri:url ri:value="${xmlEscape(href)}" /></ac:image></p>`;
+    return alt ? `<p>${xmlEscape(alt)}</p>` : '';
+  };
+
+  const hint = (text: string) => `<p><em>${xmlEscape(text)}</em></p>`;
+
+  const renderQuery = (source: string): string => {
+    let result: QueryResult | null = null;
+    try {
+      result = ctx.query?.(source) ?? null;
+    } catch {
+      result = null;
+    }
+    if (!result) return hint('(Kladde-Abfrage – in Confluence nicht verfügbar)');
+    const titleOf = (row: QueryResult['rows'][number]) => String(row.values.title ?? row.path);
+    const linked = (row: QueryResult['rows'][number]) => {
+      const t = titleOf(row);
+      return renderInline({ type: 'wikilink', target: t, label: t });
+    };
+    const mode = result.query.mode;
+    if (!result.rows.length) return hint('(Keine Ergebnisse)');
+    if (mode === 'tasks') {
+      return `<ac:task-list>${result.rows
+        .map((r) => `<ac:task><ac:task-status>${r.values.done ? 'complete' : 'incomplete'}</ac:task-status><ac:task-body>${xmlEscape(String(r.values.text ?? ''))}</ac:task-body></ac:task>`)
+        .join('')}</ac:task-list>`;
+    }
+    if (mode === 'table') {
+      const head = `<tr>${result.columns.map((c) => `<th>${xmlEscape(c)}</th>`).join('')}</tr>`;
+      const rows = result.rows
+        .map((r) => `<tr>${result!.columns.map((c) => `<td>${c === 'title' ? linked(r) : xmlEscape(formatValue(r.values[c]))}</td>`).join('')}</tr>`)
+        .join('');
+      return `<table><tbody>${head}${rows}</tbody></table>`;
+    }
+    if (result.lanes?.length) {
+      return result.lanes.map((lane) => `<h4>${xmlEscape(lane.value || '–')}</h4><ul>${lane.rows.map((r) => `<li>${linked(r)}</li>`).join('')}</ul>`).join('');
+    }
+    return `<ul>${result.rows.map((r) => `<li>${linked(r)}</li>`).join('')}</ul>`;
+  };
+
+  const renderList = (items: ExportListItem[], ordered: boolean): string => {
+    // Nested by indent; consecutive task items become a Confluence task list
+    let i = 0;
+    const level = (indent: number): string => {
+      const groups: string[] = [];
+      let plain: string[] = [];
+      let tasks: string[] = [];
+      const flush = () => {
+        if (plain.length) groups.push(`<${ordered ? 'ol' : 'ul'}>${plain.join('')}</${ordered ? 'ol' : 'ul'}>`);
+        if (tasks.length) groups.push(`<ac:task-list>${tasks.join('')}</ac:task-list>`);
+        plain = [];
+        tasks = [];
+      };
+      while (i < items.length && items[i].indent >= indent) {
+        const item = items[i];
+        if (item.indent > indent) {
+          // Deeper item without a parent on this level
+          const nested = level(item.indent);
+          if (plain.length) plain[plain.length - 1] = plain[plain.length - 1].replace(/<\/li>$/, `${nested}</li>`);
+          else groups.push(nested);
+          continue;
+        }
+        i++;
+        const children = i < items.length && items[i].indent > indent ? level(items[i].indent) : '';
+        if (item.checked !== undefined) {
+          if (plain.length) flush();
+          tasks.push(`<ac:task><ac:task-status>${item.checked ? 'complete' : 'incomplete'}</ac:task-status><ac:task-body>${inline(item.inlines)}${children}</ac:task-body></ac:task>`);
+        } else {
+          if (tasks.length) flush();
+          plain.push(`<li>${inline(item.inlines)}${children}</li>`);
+        }
+      }
+      flush();
+      return groups.join('');
+    };
+    const out: string[] = [];
+    while (i < items.length) out.push(level(items[i].indent));
+    return out.join('');
+  };
+
+  const renderBlock = (block: ExportBlock): string => {
+    switch (block.type) {
+      case 'heading':
+        return `<h${block.level}>${inline(block.inlines)}</h${block.level}>`;
+      case 'paragraph': {
+        const only = block.inlines.length === 1 && block.inlines[0].type === 'text' ? /^KLADDEEMBED(\d+)KLADDEEMBED$/.exec(block.inlines[0].text.trim()) : null;
+        if (only) {
+          const target = embeds[Number(only[1])] ?? '';
+          const title = ctx.linkTitle?.(target) ?? null;
+          return title
+            ? `<p><em>Eingebettet: </em>${renderInline({ type: 'wikilink', target, label: title })}</p>`
+            : hint(`(Eingebettete Kladde-Notiz „${target}“ – in Confluence nicht verfügbar)`);
+        }
+        return `<p>${inline(block.inlines)}</p>`;
+      }
+      case 'list':
+        return renderList(block.items, block.ordered);
+      case 'blockquote': {
+        const first = block.lines[0];
+        const head = first?.[0]?.type === 'text' ? /^\s*\[!([A-Za-z]+)\][+-]?\s*(.*)$/.exec(first[0].text) : null;
+        if (head) {
+          const macro = CALLOUTS[head[1].toLowerCase()] ?? 'info';
+          const titleInlines: ExportInline[] = [{ type: 'text', text: head[2] }, ...first.slice(1)];
+          const title = inlineText(titleInlines).trim();
+          const body = block.lines
+            .slice(1)
+            .map((l) => `<p>${inline(l)}</p>`)
+            .join('');
+          return `<ac:structured-macro ac:name="${macro}">${title ? `<ac:parameter ac:name="title">${xmlEscape(title)}</ac:parameter>` : ''}<ac:rich-text-body>${body || '<p />'}</ac:rich-text-body></ac:structured-macro>`;
+        }
+        return `<blockquote>${block.lines.map((l) => `<p>${inline(l)}</p>`).join('')}</blockquote>`;
+      }
+      case 'code': {
+        if (block.lang === 'query') return renderQuery(block.code);
+        const only = KLADDE_ONLY[block.lang];
+        if (only) return `${hint(`(${only} aus Kladde – hier als Quelltext)`)}${codeMacro('text', block.code)}`;
+        return codeMacro(block.lang, block.code);
+      }
+      case 'table': {
+        const head = `<tr>${block.headers.map((h) => `<th>${inline(h)}</th>`).join('')}</tr>`;
+        const rows = block.rows.map((r) => `<tr>${r.map((c) => `<td>${inline(c)}</td>`).join('')}</tr>`).join('');
+        return `<table><tbody>${head}${rows}</tbody></table>`;
+      }
+      case 'image':
+        return image(block.alt, block.url);
+      case 'hr':
+        return '<hr />';
+      case 'toc':
+        return '<ac:structured-macro ac:name="toc" />';
+      case 'footnote':
+        return `<p><sup>[${xmlEscape(block.id)}]</sup> ${inline(block.inlines)}</p>`;
+    }
+  };
+
+  const body = blocks.map(renderBlock).join('\n');
+  const labels = [...new Set(meta.tags.map(confluenceLabel).filter(Boolean))];
+  return { title: meta.title.trim() || 'Ohne Titel', body, labels, attachments: [...attachments.values()] };
+}
+
+/** Languages the Confluence code macro knows; others are shown as plain text */
+const CODE_LANGS = new Set([
+  'actionscript3', 'applescript', 'bash', 'c#', 'cpp', 'css', 'coldfusion', 'delphi', 'diff', 'erl', 'groovy', 'html', 'xml', 'java', 'javafx',
+  'js', 'json', 'php', 'perl', 'powershell', 'py', 'python', 'ruby', 'sass', 'scala', 'sql', 'swift', 'text', 'vb', 'yaml', 'go', 'kotlin', 'typescript',
+]);
+const LANG_ALIASES: Record<string, string> = { sh: 'bash', shell: 'bash', zsh: 'bash', javascript: 'js', ts: 'typescript', csharp: 'c#', cs: 'c#', 'c++': 'cpp', c: 'cpp', yml: 'yaml', golang: 'go', kt: 'kotlin', rb: 'ruby', ps1: 'powershell', htm: 'html', md: 'text', markdown: 'text', '': 'text' };
+
+function codeMacro(lang: string, code: string): string {
+  const l = LANG_ALIASES[lang] ?? lang;
+  const language = CODE_LANGS.has(l) ? l : 'text';
+  return `<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">${xmlEscape(language)}</ac:parameter><ac:plain-text-body>${cdata(code)}</ac:plain-text-body></ac:structured-macro>`;
+}
+
+function inlineText(spans: ExportInline[]): string {
+  return spans.map((s) => (s.type === 'wikilink' ? s.label : s.type === 'footnoteRef' ? `[${s.id}]` : s.text)).join('');
+}
+
+/** Body of a folder page: a hint and Confluence's list of child pages */
+export function confluenceFolderBody(): string {
+  return '<p><em>Ordner aus Kladde</em></p><ac:structured-macro ac:name="children"><ac:parameter ac:name="all">true</ac:parameter></ac:structured-macro>';
+}

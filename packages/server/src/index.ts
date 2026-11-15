@@ -115,7 +115,7 @@ async function main(): Promise<void> {
   const TRUST_PROXY = !standalone && (env.TRUST_PROXY === '1' || env.TRUST_PROXY === 'true');
   const clientDist = path.resolve(baseDir, '..', '..', 'client', 'dist');
 
-  const { app, users, audit, live, notes, files, attachmentIndexer, sendReminders } = createKladdeApp({
+  const { app, users, audit, live, notes, files, attachmentIndexer, confluence, sendReminders } = createKladdeApp({
     db,
     dataDir: DATA_DIR,
     env,
@@ -177,6 +177,9 @@ async function main(): Promise<void> {
       console.error('Attachment indexing failed:', err);
     }
   }, 20_000).unref();
+
+  // Confluence (#48): push what changed while the server was down
+  setTimeout(() => confluence.catchUp(), 60_000).unref();
 
   // Task reminders and daily digests via Web Push: checked every minute
   if (sendReminders) {

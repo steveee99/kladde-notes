@@ -2,6 +2,7 @@ import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useR
 import { createPortal } from 'react-dom';
 import { EditorView } from '@codemirror/view';
 import {
+  AlertTriangle,
   ArrowLeft,
   Bold,
   CalendarPlus,
@@ -9,6 +10,7 @@ import {
   Check,
   CheckCircle2,
   CheckSquare,
+  Cloud,
   ChevronDown,
   ChevronRight,
   CloseFullscreen,
@@ -80,13 +82,15 @@ import { Graph, GraphLegend } from './Graph';
 import { Sheet } from './Dialogs';
 import { Avatar } from './Avatar';
 import { PresenceBar, useAnnouncePresence } from './PresenceBar';
-import { folderDisplayName, t, useLang, type Lang } from '../lib/i18n';
+import { folderDisplayName, t, useLang, type I18nKey, type Lang } from '../lib/i18n';
 import { setLocalGraphDepth, setNoteSplitOpen, setNoteSplitTab, setSourceMode, useLocalGraphDepth, useNoteSplitOpen, useNoteSplitTab, useSourceMode, type NoteSplitTab } from '../lib/prefs';
 import { isCoarsePointer } from '../lib/viewport';
 import { useRightPaneHost } from './MaterialShell';
 import { DailyCarryOver, DailyNoteBar } from './DailyNoteBar';
 import { NoteStats } from './NoteStats';
 import { setFocusMode, useFocusMode } from '../lib/focus';
+import { confluenceAvailable, refreshConfluence, useConfluence } from '../lib/confluence';
+import { ConfluenceDialog } from './ConfluenceDialog';
 
 const IS_APPLE = /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -313,6 +317,7 @@ function NoteOverflowMenu({
   onFinishProject,
   onConvertProject,
   onAddProperty,
+  onConfluence,
 }: {
   title: string;
   content: string;
@@ -339,6 +344,8 @@ function NoteOverflowMenu({
   onConvertProject?: () => void;
   /** Only for editable notes */
   onAddProperty?: () => void;
+  /** Only for own notes, when the server offers Confluence (#48) */
+  onConfluence?: () => void;
 }) {
   useLang();
   const [open, setOpen] = useState(false);
@@ -539,6 +546,20 @@ function NoteOverflowMenu({
               >
                 <Share2 size={16} className="shrink-0 text-on-surface-variant" />
                 <span>{t('common.share')}</span>
+              </button>
+            )}
+            {onConfluence && (
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-low"
+                onClick={() => {
+                  setOpen(false);
+                  onConfluence();
+                }}
+              >
+                <Cloud size={16} className="shrink-0 text-on-surface-variant" />
+                <span>{t('confluence.menu')}</span>
               </button>
             )}
 
@@ -906,6 +927,13 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const [view, setView] = useState<EditorView | null>(null);
   const locked = useReadOnly();
   const [sharing, setSharing] = useState(false);
+  const [confluenceOpen, setConfluenceOpen] = useState(false);
+  const confluence = useConfluence();
+  const confluenceStatus = confluence?.connection ? confluence.notes[id] : undefined;
+  // Background pushes change the state: look again when another note opens
+  useEffect(() => {
+    if (confluence?.connection) void refreshConfluence();
+  }, [id]);
   const [showHistory, setShowHistory] = useState(false);
   const [moving, setMoving] = useState(false);
   const [showGraph, setShowGraph] = useState(true);
@@ -1125,6 +1153,18 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             {/* Header actions: Lock, Copy Markdown (no frontmatter), Right Splitview toggle, 3-dot Menu */}
             <div className="ml-auto flex shrink-0 items-center gap-1">
               <PresenceBar noteId={id} />
+              {confluenceStatus && (
+                <button
+                  type="button"
+                  className={`chip shrink-0 ${confluenceStatus === 'error' || confluenceStatus === 'conflict' ? 'text-error' : ''}`}
+                  onClick={() => setConfluenceOpen(true)}
+                  title={t(`confluence.status.${confluenceStatus}` as I18nKey)}
+                  data-confluence-status={confluenceStatus}
+                >
+                  {confluenceStatus === 'error' || confluenceStatus === 'conflict' ? <AlertTriangle size={13} /> : <Cloud size={13} />}
+                  <span className="hidden sm:inline">Confluence</span>
+                </button>
+              )}
               {readOnly && (
                 <span title={sharedReadOnly ? t('note.readOnlyShared') : t('common.readOnly')}>
                   <Lock size={15} className="mr-1 text-on-surface-variant" />
@@ -1152,6 +1192,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 canShare={isOwner && !vault.standalone}
                 mayDelete={mayDelete}
                 onShare={() => setSharing(true)}
+                onConfluence={isOwner && confluenceAvailable() ? () => setConfluenceOpen(true) : undefined}
                 onHistory={() => setShowHistory(true)}
                 onMove={() => setMoving(true)}
                 onDelete={handleDelete}
@@ -1388,6 +1429,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
       )}
       {showHistory && <HistoryDialog noteId={id} current={note.content} canRestore={!readOnly} onClose={() => setShowHistory(false)} />}
       {sharing && <ShareDialog target={{ note: id }} onClose={() => setSharing(false)} />}
+      {confluenceOpen && <ConfluenceDialog target={{ note: id, title: title || displayName }} onClose={() => setConfluenceOpen(false)} />}
     </div>
   );
 }

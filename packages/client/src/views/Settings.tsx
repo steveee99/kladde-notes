@@ -3,6 +3,7 @@ import { startRegistration } from '@simplewebauthn/browser';
 import {
   ArrowRight,
   Bot,
+  Cloud,
   Bell,
   CalendarDays,
   CalendarCheck,
@@ -52,6 +53,7 @@ import {
   STANDALONE_RECIPE_FOLDER,
 } from '@kladde/shared';
 import { api, deleteAvatar, uploadAvatar } from '../lib/api';
+import { confluenceAvailable, useConfluence } from '../lib/confluence';
 import { folderDisplayName, Lang, locale, setLang, tl, useLang } from '../lib/i18n';
 import { setInboxZero, setLigatures, useInboxZero, useLigatures } from '../lib/prefs';
 import { useReadOnly } from '../lib/readOnly';
@@ -167,6 +169,8 @@ function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
 }
 
 export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) => void; onLogout: () => void }) {
+  // Loads the Confluence state once; hides the entry when the server has no Confluence (demo)
+  useConfluence();
   useVault();
   const lang = useLang();
   const loc = locale(lang);
@@ -204,6 +208,16 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
       title: tl(lang, 'settings.mcpTitle'),
       desc: tl(lang, 'settings.mcpDesc'),
     },
+    ...(confluenceAvailable()
+      ? [
+          {
+            path: '/settings/confluence',
+            Icon: Cloud,
+            title: tl(lang, 'settings.confluenceTitle'),
+            desc: tl(lang, 'settings.confluenceDesc'),
+          },
+        ]
+      : []),
     ...(!me.standalone
       ? [
           {

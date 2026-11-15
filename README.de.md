@@ -139,6 +139,7 @@ Ohne Zugriff auf den Server importierst du einen lokalen Ordner (z. B. einen Obs
 | `TRASH_RETENTION_DAYS` | Tage, die gelöschte Notizen im Papierkorb bleiben, bevor sie endgültig gelöscht werden (Standard 30, `0` = bis zum manuellen Leeren) |
 | `TRANSCRIBE_URL` | Optionale Spracherkennung für Sprachnotizen: ein OpenAI-kompatibler Transkriptions-Endpunkt, den du selbst betreibst, z. B. ein lokales Whisper (`http://whisper:8000/v1/audio/transcriptions`). Nicht gesetzt = keine Transkription; Aufnahmen gehen standardmäßig nie an einen fremden Dienst. `TRANSCRIBE_MODEL` (Standard `whisper-1`) und `TRANSCRIBE_API_KEY` sind optional |
 | `OCR` | `true` schaltet die Texterkennung (OCR) für Bilder und gescannte PDF-Seiten ein, damit die Volltextsuche auch deren Text findet (Tesseract als WebAssembly, läuft auf dem Server, nichts verlässt ihn; kostet CPU, Standard aus). Der Text normaler PDFs wird immer indexiert. `OCR_LANGS` wählt die Sprachen: `deu`, `eng` oder `deu+eng` (Standard) |
+| `CONFLUENCE_ALLOW_PRIVATE` | `true` erlaubt Confluence unter einer privaten Adresse (z. B. ein Data Center im Intranet). Standardmäßig erreicht die Confluence-Synchronisierung nur öffentliche https-Adressen, mit denselben Schutzmaßnahmen wie der Web-Clipper |
 | `EXPORT_DIR` | Klartext-Spiegel der Notizen (z. B. NAS), leer = aus |
 
 **Anmelden mit GitLab** (ausführliche Anleitung für selbst gehostete Instanzen, Netzwerk, eigene Zertifikate und Fehlersuche: [`docs/GITLAB.md`](docs/GITLAB.md)):

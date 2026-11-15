@@ -352,6 +352,37 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 17,
+    description: 'One-way sync to Confluence: connection per user, syncs and page mapping (encrypted, #48)',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE confluence_accounts (
+          user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          data BLOB NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE TABLE confluence_syncs (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL,
+          note_id TEXT,
+          data BLOB NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX confluence_syncs_user ON confluence_syncs(user_id);
+        CREATE TABLE confluence_pages (
+          note_id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          sync_id TEXT NOT NULL REFERENCES confluence_syncs(id) ON DELETE CASCADE,
+          page_id TEXT,
+          data BLOB NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX confluence_pages_sync ON confluence_pages(sync_id);
+      `);
+    },
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number[] {
