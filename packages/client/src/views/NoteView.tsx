@@ -735,19 +735,23 @@ function NoteInspectorPane({
     { id: 'graph', label: t('note.tabGraph'), Icon: Network, count: local.nodes.length > 1 ? local.nodes.length - 1 : undefined },
   ];
 
+  /** M3 list item on the pane (one tone up from surface-container-low), headline + supporting text */
+  const item = 'state-layer block w-full rounded-lg bg-surface-container px-4 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary';
+
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-title-s text-on-surface-variant">{t('note.paneTitle')}</span>
+    <div className="flex h-full min-h-0 flex-col gap-2">
+      {/* M3 side sheet header: Title Large, standard close icon button */}
+      <div className="flex min-h-12 items-center justify-between gap-2 pl-2">
+        <h2 className="min-w-0 truncate text-title-l text-on-surface">{t('note.paneTitle')}</h2>
         {onClose && (
-          <button type="button" onClick={onClose} className="btn-icon h-8 w-8 rounded-full" aria-label={t('common.close')}>
-            <X size={16} />
+          <button type="button" onClick={onClose} className="btn-icon -mr-1" aria-label={t('common.close')} title={t('common.close')}>
+            <X size={24} />
           </button>
         )}
       </div>
 
-      {/* M3 Segmented Button */}
-      <div role="tablist" aria-label={t('note.paneTitle')} className="grid shrink-0 grid-cols-3 gap-1 rounded-full bg-surface-container-high p-1">
+      {/* M3 primary tabs: icon above the label, a 3 dp primary indicator under the active one, a divider below the row */}
+      <div role="tablist" aria-label={t('note.paneTitle')} className="grid shrink-0 grid-cols-3 border-b border-outline-variant">
         {tabs.map(({ id, label, Icon, count }) => {
           const active = tab === id;
           return (
@@ -757,52 +761,59 @@ function NoteInspectorPane({
               role="tab"
               aria-selected={active}
               onClick={() => setTab(id)}
-              className={`flex min-w-0 items-center justify-center gap-1 rounded-full px-1.5 py-1.5 text-xs font-medium transition-colors sm:gap-1.5 sm:px-2 ${active ? 'bg-secondary-container text-on-secondary-container shadow-soft' : 'text-on-surface-variant hover:text-on-surface'}`}
+              className={`state-layer relative flex h-16 min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-title-s outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${
+                active ? 'text-primary' : 'text-on-surface-variant hover:text-on-surface'
+              }`}
             >
-              <Icon size={13} className="shrink-0" />
-              <span className="min-w-0 truncate">{label}</span>
-              {count !== undefined && <span className="shrink-0 opacity-70">{count}</span>}
+              <span className="flex items-center gap-1">
+                <Icon size={24} filled={active} className="shrink-0" />
+                {count !== undefined && <span className="text-label-s">{count}</span>}
+              </span>
+              <span className="max-w-full truncate">{label}</span>
+              {active && <span aria-hidden className="absolute inset-x-4 bottom-0 h-[3px] rounded-t-full bg-primary" />}
             </button>
           );
         })}
       </div>
 
-      <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto scrollbar-thin pr-0.5">
+      <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto scrollbar-thin pr-0.5 pt-2">
         {tab === 'toc' && <OutlinePanel outline={outline} view={view} canEdit={canEdit} onJump={onJump} />}
 
         {tab === 'links' && (
-          <div className="space-y-5">
+          <div className="space-y-4">
             <section>
-              <h3 className="mb-2 text-title-s text-on-surface-variant">{t('note.backlinksTitle', { n: backlinks.length })}</h3>
+              <h3 className="mb-2 px-2 text-title-s text-on-surface-variant">{t('note.backlinksTitle', { n: backlinks.length })}</h3>
               {backlinks.length === 0 ? (
-                <p className="text-sm text-on-surface-variant">{t('note.backlinksEmpty')}</p>
+                <p className="px-2 text-body-m text-on-surface-variant">{t('note.backlinksEmpty')}</p>
               ) : (
-                <div className="space-y-2">
+                <ul className="space-y-1">
                   {backlinks.map((b) => (
-                    <button key={b.id} className="w-full rounded-2xl border border-outline-variant/80 bg-surface/40 p-3 text-left text-sm transition hover:border-primary/40 hover:bg-surface-container-high/60" onClick={() => navigate(`/n/${b.id}`)}>
-                      <div className="truncate font-medium">{projectTitleOf(b.path, b.content, rc)}</div>
-                      {excerpt(b.content, 85) && <div className="mt-0.5 line-clamp-2 text-xs text-on-surface-variant">{excerpt(b.content, 85)}</div>}
-                    </button>
+                    <li key={b.id}>
+                      <button className={item} onClick={() => navigate(`/n/${b.id}`)}>
+                        <div className="truncate text-body-l text-on-surface">{projectTitleOf(b.path, b.content, rc)}</div>
+                        {excerpt(b.content, 85) && <div className="mt-0.5 line-clamp-2 text-body-m text-on-surface-variant">{excerpt(b.content, 85)}</div>}
+                      </button>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
             </section>
 
-            <hr className="border-0 border-t border-outline-variant/70" />
+            <hr className="border-0 border-t border-outline-variant" />
 
             <section>
-              <h3 className="mb-2 text-title-s text-on-surface-variant">{t('note.mentionsTitle', { n: mentions.length })}</h3>
+              <h3 className="mb-2 px-2 text-title-s text-on-surface-variant">{t('note.mentionsTitle', { n: mentions.length })}</h3>
               {mentions.length === 0 ? (
-                <p className="text-sm text-on-surface-variant">{t('note.mentionsEmpty')}</p>
+                <p className="px-2 text-body-m text-on-surface-variant">{t('note.mentionsEmpty')}</p>
               ) : (
-                <ul className="space-y-1.5">
+                <ul className="space-y-1">
                   {mentions.map((m) => (
-                    <li key={m.id} className="flex items-center gap-2 rounded-2xl border border-dashed border-outline-variant px-3 py-2 text-sm">
-                      <button className="min-w-0 flex-1 truncate text-left hover:text-primary" onClick={() => navigate(`/n/${m.id}`)}>
+                    <li key={m.id} className="flex min-h-14 items-center gap-2 rounded-lg bg-surface-container py-1 pl-4 pr-2">
+                      <button className="min-w-0 flex-1 truncate py-2 text-left text-body-l text-on-surface hover:underline" onClick={() => navigate(`/n/${m.id}`)}>
                         {projectTitleOf(m.path, m.content, rc)}
                       </button>
                       <button className="edit-only chip shrink-0" onClick={() => void vault.linkMention(m.id, noteId)}>
-                        <Link2 size={12} /> {t('note.linkMentionTitle')}
+                        <Link2 size={18} /> {t('note.linkMentionTitle')}
                       </button>
                     </li>
                   ))}
@@ -815,7 +826,7 @@ function NoteInspectorPane({
         {tab === 'graph' && (
           <div>
             {local.nodes.length <= 1 ? (
-              <p className="py-8 text-center text-sm text-on-surface-variant">{t('note.localGraphEmpty')}</p>
+              <p className="py-8 text-center text-body-m text-on-surface-variant">{t('note.localGraphEmpty')}</p>
             ) : (
               <div className="space-y-3">
                 <Graph nodes={local.nodes} edges={local.edges} focusId={noteId} height={360} onOpen={(n) => n !== noteId && navigate(`/n/${n}`)} />
@@ -1319,7 +1330,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
         createPortal(
           <div data-splitview-sheet="true" className="no-print fixed inset-0 z-50 lg:hidden">
             <div className="absolute inset-0 bg-scrim/[0.32] anim-fade-in" onClick={() => setNoteSplitOpen(false)} />
-            <div className="absolute inset-y-0 right-0 flex w-[90%] max-w-sm flex-col rounded-l-3xl bg-surface-container-low p-4 shadow-soft safe-top safe-bottom">
+            <div className="absolute inset-y-0 right-0 flex w-[90%] max-w-sm flex-col rounded-l-2xl bg-surface-container-low p-4 shadow-elevation-1 safe-top safe-bottom">
               <NoteInspectorPane
                 noteId={id}
                 outline={outline}

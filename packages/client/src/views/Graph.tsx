@@ -241,9 +241,9 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: GraphN
   }, [JSON.stringify(nodes.map((n) => [n.id, n.title, n.folder, n.links])), JSON.stringify(edges), roleConfigKey, focusId, height]);
 
   return (
-    <div ref={wrapRef} className="relative w-full touch-none select-none overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-low">
+    <div ref={wrapRef} className="relative w-full touch-none select-none overflow-hidden rounded-lg border border-outline-variant bg-surface-container-low">
       <canvas ref={canvasRef} className="block cursor-grab" />
-      {hoverTitle && <div className="pointer-events-none absolute left-3 top-3 rounded-lg bg-surface-container-high px-2 py-1 text-xs anim-fade-in">{hoverTitle}</div>}
+      {hoverTitle && <div className="pointer-events-none absolute left-3 top-3 max-w-[calc(100%-1.5rem)] truncate rounded bg-inverse-surface px-2 py-1 text-body-s text-inverse-on-surface anim-fade-in">{hoverTitle}</div>}
     </div>
   );
 }
@@ -258,7 +258,7 @@ export function GraphLegend() {
     return para.enabled;
   });
   return (
-    <div className="flex flex-wrap gap-3 text-xs text-on-surface-variant">
+    <div className="flex flex-wrap gap-x-3 gap-y-1 text-label-m text-on-surface-variant">
       {visible.map(([role, labelKey]) => (
         <span key={role} className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full" style={{ background: `rgb(var(${ROLE_VAR[role]}))` }} />
