@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.3.0] – 2026-11-15
+
 - Changed: The logo in the navigation drawer sits on its own row, larger and as a tonal tile in the colours of the theme (like the "New note" button) instead of a small icon with its own dark background.
 - New: Knowledge graph filters (#38). "Filters" on `/graph` narrows the graph by PARA area (the archive stays hidden by default), note type (note, Zettel, PDF, drawing), folder and tag (including nested tags), and a time range of when notes were created or changed, to see how the knowledge base grew. "Focus on a note" shows one note with its neighbours up to 1–3 links away; "Show in knowledge graph" in a note's side panel opens that view, and the local graph there has its own depth (1–3, remembered per device). Orphaned notes (no link in or out) are drawn as dashed rings, counted in the summary and can be shown alone. The weekly review lists "Notes without connections" next to the unconnected Zettel (without inbox, archive and daily notes), with a link to the orphans in the graph.
 - New: Tag overview (#31). "Tags" in the navigation (`/tags`) lists all tags of your own notes as a tree (`#area/health` below `#area`) with the number of notes, and a filter field. A tag shows its notes, including those with nested tags. "Rename" and "Merge into …" rewrite the tag in all of your own notes, including nested tags and the frontmatter `tags:` line, as normal synced edits; renaming onto an existing tag merges both. In the editor, `#` followed by a letter suggests known tags, most used first.
