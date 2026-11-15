@@ -1,12 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY, SimulationLinkDatum, SimulationNodeDatum } from 'd3-force';
-import type { GraphEdge, GraphNode } from '@kladde/shared';
-import { roleOfFolder } from '@kladde/shared';
+import type { GraphEdge, GraphNode, GraphNoteKind, ParaRole } from '@kladde/shared';
+import { extractMeta, filterGraph, projectTitleOf, roleOfFolder, splitPath } from '@kladde/shared';
+import { Check, Filter, LocateFixed, X } from '../lib/icons';
+import { Dropdown } from './Dropdown';
 import { useVault, vault } from '../data/vault';
 import { navigate } from '../lib/router';
-import { t, useLang, type I18nKey } from '../lib/i18n';
+import { folderDisplayName, locale, t, useLang, type I18nKey } from '../lib/i18n';
 
-interface SimNode extends SimulationNodeDatum, GraphNode {}
+/** A graph node; `orphan` (no link in or out on the whole graph) draws it as a ring */
+type ViewNode = GraphNode & { orphan?: boolean };
+
+interface SimNode extends SimulationNodeDatum, ViewNode {}
 type SimLink = SimulationLinkDatum<SimNode>;
 
 /** Node colour by PARA role, taken from the theme variables */
@@ -25,7 +30,7 @@ function cssColor(name: string, alpha = 1): string {
   return `rgba(${v},${alpha})`;
 }
 
-export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: GraphNode[]; edges: GraphEdge[]; focusId?: string; height: number; onOpen: (id: string) => void }) {
+export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: ViewNode[]; edges: GraphEdge[]; focusId?: string; height: number; onOpen: (id: string) => void }) {
   useVault();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -127,10 +132,23 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: GraphN
         const role = roleOfFolder(n.folder, roleConfig);
         const dim = active && n.id !== active.id && !near!.has(n.id);
         ctx.globalAlpha = dim ? 0.25 : 1;
-        ctx.fillStyle = (role && palette.role[role]) || palette.other;
+        const fill = (role && palette.role[role]) || palette.other;
         ctx.beginPath();
         ctx.arc(n.x!, n.y!, radius(n), 0, Math.PI * 2);
-        ctx.fill();
+        if (n.orphan) {
+          // Orphans: a dashed ring in the role colour, so they stand out without a colour of their own
+          ctx.fillStyle = palette.bg;
+          ctx.fill();
+          ctx.strokeStyle = fill;
+          ctx.lineWidth = 2 / view.k;
+          ctx.setLineDash([3 / view.k, 2 / view.k]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.lineWidth = 1 / view.k;
+        } else {
+          ctx.fillStyle = fill;
+          ctx.fill();
+        }
         if (n.id === focusId) {
           ctx.strokeStyle = palette.text;
           ctx.lineWidth = 2 / view.k;
@@ -238,7 +256,7 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: GraphN
     };
     // Rebuild only when the structure changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(nodes.map((n) => [n.id, n.title, n.folder, n.links])), JSON.stringify(edges), roleConfigKey, focusId, height]);
+  }, [JSON.stringify(nodes.map((n) => [n.id, n.title, n.folder, n.links, !!n.orphan])), JSON.stringify(edges), roleConfigKey, focusId, height]);
 
   return (
     <div ref={wrapRef} className="relative w-full touch-none select-none overflow-hidden rounded-lg border border-outline-variant bg-surface-container-low">
@@ -248,7 +266,7 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: GraphN
   );
 }
 
-export function GraphLegend() {
+export function GraphLegend({ orphans }: { orphans?: boolean }) {
   useVault();
   useLang();
   const { para, zettel } = vault.features();
@@ -265,39 +283,300 @@ export function GraphLegend() {
           {t(labelKey)}
         </span>
       ))}
+      {orphans && (
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full border-2 border-dashed border-on-surface-variant" />
+          {t('graph.legendOrphan')}
+        </span>
+      )}
     </div>
   );
 }
 
-/** Whole knowledge network */
+const DAY = 86_400_000;
+type RoleChip = ParaRole | 'none';
+const ROLE_CHIPS: [RoleChip, I18nKey][] = [
+  ['projects', 'graph.legendProjects'],
+  ['areas', 'graph.legendAreas'],
+  ['resources', 'graph.legendResources'],
+  ['archive', 'graph.legendArchive'],
+  ['inbox', 'graph.legendInbox'],
+  ['zettel', 'graph.legendZettel'],
+  ['none', 'graph.roleNone'],
+];
+const KIND_CHIPS: [GraphNoteKind, I18nKey][] = [
+  ['note', 'graph.kindNote'],
+  ['zettel', 'graph.kindZettel'],
+  ['pdf', 'graph.kindPdf'],
+  ['drawing', 'graph.kindDrawing'],
+];
+
+/** A filter chip (M3): outlined, tonal with a check mark while selected */
+function FilterChip({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" className={`chip ${selected ? 'pl-2' : ''}`} aria-pressed={selected} onClick={onClick}>
+      {selected && <Check size={18} className="shrink-0" />}
+      {children}
+    </button>
+  );
+}
+
+function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <div className="text-label-l text-on-surface-variant">{label}</div>
+      <div className="flex flex-wrap items-center gap-2">{children}</div>
+    </div>
+  );
+}
+
+const toggle = <T,>(set: Set<T>, value: T) => {
+  const next = new Set(set);
+  if (next.has(value)) next.delete(value);
+  else next.add(value);
+  return next;
+};
+
+/** Whole knowledge network (#38): filters by role, type, folder, tag and time, a focus with 1–3 hops, orphans */
 export function GraphView() {
-  useVault();
-  useLang();
-  const [hideArchive, setHideArchive] = useState(true);
-  const [onlyLinked, setOnlyLinked] = useState(false);
-  const { para } = vault.features();
+  const version = useVault();
+  const lang = useLang();
+  const { para, zettel } = vault.features();
   const roleConfig = vault.roleConfig();
-  const g = vault.links().graph();
-  const nodes = g.nodes.filter((n) => (!para.enabled || !hideArchive || roleOfFolder(n.folder, roleConfig) !== 'archive') && (!onlyLinked || n.links > 0));
-  const ids = new Set(nodes.map((n) => n.id));
-  const edges = g.edges.filter((e) => ids.has(e.source) && ids.has(e.target));
+  const notes = vault.list();
+  const roleChips = ROLE_CHIPS.filter(([role]) => (role === 'zettel' ? zettel.enabled : role === 'inbox' || role === 'none' || para.enabled));
+  const defaultRoles = () => new Set<RoleChip>(roleChips.map(([r]) => r).filter((r) => r !== 'archive'));
+  const kindChips = KIND_CHIPS.filter(([kind]) => kind !== 'zettel' || zettel.enabled);
+
+  // Open on wide screens; on phones the filters would push the graph out of view
+  const [filterOpen, setFilterOpen] = useState(() => matchMedia('(min-width: 1024px)').matches);
+  const [roles, setRoles] = useState<Set<RoleChip>>(defaultRoles);
+  const [kinds, setKinds] = useState<Set<GraphNoteKind>>(() => new Set());
+  const [folder, setFolder] = useState('');
+  const [tag, setTag] = useState('');
+  const [rangeField, setRangeField] = useState<'created' | 'updated'>('created');
+  const [range, setRange] = useState<[number, number] | null>(null);
+  const [focusId, setFocusId] = useState(() => new URLSearchParams(location.search).get('focus') ?? '');
+  const [depth, setDepth] = useState(2);
+  const [onlyLinked, setOnlyLinked] = useState(false);
+  const [onlyOrphans, setOnlyOrphans] = useState(() => new URLSearchParams(location.search).get('orphans') === '1');
+
+  // Day bounds of the chosen date over all notes, for the time range sliders
+  const bounds = useMemo(() => {
+    const days = notes.map((n) => Math.floor((rangeField === 'created' ? n.createdAt : n.updatedAt) / DAY)).filter((d) => d > 0);
+    return days.length ? [Math.min(...days), Math.max(...days)] : [0, 0];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version, rangeField]);
+  const [from, to] = range ?? bounds;
+  const focus = focusId && vault.get(focusId) ? focusId : '';
+  const allRolesShown = roleChips.every(([r]) => roles.has(r));
+
+  const g = filterGraph(
+    vault.links(),
+    notes,
+    {
+      roles: para.enabled || zettel.enabled ? (allRolesShown ? undefined : [...roles]) : undefined,
+      kinds: [...kinds],
+      folder: folder || undefined,
+      tag: tag || undefined,
+      range: range ? { field: rangeField, from: from * DAY, to: (to + 1) * DAY - 1 } : undefined,
+      focus: focus ? { id: focus, depth } : undefined,
+      onlyLinked,
+      onlyOrphans,
+    },
+    roleConfig
+  );
+
+  const rolesChanged = roleChips.some(([r]) => roles.has(r) !== (r !== 'archive'));
+  const active = [rolesChanged, kinds.size > 0, !!folder, !!tag, !!range, !!focus].filter(Boolean).length;
+  const reset = () => {
+    setRoles(defaultRoles());
+    setKinds(new Set());
+    setFolder('');
+    setTag('');
+    setRange(null);
+    setFocusId('');
+  };
+  const tags = useMemo(
+    () => [...new Set(notes.flatMap((n) => extractMeta(n.path, n.content).tags))].sort((a, b) => a.localeCompare(b, locale(lang))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [version, lang]
+  );
+  const titleOf = (id: string) => {
+    const n = vault.get(id);
+    return n ? projectTitleOf(n.path, n.content, roleConfig) : '';
+  };
+  const noteOptions = useMemo(
+    () =>
+      notes
+        .map((n) => ({ value: n.id, label: projectTitleOf(n.path, n.content, roleConfig) || splitPath(n.path).name }))
+        .sort((a, b) => a.label.localeCompare(b.label, locale(lang), { numeric: true })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [version, lang]
+  );
+  const dayLabel = (d: number) => new Date(d * DAY).toLocaleDateString(locale(lang), { dateStyle: 'medium' });
+  const setBound = (which: 0 | 1, value: number) => {
+    const next: [number, number] = which === 0 ? [Math.min(value, to), to] : [from, Math.max(value, from)];
+    setRange(next[0] === bounds[0] && next[1] === bounds[1] ? null : next);
+  };
+
   return (
     <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-4 flex flex-wrap items-center gap-3 anim-fade-up">
-        <h1 className="text-headline-m">{t('graph.title')}</h1>
-        <span className="text-sm text-on-surface-variant">{t('graph.summary', { nodes: nodes.length, edges: edges.length })}</span>
-        {para.enabled && (
-          <label className="ml-auto flex items-center gap-1.5 text-sm text-on-surface-variant">
-            <input type="checkbox" checked={hideArchive} onChange={(e) => setHideArchive(e.target.checked)} /> {t('graph.hideArchive')}
-          </label>
+      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 anim-fade-up">
+        <div className="min-w-0 flex-1 basis-56">
+          <h1 className="text-headline-m">{t('graph.title')}</h1>
+          <p className="mt-1 text-body-m text-on-surface-variant">
+            {t('graph.summary', { nodes: g.nodes.length, edges: g.edges.length })}
+            {g.orphans > 0 && ` · ${t('graph.orphanCount', { n: g.orphans })}`}
+          </p>
+        </div>
+        {active > 0 && (
+          <button type="button" className="btn-text" onClick={reset}>
+            {t('graph.reset')}
+          </button>
         )}
-        <label className={`${para.enabled ? '' : 'ml-auto '}flex items-center gap-1.5 text-sm text-on-surface-variant`}>
-          <input type="checkbox" checked={onlyLinked} onChange={(e) => setOnlyLinked(e.target.checked)} /> {t('graph.onlyLinked')}
-        </label>
+        <button type="button" className="btn-tonal" aria-expanded={filterOpen} onClick={() => setFilterOpen(!filterOpen)}>
+          <Filter size={18} /> {t('graph.filters')}
+          {active > 0 && <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-label-s text-on-primary">{active}</span>}
+        </button>
       </div>
-      <Graph nodes={nodes} edges={edges} height={Math.max(420, window.innerHeight - 220)} onOpen={(id) => navigate(`/n/${id}`)} />
-      <div className="mt-3">
-        <GraphLegend />
+
+      {filterOpen && (
+        <div className="card mb-4 grid gap-5 p-4 anim-fade-in sm:p-5 lg:grid-cols-2">
+          {roleChips.length > 2 && (
+            <FilterGroup label={t('graph.filterRoles')}>
+              {roleChips.map(([role, key]) => (
+                <FilterChip key={role} selected={roles.has(role)} onClick={() => setRoles(toggle(roles, role))}>
+                  {t(key)}
+                </FilterChip>
+              ))}
+            </FilterGroup>
+          )}
+          <FilterGroup label={t('graph.filterKinds')}>
+            {kindChips.map(([kind, key]) => (
+              <FilterChip key={kind} selected={kinds.has(kind)} onClick={() => setKinds(toggle(kinds, kind))}>
+                {t(key)}
+              </FilterChip>
+            ))}
+          </FilterGroup>
+          <FilterGroup label={t('graph.filterWhere')}>
+            <Dropdown
+              variant="chip"
+              value={folder}
+              onChange={setFolder}
+              aria-label={t('graph.filterFolder')}
+              options={[{ value: '', label: t('graph.allFolders') }, ...vault.folders().map((f) => ({ value: f, label: folderDisplayName(f, lang) }))]}
+            />
+            <Dropdown
+              variant="chip"
+              value={tag}
+              onChange={setTag}
+              aria-label={t('graph.filterTag')}
+              options={[{ value: '', label: t('graph.allTags') }, ...tags.map((x) => ({ value: x, label: `#${x}` }))]}
+            />
+          </FilterGroup>
+          <FilterGroup label={t('graph.filterFocus')}>
+            <Dropdown
+              variant="chip"
+              value={focus}
+              onChange={setFocusId}
+              aria-label={t('graph.filterFocus')}
+              leadingIcon={<LocateFixed size={18} />}
+              options={[{ value: '', label: t('graph.noFocus') }, ...noteOptions]}
+            />
+            {focus && (
+              <div className="segmented" role="group" aria-label={t('graph.depth')}>
+                {[1, 2, 3].map((d) => (
+                  <button key={d} type="button" aria-pressed={depth === d} onClick={() => setDepth(d)} title={t('graph.depthTitle', { n: d })}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+            )}
+          </FilterGroup>
+          {bounds[1] > bounds[0] && (
+            <div className="space-y-2 lg:col-span-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-label-l text-on-surface-variant">{t('graph.filterTime')}</span>
+                <div className="segmented ml-auto h-8" role="group" aria-label={t('graph.filterTime')}>
+                  {(['created', 'updated'] as const).map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      aria-pressed={rangeField === f}
+                      onClick={() => {
+                        setRangeField(f);
+                        setRange(null);
+                      }}
+                    >
+                      {t(f === 'created' ? 'graph.timeCreated' : 'graph.timeUpdated')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
+                <label className="block">
+                  <span className="flex justify-between text-body-s text-on-surface-variant">
+                    {t('graph.timeFrom')} <span className="tabular-nums text-on-surface">{dayLabel(from)}</span>
+                  </span>
+                  <input type="range" className="w-full cursor-pointer accent-primary" min={bounds[0]} max={bounds[1]} value={from} onChange={(e) => setBound(0, Number(e.target.value))} />
+                </label>
+                <label className="block">
+                  <span className="flex justify-between text-body-s text-on-surface-variant">
+                    {t('graph.timeTo')} <span className="tabular-nums text-on-surface">{dayLabel(to)}</span>
+                  </span>
+                  <input type="range" className="w-full cursor-pointer accent-primary" min={bounds[0]} max={bounds[1]} value={to} onChange={(e) => setBound(1, Number(e.target.value))} />
+                </label>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {focus && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-body-m text-on-surface-variant">
+          <LocateFixed size={18} className="shrink-0 text-primary" />
+          <span className="min-w-0 truncate">{t('graph.focusOn', { title: titleOf(focus), n: depth })}</span>
+          <button type="button" className="btn-icon h-8 w-8" onClick={() => setFocusId('')} aria-label={t('graph.clearFocus')} title={t('graph.clearFocus')}>
+            <X size={18} />
+          </button>
+        </div>
+      )}
+
+      {g.nodes.length === 0 ? (
+        <div className="card flex flex-col items-center gap-3 px-6 py-16 text-center">
+          <p className="text-body-m text-on-surface-variant">{t('graph.empty')}</p>
+          {active > 0 && (
+            <button type="button" className="btn-tonal" onClick={reset}>
+              {t('graph.reset')}
+            </button>
+          )}
+        </div>
+      ) : (
+        <Graph nodes={g.nodes} edges={g.edges} focusId={focus || undefined} height={Math.max(420, window.innerHeight - (filterOpen ? 420 : 220))} onOpen={(id) => navigate(`/n/${id}`)} />
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <GraphLegend orphans={g.orphans > 0} />
+        <div className="ml-auto flex flex-wrap gap-2">
+          <FilterChip
+            selected={onlyOrphans}
+            onClick={() => {
+              setOnlyOrphans(!onlyOrphans);
+              setOnlyLinked(false);
+            }}
+          >
+            {t('graph.onlyOrphans')}
+          </FilterChip>
+          <FilterChip
+            selected={onlyLinked}
+            onClick={() => {
+              setOnlyLinked(!onlyLinked);
+              setOnlyOrphans(false);
+            }}
+          >
+            {t('graph.onlyLinked')}
+          </FilterChip>
+        </div>
       </div>
     </div>
   );

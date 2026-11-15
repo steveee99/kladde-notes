@@ -1,4 +1,4 @@
-import { AlertTriangle, Briefcase, CalendarCheck, Check, Inbox, Lightbulb, Settings, Target, Unlink } from '../lib/icons';
+import { AlertTriangle, Briefcase, CalendarCheck, Check, Inbox, Lightbulb, Network, Settings, Target, Unlink } from '../lib/icons';
 import { buildReview, projectTitleOf } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { locale, tl, useLang } from '../lib/i18n';
@@ -76,7 +76,10 @@ export function ReviewView() {
       </div>
     );
   }
-  const r = buildReview(vault.list().filter((n) => n.access === 'owner'), Date.now(), 30, vault.roleConfig());
+  const r = buildReview(vault.list().filter((n) => n.access === 'owner'), Date.now(), 30, vault.roleConfig(), {
+    orphanExcludeFolders: features.daily.enabled ? [features.daily.folder] : [],
+  });
+  const ORPHANS_SHOWN = 24;
   const last = vault.setting<number>(REVIEW_KEY);
   return (
     <div className="content-container space-y-4 px-4 py-6 sm:px-8 sm:py-10">
@@ -130,6 +133,14 @@ export function ReviewView() {
           </Section>
         </>
       )}
+
+      <Section icon={Unlink} title={tl(lang, 'review.orphanNotesTitle')} count={r.orphanNotes.length} ok={tl(lang, 'review.orphanNotesOk')}>
+        <p className="mb-2 text-sm text-on-surface-variant">{tl(lang, 'review.orphanNotesHint')}</p>
+        <NoteLinks ids={r.orphanNotes.slice(0, ORPHANS_SHOWN)} />
+        <button className="btn-text mt-2" onClick={() => navigate('/graph?orphans=1')}>
+          <Network size={18} /> {tl(lang, 'review.orphanNotesMore', { n: r.orphanNotes.length })}
+        </button>
+      </Section>
 
       <button
         className="btn-primary w-full rounded-full py-3"
