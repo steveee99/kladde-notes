@@ -2,7 +2,7 @@
  * Tiny query language for ```query blocks, inspired by Dataview:
  *
  *   TABLE title, status, updated
- *   FROM "1 Projekte"
+ *   FROM "1 Projekte"          (or FROM #tag: notes with that tag or one nested below it)
  *   WHERE tags contains "arbeit" AND status != "fertig"
  *   SORT updated DESC
  *   LIMIT 20
@@ -11,11 +11,13 @@
  * KANBAN makes one column per value of the status field (default: the distinct values found). All clauses are optional and case-insensitive.
  * Fields: title, path, folder, created, updated, tags, links, due, time (tasks: reminder HH:MM), done, status (tasks: open|doing|blocked|done) and any frontmatter key.
  * Operators: = != < <= > >= contains ~ (substring, case-insensitive). AND binds tighter than OR.
+ * `tags contains "area"` also matches nested tags such as `area/health`.
  * Values: "text", numbers, YYYY-MM-DD, today, tomorrow, true/false.
  */
 
 import { extractMeta } from './markdown.js';
 import { parseTasks, toDateString } from './tasks.js';
+import { tagMatches } from './tags.js';
 
 export type QueryMode = 'table' | 'list' | 'tasks' | 'kanban';
 type Op = '=' | '!=' | '<' | '<=' | '>' | '>=' | 'contains' | '~';
@@ -34,6 +36,8 @@ export interface Query {
   /** KANBAN: column values in display order (empty = the distinct values found) */
   columnValues: string[];
   from: string | null;
+  /** FROM #tag: only notes with this tag or one nested below it */
+  fromTag: string | null;
   /** OR of AND groups */
   where: Condition[][];
   sort: { field: string; desc: boolean } | null;
@@ -85,7 +89,7 @@ export function parseQuery(src: string): Query {
   let i = 0;
   const peek = () => tokens[i]?.toLowerCase();
   const next = () => tokens[i++];
-  const q: Query = { mode: 'list', fields: [], groupBy: null, columnValues: [], from: null, where: [], sort: null, limit: null };
+  const q: Query = { mode: 'list', fields: [], groupBy: null, columnValues: [], from: null, fromTag: null, where: [], sort: null, limit: null };
 
   const mode = peek();
   if (mode === 'table' || mode === 'list' || mode === 'tasks' || mode === 'kanban') {
@@ -114,7 +118,8 @@ export function parseQuery(src: string): Query {
     } else if (kw === 'from') {
       const t = next();
       if (!t) throw new QueryError('FROM braucht einen Ordner, z. B. FROM "1 Projekte"');
-      q.from = unquote(t).replace(/\/$/, '');
+      if (t.startsWith('#') && t.length > 1) q.fromTag = t.slice(1).toLowerCase();
+      else q.from = unquote(t).replace(/\/$/, '');
     } else if (kw === 'where') {
       let group: Condition[] = [];
       while (i < tokens.length && !KEYWORDS.has(peek()!)) {
@@ -177,6 +182,7 @@ function matches(values: Record<string, unknown>, c: Condition, today: Date): bo
     actual = toDateString(new Date(actual));
   }
   if (c.op === 'contains') {
+    if (Array.isArray(actual) && c.field === 'tags') return actual.some((x) => tagMatches(String(x), expected));
     if (Array.isArray(actual)) return actual.some((x) => String(x).toLowerCase() === expected.toLowerCase());
     return String(actual ?? '').toLowerCase().includes(expected.toLowerCase());
   }
@@ -210,6 +216,7 @@ export function runQuery(src: string | Query, notes: QueryNote[], today = new Da
   for (const note of notes) {
     if (query.from !== null && !(note.path.startsWith(`${query.from}/`) || query.from === '')) continue;
     const meta = extractMeta(note.path, note.content);
+    if (query.fromTag !== null && !meta.tags.some((tag) => tagMatches(tag, query.fromTag!))) continue;
     const base: Record<string, unknown> = {
       ...meta.frontmatter,
       title: meta.title,

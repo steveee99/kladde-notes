@@ -4,6 +4,7 @@
  */
 import { extractMeta } from './markdown.js';
 import { parseTasks, splitRepeatRule, type Task } from './tasks.js';
+import { tagMatches } from './tags.js';
 import type { CalendarFeedOptions } from './types.js';
 
 export interface CalendarNote {
@@ -112,8 +113,9 @@ function plainTaskText(text: string): string {
 
 function matchesTag(task: Task, noteTags: string[], tag: string): boolean {
   const wanted = tag.replace(/^#/, '').toLowerCase();
-  if (noteTags.includes(wanted)) return true;
-  return new RegExp(`(^|\\s)#${wanted.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[\\s.,;:!?])`, 'iu').test(task.text);
+  // A parent tag includes its children (`#area` matches `#area/health`)
+  if (noteTags.some((t) => tagMatches(t, wanted))) return true;
+  return new RegExp(`(^|\\s)#${wanted.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[\\s/.,;:!?])`, 'iu').test(task.text);
 }
 
 /** Tasks that belong into the feed, in a stable order */

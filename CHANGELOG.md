@@ -4,6 +4,7 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Nested tags (#31). Tags nest with `/` (`#area/health`), and a parent includes its children: `WHERE tags contains "area"` and the new `FROM #area` in `query` blocks, as well as the tag filter of the calendar feed, also find notes tagged `#area/health`.
 - Changed: The note's side panel follows Material 3 more closely: a Title Large header with a standard close button, primary tabs (icon above the label, a primary indicator under the active tab) instead of a pill row, backlinks and unlinked mentions as filled list items, and the type scale for the outline, the empty states and the graph legend. The graph's hover label is a plain tooltip, and on phones the panel opens as a modal side sheet with the M3 shape.
 - Fixed: The next due date on a project card on the Home screen sits inside its background again. It is now a chip like "open tasks" next to it (red when overdue, amber when due today) instead of a pill that was stretched and showed its text at the top.
 
