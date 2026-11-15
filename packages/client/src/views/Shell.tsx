@@ -49,12 +49,13 @@ import { openDialog } from '../lib/dialogs';
 import { reviewDue } from './Review';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
-import { appUrl, currentPath, navigate, usePath } from '../lib/router';
+import { currentPath, navigate, usePath } from '../lib/router';
 import { dragSource, useDropTarget } from '../lib/dnd';
 import { isReadOnly, setReadOnly, useReadOnly } from '../lib/readOnly';
 import { ShareDialog } from './ShareDialog';
 import { MaterialShell } from './MaterialShell';
 import { Avatar } from './Avatar';
+import { AppLogo } from './AppLogo';
 import { getFocusMode, setFocusMode, toggleFocusMode } from '../lib/focus';
 import { editorHost } from '../editor/host';
 import { folderDisplayName, locale, t, useLang } from '../lib/i18n';
@@ -795,14 +796,17 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
       className="flex h-full flex-col gap-1 overflow-hidden p-3"
       onClick={(e) => (e.target as HTMLElement).closest('[data-close]') && onNavigate?.()}
     >
-      <div className="mb-2 flex min-w-0 shrink-0 items-center gap-1.5 px-1">
+      <div className="flex min-w-0 shrink-0 items-center gap-1.5 px-1">
         {headerAction}
-        <img src={appUrl('/icons/icon.svg')} className="h-7 w-7 shrink-0" alt="" />
-        <span className="min-w-0 truncate font-medium tracking-tight">Kladde</span>
         <div className="ml-auto flex shrink-0 items-center gap-1">
           <ReadOnlyToggle />
           <SyncBadge />
         </div>
+      </div>
+      {/* Brand on its own row: tonal logo tile and the name in Headline Small */}
+      <div className="mb-3 mt-1 flex min-w-0 shrink-0 items-center gap-3 px-2">
+        <AppLogo size={48} />
+        <span className="min-w-0 truncate text-headline-s text-on-surface">Kladde</span>
       </div>
 
       {/* Inline Material 3 search bar in the sidebar */}
