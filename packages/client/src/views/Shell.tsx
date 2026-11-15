@@ -30,6 +30,7 @@ import {
   Search,
   Share2,
   Star,
+  Tags,
   Trash2,
   X,
 } from '../lib/icons';
@@ -903,6 +904,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
               badge: inboxZero ? countBadge(inboxCount, 'warn') : null,
             })}
             {navIcon('graph', Network, t('nav.graph'), { to: '/graph' })}
+            {navIcon('tags', Tags, t('nav.tags'), { to: '/tags', active: path === '/tags' || path.startsWith('/tags/') })}
             {navIcon('files', Images, t('nav.files'), { to: '/files' })}
             {navIcon('trash', Trash2, t('nav.trash'), { to: '/trash' })}
             {features.review.enabled &&

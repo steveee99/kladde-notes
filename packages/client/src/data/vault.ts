@@ -35,6 +35,8 @@ import {
   joinPath,
   linkFirstMention,
   renameWikiLinks,
+  renameTag,
+  notesByTag,
   restoreTarget,
   setFrontmatter,
   dailyDueResolver,
@@ -387,6 +389,40 @@ class Vault {
       const content = renameWikiLinks(n.content, oldName, newName);
       if (content !== n.content) await this.put({ ...n, content, updatedAt: Date.now(), dirty: true });
     }
+  }
+
+  private tagCache: { version: number; tags: { tag: string; count: number }[] } | null = null;
+
+  /** All tags of the visible notes with their note counts, most used first (tag autocomplete) */
+  tagCounts(): { tag: string; count: number }[] {
+    if (!this.tagCache || this.tagCache.version !== this.version) {
+      const tags = [...notesByTag(this.list())].map(([tag, ids]) => ({ tag, count: ids.length }));
+      tags.sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+      this.tagCache = { version: this.version, tags };
+    }
+    return this.tagCache.tags;
+  }
+
+  /** Own notes (no system notes, nothing shared by others): the scope of the tag overview */
+  ownNotes(): LocalNote[] {
+    return this.list().filter((n) => n.access === 'owner');
+  }
+
+  /**
+   * Renames a tag (and the tags nested below it) in all own notes; onto an existing tag this merges them.
+   * Like `relink`, every changed note is a normal synced edit. Returns the number of changed notes.
+   */
+  async renameTag(from: string, to: string): Promise<number> {
+    if (isReadOnly()) return 0;
+    let changed = 0;
+    for (const n of this.ownNotes()) {
+      const content = renameTag(n.content, from, to);
+      if (content === n.content) continue;
+      await this.put({ ...n, content, updatedAt: Date.now(), dirty: true });
+      changed++;
+    }
+    if (changed) this.schedule();
+    return changed;
   }
 
   /** Replaces the first plain mention of the target's title in `noteId` with a link */

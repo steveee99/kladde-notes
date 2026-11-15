@@ -17,6 +17,7 @@ import { SettingsView } from './views/Settings';
 import { InboxView } from './views/Inbox';
 import { ShareCaptureView } from './views/ShareCapture';
 import { GraphView } from './views/Graph';
+import { TagsView } from './views/Tags';
 import { ReviewView } from './views/Review';
 import { AdminView } from './views/Admin';
 import { TemplatesView } from './views/Templates';
@@ -74,6 +75,7 @@ Object.assign(editorHost, {
     const rc = vault.roleConfig();
     return vault.list().map((n) => projectTitleOf(n.path, n.content, rc));
   },
+  tags: () => vault.tagCounts(),
   autoLinkTargets: (excludeId?: string) => vault.links().autoLinkTargets(excludeId),
   upload: (file: File) => {
     if (!navigator.onLine && !vault.standalone) return Promise.reject(new Error(t('note.uploadOnlineOnly')));
@@ -158,6 +160,7 @@ export function App() {
   let page: React.ReactNode;
   const note = match(path, '/n/:id');
   const dailyDate = match(path, '/daily/:date');
+  const tagRoute = match(path, '/tags/:tag');
   if (note) page = <NoteView key={note.id} id={note.id} isNew={location.search.includes('new=1')} />;
   else if (path === '/daily') page = <DailyNoteEmptyView key="today" />;
   else if (dailyDate) page = <DailyNoteEmptyView key={dailyDate.date} date={dailyDate.date} />;
@@ -166,6 +169,8 @@ export function App() {
   // "Share → Kladde" from another app (PWA share target)
   else if (path === '/share') page = <ShareCaptureView key={location.search} />;
   else if (path === '/graph') page = <GraphView />;
+  else if (path === '/tags') page = <TagsView />;
+  else if (tagRoute) page = <TagsView key={tagRoute.tag} tag={tagRoute.tag} />;
   else if (path === '/review') page = <ReviewView />;
   else if (path.startsWith('/f/')) page = <NoteList key={path} mode="folder" folder={decodeURIComponent(path.slice(3))} />;
   else if (path === '/notes') page = <NoteList mode="all" />;

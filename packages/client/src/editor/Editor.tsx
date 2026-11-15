@@ -15,7 +15,7 @@ import { statusTaskList } from './taskStatus';
 import { useLigatures } from '../lib/prefs';
 import { sourceHighlight } from './sourceHighlight';
 import { editorHost } from './host';
-import { merge3, textChanges } from '@kladde/shared';
+import { merge3, tagBeforeCursor, textChanges } from '@kladde/shared';
 import { slashCompletion } from './slash';
 import { remoteCursors } from './remoteCursors';
 import { focusDim } from './focusDim';
@@ -95,6 +95,22 @@ function wikiCompletion(ctx: CompletionContext) {
     options: editorHost.noteTitles().map((title) => ({ label: title, apply: `${title}]]` })),
     validFor: /^[^\]\n]*$/,
   };
+}
+
+/** `#` followed by a letter opens a list of known tags (most used first); nested tags complete as a whole */
+function tagCompletion(ctx: CompletionContext) {
+  const line = ctx.state.doc.lineAt(ctx.pos);
+  const typed = tagBeforeCursor(line.text.slice(0, ctx.pos - line.from));
+  // A lone `#` starts a heading as often as a tag: only an explicit request (Ctrl+Space) lists all tags then
+  if (!typed || (!typed.query && !ctx.explicit)) return null;
+  const node = syntaxTree(ctx.state).resolveInner(ctx.pos, -1);
+  for (let n: SyntaxNode | null = node; n; n = n.parent) if (/Code|URL|Link|Comment/.test(n.name)) return null;
+  const options = editorHost
+    .tags()
+    .filter((x) => x.tag !== typed.query)
+    .map((x) => ({ label: x.tag, detail: String(x.count), apply: x.tag }));
+  if (!options.length) return null;
+  return { from: line.from + typed.from + 1, options, validFor: /^[\p{L}\p{N}_/-]*$/u };
 }
 
 /** Pasted or dropped images and PDFs are uploaded and linked */
@@ -281,7 +297,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           lockConf.current.of(readOnlyExtensions(lockedRef.current)),
           EditorView.contentAttributes.of({ spellcheck: 'true', autocapitalize: 'sentences' }),
           placeholderConf.current.of(cmPlaceholder(resolvedPlaceholder)),
-          autocompletion({ override: [wikiCompletion, slashCompletion(insertFiles)], icons: false }),
+          autocompletion({ override: [wikiCompletion, tagCompletion, slashCompletion(insertFiles)], icons: false }),
           fileHandlers(),
           dimConf.current.of(dimRef.current ? focusDim : []),
           outlineSupport,

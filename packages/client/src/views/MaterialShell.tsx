@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { CalendarDays, CalendarRange, FileText, Home, Images, Inbox as InboxIcon, Menu, Network, Pencil, X } from '../lib/icons';
+import { CalendarDays, CalendarRange, FileText, Home, Images, Inbox as InboxIcon, Menu, Network, Pencil, Tags, X } from '../lib/icons';
 import { INBOX_FOLDER, Me, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { navigate, usePath } from '../lib/router';
@@ -80,7 +80,8 @@ function Destination({
 
 function NavItem({ to, Icon, label, badge, bar }: { to: string; Icon: Icon; label: string; badge?: number; bar?: boolean }) {
   const path = usePath();
-  return <Destination active={path === to} onClick={() => navigate(to)} Icon={Icon} label={label} badge={badge} bar={bar} />;
+  // A destination stays active on its sub pages (`/tags/<tag>`)
+  return <Destination active={path === to || (to !== '/' && path.startsWith(`${to}/`))} onClick={() => navigate(to)} Icon={Icon} label={label} badge={badge} bar={bar} />;
 }
 
 export function MaterialShell({ me, children, isAdmin }: { me: Me; children: React.ReactNode; isAdmin?: boolean }) {
@@ -173,6 +174,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
             <NavItem to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} />
             <NavItem to="/notes" Icon={FileText} label={t('nav.notes')} />
             <NavItem to="/graph" Icon={Network} label={t('nav.graphShort')} />
+            <NavItem to="/tags" Icon={Tags} label={t('nav.tags')} />
             <NavItem to="/files" Icon={Images} label={t('nav.files')} />
             <div className="m3-status mt-auto flex flex-col items-center gap-1 pt-2">
               <ReadOnlyToggle />
