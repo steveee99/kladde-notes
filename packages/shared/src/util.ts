@@ -33,3 +33,12 @@ export function safeUrl(raw: unknown, kind: 'link' | 'media' = 'link', allowData
   if (kind === 'media' && allowDataImage && /^data:image\/(png|jpe?g|gif|webp|avif|svg\+xml)[;,]/.test(probe)) return url;
   return null;
 }
+
+/** Strips leading and trailing slashes (a loop: `/\/+$/` is quadratic on long runs of slashes) */
+export function trimSlashes(s: string): string {
+  let from = 0;
+  let to = s.length;
+  while (from < to && s[from] === '/') from++;
+  while (to > from && s[to - 1] === '/') to--;
+  return s.slice(from, to);
+}

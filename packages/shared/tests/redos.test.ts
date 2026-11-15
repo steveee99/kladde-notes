@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCalendar, nextDue, parseFrontmatter, parseTasks, rruleOf, setTaskMeta, setTaskStatus, stripBlockIds, extractHeadings, trimSlashes } from '../src/index';
+import { buildCalendar, filterGraph, LinkIndex, normalizeTag, renameTag, tagBeforeCursor, nextDue, parseFrontmatter, parseTasks, rruleOf, setTaskMeta, setTaskStatus, stripBlockIds, extractHeadings, trimSlashes } from '../src/index';
 
 /** Runs `fn` and fails if it takes longer than a linear scan should (the CodeQL polynomial-ReDoS inputs) */
 function fast(fn: () => unknown, ms = 250) {
@@ -27,6 +27,24 @@ describe('regexes stay linear on hostile input', () => {
     fast(() => stripBlockIds(`x${'\t'.repeat(N)}y`));
     fast(() => trimSlashes(`${'/'.repeat(N)}x${'/'.repeat(N)}`));
     fast(() => buildCalendar([], { name: 'x', baseUrl: `https://a${'/'.repeat(N)}b`, includeDone: false, folder: `${'/'.repeat(N)}x`, tag: '', showTitles: true, lang: 'de' }));
+  });
+});
+
+describe('tags and graph filters stay linear', () => {
+  it('slashes, list brackets and long tag lines', () => {
+    fast(() => normalizeTag(`${'/'.repeat(N)}x${'/'.repeat(N)}`));
+    fast(() => renameTag(`---\ntags: [${' '.repeat(N)}a${' '.repeat(N)}\n---\n#a`, 'a', 'b'));
+    fast(() => renameTag(`---\ntags: ${'['.repeat(N)}\n---\n`, 'a', 'b'));
+    fast(() => tagBeforeCursor(`${' #'.repeat(N)}${'a'.repeat(N)}`));
+    fast(() => tagBeforeCursor(`${'a'.repeat(N)}!`));
+    fast(() => filterGraph(new LinkIndex([]), [], { folder: `${'/'.repeat(N)}x${'/'.repeat(N)}` }));
+  });
+
+  it('keeps the results', () => {
+    expect(normalizeTag('#//a//b//')).toBe('a/b');
+    expect(renameTag('---\ntags:  [a, b]  \n---\n', 'a', 'c')).toBe('---\ntags: [c, b]\n---\n');
+    expect(tagBeforeCursor('x #𝔞b')).toEqual({ query: '𝔞b', from: 2 });
+    expect(tagBeforeCursor('x#ab')).toBeNull();
   });
 });
 
