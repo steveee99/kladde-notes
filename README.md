@@ -56,7 +56,6 @@ The app and its UI are available in **English and German**. Some of the guides i
 
 ### Not implemented yet (roadmap)
 - End-to-end encryption (key only in the browser) and encryption of the local IndexedDB
-- Uploading attachments offline (currently online only)
 
 ---
 

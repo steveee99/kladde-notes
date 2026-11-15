@@ -843,6 +843,23 @@ span.cm-checkbox {
   display: block;
   margin: 6px 0;
 }
+/* Attachments added offline (#28): the local copy, dimmed until it is uploaded */
+.cm-img.cm-img-pending {
+  opacity: 0.75;
+  outline: 2px dashed rgb(var(--outline-variant));
+  outline-offset: 2px;
+}
+.cm-pending-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  border-radius: var(--shape-sm);
+  border: 1px dashed rgb(var(--outline-variant));
+  background: rgb(var(--surface-container));
+  color: rgb(var(--on-surface-variant));
+  padding: 0.15em 0.6em;
+  font-size: 0.9em;
+}
 .cm-block-widget {
   margin: 6px 0;
 }

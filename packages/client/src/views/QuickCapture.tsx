@@ -53,8 +53,8 @@ export function QuickCapture({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const online = useOnline() || vault.standalone;
-  // Attachments need the server; offline they cannot be stored yet, the text can
-  const keptFiles = online ? files : [];
+  // Offline, attachments wait on this device and upload once online (#28)
+  const keptFiles = files;
   const vp = useVisualViewport();
   const save = async () => {
     if (busy) return;
@@ -106,7 +106,7 @@ export function QuickCapture({
         {files.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
             {files.map((f, i) => (
-              <span key={`${f.name}-${i}`} className={`chip max-w-full gap-1.5 pr-1 ${online ? '' : 'opacity-60'}`}>
+              <span key={`${f.name}-${i}`} className="chip max-w-full gap-1.5 pr-1">
                 {f.type.startsWith('image/') ? <Image size={16} /> : <FileText size={16} />}
                 <span className="truncate">{f.name}</span>
                 <button
@@ -121,7 +121,7 @@ export function QuickCapture({
             ))}
           </div>
         )}
-        {files.length > 0 && !online && (
+        {files.length > 0 && !online && !vault.standalone && (
           <p className="mt-2 flex items-start gap-2 text-xs text-warn">
             <AlertTriangle size={16} className="shrink-0" /> {tl(lang, 'quick.shareOffline')}
           </p>

@@ -54,7 +54,6 @@
 
 ### Noch nicht umgesetzt (Roadmap)
 - Ende-zu-Ende-Verschlüsselung (Schlüssel nur im Browser) und Verschlüsselung der lokalen IndexedDB
-- Anhänge offline hochladen (derzeit nur online)
 
 ---
 

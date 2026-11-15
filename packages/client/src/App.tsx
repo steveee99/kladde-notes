@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { INBOX_FOLDER, Me, projectTitleOf, runQuery } from '@kladde/shared';
 import { api, ApiError, uploadFile } from './lib/api';
-import { t } from './lib/i18n';
 import { match, navigate, usePath } from './lib/router';
 import { vault } from './data/vault';
+import { uploads } from './data/uploads';
 import { editorHost } from './editor/host';
 import { isReadOnly } from './lib/readOnly';
 import { Invite, LinkDevice, Login } from './views/Auth';
@@ -80,10 +80,9 @@ Object.assign(editorHost, {
   },
   tags: () => vault.tagCounts(),
   autoLinkTargets: (excludeId?: string) => vault.links().autoLinkTargets(excludeId),
-  upload: (file: File) => {
-    if (!navigator.onLine && !vault.standalone) return Promise.reject(new Error(t('note.uploadOnlineOnly')));
-    return uploadFile(file);
-  },
+  // Offline (or on a network error) the file waits on this device and the note links it as kladde-pending:<id> (#28)
+  upload: (file: File) => (vault.standalone ? uploadFile(file) : uploads.upload(file)),
+  pendingUrl: (id: string) => uploads.objectUrl(id),
 });
 
 export function App() {

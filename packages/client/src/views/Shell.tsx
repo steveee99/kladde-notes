@@ -50,6 +50,7 @@ import { createPortal } from 'react-dom';
 import { openDialog } from '../lib/dialogs';
 import { reviewDue } from './Review';
 import { urgentTaskCount } from './TaskParts';
+import { usePendingUploads } from '../data/uploads';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { currentPath, navigate, usePath } from '../lib/router';
@@ -226,6 +227,8 @@ export function SyncBadge() {
   useVault();
   useLang();
   const pending = vault.pendingCount();
+  // Attachments added offline (#28): the badge says so and leads to the list
+  const files = usePendingUploads().length;
   const { state, message } = vault;
   const label =
     state === 'syncing'
@@ -237,6 +240,7 @@ export function SyncBadge() {
           : pending
             ? t('common.syncPending', { n: pending })
             : t('common.idle');
+  const fullLabel = files ? `${label} · ${t('uploads.badge', { n: files })}` : label;
   const Icon = state === 'syncing' ? Loader2 : state === 'offline' ? CloudOff : state === 'error' ? AlertTriangle : Cloud;
   // The demo has no server: say where the notes are instead of a sync state
   if (DEMO)
@@ -247,7 +251,12 @@ export function SyncBadge() {
       </span>
     );
   return (
-    <button onClick={vault.kick} title={`${label} — ${t('common.syncAction')}`} aria-label={label} className={`chip ${state === 'offline' ? 'text-warn' : state === 'error' ? 'text-error' : ''}`}>
+    <button
+      onClick={() => (files && !navigator.onLine ? navigate('/files') : vault.kick())}
+      title={`${fullLabel} — ${t('common.syncAction')}`}
+      aria-label={fullLabel}
+      className={`chip ${state === 'offline' ? 'text-warn' : state === 'error' ? 'text-error' : ''}`}
+    >
       <Icon size={18} className={state === 'syncing' ? 'animate-spin' : ''} />
       <span className="hidden sm:inline">{label}</span>
     </button>

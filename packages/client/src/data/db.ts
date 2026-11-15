@@ -12,19 +12,36 @@ export interface LocalNote extends SyncedNote {
   trashFolder?: string;
 }
 
+/** An attachment added while offline (#28): kept on this device until it is uploaded */
+export interface PendingUpload {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  blob: Blob;
+  createdAt: number;
+  /** Why the server refused it (too large, …); such uploads wait for retry or discard */
+  error?: string;
+}
+
 interface Schema extends DBSchema {
   notes: { key: string; value: LocalNote };
   meta: { key: string; value: unknown };
+  uploads: { key: string; value: PendingUpload };
 }
 
 let dbPromise: Promise<IDBPDatabase<Schema>> | null = null;
 
 /** One database per account, so two accounts on one device never mix */
 export function openLocalDb(userId: string): Promise<IDBPDatabase<Schema>> {
-  dbPromise = openDB<Schema>(`kladde-${userId}`, 1, {
-    upgrade(db) {
-      db.createObjectStore('notes', { keyPath: 'id' });
-      db.createObjectStore('meta');
+  dbPromise = openDB<Schema>(`kladde-${userId}`, 2, {
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
+        db.createObjectStore('notes', { keyPath: 'id' });
+        db.createObjectStore('meta');
+      }
+      // 2: attachments waiting for a connection
+      if (oldVersion < 2) db.createObjectStore('uploads', { keyPath: 'id' });
     },
   });
   return dbPromise;

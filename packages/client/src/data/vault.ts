@@ -102,6 +102,30 @@ class Vault {
 
   getVersion = () => this.version;
 
+  /** The open local database and its account (the upload queue shares it) */
+  localDb(): { db: LocalDb; userId: string } | null {
+    return this.db && this.ready ? { db: this.db, userId: this.userId } : null;
+  }
+
+  /** Replaces a text in every note this user may edit (pending upload links once uploaded); returns how many notes had it */
+  async replaceEverywhere(search: string, replacement: string): Promise<number> {
+    let n = 0;
+    for (const note of [...this.notes.values()]) {
+      if (note.deleted || !note.content.includes(search)) continue;
+      n++;
+      if (note.access === 'read') continue;
+      await this.put({ ...note, content: note.content.split(search).join(replacement), updatedAt: Date.now(), dirty: true });
+    }
+    if (n) this.schedule(250);
+    return n;
+  }
+
+  /** True when some note (also one shared read-only) contains the text */
+  mentions(search: string): boolean {
+    for (const note of this.notes.values()) if (!note.deleted && note.content.includes(search)) return true;
+    return false;
+  }
+
   private emit() {
     this.version++;
     this.listeners.forEach((l) => l());

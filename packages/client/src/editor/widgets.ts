@@ -816,6 +816,14 @@ export class AutoLinkWidget extends WidgetType {
   }
 }
 
+/** "⏳ name · uploads when online" for an attachment that is still on the device that added it */
+function pendingPlaceholder(name: string, lang: Lang, local = false): HTMLElement {
+  const s = document.createElement('span');
+  s.className = 'cm-pending-upload';
+  s.textContent = `⏳ ${name || tl(lang, 'uploads.file')} · ${tl(lang, local ? 'uploads.pendingHint' : 'uploads.pendingElsewhere')}`;
+  return s;
+}
+
 export class ImageWidget extends WidgetType {
   constructor(
     readonly url: string,
@@ -829,6 +837,20 @@ export class ImageWidget extends WidgetType {
   }
   toDOM() {
     const isPdf = /\.pdf($|\?)/i.test(this.url) || /\.pdf$/i.test(this.alt);
+    // An attachment added offline (#28): the local copy on this device, a placeholder everywhere else
+    const pending = this.url.startsWith('kladde-pending:') ? this.url.slice('kladde-pending:'.length) : null;
+    if (pending !== null) {
+      const local = /^[\w-]+$/.test(pending) ? editorHost.pendingUrl(pending) : null;
+      if (!local) return pendingPlaceholder(this.alt, this.lang);
+      if (isPdf) return pendingPlaceholder(this.alt, this.lang, true);
+      const img = document.createElement('img');
+      img.className = 'cm-img cm-img-pending';
+      img.src = local;
+      img.alt = this.alt;
+      img.title = tl(this.lang, 'uploads.pendingHint');
+      img.addEventListener('click', () => openLightbox(local));
+      return img;
+    }
     // Only http(s) and relative URLs reach src/href: a javascript: URL in an iframe would run in the app's origin
     const src = safeUrl(this.url, 'media', !isPdf);
     if (!src) {
