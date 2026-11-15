@@ -145,6 +145,8 @@ Without access to the server you can import a local folder (e.g. an Obsidian vau
 | `EXPORT_DIR` | Plain-text mirror of the notes (e.g. NAS), empty = off |
 | `TRASH_RETENTION_DAYS` | Days deleted notes stay in the trash before they are purged (default 30, `0` = until emptied by hand) |
 | `TRANSCRIBE_URL` | Optional speech-to-text for voice notes: an OpenAI-compatible transcription endpoint you run yourself, e.g. a local Whisper (`http://whisper:8000/v1/audio/transcriptions`). Unset = no transcription; recordings never go to a third-party service by default. `TRANSCRIBE_MODEL` (default `whisper-1`) and `TRANSCRIBE_API_KEY` are optional |
+| `OCR` | `true` turns on text recognition (OCR) for images and scanned PDF pages, so the full-text search finds their text too (Tesseract as WebAssembly, runs on the server, nothing leaves it; costs CPU, default off). The text of normal PDFs is always indexed. `OCR_LANGS` picks the languages: `deu`, `eng` or `deu+eng` (default) |
+| `CONFLUENCE_ALLOW_PRIVATE` | `true` lets users connect a Confluence on a private address (e.g. an on-premise Data Center in the intranet). By default the Confluence sync only reaches public https addresses, with the same protections as the web clipper |
 | `VAPID_SUBJECT` | Contact for Web Push services (`mailto:…` or `https://…`), sent with every reminder. Default: `PUBLIC_URL` if it is https |
 | `PUSH_ALLOWED_HOSTS` | Extra push service hosts (comma-separated) besides Google, Mozilla, Apple and Microsoft; other endpoints are refused |
 

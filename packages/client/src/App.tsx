@@ -35,6 +35,7 @@ import { CalendarView } from './views/ActivityHeatmap';
 import { TasksView } from './views/TasksView';
 import { ShortcutsSettingsView } from './views/ShortcutsSettings';
 import { ClipRoute } from './views/ClipRoute';
+import { ConfluenceSettingsView } from './views/ConfluenceSettings';
 
 const ME_KEY = 'kladde_me';
 
@@ -192,6 +193,7 @@ export function App() {
   else if (path === '/admin' && !me.standalone) page = <AdminView me={me} />;
   else if (path === '/settings/templates') page = <TemplatesView />;
   else if (path === '/settings/mcp') page = <McpSettingsView />;
+  else if (path === '/settings/confluence') page = <ConfluenceSettingsView />;
   else if (path === '/settings/import' && !me.standalone) page = <ImportSettingsView />;
   else if (path === '/settings/calendar' && !me.standalone) page = <CalendarSettingsView />;
   else if (path === '/settings/shortcuts' && !me.standalone) page = <ShortcutsSettingsView />;

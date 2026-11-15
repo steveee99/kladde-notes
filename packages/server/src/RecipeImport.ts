@@ -61,7 +61,7 @@ function embeddedNat64(v6: string): string | null {
   return [words[6] >> 8, words[6] & 0xff, words[7] >> 8, words[7] & 0xff].join('.');
 }
 
-const safeLookup: net.LookupFunction = (hostname, options, callback) => {
+export const safeLookup: net.LookupFunction = (hostname, options, callback) => {
   dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
     if (err) return callback(err, '', 4);
     const list = addresses as dns.LookupAddress[];

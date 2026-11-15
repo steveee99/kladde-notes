@@ -21,6 +21,8 @@ import {
 } from '@kladde/shared';
 import { MAX_NOTE_BYTES, NoteStore } from '../NoteStore.js';
 import type { FileStore } from '../FileStore.js';
+import type { AttachmentTextStore } from '../attachments/AttachmentTextStore.js';
+import { attachmentPages, searchAttachments } from '../attachments/search.js';
 
 /** Who calls a tool: tools only ever see the notes this user owns */
 export interface ToolContext {
@@ -29,7 +31,14 @@ export interface ToolContext {
   notes: NoteStore;
   /** Attachments (voice notes); tools that need them say so when missing */
   files?: FileStore;
+  /** Extracted text of PDF/image attachments (#37); without it the searches only look at notes */
+  attachmentTexts?: { texts: AttachmentTextStore; ocr: boolean };
   today?: Date;
+}
+
+/** Search deps for attachments, when both the files and their texts are available */
+function attachmentDeps(ctx: ToolContext) {
+  return ctx.files && ctx.attachmentTexts ? { files: ctx.files, texts: ctx.attachmentTexts.texts, ocr: ctx.attachmentTexts.ocr } : null;
 }
 
 /** A tool result that is MCP content as is (audio), instead of JSON text */
@@ -198,7 +207,7 @@ export const TOOLS: ToolDef[] = [
     name: 'search_notes',
     title: 'Notizen durchsuchen',
     description:
-      'Full-text search over titles, paths and contents of the user\'s own notes. All words must occur (case-insensitive). Returns matches with a snippet; read a note with read_note.',
+      'Full-text search over titles, paths and contents of the user\'s own notes, and over the text of the PDFs and images embedded in them (`attachments`: file name, page number, snippet and the notes that embed the file). All words must occur (case-insensitive). Read a note with read_note.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -221,9 +230,12 @@ export const TOOLS: ToolDef[] = [
         hits.push({ note: n, score });
       }
       hits.sort((a, b) => b.score - a.score || b.note.updatedAt - a.note.updatedAt);
+      const deps = attachmentDeps(ctx);
+      const inFiles = deps ? searchAttachments(deps, space(ctx), words.join(' '), limit).hits : [];
       return {
         total: hits.length,
         results: hits.slice(0, limit).map(({ note }) => ({ ...summary(note), snippet: snippet(note.content, words[0]) })),
+        attachments: inFiles.map((h) => ({ file: h.name, file_id: h.fileId, page: h.page, ocr: h.ocr, snippet: h.snippet, notes: h.notes })),
       };
     },
   },
@@ -231,7 +243,7 @@ export const TOOLS: ToolDef[] = [
     name: 'semantic_search',
     title: 'Semantische Suche',
     description:
-      'Semantic similarity search over the user\'s own notes. Understands German and English word stems, compound words (e.g. "Reisekosten"), conceptually related topics (e.g. "Urlaub" <-> "Flug", "Wohnung" <-> "Miete"), titles, tags, headings, and [[WikiLink]] graph neighbors. Returns ranked matches with score (0-1), match reasons, snippet and links.',
+      'Semantic similarity search over the user\'s own notes and the text of the PDFs/images embedded in them (`attachments`, with page number and the embedding notes). Understands German and English word stems, compound words (e.g. "Reisekosten"), conceptually related topics (e.g. "Urlaub" <-> "Flug", "Wohnung" <-> "Miete"), titles, tags, headings, and [[WikiLink]] graph neighbors. Returns ranked matches with score (0-1), match reasons, snippet and links.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -253,9 +265,21 @@ export const TOOLS: ToolDef[] = [
         if (!Number.isFinite(n) || n < 0 || n > 1) throw new ToolError('Parameter "min_score" muss zwischen 0 und 1 liegen.');
         minScore = n;
       }
-      const hits = semanticSearch(query, space(ctx), { folder, limit, minScore });
+      const notes = space(ctx);
+      // Pages of embedded PDFs/images take part as documents of their own; a hit points to the notes embedding them
+      const deps = attachmentDeps(ctx);
+      const pages = deps ? attachmentPages(deps, notes).pages.filter((p) => !folder || p.notes.some((n) => n.path.startsWith(`${folder}/`))) : [];
+      const pageDocs = new Map(pages.map((p, i) => [`attachment:${i}`, p]));
+      const docs = [...notes, ...[...pageDocs].map(([id, p]) => ({ id, path: `${p.name} (S. ${p.page})`, content: p.text }))];
+      const all = semanticSearch(query, docs, { limit: Math.min(100, limit * 2), minScore });
+      const hits = all.filter((h) => !pageDocs.has(h.note.id) && (!folder || h.note.path.startsWith(`${folder}/`))).slice(0, limit);
+      const fileHits = all.filter((h) => pageDocs.has(h.note.id)).slice(0, limit);
       return {
         total: hits.length,
+        attachments: fileHits.map((h) => {
+          const p = pageDocs.get(h.note.id)!;
+          return { file: p.name, file_id: p.fileId, page: p.page, ocr: p.ocr, score: h.score, snippet: h.snippet, notes: p.notes };
+        }),
         results: hits.map((h) => ({
           ...summary(h.note as SyncedNote),
           score: h.score,

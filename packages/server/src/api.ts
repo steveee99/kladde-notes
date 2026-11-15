@@ -1,5 +1,5 @@
 import express, { Response } from 'express';
-import type { AttachmentInfo, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
+import type { AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
 import { Presence } from './Presence.js';
 import { attachmentUsageMap } from './cliActions.js';
 import { AvatarStore, MAX_AVATAR_BYTES } from './AvatarStore.js';
@@ -11,6 +11,8 @@ import { handle, rateLimit, requireUser } from './http.js';
 import { ImportError, importRecipe } from './RecipeImport.js';
 import { clipPage } from './WebClip.js';
 import type { Transcriber } from './transcribe.js';
+import type { AttachmentTextStore } from './attachments/AttachmentTextStore.js';
+import { searchAttachments } from './attachments/search.js';
 
 /** Open event streams per user: a ping makes every device pull right away */
 export class LiveUpdates {
@@ -57,6 +59,8 @@ export interface ApiRouterOptions {
   trashDays?: number;
   /** Speech-to-text for voice notes, when TRANSCRIBE_URL is set */
   transcriber?: Transcriber | null;
+  /** Full-text search in attachments (#37) */
+  attachmentSearch?: { files: FileStore; texts: AttachmentTextStore; ocr: boolean };
 }
 
 export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, live: LiveUpdates, opts: ApiRouterOptions = {}): express.Router {
@@ -392,6 +396,21 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       }
     })
   );
+
+  // Full-text search in the text of PDFs and images (#37): only attachments embedded in notes the user can read
+  if (opts.attachmentSearch) {
+    const deps = opts.attachmentSearch;
+    router.get(
+      '/attachments/search',
+      rateLimit(240, 60_000),
+      handle((req, res) => {
+        const q = typeof req.query.q === 'string' ? req.query.q.slice(0, 200) : '';
+        const visible = notes.pull(req.user!.id, 0).notes.filter((n) => !n.deleted);
+        const result: AttachmentSearchResponse = searchAttachments(deps, visible, q, 50);
+        res.json(result);
+      })
+    );
+  }
 
   router.get(
     '/files',

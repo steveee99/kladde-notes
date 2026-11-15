@@ -30,6 +30,13 @@ import { allowedPushHosts } from './push/webpush.js';
 import { EmbeddedAsset, ensureStandaloneUser } from './standalone.js';
 import { trashRetentionDays } from './trash.js';
 import { transcriberFromEnv } from './transcribe.js';
+import { AttachmentTextStore } from './attachments/AttachmentTextStore.js';
+import { AttachmentIndexer } from './attachments/AttachmentIndexer.js';
+import { ocrFromEnv } from './attachments/ocr.js';
+import { ConfluenceStore } from './confluence/ConfluenceStore.js';
+import { ConfluenceSync } from './confluence/ConfluenceSync.js';
+import { httpsTransport, type HttpTransport } from './confluence/ConfluenceClient.js';
+import { confluenceRouter } from './confluence/router.js';
 
 export interface KladdeAppOptions {
   db: DatabaseSync;
@@ -42,6 +49,8 @@ export interface KladdeAppOptions {
   startedAt?: number;
   clientDist?: string;
   seaAssets?: Map<string, EmbeddedAsset> | null;
+  /** Requests to Confluence (#48); tests answer them without a network */
+  confluenceTransport?: HttpTransport;
   onRegistered?: (user: UserRecord, inviteNote: string) => void;
 }
 
@@ -51,6 +60,10 @@ export interface KladdeAppContext {
   notes: NoteStore;
   files: FileStore;
   avatars: AvatarStore;
+  /** Text extraction of PDF/image attachments for the search (#37) */
+  attachmentIndexer: AttachmentIndexer;
+  /** One-way sync of notes and folders to Confluence (#48) */
+  confluence: ConfluenceSync;
   audit: AuditLog;
   live: LiveUpdates;
   standaloneUser?: UserRecord;
@@ -67,14 +80,27 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   const audit = new AuditLog(opts.db);
   const live = new LiveUpdates();
   const mirror = ExportMirror.fromEnv((id) => users.getUser(id)?.username ?? null, env);
+  // Created below (it needs the file store); note changes reach it from the first push on
+  let confluence: ConfluenceSync | undefined;
   const notes = new NoteStore(opts.db, cipher, (event) => {
     live.notify(event.audience);
     mirror?.apply(event);
+    confluence?.onNoteChange(event);
   });
   // Git sync was removed: its working copies (plain Markdown of the notes) must not stay on disk
   fs.rmSync(path.join(opts.dataDir, 'git'), { recursive: true, force: true });
   const files = new FileStore(opts.db, cipher, opts.dataDir);
   const transcriber = transcriberFromEnv(env);
+  // Full-text search in attachments (#37): every new PDF (and image, with OCR) is indexed in the background
+  const attachmentTexts = new AttachmentTextStore(opts.db, cipher);
+  const attachmentIndexer = new AttachmentIndexer(files, attachmentTexts, ocrFromEnv(env, opts.dataDir));
+  files.onSaved((id, mime) => attachmentIndexer.enqueue(id, mime));
+  const attachmentSearch = { files, texts: attachmentTexts, ocr: !!attachmentIndexer.ocr };
+  // Confluence (#48): https only; private addresses (an intranet Confluence) only when the admin allows them
+  const confluenceAllowPrivate = ['1', 'true'].includes(env.CONFLUENCE_ALLOW_PRIVATE?.trim().toLowerCase() ?? '');
+  confluence = new ConfluenceSync(new ConfluenceStore(opts.db, cipher), notes, files, {
+    transport: opts.confluenceTransport ?? httpsTransport({ allowPrivate: confluenceAllowPrivate }),
+  });
   const avatars = new AvatarStore(opts.db, cipher, opts.dataDir);
   const standaloneUser = opts.standalone ? ensureStandaloneUser(users) : undefined;
   const push = opts.standalone ? undefined : new PushStore(opts.db, cipher, allowedPushHosts(env));
@@ -83,6 +109,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     users,
     notes,
     files,
+    attachmentTexts: { texts: attachmentTexts, ocr: attachmentSearch.ocr },
     tokens: new McpTokenStore(opts.db),
     audit,
     publicUrl: opts.publicUrl,
@@ -218,10 +245,11 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     req.path === '/sync' || req.path === '/files' || req.path === '/me/avatar' ? next() : express.json({ limit: '256kb' })(req, res, next)
   );
   app.use('/api/mcp', mcp.accountRouter);
+  app.use('/api/confluence', confluenceRouter({ users, sync: confluence, audit, allowPrivate: confluenceAllowPrivate, standaloneUser }));
   if (!opts.standalone) {
     app.use('/api/admin', adminRouter({ users, audit, status }));
   }
-  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, meFor, trashDays: trashRetentionDays(env), transcriber }));
+  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
   if (opts.seaAssets && opts.seaAssets.size > 0) {
@@ -275,5 +303,5 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
 
   const sendReminders = push ? (now?: Date) => runReminders(push, notes, pushSubject, now) : undefined;
-  return { app, users, notes, files, avatars, audit, live, standaloneUser, sendReminders };
+  return { app, users, notes, files, avatars, attachmentIndexer, confluence, audit, live, standaloneUser, sendReminders };
 }

@@ -60,6 +60,9 @@ import { ShareDialog } from './ShareDialog';
 import { MaterialShell } from './MaterialShell';
 import { Avatar } from './Avatar';
 import { AppLogo } from './AppLogo';
+import { AttachmentHitList, useAttachmentSearch } from './AttachmentHits';
+import { ConfluenceDialog } from './ConfluenceDialog';
+import { confluenceAvailable } from '../lib/confluence';
 import { getFocusMode, setFocusMode, toggleFocusMode } from '../lib/focus';
 import { editorHost } from '../editor/host';
 import { folderDisplayName, locale, t, useLang } from '../lib/i18n';
@@ -420,6 +423,7 @@ function FolderItem({
   const [open, setOpen] = useState(containsActive);
   const [mode, setMode] = useState<'idle' | 'new' | 'rename'>('idle');
   const [sharing, setSharing] = useState(false);
+  const [confluenceOpen, setConfluenceOpen] = useState(false);
   const drop = useDropTarget(node.path, () => setOpen(true));
   const active = current === `/f/${encodeURIComponent(node.path)}`;
   const empty = vault.isFolderEmpty(node.path);
@@ -508,6 +512,11 @@ function FolderItem({
                 <Share2 size={13} />
               </button>
             )}
+            {confluenceAvailable() && !empty && (
+              <button className="rounded-full p-1 hover:bg-surface-container-low hover:text-on-surface" title={t('confluence.menu')} onClick={() => setConfluenceOpen(true)}>
+                <Cloud size={13} />
+              </button>
+            )}
             {empty && (
               <button className="rounded-full p-1 hover:bg-surface-container-low hover:text-error" title={t('nav.deleteEmptyFolder')} onClick={() => void vault.deleteFolder(node.path)}>
                 <Trash2 size={13} />
@@ -519,6 +528,7 @@ function FolderItem({
       )}
       {/* Portal: the sidebar may be transformed (mobile drawer), which would trap a fixed overlay */}
       {sharing && createPortal(<ShareDialog target={{ folder: node.path }} onClose={() => setSharing(false)} />, document.body)}
+      {confluenceOpen && <ConfluenceDialog target={{ folder: node.path }} onClose={() => setConfluenceOpen(false)} />}
       {open && (hasChildren || mode === 'new') && (
         <ul className="anim-fade-in">
           {mode === 'new' && (
@@ -724,6 +734,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
   const inboxCount = (notesByFolder.get(INBOX_FOLDER) ?? []).length;
 
   const terms = useMemo(() => query.trim().toLowerCase().split(/\s+/).filter(Boolean), [query]);
+  const attachmentHits = useAttachmentSearch(query);
   const searchResults = useMemo(() => {
     if (!terms.length) return [];
     const rc = vault.roleConfig();
@@ -878,7 +889,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
             )}
           </div>
           {searchResults.length === 0 ? (
-            <p className="px-2 py-6 text-center text-sm text-on-surface-variant">{t('search.noResults')}</p>
+            !attachmentHits.length && <p className="px-2 py-6 text-center text-sm text-on-surface-variant">{t('search.noResults')}</p>
           ) : (
             <ul id="sidebar-search-results" role="listbox" className="space-y-1">
               {searchResults.map((n, i) => {
@@ -907,6 +918,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
               })}
             </ul>
           )}
+          <AttachmentHitList compact hits={attachmentHits} onOpen={(id) => nav(`/n/${id}`)} />
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto scrollbar-thin">

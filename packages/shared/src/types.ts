@@ -386,6 +386,26 @@ export interface AttachmentInfo {
   usedIn: AttachmentNoteRef[];
 }
 
+/** A match inside the text of a PDF or image attachment (#37): the notes that embed it lead to it */
+export interface AttachmentSearchHit {
+  fileId: string;
+  name: string;
+  mime: string;
+  url: string;
+  /** 1-based page of a PDF; images have one page */
+  page: number;
+  snippet: string;
+  /** True when the text came from OCR (scanned page or image) */
+  ocr: boolean;
+  notes: AttachmentNoteRef[];
+}
+
+export interface AttachmentSearchResponse {
+  hits: AttachmentSearchHit[];
+  /** Attachments still waiting for text extraction */
+  pending: number;
+}
+
 export interface DeleteFilesResponse {
   deleted: string[];
   skippedUsed: string[];

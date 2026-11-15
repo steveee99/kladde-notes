@@ -20,7 +20,9 @@ export type AuditEvent =
   | 'calendar_feed_created'
   | 'calendar_feed_revoked'
   | 'shortcut_token_created'
-  | 'shortcut_token_revoked';
+  | 'shortcut_token_revoked'
+  | 'confluence_connected'
+  | 'confluence_disconnected';
 
 export interface AuditEntry {
   at: number;
