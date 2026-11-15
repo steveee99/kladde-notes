@@ -22,7 +22,9 @@ const IMAGES_KEY = 'kladde.clipImages';
 /** The bookmarklet: opens Kladde's `/clip` route with the page's address, title and selection */
 export function bookmarkletCode(): string {
   const target = `${location.origin}${appUrl('/clip')}`;
-  return `javascript:(()=>{const s=String(getSelection()).slice(0,4000);window.open(${JSON.stringify(target)}+'?url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title.slice(0,300))+(s?'&text='+encodeURIComponent(s):''),'_blank')})()`;
+  // A JS string literal that also stays inert inside an href (no quotes, angle brackets or line separators)
+  const literal = JSON.stringify(target).replace(/[<>&'\u2028\u2029]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+  return `javascript:(()=>{const s=String(getSelection()).slice(0,4000);window.open(${literal}+'?url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title.slice(0,300))+(s?'&text='+encodeURIComponent(s):''),'_blank')})()`;
 }
 
 export function WebClipDialog({ initialUrl = '', title: givenTitle = '', selection = '' }: { initialUrl?: string; title?: string; selection?: string }) {

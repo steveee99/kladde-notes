@@ -50,6 +50,8 @@ export class FileStore {
   }
 
   save(ownerId: string, name: string, mime: string, data: Buffer): { id: string; mime: string } {
+    // Values come from request headers, query and body: never trust their type
+    if (typeof name !== 'string' || typeof mime !== 'string' || !Buffer.isBuffer(data)) throw new Error('Ungültige Datei.');
     if (!ALLOWED.test(mime)) throw new Error('Nur Bilder, PDF- und Audiodateien sind erlaubt.');
     if (data.length > MAX_FILE_BYTES) throw new Error('Die Datei ist zu groß (max. 25 MB).');
     const id = crypto.randomBytes(16).toString('base64url');

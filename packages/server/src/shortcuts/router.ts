@@ -182,7 +182,8 @@ export function shortcutsRouters(opts: ShortcutsOptions): { bearerRouter: expres
     route((req, res) => {
       const data = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
       if (!data.length) throw new ShortcutError('Die Anfrage enthält keine Datei.');
-      const q = req.query as Record<string, unknown>;
+      // Query values may be arrays (?name=a&name=b): only plain strings count
+      const q = Object.fromEntries(Object.entries(req.query).filter((e): e is [string, string] => typeof e[1] === 'string'));
       let name = text(q, 'name', 200).trim() || String(req.headers['x-filename'] ?? '');
       try {
         name = decodeURIComponent(name);
@@ -264,7 +265,8 @@ export function shortcutsRouters(opts: ShortcutsOptions): { bearerRouter: expres
   bearerRouter.get(
     '/tasks',
     route((req, res) => {
-      const q = req.query as Record<string, unknown>;
+      // Query values may be arrays (?name=a&name=b): only plain strings count
+      const q = Object.fromEntries(Object.entries(req.query).filter((e): e is [string, string] => typeof e[1] === 'string'));
       const days = Math.max(0, Math.min(Number(q.days ?? 7) || 0, 60));
       const lang = q.lang === 'en' ? 'en' : 'de';
       const now = new Date();

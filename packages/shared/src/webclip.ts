@@ -441,7 +441,8 @@ function tableOf(el: El, ctx: Ctx): string {
   for (const e of walk(el)) {
     if (e.tag !== 'tr') continue;
     const cells = e.children.filter(isEl).filter((c) => c.tag === 'td' || c.tag === 'th');
-    if (cells.length) rows.push(cells.map((c) => tidy(inline(c.children, ctx)).replace(/\|/g, '\\|').replace(/\s*\n\s*/g, ' ')));
+    // Backslashes are already escaped by the inline writer; a pipe would end the cell
+    if (cells.length) rows.push(cells.map((c) => tidy(inline(c.children, ctx)).split('|').join('\\|').replace(/\s*\n\s*/g, ' ')));
   }
   if (!rows.length) return '';
   const width = Math.max(...rows.map((r) => r.length));
