@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChefHat, ClipboardPaste, Draw, FileText, FileType2, Lightbulb, Loader2, X } from '../lib/icons';
+import { ChefHat, ClipboardPaste, Draw, FileText, FileType2, Globe, Lightbulb, Loader2, X } from '../lib/icons';
 import { INBOX_FOLDER, Recipe, recipeNoteTitle, recipeToMarkdown, SharedFolder, Template, ZETTEL_TYPES, ZettelType } from '@kladde/shared';
 import { api } from '../lib/api';
 import { vault } from '../data/vault';
@@ -10,6 +10,7 @@ import { folderDisplayName, tl, useLang, zettelTypeLabel } from '../lib/i18n';
 import { navigate } from '../lib/router';
 import { isCoarsePointer, useVisualViewport } from '../lib/viewport';
 import { Dropdown } from './Dropdown';
+import { WebClipDialog } from './WebClipDialog';
 
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   const lang = useLang();
@@ -72,13 +73,14 @@ function NewNoteDialog({ folder, type, shared }: { folder?: string; type?: NewNo
       setBusy(false);
     }
   };
-  const kinds: { value: NewNoteKind | 'zettel' | 'recipe'; label: string; Icon: typeof FileText; hint?: string }[] = [
+  const kinds: { value: NewNoteKind | 'zettel' | 'recipe' | 'clip'; label: string; Icon: typeof FileText; hint?: string }[] = [
     { value: 'note', label: tl(lang, 'nav.newNoteShort'), Icon: FileText },
     { value: 'drawing', label: tl(lang, 'nav.drawingNote'), Icon: Draw, hint: tl(lang, 'nav.drawingNoteTitle') },
   ];
   if (!shared) {
     kinds.push({ value: 'pdf', label: tl(lang, 'nav.pdfNote'), Icon: FileType2, hint: tl(lang, 'nav.pdfNoteTitle') });
     if (features.zettel.enabled) kinds.push({ value: 'zettel', label: 'Zettel', Icon: Lightbulb, hint: tl(lang, 'nav.zettelTitle') });
+    kinds.push({ value: 'clip', label: tl(lang, 'clip.kind'), Icon: Globe, hint: tl(lang, 'clip.title') });
     if (features.recipe.enabled) kinds.push({ value: 'recipe', label: tl(lang, 'nav.recipe'), Icon: ChefHat, hint: tl(lang, 'quick.recipeTitle') });
   }
   const CreateIcon = kind === 'drawing' ? Draw : kind === 'pdf' ? FileType2 : FileText;
@@ -95,6 +97,7 @@ function NewNoteDialog({ folder, type, shared }: { folder?: string; type?: NewNo
             onClick={() => {
               if (value === 'zettel') openDialog({ kind: 'zettel' });
               else if (value === 'recipe') openDialog({ kind: 'recipe' });
+              else if (value === 'clip') openDialog({ kind: 'clip' });
               else setKind(value);
             }}
           >
@@ -316,5 +319,6 @@ export function Dialogs() {
     return <NewNoteDialog key={`${dialog.type ?? ''}:${dialog.shared?.folder ?? dialog.folder ?? ''}`} folder={dialog.folder} type={dialog.type} shared={dialog.shared} />;
   if (dialog?.kind === 'zettel') return <ZettelDialog />;
   if (dialog?.kind === 'recipe') return <RecipeDialog initialUrl={dialog.url} />;
+  if (dialog?.kind === 'clip') return <WebClipDialog key={dialog.url ?? ''} initialUrl={dialog.url} title={dialog.title} selection={dialog.selection} />;
   return null;
 }

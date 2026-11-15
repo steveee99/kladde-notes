@@ -22,6 +22,8 @@ import { locale, t, tl, useLang } from '../lib/i18n';
 import { useReadOnly } from '../lib/readOnly';
 import { navigate } from '../lib/router';
 import { Sheet } from './Dialogs';
+import { PendingUploadsCard } from './PendingUploads';
+import { usePendingUploads } from '../data/uploads';
 
 type FilterMode = 'all' | 'unused';
 
@@ -72,9 +74,11 @@ export function FilesView() {
     }
   }, []);
 
+  // Also when the offline queue got smaller: those files are on the server now
+  const pendingUploads = usePendingUploads().length;
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, pendingUploads]);
 
   useEffect(() => {
     if (!preview) return;
@@ -205,6 +209,7 @@ export function FilesView() {
 
   return (
     <div className="content-container space-y-5 px-4 py-6 sm:px-8 sm:py-10">
+      <PendingUploadsCard />
       <header className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
           <h1 className="flex items-center gap-2.5 text-headline-m">

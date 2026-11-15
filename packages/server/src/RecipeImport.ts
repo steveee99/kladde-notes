@@ -99,7 +99,7 @@ function decode(body: Buffer, contentType: string): string {
   }
 }
 
-function get(url: URL): Promise<{ status: number; location?: string; contentType: string; body: Buffer }> {
+function get(url: URL, accept = 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8', maxBytes = MAX_BYTES): Promise<{ status: number; location?: string; contentType: string; body: Buffer }> {
   return new Promise((resolve, reject) => {
     const mod = url.protocol === 'https:' ? https : http;
     const req = mod.get(
@@ -110,7 +110,7 @@ function get(url: URL): Promise<{ status: number; location?: string; contentType
         headers: {
           // Many recipe sites answer bots with an empty page, so ask like a browser does
           'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
-          Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
+          Accept: accept,
           'Accept-Language': 'de-DE,de;q=0.9,en;q=0.7',
           'Accept-Encoding': 'gzip, deflate, br',
         },
@@ -129,8 +129,8 @@ function get(url: URL): Promise<{ status: number; location?: string; contentType
         let size = 0;
         stream.on('data', (c: Buffer) => {
           size += c.length;
-          if (size > MAX_BYTES) {
-            req.destroy(new ImportError('Die Seite ist zu groß.'));
+          if (size > maxBytes) {
+            req.destroy(new ImportError('Die Seite oder Datei ist zu groß.'));
             return;
           }
           chunks.push(c);
@@ -161,6 +161,28 @@ export async function fetchPage(raw: string): Promise<{ url: string; html: strin
     if (res.status >= 400) throw new ImportError(`Die Seite antwortet mit Fehler ${res.status}.`);
     if (!/html|xml/i.test(res.contentType)) throw new ImportError('Unter diesem Link liegt keine Webseite.');
     return { url: url.toString(), html: decode(res.body, res.contentType) };
+  }
+  throw new ImportError('Zu viele Weiterleitungen.');
+}
+
+/** Fetches an image for the web clipper (same address checks and limits as pages) */
+export async function fetchImage(raw: string, maxBytes: number): Promise<{ mime: string; data: Buffer }> {
+  let url = checkUrl(raw);
+  for (let i = 0; i <= MAX_REDIRECTS; i++) {
+    let res;
+    try {
+      res = await get(url, 'image/avif,image/webp,image/png,image/jpeg,image/gif,image/*;q=0.8', maxBytes);
+    } catch (err) {
+      if (err instanceof ImportError) throw err;
+      throw new ImportError('Das Bild ist nicht erreichbar.');
+    }
+    if (res.location) {
+      url = checkUrl(new URL(res.location, url).toString());
+      continue;
+    }
+    const mime = res.contentType.split(';')[0].trim().toLowerCase();
+    if (res.status >= 400 || !/^image\/(png|jpe?g|gif|webp|avif)$/.test(mime)) throw new ImportError('Kein Bild.');
+    return { mime, data: res.body };
   }
   throw new ImportError('Zu viele Weiterleitungen.');
 }

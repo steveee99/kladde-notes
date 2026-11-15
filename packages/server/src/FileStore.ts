@@ -6,7 +6,8 @@ import { MAX_FILE_BYTES } from '@kladde/shared';
 import { DataCipher } from './crypto.js';
 
 export { MAX_FILE_BYTES };
-const ALLOWED = /^(image\/(png|jpeg|gif|webp|svg\+xml|avif)|application\/pdf)$/;
+// Audio: voice notes (#33) – webm/ogg from Chrome and Firefox, mp4/aac from Safari
+const ALLOWED = /^(image\/(png|jpeg|gif|webp|svg\+xml|avif)|application\/pdf|audio\/(webm|ogg|mp4|mpeg|aac|wav|x-wav|x-m4a))$/;
 
 export interface StoredFileMeta {
   id: string;
@@ -49,7 +50,11 @@ export class FileStore {
   }
 
   save(ownerId: string, name: string, mime: string, data: Buffer): { id: string; mime: string } {
-    if (!ALLOWED.test(mime)) throw new Error('Nur Bilder und PDF-Dateien sind erlaubt.');
+    // Values come from request headers, query and body: never trust their type
+    if (typeof name !== 'string' || typeof mime !== 'string' || !Buffer.isBuffer(data)) throw new Error('Ungültige Datei.');
+    // A parsed body could in theory be an array; CodeQL knows this guard, not Buffer.isBuffer
+    if (Array.isArray(data)) throw new Error('Ungültige Datei.');
+    if (!ALLOWED.test(mime)) throw new Error('Nur Bilder, PDF- und Audiodateien sind erlaubt.');
     if (data.length > MAX_FILE_BYTES) throw new Error('Die Datei ist zu groß (max. 25 MB).');
     const id = crypto.randomBytes(16).toString('base64url');
     fs.writeFileSync(path.join(this.dir, id), this.cipher.encrypt(data, `file:${id}`), { mode: 0o600 });

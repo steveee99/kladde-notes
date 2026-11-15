@@ -19,6 +19,12 @@ export interface EditorHost {
   tags(): { tag: string; count: number }[];
   autoLinkTargets(excludeId?: string): { name: string; target: string }[];
   upload(file: File): Promise<{ url: string; name: string; mime: string }>;
+  /** Local blob: URL of an attachment still waiting to be uploaded (`kladde-pending:<id>`), null when not on this device */
+  pendingUrl(id: string): string | null;
+  /** Records a voice note (#33); null when cancelled */
+  recordVoice(): Promise<File | null>;
+  /** Text of a voice note from the server's speech-to-text, null when the server has none */
+  transcribe: ((url: string) => Promise<string>) | null;
   registerFlush(fn: () => void): () => void;
   flush(): void;
   requestSave(): void;
@@ -39,6 +45,9 @@ export const editorHost: EditorHost = {
   tags: () => [],
   autoLinkTargets: () => [],
   upload: () => Promise.reject(new Error(t('editor.notAvailable'))),
+  pendingUrl: () => null,
+  recordVoice: () => Promise.resolve(null),
+  transcribe: null,
   registerFlush: (fn) => {
     flushers.add(fn);
     return () => flushers.delete(fn);

@@ -318,6 +318,24 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 15,
+    description: 'Apple Shortcuts tokens (only SHA-256 hashes of the secrets)',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE shortcut_tokens (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          token_hash TEXT NOT NULL UNIQUE,
+          created_at INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL,
+          last_used_at INTEGER
+        );
+        CREATE INDEX shortcut_tokens_user ON shortcut_tokens(user_id);
+      `);
+    },
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number[] {

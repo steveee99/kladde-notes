@@ -563,7 +563,7 @@ export function openStatusMenu(anchor: HTMLElement, current: TaskStatus, lang: L
 }
 
 /** Rewrites the status of the task in `lineIndex` as one minimal change */
-function setLineStatus(view: EditorView, lineIndex: number, status: TaskStatus) {
+export function setLineStatus(view: EditorView, lineIndex: number, status: TaskStatus) {
   const doc = view.state.doc;
   const oldLines = doc.toString().split('\n');
   const newLines = setTaskStatus(doc.toString(), lineIndex, status).split('\n');
@@ -816,6 +816,72 @@ export class AutoLinkWidget extends WidgetType {
   }
 }
 
+/** "⏳ name · uploads when online" for an attachment that is still on the device that added it */
+function pendingPlaceholder(name: string, lang: Lang, local = false): HTMLElement {
+  const s = document.createElement('span');
+  s.className = 'cm-pending-upload';
+  s.textContent = `⏳ ${name || tl(lang, 'uploads.file')} · ${tl(lang, local ? 'uploads.pendingHint' : 'uploads.pendingElsewhere')}`;
+  return s;
+}
+
+/** Voice notes and other recordings (#33): recognised by the file name in the link text or URL */
+const AUDIO_FILE = /\.(webm|ogg|oga|opus|m4a|mp3|wav|aac)$/i;
+
+/** An audio player with the file name, and a "Transcribe" button when the server can do it */
+function audioPlayer(src: string, name: string, lang: Lang, onTranscribe?: (btn: HTMLButtonElement) => void): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'cm-block-widget cm-audio';
+  const audio = document.createElement('audio');
+  audio.controls = true;
+  audio.preload = 'metadata';
+  audio.src = src;
+  audio.title = name;
+  const row = document.createElement('div');
+  row.className = 'cm-audio-meta';
+  const label = document.createElement('span');
+  label.textContent = `🎙️ ${name.replace(/\.[^.]+$/, '') || tl(lang, 'voice.title')}`;
+  row.append(label);
+  if (onTranscribe) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cm-audio-transcribe';
+    btn.textContent = tl(lang, 'voice.transcribe');
+    btn.addEventListener('mousedown', (e) => e.preventDefault());
+    btn.addEventListener('click', () => onTranscribe(btn));
+    row.append(btn);
+  }
+  wrap.append(audio, row);
+  return wrap;
+}
+
+/** Puts the transcript as a quote below the line with the recording, as one edit */
+function transcribeInto(view: EditorView, link: string, src: string, transcribe: (url: string) => Promise<string>, btn: HTMLButtonElement, lang: Lang) {
+  btn.disabled = true;
+  btn.textContent = tl(lang, 'voice.transcribing');
+  transcribe(src).then(
+    (text) => {
+      const at = view.state.doc.toString().indexOf(`](${link})`);
+      if (at < 0 || !text.trim()) {
+        btn.disabled = false;
+        btn.textContent = tl(lang, text.trim() ? 'voice.transcribe' : 'voice.transcribeEmpty');
+        return;
+      }
+      const line = view.state.doc.lineAt(at);
+      const quote = text
+        .trim()
+        .split(/\n+/)
+        .map((l) => `> ${l.trim()}`)
+        .join('\n');
+      view.dispatch({ changes: { from: line.to, insert: `\n\n${quote}` }, userEvent: 'input' });
+    },
+    (err: Error) => {
+      btn.disabled = false;
+      btn.textContent = tl(lang, 'voice.transcribe');
+      alert(tl(lang, 'voice.transcribeFailed', { error: err.message }));
+    }
+  );
+}
+
 export class ImageWidget extends WidgetType {
   constructor(
     readonly url: string,
@@ -827,8 +893,24 @@ export class ImageWidget extends WidgetType {
   eq(o: ImageWidget) {
     return o.url === this.url && o.alt === this.alt && o.lang === this.lang;
   }
-  toDOM() {
+  toDOM(view: EditorView) {
     const isPdf = /\.pdf($|\?)/i.test(this.url) || /\.pdf$/i.test(this.alt);
+    const isAudio = AUDIO_FILE.test(this.url) || AUDIO_FILE.test(this.alt);
+    // An attachment added offline (#28): the local copy on this device, a placeholder everywhere else
+    const pending = this.url.startsWith('kladde-pending:') ? this.url.slice('kladde-pending:'.length) : null;
+    if (pending !== null) {
+      const local = /^[\w-]+$/.test(pending) ? editorHost.pendingUrl(pending) : null;
+      if (!local) return pendingPlaceholder(this.alt, this.lang);
+      if (isAudio) return audioPlayer(local, this.alt, this.lang);
+      if (isPdf) return pendingPlaceholder(this.alt, this.lang, true);
+      const img = document.createElement('img');
+      img.className = 'cm-img cm-img-pending';
+      img.src = local;
+      img.alt = this.alt;
+      img.title = tl(this.lang, 'uploads.pendingHint');
+      img.addEventListener('click', () => openLightbox(local));
+      return img;
+    }
     // Only http(s) and relative URLs reach src/href: a javascript: URL in an iframe would run in the app's origin
     const src = safeUrl(this.url, 'media', !isPdf);
     if (!src) {
@@ -837,6 +919,11 @@ export class ImageWidget extends WidgetType {
       s.textContent = this.alt || this.url;
       s.title = this.url;
       return s;
+    }
+    if (isAudio) {
+      // Only the owner's own attachments can be transcribed, and only where the note may be edited
+      const transcribe = editorHost.transcribe && /^\/api\/files\/[\w-]+$/.test(src) && !view.state.readOnly ? editorHost.transcribe : null;
+      return audioPlayer(src, this.alt, this.lang, transcribe ? (btn) => transcribeInto(view, this.url, src, transcribe, btn, this.lang) : undefined);
     }
     if (isPdf) {
       const wrap = document.createElement('div');

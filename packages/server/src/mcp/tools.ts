@@ -16,16 +16,25 @@ import {
   splitPath,
   toDateString,
   toggleTask,
+  type FeatureSettings,
   type SyncedNote,
 } from '@kladde/shared';
 import { MAX_NOTE_BYTES, NoteStore } from '../NoteStore.js';
+import type { FileStore } from '../FileStore.js';
 
 /** Who calls a tool: tools only ever see the notes this user owns */
 export interface ToolContext {
   userId: string;
   canWrite: boolean;
   notes: NoteStore;
+  /** Attachments (voice notes); tools that need them say so when missing */
+  files?: FileStore;
   today?: Date;
+}
+
+/** A tool result that is MCP content as is (audio), instead of JSON text */
+export class ToolContent {
+  constructor(readonly content: Record<string, unknown>[]) {}
 }
 
 /** Wrong input or a refused change: reported to the assistant as a tool error, not a protocol error */
@@ -56,6 +65,11 @@ function taskDue(ctx: ToolContext): (path: string) => string | null {
 
 /** Same as `taskDue`, for callers outside the MCP (the calendar feed) */
 export function taskDueOf(notes: NoteStore, userId: string): (path: string) => string | null {
+  return dailyDueResolver(featuresOf(notes, userId).daily);
+}
+
+/** The feature settings the client keeps in the user's settings note (daily notes, PARA, …) */
+export function featuresOf(notes: NoteStore, userId: string): FeatureSettings {
   const settings = notes.ownedNotes(userId).find((n) => n.id === `syssettings-${userId}`);
   let raw: unknown;
   try {
@@ -63,7 +77,7 @@ export function taskDueOf(notes: NoteStore, userId: string): (path: string) => s
   } catch {
     raw = undefined;
   }
-  return dailyDueResolver(normalizeFeatures(raw).daily);
+  return normalizeFeatures(raw);
 }
 
 const str = (args: Record<string, unknown>, key: string, required = false): string | undefined => {
@@ -405,6 +419,37 @@ export const TOOLS: ToolDef[] = [
       const continuesList = listItem.test(text) && listItem.test(body.slice(body.lastIndexOf('\n') + 1));
       const content = body ? `${body}${continuesList ? '\n' : '\n\n'}${text}\n` : `${text}\n`;
       return save(ctx, note, normalizeDueWords(content, ctx.today ?? new Date()));
+    },
+  },
+  {
+    name: 'read_voice_note',
+    title: 'Sprachnotiz anhören',
+    description:
+      'Returns a voice recording embedded in one of the user\'s notes as audio, so you can transcribe it. Then add the text with append_to_note (e.g. as a quote below the recording). `index` picks the n-th recording of the note (0 = first).',
+    inputSchema: {
+      type: 'object',
+      properties: { ...noteRef, index: { type: 'integer', minimum: 0, default: 0 } },
+    },
+    write: false,
+    run(args, ctx) {
+      if (!ctx.files) throw new ToolError('Anhänge sind über diese Verbindung nicht verfügbar.');
+      const note = findNote(space(ctx), args);
+      const recordings: { id: string; line: number }[] = [];
+      note.content.split('\n').forEach((text, line) => {
+        for (const m of text.matchAll(/\/api\/files\/([A-Za-z0-9_-]{22})/g)) {
+          const meta = ctx.files!.getMeta(ctx.userId, m[1]);
+          if (meta?.mime.startsWith('audio/')) recordings.push({ id: m[1], line });
+        }
+      });
+      if (!recordings.length) throw new ToolError('Diese Notiz enthält keine Sprachaufnahme.');
+      const pick = recordings[int(args, 'index', 0, recordings.length - 1)];
+      const file = ctx.files.load(pick.id);
+      if (!file) throw new ToolError('Die Aufnahme konnte nicht gelesen werden.');
+      if (file.data.length > 10 * 1024 * 1024) throw new ToolError('Die Aufnahme ist größer als 10 MB.');
+      return new ToolContent([
+        { type: 'text', text: JSON.stringify({ note_id: note.id, path: note.path, line: pick.line, name: file.name, mime: file.mime, recordings: recordings.length }) },
+        { type: 'audio', data: file.data.toString('base64'), mimeType: file.mime },
+      ]);
     },
   },
   {

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CalendarCheck,
+  Globe,
+  ListChecks,
   CalendarDays,
   CalendarRange,
   CheckCircle2,
@@ -47,6 +49,8 @@ import {
 import { createPortal } from 'react-dom';
 import { openDialog } from '../lib/dialogs';
 import { reviewDue } from './Review';
+import { urgentTaskCount } from './TaskParts';
+import { usePendingUploads } from '../data/uploads';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { currentPath, navigate, usePath } from '../lib/router';
@@ -178,6 +182,7 @@ function NewNoteButton({
           >
             {menuItem(FileText, t('nav.newNoteShort'), () => newNote())}
             {zettel && menuItem(Lightbulb, 'Zettel', newZettel, t('nav.zettelTitle'))}
+            {menuItem(Globe, t('clip.kind'), () => openDialog({ kind: 'clip' }), t('clip.title'))}
             {recipe && menuItem(ChefHat, t('nav.recipe'), () => importRecipe(), t('quick.recipeTitle'))}
             {menuItem(Draw, t('nav.drawingNote'), () => void createDrawingNote(folder ?? INBOX_FOLDER), t('nav.drawingNoteTitle'))}
             {/* Not run(): onNavigate may close the mobile drawer, which would drop the file input */}
@@ -222,6 +227,8 @@ export function SyncBadge() {
   useVault();
   useLang();
   const pending = vault.pendingCount();
+  // Attachments added offline (#28): the badge says so and leads to the list
+  const files = usePendingUploads().length;
   const { state, message } = vault;
   const label =
     state === 'syncing'
@@ -233,6 +240,7 @@ export function SyncBadge() {
           : pending
             ? t('common.syncPending', { n: pending })
             : t('common.idle');
+  const fullLabel = files ? `${label} · ${t('uploads.badge', { n: files })}` : label;
   const Icon = state === 'syncing' ? Loader2 : state === 'offline' ? CloudOff : state === 'error' ? AlertTriangle : Cloud;
   // The demo has no server: say where the notes are instead of a sync state
   if (DEMO)
@@ -243,7 +251,12 @@ export function SyncBadge() {
       </span>
     );
   return (
-    <button onClick={vault.kick} title={`${label} — ${t('common.syncAction')}`} aria-label={label} className={`chip ${state === 'offline' ? 'text-warn' : state === 'error' ? 'text-error' : ''}`}>
+    <button
+      onClick={() => (files && !navigator.onLine ? navigate('/files') : vault.kick())}
+      title={`${fullLabel} — ${t('common.syncAction')}`}
+      aria-label={fullLabel}
+      className={`chip ${state === 'offline' ? 'text-warn' : state === 'error' ? 'text-error' : ''}`}
+    >
       <Icon size={18} className={state === 'syncing' ? 'animate-spin' : ''} />
       <span className="hidden sm:inline">{label}</span>
     </button>
@@ -789,6 +802,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
       </span>
     ) : null;
   const ownNotes = notes.filter((n) => n.access === 'owner').length;
+  const urgentTasks = urgentTaskCount(version);
 
   return (
     <div
@@ -902,6 +916,10 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
               (!locked || !!dailyNote) &&
               navIcon('daily', CalendarDays, t('daily.todayBtn'), { active: dailyRouteActive, onClick: () => void openTodayDailyNote().then(() => onNavigate?.()) })}
             {features.heatmap.enabled && navIcon('calendar', CalendarRange, t('nav.calendar'), { to: '/calendar' })}
+            {navIcon('tasks', ListChecks, urgentTasks ? `${t('nav.tasks')} (${urgentTasks})` : t('nav.tasks'), {
+              to: '/tasks',
+              badge: countBadge(urgentTasks, 'warn'),
+            })}
             {navIcon('notes', FileText, `${t('nav.allNotes')} (${ownNotes})`, { to: '/notes' })}
             {navIcon('inbox', InboxIcon, inboxCount > 0 ? `${t('nav.inbox')} (${inboxCount})` : t('nav.inbox'), {
               to: '/inbox',

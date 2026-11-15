@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { INBOX_FOLDER, Me, projectTitleOf, runQuery } from '@kladde/shared';
 import { api, ApiError, uploadFile } from './lib/api';
-import { t } from './lib/i18n';
 import { match, navigate, usePath } from './lib/router';
 import { vault } from './data/vault';
+import { uploads } from './data/uploads';
+import { recordVoice } from './views/VoiceRecorder';
+import { getLang } from './lib/i18n';
 import { editorHost } from './editor/host';
 import { isReadOnly } from './lib/readOnly';
 import { Invite, LinkDevice, Login } from './views/Auth';
@@ -30,6 +32,9 @@ import { FilesView } from './views/Files';
 import { TrashView } from './views/Trash';
 import { DailyNoteEmptyView } from './views/DailyNoteBar';
 import { CalendarView } from './views/ActivityHeatmap';
+import { TasksView } from './views/TasksView';
+import { ShortcutsSettingsView } from './views/ShortcutsSettings';
+import { ClipRoute } from './views/ClipRoute';
 
 const ME_KEY = 'kladde_me';
 
@@ -77,10 +82,10 @@ Object.assign(editorHost, {
   },
   tags: () => vault.tagCounts(),
   autoLinkTargets: (excludeId?: string) => vault.links().autoLinkTargets(excludeId),
-  upload: (file: File) => {
-    if (!navigator.onLine && !vault.standalone) return Promise.reject(new Error(t('note.uploadOnlineOnly')));
-    return uploadFile(file);
-  },
+  // Offline (or on a network error) the file waits on this device and the note links it as kladde-pending:<id> (#28)
+  upload: (file: File) => (vault.standalone ? uploadFile(file) : uploads.upload(file)),
+  pendingUrl: (id: string) => uploads.objectUrl(id),
+  recordVoice,
 });
 
 export function App() {
@@ -97,6 +102,11 @@ export function App() {
 
   const signedIn = useCallback((user: Me) => {
     vault.standalone = !!user.standalone;
+    // Voice notes: the server transcribes when its admin set up a speech-to-text service
+    editorHost.transcribe = user.transcription
+      ? (url: string) =>
+          api<{ text: string }>(`${url.replace(/^\/api/, '')}/transcribe`, { method: 'POST', json: { lang: getLang() } }).then((r) => r.text)
+      : null;
     try {
       localStorage.setItem(ME_KEY, JSON.stringify(user));
     } catch {
@@ -168,6 +178,9 @@ export function App() {
   else if (path === '/inbox' || path === `/f/${encodeURIComponent(INBOX_FOLDER)}`) page = <InboxView />;
   // "Share → Kladde" from another app (PWA share target)
   else if (path === '/share') page = <ShareCaptureView key={location.search} />;
+  // The web clipper bookmarklet: opens the clip dialog for the page it came from
+  else if (path === '/clip') page = <ClipRoute key={location.search} />;
+  else if (path === '/tasks') page = <TasksView />;
   else if (path === '/graph') page = <GraphView />;
   else if (path === '/tags') page = <TagsView />;
   else if (tagRoute) page = <TagsView key={tagRoute.tag} tag={tagRoute.tag} />;
@@ -181,6 +194,7 @@ export function App() {
   else if (path === '/settings/mcp') page = <McpSettingsView />;
   else if (path === '/settings/import' && !me.standalone) page = <ImportSettingsView />;
   else if (path === '/settings/calendar' && !me.standalone) page = <CalendarSettingsView />;
+  else if (path === '/settings/shortcuts' && !me.standalone) page = <ShortcutsSettingsView />;
   else if (path === '/settings/notifications' && !me.standalone) page = <NotificationSettingsView />;
   else if (path === '/files' || path === '/settings/files') page = <FilesView />;
   else if (path === '/trash') page = <TrashView />;

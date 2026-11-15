@@ -34,7 +34,7 @@ The app and its UI are available in **English and German**. Some of the guides i
 | **Editor** | CodeMirror 6 with live preview: Markdown syntax is only visible on the cursor line; **slash commands** (`/`) for blocks, diagrams, tables, queries and file upload; footnotes (`[^1]`) |
 | **Tables & diagrams** | GFM tables as interactive tables (sort, filter) that can be edited right in the preview: click a cell (Tab/Enter moves on), insert/rename/remove columns, add/remove rows. In the Markdown view it stays plain text. Mermaid diagrams (` ```mermaid `) and mind maps (` ```mindmap `) rendered in place |
 | **Queries & Kanban** | ```` ```query ```` blocks: `TABLE`, `LIST`, `TASKS` and **`KANBAN`** (`KANBAN BY status VALUES "open", "doing", "done"`) with interactive drag and drop |
-| **Tasks** | `- [ ] Text 📅 2026-11-30 🔁 monthly`, or phone-friendly `due:tomorrow every:week`; statuses (open, in progress, blocked, done); free tasks on the home page without a note; quick menu for due dates (today/tomorrow/week); double-click jumps to the source note |
+| **Tasks** | `- [ ] Text 📅 2026-11-30 🔁 monthly`, or phone-friendly `due:tomorrow every:week`; statuses (open, in progress, blocked, done); free tasks on the home page without a note; a **task page** (`/tasks`) with list and Kanban, filters and a tasks tab in the note side panel; quick menu for due dates (today/tomorrow/week); double-click jumps to the source note |
 | **PARA** | Folders Inbox, Projects, Areas, Resources, Archive. **Inbox as a work list** (`/inbox`): every thought is its own note and becomes a project, area, resource, Zettel or archive item with one click. **Projects** with `status: active/paused/done`; "Complete" sets the status and date and moves the note to the archive, "Restore" moves it back. Archive whole folders. Active projects on the home screen, with a hint when there is no next step |
 | **Zettelkasten** | Zettel dialog with type (fleeting, literature with source, permanent) and a fixed ID in the frontmatter; `[[ID]]` and `[[ID Title]]` stay valid after renaming. Hint for unconnected Zettel |
 | **Linking** | `[[Wikilinks]]` with autocomplete; **all links are updated when you rename a note**; backlinks; **unlinked mentions** with a "Link" button; `#tags`; frontmatter as a properties bar |
@@ -42,10 +42,12 @@ The app and its UI are available in **English and German**. Some of the guides i
 | **Knowledge graph** | Graph of all notes (`/graph`, colored by PARA role, zoomable and draggable) and a local graph below every note |
 | **Version history** | History per note with up to 100 versions on the server; diff view with added/removed lines (`git diff` style) or rendered text; restore with a click |
 | **Recipe import** | Import recipes by link (schema.org, e.g. from recipe sites and food blogs) into `3 Resources/Recipes`: ingredient table, numbered steps, source |
+| **Web clipper** | "New note → Web page" or a bookmarklet saves an article (or just the selected text) as Markdown in the inbox, with source, author and date; images optionally as attachments |
 | **AI & MCP** | MCP server (`/mcp`, Streamable HTTP) for assistants such as Claude Desktop, Claude Code, Cursor: OAuth 2.1 or personal access tokens; access limited to your own notes |
+| **Apple Shortcuts** | Token-protected API (`/api/shortcuts`) for the iOS Shortcuts app: save links, text, photos and PDFs from the share sheet, quick notes into the daily note, new tasks, and a morning automation with the tasks due today. See [docs/SHORTCUTS.md](docs/SHORTCUTS.md) |
 | **Weekly review** | Opt-in under Settings → Features. `/review`: inbox, overdue tasks, projects without a next step, dormant areas, old fleeting and unconnected Zettel; reminder after 7 days |
 | **Templates** | Your own templates under Settings → Templates (`{{title}}`, `{{date}}`, `{{zid}}`), with a default target folder and encrypted sync |
-| **Media** | Images and PDFs by paste, drag and drop or button; image grid with ```` ```gallery ```` and carousel with ```` ```carousel ````; embedded PDF viewer and PDF notes; code blocks with syntax highlighting and copy button |
+| **Media** | Images and PDFs by paste, drag and drop or button; image grid with ```` ```gallery ```` and carousel with ```` ```carousel ````; embedded PDF viewer and PDF notes; **voice notes** (record in Quick Capture or with `/audio`, optional transcription); attachments also work offline; code blocks with syntax highlighting and copy button |
 | **Offline & sync** | IndexedDB per account, sync via cursor + versions; concurrent changes (another device, another person, offline edits synced later) are merged with a three-way merge, line by line and word by word within a paragraph; only if both change the same words, the local text is kept as a "(Conflict …)" copy; live updates via Server-Sent Events |
 | **Collaboration** | Real-time co-editing (shared notes and your own devices/tabs): changes appear immediately in the open editor without cursor or undo history jumping; avatars with "Live" in the note header show who has the note open; colored remote cursors and selections in the editor |
 | **App & design** | PWA (installable, service worker), Material 3 design in dark and light with a navigation rail on desktop/tablet and a navigation bar on phones; note lists switchable between tiles, list and table |
@@ -54,7 +56,6 @@ The app and its UI are available in **English and German**. Some of the guides i
 
 ### Not implemented yet (roadmap)
 - End-to-end encryption (key only in the browser) and encryption of the local IndexedDB
-- Uploading attachments offline (currently online only)
 
 ---
 
@@ -143,6 +144,7 @@ Without access to the server you can import a local folder (e.g. an Obsidian vau
 | `BACKUP_KEEP` | Daily database backups in `data/backups` (default 7, `0` = off) |
 | `EXPORT_DIR` | Plain-text mirror of the notes (e.g. NAS), empty = off |
 | `TRASH_RETENTION_DAYS` | Days deleted notes stay in the trash before they are purged (default 30, `0` = until emptied by hand) |
+| `TRANSCRIBE_URL` | Optional speech-to-text for voice notes: an OpenAI-compatible transcription endpoint you run yourself, e.g. a local Whisper (`http://whisper:8000/v1/audio/transcriptions`). Unset = no transcription; recordings never go to a third-party service by default. `TRANSCRIBE_MODEL` (default `whisper-1`) and `TRANSCRIBE_API_KEY` are optional |
 | `VAPID_SUBJECT` | Contact for Web Push services (`mailto:…` or `https://…`), sent with every reminder. Default: `PUBLIC_URL` if it is https |
 | `PUSH_ALLOWED_HOSTS` | Extra push service hosts (comma-separated) besides Google, Mozilla, Apple and Microsoft; other endpoints are refused |
 

@@ -10,6 +10,7 @@ export type DialogState =
   | { kind: 'note'; folder?: string; type?: NewNoteKind; shared?: SharedFolder }
   | { kind: 'zettel' }
   | { kind: 'recipe'; url?: string }
+  | { kind: 'clip'; url?: string; title?: string; selection?: string }
   | null;
 
 let state: DialogState = null;

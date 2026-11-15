@@ -23,7 +23,7 @@ export const outlineSupport = [
   EditorView.updateListener.of((u) => subscribers.get(u.view)?.forEach((fn) => fn(u))),
 ];
 
-function subscribe(view: EditorView, fn: (u: ViewUpdate) => void): () => void {
+export function subscribe(view: EditorView, fn: (u: ViewUpdate) => void): () => void {
   let set = subscribers.get(view);
   if (!set) subscribers.set(view, (set = new Set()));
   set.add(fn);

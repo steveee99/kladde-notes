@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { CalendarDays, CalendarRange, FileText, Home, Images, Inbox as InboxIcon, Menu, Network, Pencil, Tags, X } from '../lib/icons';
+import { CalendarDays, CalendarRange, FileText, Home, Images, Inbox as InboxIcon, ListChecks, Menu, Network, Pencil, Tags, X } from '../lib/icons';
 import { INBOX_FOLDER, Me, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { navigate, usePath } from '../lib/router';
@@ -8,6 +8,7 @@ import { Dialogs } from './Dialogs';
 import { QuickCapture } from './QuickCapture';
 import { newNote, openTodayDailyNote, ReadOnlyToggle, Sidebar, SyncBadge } from './Shell';
 import { Avatar } from './Avatar';
+import { urgentTaskCount } from './TaskParts';
 import { t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
 import { useReadOnly } from '../lib/readOnly';
@@ -85,7 +86,7 @@ function NavItem({ to, Icon, label, badge, bar }: { to: string; Icon: Icon; labe
 }
 
 export function MaterialShell({ me, children, isAdmin }: { me: Me; children: React.ReactNode; isAdmin?: boolean }) {
-  useVault();
+  const version = useVault();
   useLang();
   const sidebarMode = useMaterialSidebarMode();
   const sticky = sidebarMode === 'sticky';
@@ -98,6 +99,8 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
   const noteId = path.startsWith('/n/') ? decodeURIComponent(path.slice(3)) : null;
   const inboxCount = vault.list().filter((n) => n.access === 'owner' && splitPath(n.path).folder === INBOX_FOLDER).length;
   const inboxBadge = inboxZero && inboxCount > 0 ? inboxCount : undefined;
+  // Overdue and today's open tasks (#45)
+  const taskBadge = urgentTaskCount(version) || undefined;
   const features = vault.features();
   const dailyNote = features.daily.enabled ? vault.findDailyNote() : undefined;
   const dailyActive = path === '/daily' || path.startsWith('/daily/') || (!!dailyNote && noteId === dailyNote.id);
@@ -171,6 +174,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
               <Destination active={dailyActive} onClick={() => void openTodayDailyNote()} Icon={CalendarDays} label={t('daily.navShort')} title={t('daily.todayBtn')} />
             )}
             {features.heatmap.enabled && <NavItem to="/calendar" Icon={CalendarRange} label={t('nav.calendar')} />}
+            <NavItem to="/tasks" Icon={ListChecks} label={t('nav.tasks')} badge={taskBadge} />
             <NavItem to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} />
             <NavItem to="/notes" Icon={FileText} label={t('nav.notes')} />
             <NavItem to="/graph" Icon={Network} label={t('nav.graphShort')} />
@@ -238,8 +242,9 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
             </RightPaneHostContext.Provider>
             <div ref={setRightHost} className={`no-print hidden shrink-0 empty:hidden ${focus ? '' : 'lg:flex'}`} />
           </div>
-          <nav aria-label={t('nav.navigationLabel')} className={`bottom-bar min-h-20 grid-cols-4 bg-surface-container safe-x md:hidden ${focus ? 'hidden' : 'grid'}`}>
+          <nav aria-label={t('nav.navigationLabel')} className={`bottom-bar min-h-20 grid-cols-5 bg-surface-container safe-x md:hidden ${focus ? 'hidden' : 'grid'}`}>
             <NavItem bar to="/" Icon={Home} label={t('nav.home')} />
+            <NavItem bar to="/tasks" Icon={ListChecks} label={t('nav.tasks')} badge={taskBadge} />
             <NavItem bar to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} />
             <NavItem bar to="/notes" Icon={FileText} label={t('nav.notes')} />
             <Destination

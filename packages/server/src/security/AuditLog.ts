@@ -18,7 +18,9 @@ export type AuditEvent =
   | 'import_token_created'
   | 'import_token_revoked'
   | 'calendar_feed_created'
-  | 'calendar_feed_revoked';
+  | 'calendar_feed_revoked'
+  | 'shortcut_token_created'
+  | 'shortcut_token_revoked';
 
 export interface AuditEntry {
   at: number;

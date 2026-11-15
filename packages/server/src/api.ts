@@ -9,6 +9,8 @@ import { FileStore, MAX_FILE_BYTES } from './FileStore.js';
 import { UserRecord, UserStore } from './UserStore.js';
 import { handle, rateLimit, requireUser } from './http.js';
 import { ImportError, importRecipe } from './RecipeImport.js';
+import { clipPage } from './WebClip.js';
+import type { Transcriber } from './transcribe.js';
 
 /** Open event streams per user: a ping makes every device pull right away */
 export class LiveUpdates {
@@ -53,6 +55,8 @@ export interface ApiRouterOptions {
   meFor?: (user: UserRecord) => Me;
   /** Days a deleted note stays in the trash (0: until purged by hand) */
   trashDays?: number;
+  /** Speech-to-text for voice notes, when TRANSCRIBE_URL is set */
+  transcriber?: Transcriber | null;
 }
 
 export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, live: LiveUpdates, opts: ApiRouterOptions = {}): express.Router {
@@ -82,8 +86,50 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(file.name)}`);
     // SVGs may carry scripts: never run them in our origin
     res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+    res.setHeader('Accept-Ranges', 'bytes');
+    // Safari only plays audio (voice notes) when it can ask for byte ranges
+    const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ''));
+    if (range && (range[1] || range[2])) {
+      const size = file.data.length;
+      let start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
+      let end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+      if (start >= size || start > end) {
+        res.setHeader('Content-Range', `bytes */${size}`);
+        res.status(416).end();
+        return;
+      }
+      start = Math.max(0, start);
+      end = Math.max(start, end);
+      res.status(206).setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
+      res.send(file.data.subarray(start, end + 1));
+      return;
+    }
     res.send(file.data);
   });
+
+  // Voice notes (#33): text from the speech-to-text server the admin configured (TRANSCRIBE_URL)
+  if (opts.transcriber) {
+    const transcribe = opts.transcriber;
+    router.post(
+      '/files/:id/transcribe',
+      authed,
+      rateLimit(20, 10 * 60_000),
+      handle(async (req, res) => {
+        const meta = files.getMeta(req.user!.id, String(req.params.id ?? ''));
+        const file = meta && meta.mime.startsWith('audio/') ? files.load(meta.id) : null;
+        if (!file) {
+          res.status(404).json({ error: 'Aufnahme nicht gefunden.' });
+          return;
+        }
+        try {
+          const lang = typeof req.body?.lang === 'string' ? req.body.lang : undefined;
+          res.json({ text: await transcribe({ data: file.data, mime: file.mime, name: file.name }, lang) });
+        } catch (err) {
+          res.status(502).json({ error: (err as Error).message });
+        }
+      })
+    );
+  }
 
   if (opts.avatars) {
     const avatars = opts.avatars;
@@ -324,6 +370,22 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       const url = typeof req.body?.url === 'string' ? req.body.url.slice(0, 2000) : '';
       try {
         res.json(await importRecipe(url));
+      } catch (err) {
+        if (err instanceof ImportError) res.status(422).json({ error: err.message });
+        else throw err;
+      }
+    })
+  );
+
+  // Web clipper (#32): article as Markdown, optionally with its images stored as attachments
+  router.post(
+    '/clip',
+    rateLimit(30, 10 * 60_000),
+    handle(async (req, res) => {
+      const url = typeof req.body?.url === 'string' ? req.body.url.slice(0, 2000) : '';
+      const userId = req.user!.id;
+      try {
+        res.json(await clipPage(url, { images: req.body?.images === true, save: (name, mime, data) => `/api/files/${files.save(userId, name, mime, data).id}` }));
       } catch (err) {
         if (err instanceof ImportError) res.status(422).json({ error: err.message });
         else throw err;
