@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- Fixed: The next due date on a project card on the Home screen sits inside its background again. It is now a chip like "open tasks" next to it (red when overdue, amber when due today) instead of a pill that was stretched and showed its text at the top.
+
 ## [2.2.0] – 2026-11-14
 
 - New: Reminders for tasks via Web Push (#26). Tasks can have a time: `⏰ 09:00` or `remind:9:00` next to the due date. Settings → Notifications turns reminders on per device; at that time on the due day a notification comes with "Done" and "Tomorrow" (where the platform shows action buttons), a click opens the note at the task. Optional: a daily overview at a chosen time ("3 tasks due today, 1 overdue"), quiet hours, and the task text in the notification (off by default: then a notification contains no note text). Works on Android and desktop browsers, and on iPhone/iPad in the app added to the Home Screen. The server creates its VAPID keys on first start; payloads are end-to-end encrypted for the device and only go to known push services. The time also works in `TASKS` queries (`time`), the MCP (`list_tasks`) and the calendar feed (tasks with a time become 30-minute events).
