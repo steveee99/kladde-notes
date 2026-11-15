@@ -1,9 +1,13 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { CalendarDays, CalendarRange, FileText, Home, Images, Inbox as InboxIcon, ListChecks, Menu, Network, Pencil, Tags, X } from '../lib/icons';
+import { CalendarCheck, CalendarDays, FileText, Home, Inbox as InboxIcon, ListChecks, Menu, Network, Pencil, Share2, Tags, X } from '../lib/icons';
 import { INBOX_FOLDER, Me, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { navigate, usePath } from '../lib/router';
 import { toggleMaterialSidebarMode, useMaterialSidebarMode } from '../lib/sidebarMode';
+import { SidebarResizeHandle } from './SidebarResizeHandle';
+import { useSidebarWidth } from '../lib/sidebarWidth';
+import { NavBadge } from './NavBadge';
+import { reviewDue } from './Review';
 import { Dialogs } from './Dialogs';
 import { QuickCapture } from './QuickCapture';
 import { newNote, openTodayDailyNote, ReadOnlyToggle, Sidebar, SyncBadge } from './Shell';
@@ -48,7 +52,7 @@ function Destination({
   Icon?: Icon;
   icon?: React.ReactNode;
   label: string;
-  badge?: number;
+  badge?: React.ReactNode;
   bar?: boolean;
   title?: string;
   ariaLabel?: string;
@@ -70,16 +74,19 @@ function Destination({
         }`}
       >
         {Icon ? <Icon size={24} filled={active} /> : icon}
-        {!!badge && (
-          <span className="absolute left-[calc(50%+4px)] top-0.5 min-w-4 rounded-full bg-error px-1 text-center text-label-s text-on-error">{badge}</span>
-        )}
+        {badge && <span className="absolute -top-1.5 left-[calc(50%+4px)] flex rounded-full ring-2 ring-surface-container">{badge}</span>}
       </span>
       <span className={`max-w-full truncate px-1 ${active ? 'font-bold' : ''}`}>{label}</span>
     </button>
   );
 }
 
-function NavItem({ to, Icon, label, badge, bar }: { to: string; Icon: Icon; label: string; badge?: number; bar?: boolean }) {
+/** Separates groups of destinations in the navigation rail */
+function RailDivider() {
+  return <hr aria-hidden className="w-10 shrink-0 border-0 border-t border-outline-variant" />;
+}
+
+function NavItem({ to, Icon, label, badge, bar }: { to: string; Icon: Icon; label: string; badge?: React.ReactNode; bar?: boolean }) {
   const path = usePath();
   // A destination stays active on its sub pages (`/tags/<tag>`)
   return <Destination active={path === to || (to !== '/' && path.startsWith(`${to}/`))} onClick={() => navigate(to)} Icon={Icon} label={label} badge={badge} bar={bar} />;
@@ -98,9 +105,13 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
   const path = usePath();
   const noteId = path.startsWith('/n/') ? decodeURIComponent(path.slice(3)) : null;
   const inboxCount = vault.list().filter((n) => n.access === 'owner' && splitPath(n.path).folder === INBOX_FOLDER).length;
-  const inboxBadge = inboxZero && inboxCount > 0 ? inboxCount : undefined;
+  const inboxBadge = inboxZero && inboxCount > 0 ? <NavBadge tone="warn" count={inboxCount} /> : undefined;
   // Overdue and today's open tasks (#45)
-  const taskBadge = urgentTaskCount(version) || undefined;
+  const urgentTasks = urgentTaskCount(version);
+  const taskBadge = urgentTasks ? <NavBadge tone="warn" count={urgentTasks} /> : undefined;
+  const sharedCount = vault.list().filter((n) => n.access !== 'owner').length;
+  const showShared = (sharedCount > 0 || vault.sharedFolders.length > 0) && !vault.standalone;
+  const sidebarWidth = useSidebarWidth();
   const features = vault.features();
   const dailyNote = features.daily.enabled ? vault.findDailyNote() : undefined;
   const dailyActive = path === '/daily' || path.startsWith('/daily/') || (!!dailyNote && noteId === dailyNote.id);
@@ -131,7 +142,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
       <div className="sticky top-0 z-20 hidden shrink-0 bg-surface-container [--pad-top:0.375rem] safe-top [@media(display-mode:standalone)]:md:block" />
       <div className="flex min-h-0 min-w-0 flex-1">
         {focus ? null : sticky ? (
-          <aside aria-label={t('nav.navigationLabel')} className="m3-status hidden w-[292px] shrink-0 py-4 pl-4 pr-3 md:flex lg:w-[308px]">
+          <aside aria-label={t('nav.navigationLabel')} className="relative hidden shrink-0 py-4 pl-4 pr-3 md:flex" style={{ width: sidebarWidth }}>
             <div className="flex min-h-0 w-full flex-col overflow-hidden">
               <Sidebar
                 me={me}
@@ -149,12 +160,13 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
                 }
               />
             </div>
+            <SidebarResizeHandle />
           </aside>
         ) : (
-          <nav aria-label={t('nav.navigationLabel')} className="hidden w-24 shrink-0 flex-col items-center gap-1 overflow-y-auto pb-4 pt-5 scrollbar-thin md:flex">
+          <nav aria-label={t('nav.navigationLabel')} className="hidden w-24 shrink-0 flex-col items-center gap-3 overflow-y-auto overflow-x-hidden pb-4 pt-5 scrollbar-thin md:flex">
             <button
               type="button"
-              className="btn-icon"
+              className="btn-icon shrink-0"
               onClick={toggleMaterialSidebarMode}
               title={t('nav.toggleSidebar')}
               aria-label={t('nav.toggleSidebar')}
@@ -162,7 +174,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
               <Menu size={24} />
             </button>
             <button
-              className="edit-only state-layer mb-7 mt-2 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary-container text-on-primary-container shadow-elevation-3 transition-[box-shadow,transform] duration-200 ease-spring hover:shadow-elevation-3 active:scale-95"
+              className="edit-only state-layer mb-2 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary-container text-on-primary-container shadow-elevation-3 transition-[box-shadow,transform] duration-200 ease-spring hover:shadow-elevation-3 active:scale-95"
               onClick={() => newNote()}
               aria-label={t('nav.newNote')}
               title={t('nav.newNote')}
@@ -170,19 +182,24 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
               <Pencil size={24} />
             </button>
             <NavItem to="/" Icon={Home} label={t('nav.home')} />
+            <RailDivider />
             {showDailyRail && (
               <Destination active={dailyActive} onClick={() => void openTodayDailyNote()} Icon={CalendarDays} label={t('daily.navShort')} title={t('daily.todayBtn')} />
             )}
-            {features.heatmap.enabled && <NavItem to="/calendar" Icon={CalendarRange} label={t('nav.calendar')} />}
             <NavItem to="/tasks" Icon={ListChecks} label={t('nav.tasks')} badge={taskBadge} />
             <NavItem to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} />
             <NavItem to="/notes" Icon={FileText} label={t('nav.notes')} />
+            <RailDivider />
             <NavItem to="/graph" Icon={Network} label={t('nav.graphShort')} />
             <NavItem to="/tags" Icon={Tags} label={t('nav.tags')} />
-            <NavItem to="/files" Icon={Images} label={t('nav.files')} />
-            <div className="m3-status mt-auto flex flex-col items-center gap-1 pt-2">
-              <ReadOnlyToggle />
-              <SyncBadge />
+            {features.review.enabled && (
+              <NavItem to="/review" Icon={CalendarCheck} label={t('nav.review')} badge={reviewDue() ? <NavBadge dot className="m-1" /> : undefined} />
+            )}
+            {showShared && <NavItem to="/shared" Icon={Share2} label={t('nav.shared')} badge={sharedCount ? <NavBadge count={sharedCount} /> : undefined} />}
+            <div className="m3-status mt-auto flex flex-col items-center gap-2 pt-2">
+              <RailDivider />
+              <ReadOnlyToggle compact />
+              <SyncBadge compact />
               <Destination
                 active={settingsActive}
                 onClick={() => navigate('/settings')}

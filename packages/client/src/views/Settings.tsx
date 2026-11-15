@@ -12,8 +12,8 @@ import {
   CenterFocus,
   Check,
   ChefHat,
+  ChevronDown,
   ChevronRight,
-  Copy,
   AlignJustify,
   FolderKanban,
   FolderInput,
@@ -29,16 +29,13 @@ import {
   Lock,
   LogOut,
   Maximize2,
-  Monitor,
   ShieldCheck,
   Smartphone,
-  SlidersHorizontal,
   SunMoon,
   Trash2,
   Star,
   Upload,
   X,
-  Zap,
 } from '../lib/icons';
 import {
   APP_VERSION,
@@ -60,7 +57,6 @@ import { useReadOnly } from '../lib/readOnly';
 import { setColorSchemeChoice, useColorSchemeChoice } from '../lib/theme';
 import { DEFAULT_PERCENT, MAX_PERCENT, MIN_PERCENT, setWidescreen, useWidescreen, WIDESCREEN_PRESETS } from '../lib/widescreen';
 import { useVault, vault } from '../data/vault';
-import { startupReport, toggleTallPageTest, viewportReport } from '../lib/viewport';
 import { navigate } from '../lib/router';
 import { GitLabIcon, passkeysAvailable, useAuthProviders, useRedirectParam } from './Auth';
 import { Avatar } from './Avatar';
@@ -181,14 +177,9 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
   const locked = useReadOnly();
   const features = vault.features();
   const folders = vault.folders();
-  const [customInput, setCustomInput] = useState(String(widescreen.percent));
   const [link, setLink] = useState<{ code: string; expiresAt: number } | null>(null);
   const [error, setError] = useState('');
   const linkUrl = link ? `${location.origin}/link/${link.code}` : '';
-
-  useEffect(() => {
-    setCustomInput(String(widescreen.percent));
-  }, [widescreen.percent]);
 
   const templatesCount = vault.templates().length;
   const navCards = [
@@ -278,12 +269,94 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
 
       <ProfileSection me={me} onMe={onMe} />
 
-      <div className="space-y-3">
+      {!me.standalone && (
+        <section className="card p-5 anim-fade-up" data-security-section>
+          <h2 className="mb-4 text-base font-medium">{tl(lang, 'settings.securityTitle')}</h2>
+          <div className="divide-y divide-outline-variant [&>*:first-child]:pt-0 [&>*:last-child]:pb-0 [&>*]:py-5">
+          <div>
+            <h3 className="mb-1 text-sm font-medium">{tl(lang, 'settings.passkeysTitle', { username: me.username })}</h3>
+            <p className="mb-3 text-sm text-on-surface-variant">{tl(lang, 'settings.passkeysDesc')}</p>
+            {!me.passkeys.length && <p className="mb-3 text-sm text-on-surface-variant">{tl(lang, 'settings.passkeysEmpty')}</p>}
+            <ul className="mb-3 divide-y divide-outline-variant">
+              {me.passkeys.map((p) => (
+                <li key={p.id} className="flex items-center gap-3 py-2">
+                  <KeyRound size={16} className="shrink-0 text-primary" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm">{p.name}</div>
+                    <div className="text-xs text-on-surface-variant">
+                      {tl(lang, 'settings.passkeyMeta', {
+                        created: new Date(p.createdAt).toLocaleDateString(loc),
+                        last: p.lastUsedAt ? tl(lang, 'settings.passkeyLastUsed', { date: new Date(p.lastUsedAt).toLocaleDateString(loc) }) : '',
+                      })}
+                    </div>
+                  </div>
+                  {(me.passkeys.length > 1 || me.hasPassword || !!me.externalLogins?.length) && (
+                    <button
+                      className="btn-icon h-8 w-8 shrink-0"
+                      onClick={async () => {
+                        if (confirm(tl(lang, 'settings.passkeyRemoveConfirm'))) onMe(await api<Me>(`/auth/passkeys/${encodeURIComponent(p.id)}`, { method: 'DELETE' }));
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="btn-ghost border border-outline-variant"
+                disabled={!passkeysAvailable()}
+                title={passkeysAvailable() ? undefined : tl(lang, 'settings.passkeyHttpsOnly')}
+                onClick={async () => {
+                  setError('');
+                  try {
+                    const { flowId, options } = await api<{ flowId: string; options: never }>('/auth/passkeys/options', { method: 'POST', json: {} });
+                    const response = await startRegistration({ optionsJSON: options });
+                    onMe(await api<Me>('/auth/passkeys/verify', { method: 'POST', json: { flowId, response } }));
+                  } catch (e) {
+                    setError((e as Error).message);
+                  }
+                }}
+              >
+                <KeyRound size={16} /> {tl(lang, 'settings.passkeyAddHere')}
+              </button>
+              <button className="btn-ghost border border-outline-variant" onClick={async () => setLink(await api('/auth/device-link', { method: 'POST', json: {} }))}>
+                <Smartphone size={16} /> {tl(lang, 'settings.deviceConnect')}
+              </button>
+            </div>
+            {link && (
+              <div className="mt-3 rounded-xl bg-surface-container-high p-3 text-sm anim-fade-up">
+                {linkTextParts.map((part, i) =>
+                  part === '{url}' ? (
+                    <b key={i} className="break-all">
+                      {linkUrl}
+                    </b>
+                  ) : part === '{code}' ? (
+                    <b key={i} className="font-mono">
+                      {link.code}
+                    </b>
+                  ) : (
+                    <span key={i}>{part}</span>
+                  )
+                )}
+              </div>
+            )}
+            {error && <p className="mt-2 text-sm text-error">{error}</p>}
+          </div>
+
+            <PasswordSection me={me} onMe={onMe} />
+            <GitLabSection me={me} onMe={onMe} />
+          </div>
+        </section>
+      )}
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {navCards.map(({ path, Icon, title, desc }) => (
           <button
             key={path}
             type="button"
-            className="card flex w-full items-center gap-3.5 p-4 text-left transition-colors hover:bg-surface-container hover:bg-surface-container-high/40 anim-fade-up"
+            className="card flex h-full w-full min-w-0 items-center gap-3.5 p-4 text-left transition-colors hover:bg-surface-container hover:bg-surface-container-high/40 anim-fade-up"
             onClick={() => navigate(path)}
           >
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary-container text-on-secondary-container">
@@ -410,105 +483,18 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
 
         <hr className="my-5 border-outline-variant" />
 
-        {/* Widescreen percentage options (50%, 80% Default, 100%, Custom) */}
+        {/* Widescreen: one slider from 50 to 100 %, snapping to the presets */}
         <div className="mb-3 flex items-center gap-2.5">
           <Maximize2 size={18} className="mt-0.5 shrink-0 text-primary" />
-          <div>
-            <h3 className="text-sm font-medium">{tl(lang, 'settings.widescreenTitle')}</h3>
+          <div className="min-w-0 flex-1">
+            <label htmlFor="widescreen-slider" className="text-sm font-medium">
+              {tl(lang, 'settings.widescreenTitle')}
+            </label>
             <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.widescreenDesc')}</p>
           </div>
+          <span className="shrink-0 text-title-m tabular-nums">{widescreen.percent} %</span>
         </div>
-
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {WIDESCREEN_PRESETS.map((pct) => {
-            const active = !widescreen.custom && widescreen.percent === pct;
-            return (
-              <button
-                key={pct}
-                type="button"
-                aria-pressed={active}
-                onClick={() => setWidescreen({ percent: pct, custom: false })}
-                className={`flex flex-col items-center justify-center gap-0.5 rounded-2xl border px-3 py-3 text-sm transition-all ${
-                  active
-                    ? 'border-transparent bg-secondary-container text-on-secondary-container'
-                    : 'border-outline-variant bg-surface-container-high/30 text-on-surface-variant hover:border-outline hover:text-on-surface'
-                }`}
-              >
-                <span className="font-medium tabular-nums">{pct} %</span>
-                {pct === DEFAULT_PERCENT && (
-                  <span className={`text-[11px] ${active ? 'text-on-primary-container/80' : 'text-on-surface-variant'}`}>
-                    {tl(lang, 'settings.widescreenDefaultTag')}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            aria-pressed={widescreen.custom}
-            onClick={() => setWidescreen({ percent: widescreen.percent, custom: true })}
-            className={`flex flex-col items-center justify-center gap-0.5 rounded-2xl border px-3 py-3 text-sm transition-all ${
-              widescreen.custom
-                ? 'border-transparent bg-secondary-container text-on-secondary-container'
-                : 'border-outline-variant bg-surface-container-high/30 text-on-surface-variant hover:border-outline hover:text-on-surface'
-            }`}
-          >
-            <span className="inline-flex items-center gap-1.5 font-medium">
-              <SlidersHorizontal size={14} />
-              {tl(lang, 'settings.widescreenCustom')}
-            </span>
-            {widescreen.custom && <span className="text-[11px] tabular-nums text-on-primary-container/80">{widescreen.percent} %</span>}
-          </button>
-        </div>
-
-        {widescreen.custom && (
-          <div className="mt-3 space-y-3 rounded-2xl border border-outline-variant bg-surface-container-high/50 p-4 anim-fade-in">
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-on-surface-variant">{tl(lang, 'settings.widescreenCustom')}</span>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="number"
-                  min={MIN_PERCENT}
-                  max={MAX_PERCENT}
-                  step={1}
-                  value={customInput}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    setCustomInput(raw);
-                    const n = Number(raw);
-                    if (Number.isFinite(n) && n >= MIN_PERCENT && n <= MAX_PERCENT) {
-                      setWidescreen({ percent: Math.round(n), custom: true });
-                    }
-                  }}
-                  onBlur={() => {
-                    const n = Number(customInput);
-                    const clamped = Number.isFinite(n) ? Math.min(MAX_PERCENT, Math.max(MIN_PERCENT, Math.round(n))) : DEFAULT_PERCENT;
-                    setWidescreen({ percent: clamped, custom: true });
-                    setCustomInput(String(clamped));
-                  }}
-                  className="input h-8 w-20 py-1 text-right font-mono text-sm tabular-nums"
-                  aria-label={tl(lang, 'settings.widescreenCustomAria')}
-                />
-                <span className="text-sm font-medium text-on-surface-variant">%</span>
-              </div>
-            </div>
-            <input
-              type="range"
-              min={MIN_PERCENT}
-              max={MAX_PERCENT}
-              step={1}
-              value={widescreen.percent}
-              onChange={(e) => setWidescreen({ percent: Number(e.target.value), custom: true })}
-              className="w-full cursor-pointer accent-accent"
-              aria-label={tl(lang, 'settings.widescreenSliderAria')}
-            />
-            <div className="flex justify-between text-[11px] text-on-surface-variant tabular-nums">
-              <span>{MIN_PERCENT} %</span>
-              <span>{MAX_PERCENT} %</span>
-            </div>
-          </div>
-        )}
-
+        <WidescreenSlider />
         <div className="mt-3 flex items-start gap-2 rounded-xl bg-surface-container-high/60 px-3.5 py-2.5 text-xs text-on-surface-variant">
           <Info size={15} className="mt-0.5 shrink-0 text-primary" />
           <span>{tl(lang, 'settings.widescreenSmallScreenHint')}</span>
@@ -516,85 +502,6 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
       </section>
 
       <FeaturesSection features={features} folders={folders} locked={locked} />
-
-      {!me.standalone && (
-        <>
-          <section className="card p-5 anim-fade-up">
-            <h2 className="mb-1 font-medium">{tl(lang, 'settings.passkeysTitle', { username: me.username })}</h2>
-            <p className="mb-3 text-sm text-on-surface-variant">{tl(lang, 'settings.passkeysDesc')}</p>
-            {!me.passkeys.length && <p className="mb-3 text-sm text-on-surface-variant">{tl(lang, 'settings.passkeysEmpty')}</p>}
-            <ul className="mb-3 divide-y divide-outline-variant">
-              {me.passkeys.map((p) => (
-                <li key={p.id} className="flex items-center gap-3 py-2">
-                  <KeyRound size={16} className="shrink-0 text-primary" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm">{p.name}</div>
-                    <div className="text-xs text-on-surface-variant">
-                      {tl(lang, 'settings.passkeyMeta', {
-                        created: new Date(p.createdAt).toLocaleDateString(loc),
-                        last: p.lastUsedAt ? tl(lang, 'settings.passkeyLastUsed', { date: new Date(p.lastUsedAt).toLocaleDateString(loc) }) : '',
-                      })}
-                    </div>
-                  </div>
-                  {(me.passkeys.length > 1 || me.hasPassword || !!me.externalLogins?.length) && (
-                    <button
-                      className="btn-icon h-8 w-8 shrink-0"
-                      onClick={async () => {
-                        if (confirm(tl(lang, 'settings.passkeyRemoveConfirm'))) onMe(await api<Me>(`/auth/passkeys/${encodeURIComponent(p.id)}`, { method: 'DELETE' }));
-                      }}
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <div className="flex flex-wrap gap-2">
-              <button
-                className="btn-ghost border border-outline-variant"
-                disabled={!passkeysAvailable()}
-                title={passkeysAvailable() ? undefined : tl(lang, 'settings.passkeyHttpsOnly')}
-                onClick={async () => {
-                  setError('');
-                  try {
-                    const { flowId, options } = await api<{ flowId: string; options: never }>('/auth/passkeys/options', { method: 'POST', json: {} });
-                    const response = await startRegistration({ optionsJSON: options });
-                    onMe(await api<Me>('/auth/passkeys/verify', { method: 'POST', json: { flowId, response } }));
-                  } catch (e) {
-                    setError((e as Error).message);
-                  }
-                }}
-              >
-                <KeyRound size={16} /> {tl(lang, 'settings.passkeyAddHere')}
-              </button>
-              <button className="btn-ghost border border-outline-variant" onClick={async () => setLink(await api('/auth/device-link', { method: 'POST', json: {} }))}>
-                <Smartphone size={16} /> {tl(lang, 'settings.deviceConnect')}
-              </button>
-            </div>
-            {link && (
-              <div className="mt-3 rounded-xl bg-surface-container-high p-3 text-sm anim-fade-up">
-                {linkTextParts.map((part, i) =>
-                  part === '{url}' ? (
-                    <b key={i} className="break-all">
-                      {linkUrl}
-                    </b>
-                  ) : part === '{code}' ? (
-                    <b key={i} className="font-mono">
-                      {link.code}
-                    </b>
-                  ) : (
-                    <span key={i}>{part}</span>
-                  )
-                )}
-              </div>
-            )}
-            {error && <p className="mt-2 text-sm text-error">{error}</p>}
-          </section>
-
-          <PasswordSection me={me} onMe={onMe} />
-          <GitLabSection me={me} onMe={onMe} />
-        </>
-      )}
 
       <section className="card p-5 anim-fade-up">
         <h2 className="mb-1 font-medium">{me.standalone ? tl(lang, 'settings.standaloneTitle') : tl(lang, 'settings.syncTitle')}</h2>
@@ -620,8 +527,6 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
         )}
         <p className="mt-2 text-xs text-on-surface-variant">{me.standalone ? tl(lang, 'settings.standaloneNote') : tl(lang, 'settings.syncOfflineNote')}</p>
       </section>
-
-      <Diagnostics />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         {!me.standalone ? (
@@ -816,7 +721,7 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
   return (
     <section className="card p-5 anim-fade-up">
       <h2 className="text-base font-medium">{tl(lang, 'settings.featuresTitle')}</h2>
-      <p className="mb-5 mt-1 text-xs text-on-surface-variant">{tl(lang, 'settings.featuresDesc')}</p>
+      <p className="mb-3 mt-1 text-xs text-on-surface-variant">{tl(lang, 'settings.featuresDesc')}</p>
 
       {locked && (
         <div className="mb-4 flex items-start gap-2 rounded-xl bg-surface-container-high/60 px-3.5 py-2.5 text-xs text-on-surface-variant">
@@ -825,206 +730,126 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
         </div>
       )}
 
-      {/* Daily Notes */}
-      <div>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <CalendarDays size={18} className="mt-0.5 shrink-0 text-primary" />
-            <div className="min-w-0 flex-1">
-              <label htmlFor="feature-daily-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
-                {tl(lang, 'settings.dailyTitle')}
-              </label>
-              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.dailyDesc')}</p>
-            </div>
-          </div>
-          <Switch
-            id="feature-daily-switch"
-            checked={features.daily.enabled}
+      <div className="divide-y divide-outline-variant">
+        <FeatureRow
+          id="feature-daily-switch"
+          Icon={CalendarDays}
+          title={tl(lang, 'settings.dailyTitle')}
+          desc={tl(lang, 'settings.dailyDesc')}
+          toggleLabel={tl(lang, 'settings.dailyToggleLabel')}
+          enabled={features.daily.enabled}
+          locked={locked}
+          onToggle={(enabled) => save({ ...features, daily: { ...features.daily, enabled } })}
+        >
+          <FolderPicker
+            id="daily-target-folder"
+            label={tl(lang, 'settings.targetFolderLabel')}
+            value={features.daily.folder}
+            folders={folders}
+            allowRoot
+            extraOptions={[DEFAULT_DAILY_FOLDER]}
             disabled={locked}
-            label={tl(lang, 'settings.dailyToggleLabel')}
-            onChange={(enabled) => save({ ...features, daily: { ...features.daily, enabled } })}
+            onChange={(folder) => save({ ...features, daily: { ...features.daily, folder } })}
           />
-        </div>
-        {features.daily.enabled && (
-          <div className="mt-3 space-y-3 rounded-2xl border border-outline-variant bg-surface-container-high/50 p-4 anim-fade-in">
-            <FolderPicker
-              id="daily-target-folder"
-              label={tl(lang, 'settings.targetFolderLabel')}
-              value={features.daily.folder}
-              folders={folders}
-              allowRoot
-              extraOptions={[DEFAULT_DAILY_FOLDER]}
+          <div className="space-y-1.5">
+            <label htmlFor="daily-naming-format" className="block text-xs font-medium text-on-surface-variant">
+              {tl(lang, 'settings.dailyFormatLabel')}
+            </label>
+            <input
+              ref={formatInputRef}
+              id="daily-naming-format"
+              type="text"
               disabled={locked}
-              onChange={(folder) => save({ ...features, daily: { ...features.daily, folder } })}
+              placeholder={tl(lang, 'settings.dailyFormatPlaceholder')}
+              className="input h-9 w-full py-1 font-mono text-sm disabled:cursor-not-allowed disabled:opacity-60"
+              value={formatDraft}
+              onChange={(e) => setFormatDraft(e.target.value)}
+              onBlur={() => commitDailyFormat(formatDraft)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commitDailyFormat(formatDraft);
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
             />
-            <div className="space-y-1.5">
-              <label htmlFor="daily-naming-format" className="block text-xs font-medium text-on-surface-variant">
-                {tl(lang, 'settings.dailyFormatLabel')}
-              </label>
-              <input
-                ref={formatInputRef}
-                id="daily-naming-format"
-                type="text"
-                disabled={locked}
-                placeholder={tl(lang, 'settings.dailyFormatPlaceholder')}
-                className="input h-9 w-full py-1 font-mono text-sm disabled:cursor-not-allowed disabled:opacity-60"
-                value={formatDraft}
-                onChange={(e) => setFormatDraft(e.target.value)}
-                onBlur={() => commitDailyFormat(formatDraft)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    commitDailyFormat(formatDraft);
-                    (e.target as HTMLInputElement).blur();
-                  }
-                }}
-              />
-              <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
-                <span className="text-on-surface-variant">{tl(lang, 'settings.dailyTokensLabel')}</span>
-                {DAILY_TOKENS.map((tok) => (
-                  <button
-                    key={tok}
-                    type="button"
-                    disabled={locked}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => insertDailyToken(tok)}
-                    className="chip font-mono text-[11px] hover:border-primary/60 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {tok}
-                  </button>
-                ))}
-              </div>
-              <div className="flex flex-wrap items-baseline gap-1.5 pt-0.5 text-xs">
-                <span className="text-on-surface-variant">{tl(lang, 'settings.dailyPreviewLabel')}</span>
-                <code className="break-all rounded bg-surface-container-low px-1.5 py-0.5 font-mono text-[11px] text-primary">
-                  {dailyPreview}
-                </code>
-              </div>
+            <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+              <span className="text-on-surface-variant">{tl(lang, 'settings.dailyTokensLabel')}</span>
+              {DAILY_TOKENS.map((tok) => (
+                <button
+                  key={tok}
+                  type="button"
+                  disabled={locked}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => insertDailyToken(tok)}
+                  className="chip font-mono text-[11px] hover:border-primary/60 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {tok}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-baseline gap-1.5 pt-0.5 text-xs">
+              <span className="text-on-surface-variant">{tl(lang, 'settings.dailyPreviewLabel')}</span>
+              <code className="break-all rounded bg-surface-container-low px-1.5 py-0.5 font-mono text-[11px] text-primary">{dailyPreview}</code>
             </div>
           </div>
-        )}
-      </div>
+        </FeatureRow>
 
-      <hr className="my-5 border-outline-variant" />
+        <FeatureRow
+          id="feature-heatmap-switch"
+          Icon={CalendarRange}
+          title={tl(lang, 'settings.heatmapTitle')}
+          desc={tl(lang, 'settings.heatmapDesc')}
+          toggleLabel={tl(lang, 'settings.heatmapToggleLabel')}
+          enabled={features.heatmap.enabled}
+          locked={locked}
+          onToggle={(enabled) => save({ ...features, heatmap: { enabled } })}
+        />
 
-      {/* Calendar Heatmap opt-in */}
-      <div>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <CalendarRange size={18} className="mt-0.5 shrink-0 text-ok" />
-            <div className="min-w-0 flex-1">
-              <label htmlFor="feature-heatmap-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
-                {tl(lang, 'settings.heatmapTitle')}
-              </label>
-              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.heatmapDesc')}</p>
-            </div>
-          </div>
-          <Switch
-            id="feature-heatmap-switch"
-            checked={features.heatmap.enabled}
-            disabled={locked}
-            label={tl(lang, 'settings.heatmapToggleLabel')}
-            onChange={(enabled) => save({ ...features, heatmap: { enabled } })}
-          />
-        </div>
-      </div>
+        <FeatureRow
+          id="feature-review-switch"
+          Icon={CalendarCheck}
+          title={tl(lang, 'settings.reviewTitle')}
+          desc={tl(lang, 'settings.reviewDesc')}
+          toggleLabel={tl(lang, 'settings.reviewToggleLabel')}
+          enabled={features.review.enabled}
+          locked={locked}
+          onToggle={(enabled) => save({ ...features, review: { enabled } })}
+        />
 
-      <hr className="my-5 border-outline-variant" />
+        <FeatureRow
+          id="feature-favorites-switch"
+          Icon={Star}
+          title={tl(lang, 'settings.favoritesTitle')}
+          desc={tl(lang, 'settings.favoritesDesc')}
+          toggleLabel={tl(lang, 'settings.favoritesToggleLabel')}
+          enabled={features.favorites.enabled}
+          locked={locked}
+          onToggle={(enabled) => save({ ...features, favorites: { enabled } })}
+        />
 
-      {/* review opt-in */}
-      <div>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <CalendarCheck size={18} className="mt-0.5 shrink-0 text-primary" />
-            <div className="min-w-0 flex-1">
-              <label htmlFor="feature-review-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
-                {tl(lang, 'settings.reviewTitle')}
-              </label>
-              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.reviewDesc')}</p>
-            </div>
-          </div>
-          <Switch
-            id="feature-review-switch"
-            checked={features.review.enabled}
-            disabled={locked}
-            label={tl(lang, 'settings.reviewToggleLabel')}
-            onChange={(enabled) => save({ ...features, review: { enabled } })}
-          />
-        </div>
-      </div>
+        <FeatureRow
+          id="feature-stats-switch"
+          Icon={AlignJustify}
+          title={tl(lang, 'settings.statsTitle')}
+          desc={tl(lang, 'settings.statsDesc')}
+          toggleLabel={tl(lang, 'settings.statsToggleLabel')}
+          enabled={features.writingStats.enabled}
+          locked={locked}
+          onToggle={(enabled) => save({ ...features, writingStats: { enabled } })}
+        />
 
-      <hr className="my-5 border-outline-variant" />
-
-      {/* favorites opt-in */}
-      <div>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <Star size={18} className="mt-0.5 shrink-0 text-warn" />
-            <div className="min-w-0 flex-1">
-              <label htmlFor="feature-favorites-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
-                {tl(lang, 'settings.favoritesTitle')}
-              </label>
-              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.favoritesDesc')}</p>
-            </div>
-          </div>
-          <Switch
-            id="feature-favorites-switch"
-            checked={features.favorites.enabled}
-            disabled={locked}
-            label={tl(lang, 'settings.favoritesToggleLabel')}
-            onChange={(enabled) => save({ ...features, favorites: { enabled } })}
-          />
-        </div>
-      </div>
-
-      <hr className="my-5 border-outline-variant" />
-
-      {/* writing stats (on by default) */}
-      <div>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <AlignJustify size={18} className="mt-0.5 shrink-0 text-primary" />
-            <div className="min-w-0 flex-1">
-              <label htmlFor="feature-stats-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
-                {tl(lang, 'settings.statsTitle')}
-              </label>
-              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.statsDesc')}</p>
-            </div>
-          </div>
-          <Switch
-            id="feature-stats-switch"
-            checked={features.writingStats.enabled}
-            disabled={locked}
-            label={tl(lang, 'settings.statsToggleLabel')}
-            onChange={(enabled) => save({ ...features, writingStats: { enabled } })}
-          />
-        </div>
-      </div>
-
-      <hr className="my-5 border-outline-variant" />
-
-      {/* focus mode (on by default) */}
-      <div>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <CenterFocus size={18} className="mt-0.5 shrink-0 text-primary" />
-            <div className="min-w-0 flex-1">
-              <label htmlFor="feature-focus-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
-                {tl(lang, 'settings.focusTitle')}
-              </label>
-              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.focusDesc')}</p>
-            </div>
-          </div>
-          <Switch
-            id="feature-focus-switch"
-            checked={features.focus.enabled}
-            disabled={locked}
-            label={tl(lang, 'settings.focusToggleLabel')}
-            onChange={(enabled) => save({ ...features, focus: { ...features.focus, enabled } })}
-          />
-        </div>
-        {features.focus.enabled && (
-          <div className="mt-3 flex items-center justify-between gap-4 rounded-2xl border border-outline-variant bg-surface-container-high/50 p-4 anim-fade-in">
+        <FeatureRow
+          id="feature-focus-switch"
+          Icon={CenterFocus}
+          title={tl(lang, 'settings.focusTitle')}
+          desc={tl(lang, 'settings.focusDesc')}
+          toggleLabel={tl(lang, 'settings.focusToggleLabel')}
+          enabled={features.focus.enabled}
+          locked={locked}
+          onToggle={(enabled) => save({ ...features, focus: { ...features.focus, enabled } })}
+        >
+          <div className="flex items-center justify-between gap-4">
             <div className="min-w-0 flex-1">
               <label htmlFor="feature-focus-dim-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
                 {tl(lang, 'settings.focusDimTitle')}
@@ -1039,33 +864,19 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
               onChange={(dim) => save({ ...features, focus: { ...features.focus, dim } })}
             />
           </div>
-        )}
-      </div>
+        </FeatureRow>
 
-      <hr className="my-5 border-outline-variant" />
-
-      {/* PARA method opt-in */}
-      <div>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <FolderKanban size={18} className="mt-0.5 shrink-0 text-primary" />
-            <div className="min-w-0 flex-1">
-              <label htmlFor="feature-para-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
-                {tl(lang, 'settings.paraTitle')}
-              </label>
-              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.paraDesc')}</p>
-            </div>
-          </div>
-          <Switch
-            id="feature-para-switch"
-            checked={features.para.enabled}
-            disabled={locked}
-            label={tl(lang, 'settings.paraToggleLabel')}
-            onChange={(enabled) => save({ ...features, para: { ...features.para, enabled } })}
-          />
-        </div>
-        {features.para.enabled && (
-          <div className="mt-3 grid grid-cols-1 gap-3 rounded-2xl border border-outline-variant bg-surface-container-high/50 p-4 sm:grid-cols-2 anim-fade-in">
+        <FeatureRow
+          id="feature-para-switch"
+          Icon={FolderKanban}
+          title={tl(lang, 'settings.paraTitle')}
+          desc={tl(lang, 'settings.paraDesc')}
+          toggleLabel={tl(lang, 'settings.paraToggleLabel')}
+          enabled={features.para.enabled}
+          locked={locked}
+          onToggle={(enabled) => save({ ...features, para: { ...features.para, enabled } })}
+        >
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FolderPicker
               id="para-folder-projects"
               label={tl(lang, 'settings.paraFolderProjects')}
@@ -1099,91 +910,118 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
               onChange={(archive) => save({ ...features, para: { ...features.para, folders: { ...features.para.folders, archive } } })}
             />
           </div>
-        )}
-      </div>
+        </FeatureRow>
 
-      <hr className="my-5 border-outline-variant" />
-
-      {/* Zettelkasten opt-in */}
-      <div>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <Lightbulb size={18} className="mt-0.5 shrink-0 text-primary" />
-            <div className="min-w-0 flex-1">
-              <label htmlFor="feature-zettel-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
-                {tl(lang, 'settings.zettelTitle')}
-              </label>
-              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.zettelDesc')}</p>
-            </div>
-          </div>
-          <Switch
-            id="feature-zettel-switch"
-            checked={features.zettel.enabled}
+        <FeatureRow
+          id="feature-zettel-switch"
+          Icon={Lightbulb}
+          title={tl(lang, 'settings.zettelTitle')}
+          desc={tl(lang, 'settings.zettelDesc')}
+          toggleLabel={tl(lang, 'settings.zettelToggleLabel')}
+          enabled={features.zettel.enabled}
+          locked={locked}
+          onToggle={(enabled) => save({ ...features, zettel: { ...features.zettel, enabled } })}
+        >
+          <FolderPicker
+            id="zettel-target-folder"
+            label={tl(lang, 'settings.targetFolderLabel')}
+            value={features.zettel.folder}
+            folders={folders}
             disabled={locked}
-            label={tl(lang, 'settings.zettelToggleLabel')}
-            onChange={(enabled) => save({ ...features, zettel: { ...features.zettel, enabled } })}
+            onChange={(folder) => save({ ...features, zettel: { ...features.zettel, folder } })}
           />
-        </div>
-        {features.zettel.enabled && (
-          <div className="mt-3 rounded-2xl border border-outline-variant bg-surface-container-high/50 p-4 anim-fade-in">
-            <FolderPicker
-              id="zettel-target-folder"
-              label={tl(lang, 'settings.targetFolderLabel')}
-              value={features.zettel.folder}
-              folders={folders}
-              disabled={locked}
-              onChange={(folder) => save({ ...features, zettel: { ...features.zettel, folder } })}
-            />
-          </div>
-        )}
-      </div>
+        </FeatureRow>
 
-      <hr className="my-5 border-outline-variant" />
-
-      {/* Recipe import opt-in */}
-      <div>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <ChefHat size={18} className="mt-0.5 shrink-0 text-primary" />
-            <div className="min-w-0 flex-1">
-              <label htmlFor="feature-recipe-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
-                {tl(lang, 'settings.recipeTitle')}
-              </label>
-              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.recipeDesc')}</p>
-            </div>
-          </div>
-          <Switch
-            id="feature-recipe-switch"
-            checked={features.recipe.enabled}
-            disabled={locked}
-            label={tl(lang, 'settings.recipeToggleLabel')}
-            onChange={(enabled) => {
-              let recipeFolder = features.recipe.folder;
-              if (enabled) {
-                if (features.para.enabled && recipeFolder === STANDALONE_RECIPE_FOLDER && !folders.includes(STANDALONE_RECIPE_FOLDER)) {
-                  recipeFolder = `${features.para.folders.resources}/Rezepte`;
-                } else if (!features.para.enabled && recipeFolder === DEFAULT_RECIPE_FOLDER && !folders.includes(DEFAULT_RECIPE_FOLDER)) {
-                  recipeFolder = STANDALONE_RECIPE_FOLDER;
-                }
+        <FeatureRow
+          id="feature-recipe-switch"
+          Icon={ChefHat}
+          title={tl(lang, 'settings.recipeTitle')}
+          desc={tl(lang, 'settings.recipeDesc')}
+          toggleLabel={tl(lang, 'settings.recipeToggleLabel')}
+          enabled={features.recipe.enabled}
+          locked={locked}
+          onToggle={(enabled) => {
+            let recipeFolder = features.recipe.folder;
+            if (enabled) {
+              if (features.para.enabled && recipeFolder === STANDALONE_RECIPE_FOLDER && !folders.includes(STANDALONE_RECIPE_FOLDER)) {
+                recipeFolder = `${features.para.folders.resources}/Rezepte`;
+              } else if (!features.para.enabled && recipeFolder === DEFAULT_RECIPE_FOLDER && !folders.includes(DEFAULT_RECIPE_FOLDER)) {
+                recipeFolder = STANDALONE_RECIPE_FOLDER;
               }
-              save({ ...features, recipe: { ...features.recipe, enabled, folder: recipeFolder } });
-            }}
+            }
+            save({ ...features, recipe: { ...features.recipe, enabled, folder: recipeFolder } });
+          }}
+        >
+          <FolderPicker
+            id="recipe-target-folder"
+            label={tl(lang, 'settings.targetFolderLabel')}
+            value={features.recipe.folder}
+            folders={folders}
+            disabled={locked}
+            onChange={(folder) => save({ ...features, recipe: { ...features.recipe, folder } })}
           />
-        </div>
-        {features.recipe.enabled && (
-          <div className="mt-3 rounded-2xl border border-outline-variant bg-surface-container-high/50 p-4 anim-fade-in">
-            <FolderPicker
-              id="recipe-target-folder"
-              label={tl(lang, 'settings.targetFolderLabel')}
-              value={features.recipe.folder}
-              folders={folders}
-              disabled={locked}
-              onChange={(folder) => save({ ...features, recipe: { ...features.recipe, folder } })}
-            />
-          </div>
-        )}
+        </FeatureRow>
       </div>
     </section>
+  );
+}
+
+/**
+ * One feature in the settings: a compact row (icon, name, "On"/"Off") that expands on click to the
+ * description, the switch and the feature's own options (shown while it is on).
+ */
+function FeatureRow({
+  id,
+  Icon,
+  title,
+  desc,
+  toggleLabel,
+  enabled,
+  locked,
+  onToggle,
+  children,
+}: {
+  id: string;
+  Icon: typeof Star;
+  title: string;
+  desc: string;
+  toggleLabel: string;
+  enabled: boolean;
+  locked: boolean;
+  onToggle: (enabled: boolean) => void;
+  children?: React.ReactNode;
+}) {
+  const lang = useLang();
+  const [open, setOpen] = useState(false);
+  const panelId = `${id}-panel`;
+  return (
+    <div className="py-1">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen(!open)}
+        className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-2xl px-2 py-2.5 text-left transition-colors hover:bg-surface-container-high/60"
+      >
+        <Icon size={18} className="shrink-0 text-primary" />
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{title}</span>
+        <span className={`shrink-0 text-xs font-semibold ${enabled ? 'text-ok' : 'text-error'}`}>
+          {enabled ? tl(lang, 'settings.featureOn') : tl(lang, 'settings.featureOff')}
+        </span>
+        <ChevronDown size={18} className={`shrink-0 text-on-surface-variant transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div id={panelId} className="mb-2 ml-[30px] mt-1 space-y-3 rounded-2xl border border-outline-variant bg-surface-container-high/50 p-4 anim-fade-in">
+          <div className="flex items-center justify-between gap-4">
+            <label htmlFor={id} className={`min-w-0 flex-1 text-xs text-on-surface-variant ${locked ? '' : 'cursor-pointer'}`}>
+              {desc}
+            </label>
+            <Switch id={id} checked={enabled} disabled={locked} label={toggleLabel} onChange={onToggle} />
+          </div>
+          {enabled && children}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1201,10 +1039,10 @@ function GitLabSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   const linked = me.externalLogins?.find((l) => l.provider === 'gitlab');
   const canUnlink = me.passkeys.length > 0 || me.hasPassword || (me.externalLogins?.length ?? 0) > 1;
   return (
-    <section className="card p-5 anim-fade-up" data-gitlab-section>
-      <h2 className="mb-1 flex items-center gap-2 font-medium">
+    <div data-gitlab-section>
+      <h3 className="mb-1 flex items-center gap-2 text-sm font-medium">
         <GitLabIcon size={18} /> {tl(lang, 'settings.gitlabTitle', { name })}
-      </h2>
+      </h3>
       <p className="mb-3 text-sm text-on-surface-variant">
         {linked
           ? tl(lang, 'settings.gitlabLinkedAs', { name, username: linked.username, date: new Date(linked.createdAt).toLocaleDateString(locale(lang)) })
@@ -1235,7 +1073,7 @@ function GitLabSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
         )}
       </div>
       {message && <p className={`mt-2 text-sm ${message.ok ? 'text-primary' : 'text-error'}`}>{message.text}</p>}
-    </section>
+    </div>
   );
 }
 
@@ -1268,8 +1106,8 @@ function PasswordSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   };
 
   return (
-    <section className="card p-5 anim-fade-up">
-      <h2 className="mb-1 font-medium">{tl(lang, 'settings.passwordTitle')}</h2>
+    <div>
+      <h3 className="mb-1 text-sm font-medium">{tl(lang, 'settings.passwordTitle')}</h3>
       <p className="mb-3 text-sm text-on-surface-variant">
         {me.hasPassword ? tl(lang, 'settings.passwordHasHint') : tl(lang, 'settings.passwordNoHint')}
       </p>
@@ -1343,50 +1181,71 @@ function PasswordSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
         </div>
       )}
       {message && <p className={`mt-2 text-sm ${message.ok ? 'text-primary' : 'text-error'}`}>{message.text}</p>}
-    </section>
+    </div>
   );
 }
 
-/** Layout measurements for support: the iOS home-screen app has no Web Inspector at hand */
-function Diagnostics() {
+/** Snap distance (percent points) around the presets */
+const WIDESCREEN_SNAP = 4;
+
+/** Slider for the content width: 50–100 %, snaps to the presets and marks them with dots */
+function WidescreenSlider() {
   const lang = useLang();
-  const [text, setText] = useState('');
-  const [copied, setCopied] = useState(false);
-  const [tall, setTall] = useState(false);
-  const measure = () => setText(JSON.stringify({ version: APP_VERSION, now: viewportReport(), atStart: startupReport }, null, 2));
+  const { percent } = useWidescreen();
+  const pos = (v: number) => ((v - MIN_PERCENT) / (MAX_PERCENT - MIN_PERCENT)) * 100;
+  const set = (raw: number) => {
+    const snap = WIDESCREEN_PRESETS.find((p) => Math.abs(p - raw) <= WIDESCREEN_SNAP);
+    const next = snap ?? raw;
+    setWidescreen({ percent: next, custom: !(WIDESCREEN_PRESETS as readonly number[]).includes(next) });
+  };
   return (
-    <details className="card p-5 anim-fade-up" onToggle={(e) => (e.currentTarget.open ? measure() : setText(''))}>
-      <summary className="cursor-pointer font-medium">{tl(lang, 'settings.diagTitle')}</summary>
-      <p className="mt-2 text-sm text-on-surface-variant">{tl(lang, 'settings.diagDesc')}</p>
-      <pre className="mt-3 max-h-80 overflow-auto rounded-xl bg-surface-container-high p-3 font-mono text-xs leading-snug whitespace-pre-wrap break-all">{text}</pre>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button className="btn-ghost border border-outline-variant" onClick={measure}>
-          <Zap size={16} /> {tl(lang, 'settings.diagRemeasure')}
-        </button>
-        <button
-          className="btn-ghost border border-outline-variant"
-          onClick={() => {
-            setTall(toggleTallPageTest());
-            setTimeout(measure, 400);
-          }}
-        >
-          <Monitor size={16} /> {tall ? tl(lang, 'settings.diagStopTest') : tl(lang, 'settings.diagStartTest')}
-        </button>
-        <button
-          className="btn-ghost border border-outline-variant"
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(text);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1500);
-            } catch {
-              /* clipboard blocked: the text can still be selected */
-            }
-          }}
-        >
-          <Copy size={16} /> {copied ? tl(lang, 'common.copied') : tl(lang, 'common.copy')}
-        </button>
+    <div className="px-1">
+      <div className="relative h-6">
+        {/* Track, active part and preset dots, drawn under the native thumb */}
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-secondary-container">
+          <div className="h-full rounded-full bg-primary" style={{ width: `calc(10px + (100% - 20px) * ${pos(percent) / 100})` }} />
+        </div>
+        <div aria-hidden className="pointer-events-none absolute inset-x-[10px] top-1/2 -translate-y-1/2">
+          {WIDESCREEN_PRESETS.map((p) => (
+            <span
+              key={p}
+              className={`absolute top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full ${p <= percent ? 'bg-on-primary' : 'bg-primary'}`}
+              style={{ left: `${pos(p)}%` }}
+            />
+          ))}
+        </div>
+        <input
+          id="widescreen-slider"
+          type="range"
+          min={MIN_PERCENT}
+          max={MAX_PERCENT}
+          step={1}
+          value={percent}
+          list="widescreen-presets"
+          onChange={(e) => set(Number(e.target.value))}
+          aria-valuetext={`${percent} %`}
+          aria-label={tl(lang, 'settings.widescreenSliderAria')}
+          className="m3-slider relative w-full"
+        />
+        <datalist id="widescreen-presets">
+          {WIDESCREEN_PRESETS.map((p) => (
+            <option key={p} value={p} />
+          ))}
+        </datalist>
       </div>
-    </details>
+      <div className="relative mx-[10px] mt-1 h-4 text-[11px] text-on-surface-variant tabular-nums">
+        {WIDESCREEN_PRESETS.map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => set(p)}
+            className={`absolute -translate-x-1/2 whitespace-nowrap hover:text-on-surface ${p === percent ? 'font-semibold text-on-surface' : ''}`}
+            style={{ left: `${pos(p)}%` }}
+          >
+            {p} %{p === DEFAULT_PERCENT ? ` · ${tl(lang, 'settings.widescreenDefaultTag')}` : ''}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

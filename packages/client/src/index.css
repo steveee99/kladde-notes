@@ -369,6 +369,47 @@ body {
     @apply rounded-lg border border-transparent bg-surface-container-low;
   }
   /* Chip: 32 dp, small shape, outlined (assist / filter / input chips); selected filter chips are tonal */
+  /* M3 slider: the native track stays transparent, the component draws track, fill and preset dots below the 20px thumb */
+  .m3-slider {
+    @apply h-6 cursor-pointer appearance-none bg-transparent outline-none;
+  }
+  .m3-slider::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 999px;
+    background: transparent;
+  }
+  .m3-slider::-moz-range-track {
+    height: 6px;
+    border-radius: 999px;
+    background: transparent;
+  }
+  .m3-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    margin-top: -7px;
+    border-radius: 999px;
+    background: rgb(var(--primary));
+    box-shadow: 0 0 0 4px rgb(var(--surface-container-low));
+    position: relative;
+    z-index: 1;
+  }
+  .m3-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border: 0;
+    border-radius: 999px;
+    background: rgb(var(--primary));
+    box-shadow: 0 0 0 4px rgb(var(--surface-container-low));
+  }
+  .m3-slider:focus-visible::-webkit-slider-thumb {
+    outline: 2px solid rgb(var(--primary));
+    outline-offset: 4px;
+  }
+  .m3-slider:focus-visible::-moz-range-thumb {
+    outline: 2px solid rgb(var(--primary));
+    outline-offset: 4px;
+  }
   .chip {
     @apply inline-flex min-h-8 items-center gap-2 rounded-sm border border-outline-variant bg-transparent px-3 text-label-l text-on-surface-variant;
   }
