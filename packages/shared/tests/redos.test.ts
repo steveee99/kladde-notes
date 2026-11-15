@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCalendar, filterGraph, LinkIndex, normalizeTag, renameTag, tagBeforeCursor, nextDue, parseFrontmatter, parseTasks, rruleOf, setTaskMeta, setTaskStatus, stripBlockIds, extractHeadings, trimSlashes } from '../src/index';
+import { buildCalendar, filterGraph, pdfNoteOf, LinkIndex, normalizeTag, renameTag, tagBeforeCursor, nextDue, parseFrontmatter, parseTasks, rruleOf, setTaskMeta, setTaskStatus, stripBlockIds, extractHeadings, trimSlashes } from '../src/index';
 
 /** Runs `fn` and fails if it takes longer than a linear scan should (the CodeQL polynomial-ReDoS inputs) */
 function fast(fn: () => unknown, ms = 250) {
@@ -42,6 +42,10 @@ describe('tags and graph filters stay linear', () => {
     const notes = [{ id: '1', path: 'a.md', content: `- [ ] x${' #'.repeat(N)}a 📅 2026-01-01`, updatedAt: 0 }];
     fast(() => buildCalendar(notes, { ...feed, tag: `${' '.repeat(N)}#${'('.repeat(N)}` }));
     fast(() => buildCalendar(notes, { ...feed, tag: 'a'.repeat(N) }));
+    const pdf = '---\ntype: pdf\n---\n';
+    fast(() => pdfNoteOf(pdf + '!['.repeat(N)));
+    fast(() => pdfNoteOf(pdf + '![](' .repeat(N)));
+    fast(() => pdfNoteOf(pdf + '![a]('.repeat(N) + ' '));
   });
 
   it('keeps the results', () => {
