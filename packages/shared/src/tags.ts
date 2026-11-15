@@ -1,4 +1,5 @@
 import { extractMeta, mapOutsideCode } from './markdown.js';
+import { trimSlashes } from './util.js';
 
 /**
  * Tags: `#tag` in the text and `tags:` in the frontmatter (see `extractMeta`). Tags nest with `/`:
@@ -7,16 +8,12 @@ import { extractMeta, mapOutsideCode } from './markdown.js';
 
 /** Characters of a tag (as in `extractMeta`) */
 const TAG_CHARS = '[\\p{L}\\p{N}_/-]';
+const TAG_CHAR = new RegExp(`^${TAG_CHARS}$`, 'u');
 
 /** Normalizes user input to a tag: no leading `#`, no slashes at the ends, lower case */
 export function normalizeTag(input: string): string {
-  return input
-    .trim()
-    .replace(/^#+/, '')
-    .replace(/\s+/g, '-')
-    .replace(/\/{2,}/g, '/')
-    .replace(/^\/+|\/+$/g, '')
-    .toLowerCase();
+  // trimSlashes instead of /^\/+|\/+$/: that regex is polynomial on long runs of slashes (CodeQL ReDoS)
+  return trimSlashes(input.trim().replace(/^#+/, '').replace(/\s+/g, '-').replace(/\/{2,}/g, '/')).toLowerCase();
 }
 
 /** Whether `tag` may be written as `#tag` (and is found again by `extractMeta`) */
@@ -126,7 +123,8 @@ export function renameTag(content: string, fromTag: string, toTag: string): stri
   const fm = FRONTMATTER.exec(content);
   if (fm) {
     head = fm[0].replace(/^(tags:)(.*)$/im, (line, key: string, value: string) => {
-      const list = /^\s*\[.*\]\s*$/.test(value);
+      const trimmed = value.trim();
+      const list = trimmed.startsWith('[') && trimmed.endsWith(']');
       const items = value.replace(/[[\]]/g, '').split(',').map((x) => x.trim()).filter(Boolean);
       let changed = false;
       const seen = new Set<string>();
@@ -164,7 +162,16 @@ export function renameTag(content: string, fromTag: string, toTag: string): stri
  * offset of the `#`. Null when the cursor is not inside a tag (headings `# ` are not tags).
  */
 export function tagBeforeCursor(lineBefore: string): { query: string; from: number } | null {
-  const m = new RegExp(`(^|\\s)#(${TAG_CHARS}*)$`, 'u').exec(lineBefore);
-  if (!m) return null;
-  return { query: m[2].toLowerCase(), from: m.index + m[1].length };
+  // A backwards scan instead of a regex anchored at the end, which backtracks on long lines
+  let i = lineBefore.length;
+  for (;;) {
+    // Letters outside the BMP are surrogate pairs: test the pair, not its halves
+    const step = i > 1 && /[\uDC00-\uDFFF]/.test(lineBefore[i - 1]) ? 2 : 1;
+    if (i - step < 0 || !TAG_CHAR.test(lineBefore.slice(i - step, i))) break;
+    i -= step;
+  }
+  const hash = i - 1;
+  if (hash < 0 || lineBefore[hash] !== '#') return null;
+  if (hash > 0 && !/\s/.test(lineBefore[hash - 1])) return null;
+  return { query: lineBefore.slice(i).toLowerCase(), from: hash };
 }

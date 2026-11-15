@@ -4,6 +4,7 @@ import { pdfNoteOf } from './pdfNote.js';
 import { LinkIndex, type GraphEdge, type GraphNode } from './links.js';
 import { PARA, roleOfFolder, type ParaRole, type RoleFolderMap } from './para.js';
 import { tagMatches } from './tags.js';
+import { trimSlashes } from './util.js';
 
 /**
  * Filters for the knowledge graph (#38): PARA role, folder, tag, note type, a time range, and a focus
@@ -85,7 +86,7 @@ export function filterGraph(
   const all = index.graph();
   const roles = filter.roles?.length ? new Set(filter.roles) : null;
   const kinds = filter.kinds?.length ? new Set(filter.kinds) : null;
-  const folder = filter.folder?.replace(/^\/+|\/+$/g, '') ?? '';
+  const folder = trimSlashes(filter.folder ?? '');
   const near = filter.focus ? neighbourhood(index, filter.focus.id, Math.max(1, Math.min(3, filter.focus.depth))) : null;
   let orphans = 0;
   const nodes: FilteredGraphNode[] = [];

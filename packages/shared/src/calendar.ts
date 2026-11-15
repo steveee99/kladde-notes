@@ -5,6 +5,7 @@
 import { extractMeta } from './markdown.js';
 import { parseTasks, splitRepeatRule, type Task } from './tasks.js';
 import { tagMatches } from './tags.js';
+import { trimSlashes } from './util.js';
 import type { CalendarFeedOptions } from './types.js';
 
 export interface CalendarNote {
@@ -75,14 +76,6 @@ export function foldLine(line: string): string {
 
 const icsDate = (iso: string) => iso.replace(/-/g, '');
 
-/** Strips leading and trailing slashes (a loop: `/\/+$/` is quadratic on long runs of slashes) */
-export function trimSlashes(s: string): string {
-  let from = 0;
-  let to = s.length;
-  while (from < to && s[from] === '/') from++;
-  while (to > from && s[to - 1] === '/') to--;
-  return s.slice(from, to);
-}
 
 /** Strips trailing slashes only */
 function trimTrailingSlashes(s: string): string {
