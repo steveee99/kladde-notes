@@ -15,6 +15,8 @@ export interface EditorHost {
   openTask(noteId: string, line: number): void;
   setFrontmatter(noteId: string, updates: Record<string, string | null>): void;
   noteTitles(): string[];
+  /** Known tags with their note counts, most used first */
+  tags(): { tag: string; count: number }[];
   autoLinkTargets(excludeId?: string): { name: string; target: string }[];
   upload(file: File): Promise<{ url: string; name: string; mime: string }>;
   registerFlush(fn: () => void): () => void;
@@ -34,6 +36,7 @@ export const editorHost: EditorHost = {
   openTask: () => {},
   setFrontmatter: () => {},
   noteTitles: () => [],
+  tags: () => [],
   autoLinkTargets: () => [],
   upload: () => Promise.reject(new Error(t('editor.notAvailable'))),
   registerFlush: (fn) => {
