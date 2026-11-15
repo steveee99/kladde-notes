@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-export type NoteSplitTab = 'toc' | 'links' | 'graph';
+export type NoteSplitTab = 'toc' | 'tasks' | 'links' | 'graph';
 
 const INBOX_ZERO_KEY = 'kladde_inbox_zero';
 const SPLIT_OPEN_KEY = 'kladde_note_split_open';
@@ -24,7 +24,7 @@ function readBool(key: string, fallback: boolean): boolean {
 function readSplitTab(): NoteSplitTab {
   try {
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(SPLIT_TAB_KEY) : null;
-    if (raw === 'toc' || raw === 'links' || raw === 'graph') return raw;
+    if (raw === 'toc' || raw === 'tasks' || raw === 'links' || raw === 'graph') return raw;
   } catch {
     // ignore
   }

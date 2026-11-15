@@ -563,7 +563,7 @@ export function openStatusMenu(anchor: HTMLElement, current: TaskStatus, lang: L
 }
 
 /** Rewrites the status of the task in `lineIndex` as one minimal change */
-function setLineStatus(view: EditorView, lineIndex: number, status: TaskStatus) {
+export function setLineStatus(view: EditorView, lineIndex: number, status: TaskStatus) {
   const doc = view.state.doc;
   const oldLines = doc.toString().split('\n');
   const newLines = setTaskStatus(doc.toString(), lineIndex, status).split('\n');

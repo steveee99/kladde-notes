@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CalendarCheck,
+  ListChecks,
   CalendarDays,
   CalendarRange,
   CheckCircle2,
@@ -47,6 +48,7 @@ import {
 import { createPortal } from 'react-dom';
 import { openDialog } from '../lib/dialogs';
 import { reviewDue } from './Review';
+import { urgentTaskCount } from './TaskParts';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { currentPath, navigate, usePath } from '../lib/router';
@@ -789,6 +791,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
       </span>
     ) : null;
   const ownNotes = notes.filter((n) => n.access === 'owner').length;
+  const urgentTasks = urgentTaskCount(version);
 
   return (
     <div
@@ -902,6 +905,10 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
               (!locked || !!dailyNote) &&
               navIcon('daily', CalendarDays, t('daily.todayBtn'), { active: dailyRouteActive, onClick: () => void openTodayDailyNote().then(() => onNavigate?.()) })}
             {features.heatmap.enabled && navIcon('calendar', CalendarRange, t('nav.calendar'), { to: '/calendar' })}
+            {navIcon('tasks', ListChecks, urgentTasks ? `${t('nav.tasks')} (${urgentTasks})` : t('nav.tasks'), {
+              to: '/tasks',
+              badge: countBadge(urgentTasks, 'warn'),
+            })}
             {navIcon('notes', FileText, `${t('nav.allNotes')} (${ownNotes})`, { to: '/notes' })}
             {navIcon('inbox', InboxIcon, inboxCount > 0 ? `${t('nav.inbox')} (${inboxCount})` : t('nav.inbox'), {
               to: '/inbox',

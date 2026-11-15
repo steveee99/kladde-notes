@@ -28,6 +28,7 @@ import {
   Image as ImageIcon,
   Link2,
   List,
+  ListChecks,
   ListTree,
   Loader2,
   Lock,
@@ -60,6 +61,7 @@ import {
   toDateString,
   type GraphEdge,
   type GraphNode,
+  type Task,
 } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
@@ -69,6 +71,7 @@ import { Editor, insertAtLineStart, insertText, toggleCode, toggleWrap, wrapSele
 import { editorHost } from '../editor/host';
 import { useOutline, type Outline } from '../editor/outline';
 import { OutlinePanel } from './OutlinePanel';
+import { NoteTasksPanel, useNoteTasks } from './NoteTasksPanel';
 import { applyFrontmatter } from '../editor/widgets';
 import { ShareDialog } from './ShareDialog';
 import { HistoryDialog } from './History';
@@ -705,6 +708,7 @@ function MoveNoteSheet({ noteTitle, currentFolder, onMove, onClose }: { noteTitl
 function NoteInspectorPane({
   noteId,
   outline,
+  tasks,
   view,
   canEdit,
   backlinks,
@@ -717,6 +721,7 @@ function NoteInspectorPane({
 }: {
   noteId: string;
   outline: Outline;
+  tasks: Task[];
   view: EditorView | null;
   canEdit: boolean;
   backlinks: LocalNote[];
@@ -732,6 +737,7 @@ function NoteInspectorPane({
   const graphDepth = useLocalGraphDepth();
   const tabs: { id: NoteSplitTab; label: string; Icon: typeof ListTree; count?: number }[] = [
     { id: 'toc', label: t('note.tabToc'), Icon: ListTree, count: outline.headings.length || undefined },
+    { id: 'tasks', label: t('note.tabTasks'), Icon: ListChecks, count: tasks.length ? tasks.filter((tk) => !tk.done).length || undefined : undefined },
     { id: 'links', label: t('note.tabLinks'), Icon: Link2, count: backlinks.length + mentions.length || undefined },
     { id: 'graph', label: t('note.tabGraph'), Icon: Network, count: local.nodes.length > 1 ? local.nodes.length - 1 : undefined },
   ];
@@ -752,7 +758,7 @@ function NoteInspectorPane({
       </div>
 
       {/* M3 primary tabs: icon above the label, a 3 dp primary indicator under the active one, a divider below the row */}
-      <div role="tablist" aria-label={t('note.paneTitle')} className="grid shrink-0 grid-cols-3 border-b border-outline-variant">
+      <div role="tablist" aria-label={t('note.paneTitle')} className="grid shrink-0 grid-cols-4 border-b border-outline-variant">
         {tabs.map(({ id, label, Icon, count }) => {
           const active = tab === id;
           return (
@@ -779,6 +785,7 @@ function NoteInspectorPane({
 
       <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto scrollbar-thin pr-0.5 pt-2">
         {tab === 'toc' && <OutlinePanel outline={outline} view={view} canEdit={canEdit} onJump={onJump} />}
+        {tab === 'tasks' && <NoteTasksPanel noteId={noteId} tasks={tasks} view={view} canEdit={canEdit} onJump={onJump} />}
 
         {tab === 'links' && (
           <div className="space-y-4">
@@ -984,6 +991,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
 
   // Headings for the outline, live from the editor while the side panel is open
   const outline = useOutline(splitOpen && !focusMode ? view : null, note?.content ?? '');
+  // Tasks of the note for the tasks tab, live from the editor as well
+  const noteTasks = useNoteTasks(splitOpen && !focusMode ? view : null, note?.content ?? '', note?.access === 'owner' ? vault.taskDueResolver()(note.path) : null);
 
   if (!note) {
     return (
@@ -1325,6 +1334,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             <NoteInspectorPane
               noteId={id}
               outline={outline}
+              tasks={noteTasks}
               view={view}
               canEdit={!readOnly && !showPdf}
               backlinks={backlinks}
@@ -1349,6 +1359,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               <NoteInspectorPane
                 noteId={id}
                 outline={outline}
+                tasks={noteTasks}
               view={view}
               canEdit={!readOnly && !showPdf}
                 backlinks={backlinks}

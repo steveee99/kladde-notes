@@ -30,6 +30,7 @@ import { FilesView } from './views/Files';
 import { TrashView } from './views/Trash';
 import { DailyNoteEmptyView } from './views/DailyNoteBar';
 import { CalendarView } from './views/ActivityHeatmap';
+import { TasksView } from './views/TasksView';
 
 const ME_KEY = 'kladde_me';
 
@@ -168,6 +169,7 @@ export function App() {
   else if (path === '/inbox' || path === `/f/${encodeURIComponent(INBOX_FOLDER)}`) page = <InboxView />;
   // "Share → Kladde" from another app (PWA share target)
   else if (path === '/share') page = <ShareCaptureView key={location.search} />;
+  else if (path === '/tasks') page = <TasksView />;
   else if (path === '/graph') page = <GraphView />;
   else if (path === '/tags') page = <TagsView />;
   else if (tagRoute) page = <TagsView key={tagRoute.tag} tag={tagRoute.tag} />;

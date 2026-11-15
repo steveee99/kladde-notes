@@ -4,6 +4,10 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Task page (#45). "Tasks" in the navigation (with a badge for overdue and today's tasks, also in the phone's navigation bar) opens `/tasks` with every task of your vault, including the ones without a due date: as a list grouped by overdue, today, upcoming and no date, or as a Kanban board. Filter by status and folder/project, sort by due date, note or text, and show done tasks; layout and filters are remembered per device.
+- Changed: The task section on the Home screen only shows tasks with a due date. "All tasks" in its header and a link below the list open the task page for the rest.
+- New: Tasks tab in the note's side panel (#45). It lists the tasks of the open note in document order with status and due date and a "3 / 8 done" counter; a click jumps to the line, and the checkbox or the status button changes the task right in the editor (one undo step).
+
 ## [2.3.0] – 2026-11-15
 
 - Changed: The logo in the navigation drawer sits on its own row, larger and as a tonal tile in the colours of the theme (like the "New note" button) instead of a small icon with its own dark background.
