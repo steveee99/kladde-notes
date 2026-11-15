@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.6.0] – 2026-11-15
+
 - Changed: The expanded sidebar shows the destinations as a list again (icon, name, count) in a "Navigation" group that can be collapsed like Favorites and Folders; while it is closed, its header shows the urgent count. The logo is smaller and sits next to the menu button with Home on the right, "New note" moved to the top above the search, and read-only and sync are compact buttons next to Settings at the bottom. Calendar, Attachments and Trash left the navigation: Calendar opens from the activity heatmap on Home, Attachments and Trash from Settings.
 - New: The expanded sidebar is wider by default (320 px) and can be resized by dragging its right edge (260–480 px, also with the arrow keys; a double-click resets it). The width is remembered per device.
 - Changed: The navigation rail has more space between destinations, dividers between groups, Review and "Shared" next to the others, and the same count badges as the expanded sidebar (orange for overdue tasks and a full Inbox, grey for counts, a dot for a due review), which are no longer cut off.
