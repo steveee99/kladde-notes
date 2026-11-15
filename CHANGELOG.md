@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.4.0] – 2026-11-15
+
 - New: Task page (#45). "Tasks" in the navigation (with a badge for overdue and today's tasks, also in the phone's navigation bar) opens `/tasks` with every task of your vault, including the ones without a due date: as a list grouped by overdue, today, upcoming and no date, or as a Kanban board. Filter by status and folder/project, sort by due date, note or text, and show done tasks; layout and filters are remembered per device.
 - Changed: The task section on the Home screen only shows tasks with a due date. "All tasks" in its header and a link below the list open the task page for the rest.
 - New: Apple Shortcuts (#46). Settings → Apple Shortcuts creates tokens for the iOS Shortcuts app (valid for a year by default, revocable, last use shown, only a hash stored, recorded in the audit log). They only work on a small API: `POST /api/shortcuts/capture` (text, link or Markdown into the inbox), `attachment` (a photo or file, embedded in a new inbox note), `append` (to a note or today's daily note), `task` (with due date, time and repeat, into the free tasks or a note) and `GET /api/shortcuts/tasks` (overdue, today's and upcoming tasks with a ready-made summary such as "2 due today, 1 overdue"). This brings Kladde into the iOS share sheet, Siri and the Action Button, and a morning automation replaces Web Push on iPhone. The guide in `docs/SHORTCUTS.md` (and `SHORTCUTS.de.md`) explains how to build the four shortcuts.
