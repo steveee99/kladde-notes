@@ -180,7 +180,8 @@ export function shortcutsRouters(opts: ShortcutsOptions): { bearerRouter: expres
     '/attachment',
     express.raw({ type: () => true, limit: MAX_FILE_BYTES }),
     route((req, res) => {
-      const data = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      const body: unknown = req.body;
+      const data = Buffer.isBuffer(body) && !Array.isArray(body) ? body : Buffer.alloc(0);
       if (!data.length) throw new ShortcutError('Die Anfrage enthält keine Datei.');
       // Query values may be arrays (?name=a&name=b): only plain strings count
       const q = Object.fromEntries(Object.entries(req.query).filter((e): e is [string, string] => typeof e[1] === 'string'));
