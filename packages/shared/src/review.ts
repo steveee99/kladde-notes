@@ -27,6 +27,8 @@ export interface Review {
   /** Areas (top-level entries below configured areas folder) not touched for `staleDays` */
   staleAreas: { name: string; updatedAt: number }[];
   orphanZettel: string[];
+  /** Other notes without any link in or out (not Zettel, inbox, archive or the excluded folders) */
+  orphanNotes: string[];
   /** Fleeting notes older than a week: work them out or let them go */
   oldFleeting: string[];
 }
@@ -55,7 +57,12 @@ export function projectsOf(notes: ReviewNote[], today = new Date(), config: Role
     .filter((p) => p.status !== 'fertig');
 }
 
-export function buildReview(notes: ReviewNote[], now = Date.now(), staleDays = 30, config: RoleFolderMap = PARA): Review {
+export interface ReviewOptions {
+  /** Folders whose notes are never counted as orphaned (e.g. daily notes) */
+  orphanExcludeFolders?: string[];
+}
+
+export function buildReview(notes: ReviewNote[], now = Date.now(), staleDays = 30, config: RoleFolderMap = PARA, opts: ReviewOptions = {}): Review {
   const today = new Date(now);
   const index = new LinkIndex(notes, config);
   const projects = projectsOf(notes, today, config);
@@ -79,6 +86,16 @@ export function buildReview(notes: ReviewNote[], now = Date.now(), staleDays = 3
     projectsWithoutNextStep: projects.filter((p) => p.status === 'aktiv' && p.openTasks === 0),
     staleAreas: [...areas].filter(([, at]) => at < now - staleDays * DAY).map(([name, updatedAt]) => ({ name, updatedAt })),
     orphanZettel: zettel.filter((n) => index.isOrphan(n.id)).map((n) => n.id),
+    orphanNotes: notes
+      .filter((n) => {
+        const folder = splitPath(n.path).folder;
+        const role = roleOfFolder(folder, config);
+        if (role === 'zettel' || role === 'inbox' || role === 'archive') return false;
+        if (opts.orphanExcludeFolders?.some((f) => f && (folder === f || folder.startsWith(`${f}/`)))) return false;
+        return index.isOrphan(n.id);
+      })
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .map((n) => n.id),
     oldFleeting: zettel
       .filter((n) => (extractMeta(n.path, n.content).frontmatter.typ ?? '').toLowerCase() === 'flüchtig' && n.createdAt < now - 7 * DAY)
       .map((n) => n.id),
