@@ -98,8 +98,51 @@ export type ReleaseField = 'version' | 'released_at' | 'released_by' | 'release_
 /** `{{version}}`, `{{released_at}}`, `{{released_by}}`, `{{release_note}}` */
 export const RELEASE_FIELD_RE = /\{\{(version|released_at|released_by|release_note)\}\}/g;
 /** A line that is only `{{version_history}}` */
-export const VERSION_HISTORY_LINE_RE = /^\s*\{\{version_history\}\}\s*$/;
-const SECTION_RE = /\{\{#versions\}\}([\s\S]*?)\{\{\/versions\}\}(\r?\n)?/g;
+export const VERSION_HISTORY_LINE_RE = /^[ \t]*\{\{version_history\}\}[ \t]*$/;
+const SECTION_OPEN = '{{#versions}}';
+const SECTION_CLOSE = '{{/versions}}';
+
+/** The fence a line opens (``` or ~~~, three or more) and its info word; null for other lines (no regex: linear on any input) */
+function fenceOf(line: string): { char: string; length: number; info: string } | null {
+  const t = line.trim();
+  const char = t[0];
+  if (char !== '`' && char !== '~') return null;
+  let n = 0;
+  while (t[n] === char) n++;
+  if (n < 3) return null;
+  const info = t.slice(n).trim().split(/[ \t`]/)[0] ?? '';
+  return { char, length: n, info };
+}
+
+/** A line that closes a fence opened with `length` times `char` */
+function closesFence(line: string, char: string, length: number): boolean {
+  const t = line.trim();
+  if (t.length < length) return false;
+  for (const c of t) if (c !== char) return false;
+  return true;
+}
+
+/** Expands `{{#versions}}…{{/versions}}` with indexOf (a lazy regex would be quadratic on unclosed tags) */
+function expandSections(text: string, row: (body: string) => string): string {
+  let out = '';
+  let pos = 0;
+  for (;;) {
+    const open = text.indexOf(SECTION_OPEN, pos);
+    if (open < 0) break;
+    const close = text.indexOf(SECTION_CLOSE, open + SECTION_OPEN.length);
+    if (close < 0) break;
+    const body = text.slice(open + SECTION_OPEN.length, close);
+    let end = close + SECTION_CLOSE.length;
+    // The closing tag on its own line: the template ends with a line break, the one after the tag goes
+    if (body.endsWith('\n')) {
+      if (text[end] === '\r' && text[end + 1] === '\n') end += 2;
+      else if (text[end] === '\n') end += 1;
+    }
+    out += text.slice(pos, open) + row(body);
+    pos = end;
+  }
+  return out + text.slice(pos);
+}
 
 /** The value of one placeholder for a release (null: no release yet) */
 export function releaseFieldValue(release: NoteReleaseInfo | null | undefined, field: ReleaseField, opts: ReleaseRenderOptions = {}): string {
@@ -143,7 +186,7 @@ export function releaseHistoryTable(releases: readonly NoteReleaseInfo[], opts: 
 
 /** True when the text uses any release placeholder or a ```versions block */
 export function hasReleasePlaceholders(content: string): boolean {
-  return /\{\{(?:version|released_at|released_by|release_note|version_history|#versions)\}\}/.test(content) || /^\s*(```|~~~)\s*versions\s*$/m.test(content);
+  return /\{\{(?:version|released_at|released_by|release_note|version_history|#versions)\}\}/.test(content) || content.split('\n').some((l) => fenceOf(l)?.info.toLowerCase() === 'versions');
 }
 
 /** Fills the placeholders of a text without code blocks */
@@ -152,13 +195,9 @@ function fillText(text: string, sorted: NoteReleaseInfo[], opts: ReleaseRenderOp
   const out = text
     .split('\n')
     .map((line) => (VERSION_HISTORY_LINE_RE.test(line) ? releaseHistoryTable(sorted, opts) : line))
-    .join('\n')
-    .replace(SECTION_RE, (_m, body: string, newline?: string) => {
-      // The closing tag on its own line: the template ends with a line break, the one after the tag goes
-      const rows = sorted.map((r) => body.replace(RELEASE_FIELD_RE, (_f, field: ReleaseField) => tableCell(releaseFieldValue(r, field, opts))));
-      return rows.join('') + (body.endsWith('\n') ? '' : (newline ?? ''));
-    });
-  return out.replace(RELEASE_FIELD_RE, (_f, field: ReleaseField) => releaseFieldValue(latest, field, opts).replace(/\s+/g, ' '));
+    .join('\n');
+  const filled = expandSections(out, (body) => sorted.map((r) => body.replace(RELEASE_FIELD_RE, (_f, field: ReleaseField) => tableCell(releaseFieldValue(r, field, opts)))).join(''));
+  return filled.replace(RELEASE_FIELD_RE, (_f, field: ReleaseField) => releaseFieldValue(latest, field, opts).replace(/\s+/g, ' '));
 }
 
 /**
@@ -177,16 +216,15 @@ export function fillReleasePlaceholders(content: string, releases: readonly Note
     text = [];
   };
   for (let i = 0; i < lines.length; i++) {
-    const open = /^\s*(`{3,}|~{3,})\s*([^\s`]*)/.exec(lines[i]);
+    const open = fenceOf(lines[i]);
     if (!open) {
       text.push(lines[i]);
       continue;
     }
     flush();
-    const fence = open[1];
     let end = i + 1;
-    while (end < lines.length && !new RegExp(`^\\s*${fence[0]}{${fence.length},}\\s*$`).test(lines[end])) end++;
-    if (open[2].toLowerCase() === 'versions') out.push(releaseHistoryTable(sorted, opts));
+    while (end < lines.length && !closesFence(lines[end], open.char, open.length)) end++;
+    if (open.info.toLowerCase() === 'versions') out.push(releaseHistoryTable(sorted, opts));
     else out.push(...lines.slice(i, Math.min(end + 1, lines.length)));
     i = end;
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCalendar, filterGraph, pdfNoteOf, LinkIndex, normalizeTag, renameTag, tagBeforeCursor, nextDue, parseFrontmatter, parseTasks, rruleOf, setTaskMeta, setTaskStatus, stripBlockIds, extractHeadings, trimSlashes } from '../src/index';
+import { fillReleasePlaceholders, hasReleasePlaceholders, buildCalendar, filterGraph, pdfNoteOf, LinkIndex, normalizeTag, renameTag, tagBeforeCursor, nextDue, parseFrontmatter, parseTasks, rruleOf, setTaskMeta, setTaskStatus, stripBlockIds, extractHeadings, trimSlashes } from '../src/index';
 
 /** Runs `fn` and fails if it takes longer than a linear scan should (the CodeQL polynomial-ReDoS inputs) */
 function fast(fn: () => unknown, ms = 250) {
@@ -11,6 +11,14 @@ function fast(fn: () => unknown, ms = 250) {
 const N = 50_000;
 
 describe('regexes stay linear on hostile input', () => {
+  it('release placeholders (#53)', () => {
+    const r = [{ version: '1.0.0', releasedAt: 0, releasedBy: 'a', note: '' }];
+    fast(() => fillReleasePlaceholders('{{#versions}}'.repeat(N / 10), r));
+    fast(() => fillReleasePlaceholders(`{{version}}\n${' '.repeat(N)}\n${'```\n'.repeat(N / 10)}`, r));
+    fast(() => hasReleasePlaceholders(`${'\n '.repeat(N)}\`\`\`x`));
+    fast(() => fillReleasePlaceholders(`{{version}}\n${'~~~~'.repeat(N / 10)}\n${' '.repeat(N)}~`, r));
+  });
+
   it('tasks with long runs of whitespace', () => {
     fast(() => parseTasks(`* [ ] ${' '.repeat(N)}\r`));
     fast(() => parseTasks(`- [ ] x${' '.repeat(N)}y`));
