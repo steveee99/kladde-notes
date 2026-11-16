@@ -12,7 +12,7 @@ const out = join(dirname(fileURLToPath(import.meta.url)), '../src/lib/icons.tsx'
 
 /** Component name → Material Symbols name */
 const MAP = {
-  AlertTriangle: 'warning', AlignJustify: 'density_small', Archive: 'archive', ArchiveRestore: 'unarchive',
+  AlertTriangle: 'warning', AlignJustify: 'density_small', FormatAlignCenter: 'format_align_center', FormatAlignJustify: 'format_align_justify', FormatAlignLeft: 'format_align_left', FormatAlignRight: 'format_align_right', Archive: 'archive', ArchiveRestore: 'unarchive',
   ArrowDownAZ: 'sort_by_alpha', ArrowDownToLine: 'vertical_align_bottom', ArrowLeft: 'arrow_back', ArrowRight: 'arrow_forward',
   Ban: 'block', Bell: 'notifications', Bold: 'format_bold', CenterFocus: 'center_focus_strong', CloseFullscreen: 'fullscreen_exit', Bot: 'smart_toy', Briefcase: 'work', CalendarCheck: 'event_available',
   CalendarClock: 'edit_calendar', CalendarDays: 'today', CalendarPlus: 'calendar_add_on', CalendarRange: 'date_range',

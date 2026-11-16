@@ -386,7 +386,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
               <div className="text-xs text-on-surface-variant">{tl(lang, 'settings.colorSchemeDesc')}</div>
             </div>
           </div>
-          <div className="inline-flex max-w-full flex-wrap rounded-full border border-outline-variant bg-surface-container-high p-1 shrink-0" role="group" aria-label={tl(lang, 'settings.colorSchemeTitle')}>
+          <div className="grid w-full grid-cols-4 rounded-full border border-outline-variant bg-surface-container-high p-1 sm:inline-flex sm:w-auto sm:shrink-0" role="group" aria-label={tl(lang, 'settings.colorSchemeTitle')}>
             {(
               [
                 ['dark', 'settings.colorSchemeDark'],
@@ -402,12 +402,12 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
                   type="button"
                   aria-pressed={active}
                   onClick={() => setColorSchemeChoice(choice)}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                  className={`inline-flex min-w-0 items-center justify-center gap-1 rounded-full px-1.5 py-1.5 text-sm font-medium transition-colors sm:gap-1.5 sm:px-4 ${
                     active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:text-on-surface'
                   }`}
                 >
-                  {active && <Check size={14} strokeWidth={2.5} />}
-                  {tl(lang, label)}
+                  {active && <Check size={14} strokeWidth={2.5} className="hidden shrink-0 min-[400px]:block" />}
+                  <span className="truncate">{tl(lang, label)}</span>
                 </button>
               );
             })}
