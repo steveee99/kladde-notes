@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.7.0] – 2026-11-16
+
 - New: Release versioning for notes (#53). "Versioning …" in a note's menu turns it on for that note (off by default, only the owner). "Release" freezes the current text as the next Semantic Version (major, minor or patch; the next number is suggested, the first release is 1.0.0) with date, author and an optional changelog line. Released versions are stored encrypted and can never be changed (enforced on the server and in the database); you keep working on the draft of the next version, and "Discard draft" goes back to the latest release. Read-only share recipients, public links and exports (export mirror, Confluence, Markdown/Word/PDF) get the latest released version; the owner and editors work on the draft. The note header shows the state ("v1.2.0 · Draft"), and earlier releases can be opened from the dialog. Put the version history anywhere in the note with a ```` ```versions ```` block or a line `{{version_history}}`, or build your own layout with `{{version}}`, `{{released_at}}`, `{{released_by}}`, `{{release_note}}` and a row template `{{#versions}}…{{/versions}}`; the text keeps the placeholders, they are filled in when the note is shown and exported (dates in your language). Turning versioning off keeps the releases for later. Prerelease tags are not supported; AI assistants (MCP) keep working on the draft and cannot release. Not available in the browser demo.
 - New: "Darker" color scheme (Settings → Appearance): the dark scheme with neutral dark grey surfaces instead of the blue-tinted ones.
 - New: Editor font size (Settings → Appearance): 14 to 22 px, per device.
