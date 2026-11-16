@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cdata, confluenceLabel, markdownToConfluence, runQuery, trimChar, xmlEscape } from '../src';
+import { cdata, confluenceLabel, markdownToConfluence, parseConfluenceLink, runQuery, trimChar, xmlEscape } from '../src';
 
 describe('markdownToConfluence (#48)', () => {
   it('converts headings, paragraphs, inline formatting and links, and drops the frontmatter and a repeated H1', () => {
@@ -94,5 +94,25 @@ describe('Confluence helpers on long input', () => {
     expect(confluenceLabel(`${'-'.repeat(100_000)}a`)).toBe('a');
     expect(trimChar('//a/b//', '/')).toBe('a/b');
     expect(Date.now() - started).toBeLessThan(500);
+  });
+});
+
+describe('parseConfluenceLink', () => {
+  it('reads page ids and space keys from Cloud and Data Center addresses', () => {
+    expect(parseConfluenceLink('https://firma.atlassian.net/wiki/spaces/DOC/pages/123456/Mein+Titel')).toEqual({ host: 'firma.atlassian.net', spaceKey: 'DOC', pageId: '123456' });
+    expect(parseConfluenceLink('https://firma.atlassian.net/wiki/spaces/DOC/pages/edit-v2/77')).toEqual({ host: 'firma.atlassian.net', spaceKey: 'DOC', pageId: '77' });
+    expect(parseConfluenceLink('https://firma.atlassian.net/wiki/spaces/~5b12ab/overview')).toEqual({ host: 'firma.atlassian.net', spaceKey: '~5b12ab' });
+    expect(parseConfluenceLink('https://wiki.firma.de/pages/viewpage.action?pageId=4711')).toEqual({ host: 'wiki.firma.de', pageId: '4711' });
+    expect(parseConfluenceLink('https://wiki.firma.de/confluence/display/TEAM/Release+Plan%20%C3%BCbersicht')).toEqual({ host: 'wiki.firma.de', spaceKey: 'TEAM', title: 'Release Plan übersicht' });
+    expect(parseConfluenceLink('https://wiki.firma.de/display/TEAM')).toEqual({ host: 'wiki.firma.de', spaceKey: 'TEAM' });
+    expect(parseConfluenceLink('https://wiki.firma.de/spaces/viewspace.action?key=OPS')).toEqual({ host: 'wiki.firma.de', spaceKey: 'OPS' });
+    // Short link: page id 123 as little-endian bytes
+    expect(parseConfluenceLink('https://wiki.firma.de/x/ew')).toEqual({ host: 'wiki.firma.de', pageId: '123' });
+  });
+
+  it('ignores what is no Confluence address', () => {
+    expect(parseConfluenceLink('Dokumentation')).toBeNull();
+    expect(parseConfluenceLink('javascript:alert(1)')).toBeNull();
+    expect(parseConfluenceLink('https://example.org/blog/post')).toBeNull();
   });
 });

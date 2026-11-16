@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- Fixed: "Sync to Confluence …" only offered part of the spaces of a larger Confluence. The space is now a search field with suggestions that searches all spaces on the server (by name and key). You can also paste the link of a Confluence page or space (Cloud and Data Center address formats, including short `/x/` links): the space is filled in, and a page link also becomes the parent page. Links to another Confluence than the connected one are rejected.
+
 ## [2.6.0] – 2026-11-15
 
 - Changed: The expanded sidebar shows the destinations as a list again (icon, name, count) in a "Navigation" group that can be collapsed like Favorites and Folders; while it is closed, its header shows the urgent count. The logo is smaller and sits next to the menu button with Home on the right, "New note" moved to the top above the search, and read-only and sync are compact buttons next to Settings at the bottom. Calendar, Attachments and Trash left the navigation: Calendar opens from the activity heatmap on Home, Attachments and Trash from Settings.

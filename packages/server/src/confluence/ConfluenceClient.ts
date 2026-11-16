@@ -1,7 +1,7 @@
 import https from 'node:https';
 import net from 'node:net';
 import crypto from 'crypto';
-import type { ConfluenceKind, ConfluencePageRef, ConfluenceSpace } from '@kladde/shared';
+import { parseConfluenceLink, type ConfluenceKind, type ConfluenceLinkTarget, type ConfluencePageRef, type ConfluenceSpace } from '@kladde/shared';
 import { isPrivateAddress, safeLookup } from '../RecipeImport.js';
 
 export interface HttpRequest {
@@ -107,6 +107,17 @@ interface RawPage {
   ancestors?: { id: string }[];
 }
 
+interface RawSpace {
+  key: string;
+  name: string;
+}
+
+const cqlQuote = (s: string) => `"${s.replace(/["\\]/g, (c) => `\\${c}`)}"`;
+
+const isAuthError = (err: unknown) => err instanceof ConfluenceError && (err.status === 401 || err.status === 403);
+
+const toSpaces = (list: RawSpace[]): ConfluenceSpace[] => list.filter((s) => s.key).map((s) => ({ key: s.key, name: s.name || s.key }));
+
 /** REST API v1 of Confluence (Cloud and Data Center/Server share it) */
 export class ConfluenceClient {
   readonly base: string;
@@ -162,20 +173,89 @@ export class ConfluenceClient {
     return user.displayName || user.publicName || user.username || 'Unbekannt';
   }
 
+  /**
+   * Spaces for the space field: without a query the first ones, with a query a search over all spaces
+   * (CQL title search plus an exact key lookup), so large instances are not cut off after one page.
+   */
   async spaces(query = ''): Promise<ConfluenceSpace[]> {
-    const res = await this.call<{ results?: { key: string; name: string }[] }>('GET', '/space?limit=250');
-    const q = query.trim().toLowerCase();
-    return (res?.results ?? [])
-      .map((s) => ({ key: s.key, name: s.name }))
-      .filter((s) => !q || s.key.toLowerCase().includes(q) || s.name.toLowerCase().includes(q))
+    const q = query.trim();
+    if (!q) {
+      const res = await this.call<{ results?: RawSpace[] }>('GET', '/space?limit=50');
+      return toSpaces(res?.results ?? []);
+    }
+    const words = q.replace(/[^\p{L}\p{N}\s_-]/gu, ' ').trim();
+    const [search, exact] = await Promise.allSettled([
+      words ? this.call<{ results?: { title?: string; space?: RawSpace }[] }>('GET', `/search?limit=50&cql=${encodeURIComponent(`type=space AND title~${cqlQuote(`${words}*`)}`)}`) : Promise.resolve({ results: [] }),
+      /^~?[A-Za-z0-9_-]{1,255}$/.test(q) ? this.space(q) : Promise.resolve(null),
+    ]);
+    for (const r of [search, exact]) if (r.status === 'rejected' && isAuthError(r.reason)) throw r.reason;
+    let found = search.status === 'fulfilled' ? toSpaces((search.value?.results ?? []).map((r) => ({ key: r.space?.key ?? '', name: r.space?.name ?? r.title ?? '' }))) : [];
+    const lower = q.toLowerCase();
+    if (search.status === 'rejected' || (!found.length && !(exact.status === 'fulfilled' && exact.value))) {
+      // An older Data Center without space search, or a query in the middle of a word: go through all spaces
+      found = [];
+      // Cloud may answer with fewer than asked for: follow its "next" link, at most 25 pages
+      for (let start = 0, round = 0; round < 25; round++) {
+        const res = await this.call<{ results?: RawSpace[]; _links?: { next?: string } }>('GET', `/space?limit=200&start=${start}`);
+        const page = res?.results ?? [];
+        found.push(...toSpaces(page).filter((s) => s.key.toLowerCase().includes(lower) || s.name.toLowerCase().includes(lower)));
+        if (!page.length || !res?._links?.next) break;
+        start += page.length;
+      }
+    }
+    if (exact.status === 'fulfilled' && exact.value) found.unshift(exact.value);
+    const rank = (s: ConfluenceSpace) => (s.key.toLowerCase() === lower ? 0 : s.name.toLowerCase().startsWith(lower) || s.key.toLowerCase().startsWith(lower) ? 1 : 2);
+    const seen = new Set<string>();
+    return found
+      .filter((s) => !seen.has(s.key) && seen.add(s.key))
+      .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
       .slice(0, 50);
+  }
+
+  /** One space by its key; null when there is none (or no access) */
+  async space(key: string): Promise<ConfluenceSpace | null> {
+    try {
+      const s = await this.call<RawSpace>('GET', `/space/${encodeURIComponent(key)}`);
+      return s?.key ? { key: s.key, name: s.name || s.key } : null;
+    } catch (err) {
+      if (err instanceof ConfluenceError && (err.status === 404 || err.status === 403)) return null;
+      throw err;
+    }
+  }
+
+  /** The space and page a link copied from Confluence points to (it must belong to this instance) */
+  async resolveLink(link: string): Promise<ConfluenceLinkTarget> {
+    const parts = parseConfluenceLink(link);
+    if (!parts) throw new ConfluenceError('Der Link zeigt auf keine Confluence-Seite und keinen Bereich.');
+    if (parts.host !== new URL(this.base).host.toLowerCase()) throw new ConfluenceError(`Der Link gehört nicht zur verbundenen Confluence-Instanz (${new URL(this.base).host}).`);
+    let raw: (RawPage & { status?: string; space?: RawSpace }) | undefined;
+    if (parts.pageId) {
+      try {
+        raw = await this.call('GET', `/content/${encodeURIComponent(parts.pageId)}?expand=space`);
+      } catch (err) {
+        if (!(err instanceof ConfluenceError && err.status === 404)) throw err;
+      }
+      if (!raw || (raw.status && raw.status !== 'current')) throw new ConfluenceError('Diese Seite gibt es in Confluence nicht (mehr), oder dir fehlt die Berechtigung.', 404);
+    } else if (parts.spaceKey && parts.title) {
+      const res = await this.call<{ results?: (RawPage & { space?: RawSpace })[] }>('GET', `/content?type=page&expand=space&spaceKey=${encodeURIComponent(parts.spaceKey)}&title=${encodeURIComponent(parts.title)}`);
+      raw = res?.results?.[0];
+      if (!raw) throw new ConfluenceError(`Die Seite „${parts.title}“ wurde im Bereich ${parts.spaceKey} nicht gefunden.`, 404);
+    }
+    if (raw) {
+      const spaceKey = raw.space?.key ?? parts.spaceKey ?? '';
+      const space = raw.space?.name ? { key: spaceKey, name: raw.space.name } : await this.space(spaceKey);
+      if (!space) throw new ConfluenceError('Der Bereich der Seite ist nicht erreichbar.', 404);
+      return { space, page: { id: String(raw.id), title: raw.title, spaceKey, url: this.pageUrl(String(raw.id)) } };
+    }
+    const space = await this.space(parts.spaceKey!);
+    if (!space) throw new ConfluenceError(`Den Bereich ${parts.spaceKey} gibt es nicht, oder dir fehlt die Berechtigung.`, 404);
+    return { space, page: null };
   }
 
   /** Pages of a space whose title contains the words (parent page search) */
   async searchPages(spaceKey: string, query: string): Promise<ConfluencePageRef[]> {
-    const quote = (s: string) => `"${s.replace(/["\\]/g, (c) => `\\${c}`)}"`;
     const words = query.trim().replace(/[^\p{L}\p{N}\s_-]/gu, ' ').trim();
-    const cql = `type=page AND space=${quote(spaceKey)}${words ? ` AND title~${quote(`${words}*`)}` : ''} ORDER BY title`;
+    const cql = `type=page AND space=${cqlQuote(spaceKey)}${words ? ` AND title~${cqlQuote(`${words}*`)}` : ''} ORDER BY title`;
     const res = await this.call<{ results?: RawPage[] }>('GET', `/content/search?limit=25&expand=space&cql=${encodeURIComponent(cql)}`);
     return (res?.results ?? []).map((p) => ({ id: p.id, title: p.title, spaceKey: p.space?.key ?? spaceKey, url: this.pageUrl(p.id) }));
   }

@@ -6,7 +6,7 @@ import os from 'os';
 import path from 'path';
 import type { AddressInfo } from 'net';
 import type { Server } from 'http';
-import type { ConfluenceNoteState, ConfluenceOverview } from '@kladde/shared';
+import type { ConfluenceLinkTarget, ConfluenceNoteState, ConfluenceOverview } from '@kladde/shared';
 import { DataCipher } from '../src/crypto';
 import { openDatabase } from '../src/db';
 import { FileStore } from '../src/FileStore';
@@ -35,6 +35,11 @@ class FakeConfluence {
   pages = new Map<string, FakePage>();
   requests: string[] = [];
   token = 'secret-token';
+  spaces = [
+    { key: 'DOC', name: 'Dokumentation' },
+    { key: 'TEAM', name: 'Team' },
+    { key: 'ARCH', name: 'Architektur und Betrieb' },
+  ];
   private next = 1000;
 
   handle = async (req: HttpRequest): Promise<HttpResponse> => {
@@ -47,7 +52,26 @@ class FakeConfluence {
     const clash = (space: string, title: string, self?: string) => [...this.pages.values()].some((p) => p.status === 'current' && p.space === space && p.title === title && p.id !== self);
 
     if (path === '/user/current') return json(200, { displayName: 'Anna Atlassian', type: 'known' });
-    if (path === '/space') return json(200, { results: [{ key: 'DOC', name: 'Dokumentation' }, { key: 'TEAM', name: 'Team' }] });
+    if (path === '/space') {
+      // Two pages of spaces, like a large instance
+      const start = Number(req.url.searchParams.get('start') ?? 0);
+      return json(200, start === 0 ? { results: this.spaces.slice(0, 2), _links: { next: '/rest/api/space?start=2' } } : { results: this.spaces.slice(2) });
+    }
+    const sm = /^\/space\/([^/]+)$/.exec(path);
+    if (sm) {
+      const space = this.spaces.find((s) => s.key === decodeURIComponent(sm![1]));
+      return space ? json(200, space) : json(404, { message: 'No space with key' });
+    }
+    if (path === '/search') {
+      const word = /title~"([^"*]+)\*"/.exec(req.url.searchParams.get('cql') ?? '')?.[1].toLowerCase() ?? '';
+      const hits = this.spaces.filter((s) => s.name.toLowerCase().split(/\s+/).some((w) => w.startsWith(word)));
+      return json(200, { results: hits.map((s) => ({ title: s.name, space: s })) });
+    }
+    if (path === '/content' && req.method === 'GET') {
+      const title = req.url.searchParams.get('title');
+      const space = req.url.searchParams.get('spaceKey');
+      return json(200, { results: [...this.pages.values()].filter((p) => p.status === 'current' && p.title === title && p.space === space).map(raw) });
+    }
     if (path === '/content/search') return json(200, { results: [...this.pages.values()].filter((p) => p.status === 'current').map(raw) });
     let m = /^\/content\/(\d+)$/.exec(path);
     if (m) {
@@ -177,9 +201,34 @@ describe('Confluence connection (#48)', () => {
     expect((await call<ConfluenceOverview>('GET', '/', undefined, benCookie)).data.connection).toBeNull();
   });
 
-  it('lists spaces', async () => {
-    const spaces = await call<{ key: string }[]>('GET', '/spaces?q=dok');
-    expect(spaces.data.map((s) => s.key)).toEqual(['DOC']);
+  it('searches all spaces, not only the first page', async () => {
+    expect((await call<{ key: string }[]>('GET', '/spaces?q=dok')).data.map((s) => s.key)).toEqual(['DOC']);
+    // Only on the second page of /space, found by the title search
+    expect((await call<{ key: string }[]>('GET', '/spaces?q=betrieb')).data.map((s) => s.key)).toEqual(['ARCH']);
+    // By key
+    expect((await call<{ key: string }[]>('GET', '/spaces?q=ARCH')).data.map((s) => s.key)).toEqual(['ARCH']);
+    // In the middle of a word: goes through all pages of spaces
+    expect((await call<{ key: string }[]>('GET', '/spaces?q=tektur')).data.map((s) => s.key)).toEqual(['ARCH']);
+  });
+
+  it('resolves a pasted link to its space and page, only for the connected instance', async () => {
+    const page = { id: '555', title: 'Handbuch', space: 'ARCH', version: 1, parent: null, body: '', status: 'current' as const, labels: [], attachments: {} };
+    fake.pages.set(page.id, page);
+    try {
+      const byId = await call<ConfluenceLinkTarget>('GET', `/resolve?url=${encodeURIComponent('https://firma.atlassian.net/wiki/spaces/ARCH/pages/555/Handbuch')}`);
+      expect(byId.data).toEqual({ space: { key: 'ARCH', name: 'Architektur und Betrieb' }, page: { id: '555', title: 'Handbuch', spaceKey: 'ARCH', url: 'https://firma.atlassian.net/wiki/pages/viewpage.action?pageId=555' } });
+      const byTitle = await call<ConfluenceLinkTarget>('GET', `/resolve?url=${encodeURIComponent('https://firma.atlassian.net/wiki/display/ARCH/Handbuch')}`);
+      expect(byTitle.data.page?.id).toBe('555');
+      const spaceOnly = await call<ConfluenceLinkTarget>('GET', `/resolve?url=${encodeURIComponent('https://firma.atlassian.net/wiki/spaces/TEAM/overview')}`);
+      expect(spaceOnly.data).toEqual({ space: { key: 'TEAM', name: 'Team' }, page: null });
+      const missing = await call<{ error: string }>('GET', `/resolve?url=${encodeURIComponent('https://firma.atlassian.net/wiki/spaces/ARCH/pages/999/Weg')}`);
+      expect(missing.status).toBe(404);
+      const other = await call<{ error: string }>('GET', `/resolve?url=${encodeURIComponent('https://andere.atlassian.net/wiki/spaces/ARCH/pages/555')}`);
+      expect(other.status).toBe(400);
+      expect(other.data.error).toMatch(/verbundenen/);
+    } finally {
+      fake.pages.delete(page.id);
+    }
   });
 });
 
