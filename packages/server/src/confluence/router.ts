@@ -108,6 +108,18 @@ export function confluenceRouter(opts: ConfluenceRouterOptions): express.Router 
   );
 
   router.get(
+    '/resolve',
+    handle(async (req, res) => {
+      const url = typeof req.query.url === 'string' ? req.query.url.slice(0, 2000) : '';
+      try {
+        res.json(await connected(req.user!.id).resolveLink(url));
+      } catch (err) {
+        fail(res, err);
+      }
+    })
+  );
+
+  router.get(
     '/pages',
     handle(async (req, res) => {
       const space = typeof req.query.space === 'string' ? req.query.space : '';

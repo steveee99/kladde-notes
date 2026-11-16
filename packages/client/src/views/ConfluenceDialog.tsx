@@ -1,13 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { ConfluenceNoteState, ConfluenceOverview, ConfluencePageRef, ConfluenceSpace, ConfluenceSyncInfo } from '@kladde/shared';
+import type { ConfluenceLinkTarget, ConfluenceNoteState, ConfluenceOverview, ConfluencePageRef, ConfluenceSpace, ConfluenceSyncInfo } from '@kladde/shared';
 import { AlertTriangle, CheckCircle2, Cloud, ExternalLink, Loader2, RefreshCw, Search, Settings, X } from '../lib/icons';
 import { api } from '../lib/api';
 import { refreshConfluence, setConfluenceOverview, useConfluence } from '../lib/confluence';
 import { folderLeafDisplayName, locale, tl, useLang, type I18nKey, type Lang } from '../lib/i18n';
 import { navigate } from '../lib/router';
 import { useVisualViewport } from '../lib/viewport';
-import { Dropdown } from './Dropdown';
 import { Switch } from './Switch';
 
 export type ConfluenceTarget = { note: string; title: string } | { folder: string };
@@ -198,32 +197,192 @@ export function ConfluenceDialog({ target, onClose }: { target: ConfluenceTarget
   );
 }
 
+const looksLikeLink = (text: string) => /^https?:\/\//i.test(text.trim());
+
+/**
+ * Space field: type to search all spaces (the server searches, so large instances are not cut off),
+ * or paste the link of a Confluence page or space; a page link also becomes the parent page.
+ */
+function SpaceField({ value, onPick, onClear }: { value: ConfluenceSpace | null; onPick: (space: ConfluenceSpace, page: ConfluencePageRef | null) => void; onClear: () => void }) {
+  const lang = useLang();
+  const listId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [text, setText] = useState('');
+  const [open, setOpen] = useState(false);
+  const [options, setOptions] = useState<ConfluenceSpace[] | null>(null);
+  const [active, setActive] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const first = useRef(true);
+
+  useEffect(() => {
+    if (value) return;
+    let cancelled = false;
+    setError('');
+    setLoading(true);
+    const link = looksLikeLink(text);
+    const timer = setTimeout(
+      () => {
+        const done = () => !cancelled && setLoading(false);
+        if (link) {
+          api<ConfluenceLinkTarget>(`/confluence/resolve?url=${encodeURIComponent(text.trim())}`).then(
+            (target) => {
+              if (cancelled) return;
+              done();
+              setText('');
+              onPick(target.space, target.page);
+            },
+            (err) => {
+              done();
+              if (!cancelled) setError((err as Error).message);
+            }
+          );
+        } else {
+          api<ConfluenceSpace[]>(`/confluence/spaces?q=${encodeURIComponent(text.trim())}`).then(
+            (list) => {
+              if (cancelled) return;
+              done();
+              setOptions(list);
+              setActive(0);
+              // With exactly one space there is nothing to choose
+              if (first.current && !text.trim() && list.length === 1) onPick(list[0], null);
+              first.current = false;
+            },
+            (err) => {
+              done();
+              if (!cancelled) setError((err as Error).message);
+            }
+          );
+        }
+      },
+      text.trim() ? 300 : 0
+    );
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [text, value]);
+
+  if (value) {
+    return (
+      <div className="flex h-10 items-center gap-2 rounded-full border border-outline-variant bg-surface-container pl-3.5 pr-1">
+        <span className="min-w-0 flex-1 truncate text-sm">
+          {value.name} <span className="text-on-surface-variant">({value.key})</span>
+        </span>
+        <button
+          type="button"
+          className="btn-icon h-8 w-8 shrink-0"
+          aria-label={tl(lang, 'confluence.changeSpace')}
+          title={tl(lang, 'confluence.changeSpace')}
+          onClick={() => {
+            onClear();
+            setText('');
+            setOpen(true);
+            requestAnimationFrame(() => inputRef.current?.focus());
+          }}
+        >
+          <X size={16} />
+        </button>
+      </div>
+    );
+  }
+
+  const link = looksLikeLink(text);
+  const shown = open && !link ? (options ?? []) : [];
+  const pick = (s: ConfluenceSpace) => {
+    setText('');
+    setOpen(false);
+    onPick(s, null);
+  };
+
+  return (
+    <div className="relative">
+      <div className="flex h-10 items-center gap-2 rounded-full border border-outline-variant bg-surface-container px-3.5 focus-within:border-primary">
+        {loading ? <Loader2 size={15} className="shrink-0 animate-spin text-on-surface-variant" /> : <Search size={15} className="shrink-0 text-on-surface-variant" />}
+        <input
+          ref={inputRef}
+          id="confluence-space"
+          role="combobox"
+          aria-expanded={shown.length > 0}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={shown.length ? `${listId}-${active}` : undefined}
+          autoComplete="off"
+          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-on-surface-variant"
+          placeholder={tl(lang, 'confluence.spacePlaceholder')}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+              e.preventDefault();
+              setOpen(true);
+              if (shown.length) setActive((i) => (i + (e.key === 'ArrowDown' ? 1 : shown.length - 1)) % shown.length);
+            } else if (e.key === 'Enter') {
+              e.preventDefault();
+              if (shown[active]) pick(shown[active]);
+            } else if (e.key === 'Escape' && open) {
+              e.stopPropagation();
+              setOpen(false);
+            }
+          }}
+        />
+      </div>
+      {open && !link && options !== null && (
+        <ul id={listId} role="listbox" aria-label={tl(lang, 'confluence.space')} className="absolute inset-x-0 top-full z-10 mt-1 max-h-56 overflow-y-auto rounded-2xl bg-surface-container-highest py-1 shadow-elevation-2">
+          {shown.length === 0 ? (
+            <li className="px-4 py-2 text-sm text-on-surface-variant">{loading ? tl(lang, 'common.loading') : tl(lang, 'confluence.noSpaces')}</li>
+          ) : (
+            shown.map((s, i) => (
+              <li
+                key={s.key}
+                id={`${listId}-${i}`}
+                role="option"
+                aria-selected={i === active}
+                className={`cursor-pointer truncate px-4 py-2 text-sm ${i === active ? 'bg-secondary-container text-on-secondary-container' : ''}`}
+                onMouseEnter={() => setActive(i)}
+                // mousedown keeps the focus in the input, so blur does not close the list first
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pick(s);
+                }}
+              >
+                {s.name} <span className="text-on-surface-variant">({s.key})</span>
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+      <p className={`mt-1 px-1 text-xs ${error ? 'text-error' : 'text-on-surface-variant'}`}>{error || tl(lang, link && loading ? 'confluence.resolving' : 'confluence.spaceHint')}</p>
+    </div>
+  );
+}
+
 function SetupForm({ target, busy, onSubmit }: { target: ConfluenceTarget; busy: boolean; onSubmit: (input: Record<string, unknown>) => void }) {
   const lang = useLang();
-  const [spaces, setSpaces] = useState<ConfluenceSpace[] | null>(null);
-  const [space, setSpace] = useState('');
+  const [space, setSpace] = useState<ConfluenceSpace | null>(null);
   const [query, setQuery] = useState('');
   const [pages, setPages] = useState<ConfluencePageRef[]>([]);
   const [parent, setParent] = useState<ConfluencePageRef | null>(null);
   const [trash, setTrash] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    api<ConfluenceSpace[]>('/confluence/spaces').then(
-      (list) => {
-        setSpaces(list);
-        if (list.length === 1) setSpace(list[0].key);
-      },
-      (err) => setError((err as Error).message)
-    );
-  }, []);
+  const pickSpace = (next: ConfluenceSpace | null, page: ConfluencePageRef | null = null) => {
+    setSpace(next);
+    setParent(page);
+    setQuery('');
+    setError('');
+  };
 
   useEffect(() => {
-    setParent(null);
     if (!space) return setPages([]);
     let cancelled = false;
     const timer = setTimeout(() => {
-      api<ConfluencePageRef[]>(`/confluence/pages?space=${encodeURIComponent(space)}&q=${encodeURIComponent(query.trim())}`).then(
+      api<ConfluencePageRef[]>(`/confluence/pages?space=${encodeURIComponent(space.key)}&q=${encodeURIComponent(query.trim())}`).then(
         (list) => !cancelled && setPages(list),
         (err) => !cancelled && setError((err as Error).message)
       );
@@ -234,15 +393,19 @@ function SetupForm({ target, busy, onSubmit }: { target: ConfluenceTarget; busy:
     };
   }, [space, query]);
 
+  // A parent from a pasted link may not be among the search results
+  const pageList = parent && !pages.some((p) => p.id === parent.id) ? [parent, ...pages] : pages;
+
   return (
     <form
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault();
+        if (!space) return;
         onSubmit({
           kind: 'note' in target ? 'note' : 'folder',
           ...('note' in target ? { noteId: target.note } : { folder: target.folder }),
-          spaceKey: space,
+          spaceKey: space.key,
           parentId: parent?.id ?? null,
           parentTitle: parent?.title ?? null,
           trashOnDelete: trash,
@@ -251,20 +414,10 @@ function SetupForm({ target, busy, onSubmit }: { target: ConfluenceTarget; busy:
     >
       <p className="text-sm text-on-surface-variant">{tl(lang, 'note' in target ? 'confluence.setupNoteHint' : 'confluence.setupFolderHint')}</p>
       <div className="space-y-1.5">
-        <label className="text-sm font-medium">{tl(lang, 'confluence.space')}</label>
-        {spaces === null && !error ? (
-          <p className="flex items-center gap-2 text-sm text-on-surface-variant">
-            <Loader2 size={14} className="animate-spin" /> {tl(lang, 'common.loading')}
-          </p>
-        ) : (
-          <Dropdown
-            value={space}
-            onChange={setSpace}
-            placeholder={tl(lang, 'confluence.spacePlaceholder')}
-            aria-label={tl(lang, 'confluence.space')}
-            options={(spaces ?? []).map((s) => ({ value: s.key, label: `${s.name} (${s.key})` }))}
-          />
-        )}
+        <label className="text-sm font-medium" htmlFor="confluence-space">
+          {tl(lang, 'confluence.space')}
+        </label>
+        <SpaceField value={space} onPick={pickSpace} onClear={() => pickSpace(null)} />
       </div>
       {space && (
         <div className="space-y-1.5">
@@ -287,7 +440,7 @@ function SetupForm({ target, busy, onSubmit }: { target: ConfluenceTarget; busy:
                 {tl(lang, 'confluence.parentTop')}
               </button>
             </li>
-            {pages.map((p) => (
+            {pageList.map((p) => (
               <li key={p.id}>
                 <button
                   type="button"

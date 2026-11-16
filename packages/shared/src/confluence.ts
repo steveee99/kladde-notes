@@ -37,6 +37,95 @@ export interface ConfluencePageRef {
   url: string;
 }
 
+/** What a pasted Confluence link points to: the space and, for a page link, the page */
+export interface ConfluenceLinkTarget {
+  space: ConfluenceSpace;
+  page: ConfluencePageRef | null;
+}
+
+/** The parts of a Confluence address that identify a page or a space (see parseConfluenceLink) */
+export interface ConfluenceLinkParts {
+  host: string;
+  pageId?: string;
+  spaceKey?: string;
+  /** Page title from a Data Center address like /display/KEY/Page+Title */
+  title?: string;
+}
+
+const SPACE_KEY = /^~?[A-Za-z0-9_-]{1,255}$/;
+const PAGE_ID = /^\d{1,20}$/;
+
+/** Short links (/x/AbC) carry the page id as little-endian bytes in a URL-safe base64 variant */
+function tinyLinkPageId(code: string): string | undefined {
+  if (!/^[A-Za-z0-9_-]{1,11}$/.test(code)) return undefined;
+  let b64 = code.replace(/-/g, '/').replace(/_/g, '+');
+  b64 = b64.padEnd(11, 'A') + '=';
+  let bin: string;
+  try {
+    bin = atob(b64);
+  } catch {
+    return undefined;
+  }
+  let id = 0n;
+  for (let i = bin.length - 1; i >= 0; i--) id = (id << 8n) | BigInt(bin.charCodeAt(i));
+  return id > 0n ? id.toString() : undefined;
+}
+
+/**
+ * Reads the page id or space key from an address copied from the browser (Cloud and Data Center):
+ * /spaces/KEY/pages/123/Title, /spaces/KEY/pages/edit-v2/123, viewpage.action?pageId=123,
+ * /display/KEY/Page+Title, /spaces/KEY/overview, /display/KEY, viewspace.action?key=KEY, /x/AbC.
+ * null when it is not an http(s) address or names neither.
+ */
+export function parseConfluenceLink(raw: string): ConfluenceLinkParts | null {
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+  const host = url.host.toLowerCase();
+  const pageId = url.searchParams.get('pageId');
+  if (pageId && PAGE_ID.test(pageId)) return { host, pageId };
+  const segments = url.pathname
+    .split('/')
+    .filter(Boolean)
+    .map((s) => {
+      try {
+        return decodeURIComponent(s.replace(/\+/g, ' '));
+      } catch {
+        return s;
+      }
+    });
+  const at = (name: string) => segments.indexOf(name);
+
+  const spaces = at('spaces');
+  if (spaces >= 0 && segments[spaces + 1] && SPACE_KEY.test(segments[spaces + 1])) {
+    const spaceKey = segments[spaces + 1];
+    const rest = segments.slice(spaces + 2);
+    if (rest[0] === 'pages') {
+      const id = rest.slice(1, 3).find((s) => PAGE_ID.test(s));
+      if (id) return { host, spaceKey, pageId: id };
+    }
+    return { host, spaceKey };
+  }
+  const display = at('display');
+  if (display >= 0 && segments[display + 1] && SPACE_KEY.test(segments[display + 1])) {
+    const spaceKey = segments[display + 1];
+    const title = segments[display + 2]?.trim();
+    return title ? { host, spaceKey, title } : { host, spaceKey };
+  }
+  const x = at('x');
+  if (x >= 0 && segments[x + 1]) {
+    const id = tinyLinkPageId(url.pathname.split('/').filter(Boolean)[x + 1]);
+    if (id) return { host, pageId: id };
+  }
+  const key = url.searchParams.get('spaceKey') ?? url.searchParams.get('key');
+  if (key && SPACE_KEY.test(key)) return { host, spaceKey: key };
+  return null;
+}
+
 export type ConfluenceNoteStatus = 'pending' | 'ok' | 'error' | 'conflict';
 
 /** Sync state of one note (side panel, note dialog) */
