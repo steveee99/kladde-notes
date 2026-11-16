@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.8.0] – 2026-11-16
+
 - New: Text alignment per note (left, center, right, justify) in the note's menu, stored as the frontmatter property `align`; code blocks stay left-aligned and the code view ignores it.
 - Fix: The color scheme picker in Settings no longer wraps onto two lines on phones.
 
