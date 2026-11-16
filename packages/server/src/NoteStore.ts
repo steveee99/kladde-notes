@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, embedsOf, extractMeta, splitPath } from '@kladde/shared';
+import { NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, contentHash, embedsOf, extractMeta, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, splitPath } from '@kladde/shared';
 import { DataCipher, randomToken } from './crypto.js';
 import { transaction } from './db.js';
 
@@ -43,6 +43,38 @@ interface TrashRow {
   deleted_by: string | null;
   batch: string | null;
   payload: Uint8Array;
+}
+
+interface ReleaseRow {
+  id: string;
+  note_id: string;
+  major: number;
+  minor: number;
+  patch: number;
+  released_at: number;
+  payload: Uint8Array;
+}
+
+/** What a release keeps (encrypted, `note_release:<id>` as AAD): the frozen text and who released it */
+interface ReleasePayload {
+  path: string;
+  content: string;
+  note: string;
+  releasedBy: string;
+}
+
+/** A release was asked for on another state of the note than the server's (sync first) */
+export class ReleaseConflict extends Error {
+  constructor() {
+    super('conflict');
+  }
+}
+
+/** Releasing needs versioning to be turned on for the note */
+export class VersioningOff extends Error {
+  constructor() {
+    super('versioning off');
+  }
 }
 
 /** What the trash keeps of a deleted note (encrypted, the note id as AAD) */
@@ -128,7 +160,7 @@ export class NoteStore {
 
   private toSynced(row: NoteRow, access: NoteAccess, owner?: string, ownerAvatar?: string | null): SyncedNote {
     const p = this.payload(row);
-    return {
+    const note: SyncedNote = {
       id: row.id,
       path: p.path,
       content: p.content,
@@ -140,6 +172,123 @@ export class NoteStore {
       ...(owner ? { owner } : {}),
       ...(ownerAvatar ? { ownerAvatar: `/api/avatars/${ownerAvatar}` } : {}),
     };
+    if (row.deleted || !this.versioningOn(row.id)) return note;
+    // Release versioning (#53): readers see the latest release, owner and editors work on the draft
+    const rows = this.releaseRows(row.id);
+    note.versioning = true;
+    note.releases = rows.map((r) => this.releaseInfo(r));
+    if (rows[0]) {
+      const latest = this.releasePayload(rows[0]);
+      note.releaseHash = contentHash(latest.content);
+      if (access === 'read') {
+        note.content = latest.content;
+        note.showsRelease = note.releases[0].version;
+      }
+    }
+    return note;
+  }
+
+  // ------------------------------------------------------------------ release versioning (#53)
+
+  private versioningOn(noteId: string): boolean {
+    const row = this.db.prepare('SELECT enabled FROM note_versioning WHERE note_id = ?').get(noteId) as { enabled: number } | undefined;
+    return !!row?.enabled;
+  }
+
+  /** Newest version first */
+  private releaseRows(noteId: string): ReleaseRow[] {
+    return this.db.prepare('SELECT * FROM note_releases WHERE note_id = ? ORDER BY major DESC, minor DESC, patch DESC').all(noteId) as unknown as ReleaseRow[];
+  }
+
+  private releasePayload(r: ReleaseRow): ReleasePayload {
+    return this.cipher.decryptJson<ReleasePayload>(r.payload, `note_release:${r.id}`);
+  }
+
+  private releaseInfo(r: ReleaseRow, p: ReleasePayload = this.releasePayload(r)): NoteReleaseInfo {
+    return { version: formatSemVer(r), releasedAt: r.released_at, releasedBy: p.releasedBy, note: p.note };
+  }
+
+  /**
+   * What exports show of a note (export mirror, Confluence, public links): with versioning on, the latest
+   * release (the draft while there is none) with the placeholders filled in; otherwise the note as it is.
+   */
+  private published(noteId: string, draft: string): string {
+    if (!this.versioningOn(noteId)) return draft;
+    const rows = this.releaseRows(noteId);
+    const payloads = rows.map((r) => this.releasePayload(r));
+    const content = payloads[0]?.content ?? draft;
+    return fillReleasePlaceholders(
+      content,
+      rows.map((r, i) => this.releaseInfo(r, payloads[i]))
+    );
+  }
+
+  /** Turns release versioning on or off (only the owner). Turning it off keeps the releases for later. */
+  setVersioning(userId: string, noteId: string, enabled: boolean): SyncedNote {
+    const events: NoteChangeEvent[] = [];
+    const note = transaction(this.db, () => {
+      const row = this.ownedRow(userId, noteId);
+      if (this.versioningOn(noteId) !== enabled) {
+        const now = Date.now();
+        this.db
+          .prepare('INSERT INTO note_versioning (note_id, enabled, updated_at) VALUES (?, ?, ?) ON CONFLICT(note_id) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at')
+          .run(noteId, enabled ? 1 : 0, now);
+        events.push(this.touch(row));
+      }
+      return this.toSynced(this.getRow(noteId)!, 'owner');
+    });
+    for (const e of events) this.onChange(e);
+    return note;
+  }
+
+  /**
+   * Releases the note's current text as the next version (only the owner, with versioning on). `baseVersion`
+   * is the note version the client saw: a release never freezes a text its author has not seen.
+   */
+  release(userId: string, noteId: string, opts: { bump: ReleaseBump; note?: unknown; baseVersion: number }): NoteReleaseInfo {
+    const events: NoteChangeEvent[] = [];
+    const info = transaction(this.db, () => {
+      const row = this.ownedRow(userId, noteId);
+      if (!this.versioningOn(noteId)) throw new VersioningOff();
+      if (row.version !== opts.baseVersion) throw new ReleaseConflict();
+      const latest = this.releaseRows(noteId)[0];
+      const version = parseSemVer(nextVersion(latest ? formatSemVer(latest) : null, opts.bump))!;
+      const { path, content } = this.payload(row);
+      const user = this.db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as { username: string } | undefined;
+      const payload: ReleasePayload = { path, content, note: cleanReleaseNote(opts.note), releasedBy: user?.username ?? '' };
+      const id = randomToken(12);
+      const now = Date.now();
+      this.db
+        .prepare('INSERT INTO note_releases (id, note_id, major, minor, patch, released_at, payload) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(id, noteId, version.major, version.minor, version.patch, now, this.cipher.encryptJson(payload, `note_release:${id}`));
+      events.push(this.touch(row));
+      return { version: formatSemVer(version), releasedAt: now, releasedBy: payload.releasedBy, note: payload.note };
+    });
+    for (const e of events) this.onChange(e);
+    return info;
+  }
+
+  /** A new seq without a new version: every device pulls the note's release state again; exports follow */
+  private touch(row: NoteRow): NoteChangeEvent {
+    this.db.prepare('UPDATE notes SET seq = ? WHERE id = ?').run(this.nextSeq(), row.id);
+    const p = this.payload(row);
+    return { noteId: row.id, ownerId: row.owner_id, audience: this.audience(row), path: p.path, previousPath: p.path, content: this.published(row.id, p.content), deleted: false };
+  }
+
+  /** Releases of a note, newest first; anybody who can see the note may list them */
+  releases(userId: string, noteId: string): NoteReleaseInfo[] {
+    this.readableRow(userId, noteId);
+    return this.releaseRows(noteId).map((r) => this.releaseInfo(r));
+  }
+
+  /** One released version with its frozen text */
+  releaseOf(userId: string, noteId: string, version: string): NoteRelease {
+    this.readableRow(userId, noteId);
+    const v = parseSemVer(version);
+    const r = v && (this.db.prepare('SELECT * FROM note_releases WHERE note_id = ? AND major = ? AND minor = ? AND patch = ?').get(noteId, v.major, v.minor, v.patch) as ReleaseRow | undefined);
+    if (!r) throw new Error('not found');
+    const p = this.releasePayload(r);
+    return { ...this.releaseInfo(r, p), path: p.path, content: p.content };
   }
 
   private getRow(id: string): NoteRow | undefined {
@@ -287,7 +436,7 @@ export class NoteStore {
         const audience = this.audience(row);
         if (deleted) this.dropShares(row.id, seq);
         else if (access === 'owner' && path !== old.path) audience.push(...this.applyFolderShares(userId, row.id, path, seq, folderShares()));
-        events.push({ noteId: row.id, ownerId: row.owner_id, audience: [...new Set(audience)], path, previousPath: old.path, content, deleted });
+        events.push({ noteId: row.id, ownerId: row.owner_id, audience: [...new Set(audience)], path, previousPath: old.path, content: deleted ? content : this.published(row.id, content), deleted });
         return { id: change.id, status: 'ok', version: row.version + 1 };
       })
     );
@@ -416,7 +565,7 @@ export class NoteStore {
         this.db.prepare('DELETE FROM trash WHERE note_id = ?').run(noteId);
         this.recordVersion(noteId, path, p.content, now);
         const added = this.applyFolderShares(userId, noteId, path, seq, (cached ??= this.folderSharesOf(userId)));
-        events.push({ noteId, ownerId: userId, audience: [...new Set([userId, ...added])], path, previousPath: null, content: p.content, deleted: false });
+        events.push({ noteId, ownerId: userId, audience: [...new Set([userId, ...added])], path, previousPath: null, content: this.published(noteId, p.content), deleted: false });
         out.push({ id: noteId, path });
       }
       return out;
@@ -450,6 +599,8 @@ export class NoteStore {
     const content = this.trashPayload(r).content;
     this.db.prepare('DELETE FROM trash WHERE note_id = ?').run(r.note_id);
     this.db.prepare('DELETE FROM note_versions WHERE note_id = ?').run(r.note_id);
+    this.db.prepare('DELETE FROM note_releases WHERE note_id = ?').run(r.note_id);
+    this.db.prepare('DELETE FROM note_versioning WHERE note_id = ?').run(r.note_id);
     return content;
   }
 
@@ -722,15 +873,18 @@ export class NoteStore {
       )
       .get(token) as (NoteRow & { owner_name: string; owner_avatar: string | null }) | undefined;
     if (!row) return null;
-    const p = this.payload(row);
-    const embeds = this.publicEmbeds(row.owner_id, row.id, p.content);
+    // A versioned note shows its latest release, like to read-only share recipients (#53)
+    const note = this.toSynced(row, 'read');
+    const embeds = this.publicEmbeds(row.owner_id, row.id, note.content);
     return {
-      path: p.path,
-      content: p.content,
+      path: note.path,
+      content: note.content,
       owner: row.owner_name,
       ...(row.owner_avatar ? { ownerAvatar: `/api/avatars/${row.owner_avatar}` } : {}),
-      updatedAt: row.updated_at,
+      updatedAt: note.releases?.[0]?.releasedAt ?? row.updated_at,
       ...(embeds.length ? { embeds } : {}),
+      ...(note.versioning ? { versioning: true, releases: note.releases ?? [] } : {}),
+      ...(note.showsRelease ? { showsRelease: note.showsRelease } : {}),
     };
   }
 
@@ -743,7 +897,12 @@ export class NoteStore {
     const rows = this.db
       .prepare('SELECT notes.*, public_links.token AS public_token FROM public_links JOIN notes ON notes.id = public_links.note_id WHERE notes.owner_id = ? AND notes.deleted = 0')
       .all(ownerId) as unknown as (NoteRow & { public_token: string })[];
-    const published = new Map(rows.map((r) => [r.id, { ...this.payload(r), id: r.id, token: r.public_token }]));
+    const published = new Map(
+      rows.map((r) => {
+        const p = this.payload(r);
+        return [r.id, { path: p.path, content: this.published(r.id, p.content), id: r.id, token: r.public_token }];
+      })
+    );
     const index = new LinkIndex([...published.values()]);
     const out = new Map<string, PublicEmbed>();
     let frontier = [{ id: noteId, content }];
@@ -791,10 +950,18 @@ export class NoteStore {
     return rows.map((r) => this.toSynced(r, 'owner'));
   }
 
-  /** All live notes of a user (for the export mirror) */
+  /** The user's own live notes as exports show them: versioned notes as their latest release, placeholders filled (#53) */
+  publishedNotes(userId: string): SyncedNote[] {
+    return this.ownedNotes(userId).map((n) => ({ ...n, content: this.published(n.id, n.content) }));
+  }
+
+  /** All live notes of a user (for the export mirror; versioned notes as their latest release) */
   allOf(userId: string): { path: string; content: string }[] {
     const rows = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND deleted = 0').all(userId) as unknown as NoteRow[];
-    return rows.map((r) => this.payload(r));
+    return rows.map((r) => {
+      const p = this.payload(r);
+      return { path: p.path, content: this.published(r.id, p.content) };
+    });
   }
 
   counts(): { notes: number; shares: number } {

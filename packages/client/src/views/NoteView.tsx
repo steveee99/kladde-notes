@@ -35,6 +35,7 @@ import {
   Loader2,
   Lock,
   MoreVertical,
+  NewReleases,
   Network,
   PanelRight,
   PanelRightClose,
@@ -50,6 +51,8 @@ import { undo } from '@codemirror/commands';
 import {
   excerpt,
   extractDailyNoteDate,
+  fillReleasePlaceholders,
+  type NoteRelease,
   isFolderProjectHome,
   isProjectNote,
   isSingleProjectFile,
@@ -91,6 +94,10 @@ import { NoteStats } from './NoteStats';
 import { setFocusMode, useFocusMode } from '../lib/focus';
 import { confluenceAvailable, refreshConfluence, useConfluence } from '../lib/confluence';
 import { ConfluenceDialog } from './ConfluenceDialog';
+import { ReleaseDialog, releaseChipLabel } from './ReleaseDialog';
+import { releaseRenderOptions } from '../editor/releases';
+import { DEMO } from '../demo/demoApi';
+import { api } from '../lib/api';
 
 const IS_APPLE = /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -318,6 +325,8 @@ function NoteOverflowMenu({
   onConvertProject,
   onAddProperty,
   onConfluence,
+  onVersioning,
+  exportContent,
 }: {
   title: string;
   content: string;
@@ -346,6 +355,10 @@ function NoteOverflowMenu({
   onAddProperty?: () => void;
   /** Only for own notes, when the server offers Confluence (#48) */
   onConfluence?: () => void;
+  /** Release versioning (#53): own notes, and notes that have it turned on */
+  onVersioning?: () => void;
+  /** What exports contain (a versioned note: its latest release, placeholders filled); default `content` */
+  exportContent?: () => Promise<string>;
 }) {
   useLang();
   const [open, setOpen] = useState(false);
@@ -408,9 +421,9 @@ function NoteOverflowMenu({
     };
   }, [open, updatePos]);
 
-  const exportMarkdown = () => {
+  const exportMarkdown = async () => {
     setOpen(false);
-    const body = stripFrontmatter(content);
+    const body = stripFrontmatter(exportContent ? await exportContent() : content);
     const finalText = body && !body.endsWith('\n') ? `${body}\n` : body;
     const url = URL.createObjectURL(new Blob([finalText], { type: 'text/markdown;charset=utf-8' }));
     const a = document.createElement('a');
@@ -427,8 +440,9 @@ function NoteOverflowMenu({
     setOpen(false);
     try {
       const mod = await import('../lib/noteExport');
-      if (kind === 'word') await mod.exportNoteAsWord(title, content);
-      else await mod.exportNoteAsPdf(title, content);
+      const text = exportContent ? await exportContent() : content;
+      if (kind === 'word') await mod.exportNoteAsWord(title, text);
+      else await mod.exportNoteAsPdf(title, text);
     } catch (err) {
       alert(t('export.failed', { error: (err as Error).message }));
     } finally {
@@ -563,6 +577,21 @@ function NoteOverflowMenu({
               </button>
             )}
 
+            {onVersioning && (
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-low"
+                onClick={() => {
+                  setOpen(false);
+                  onVersioning();
+                }}
+              >
+                <NewReleases size={16} className="shrink-0 text-on-surface-variant" />
+                <span>{t('release.menu')}</span>
+              </button>
+            )}
+
             <button
               type="button"
               role="menuitem"
@@ -595,7 +624,7 @@ function NoteOverflowMenu({
                   type="button"
                   role="menuitem"
                   className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-low"
-                  onClick={exportMarkdown}
+                  onClick={() => void exportMarkdown()}
                 >
                   <FileCode size={15} className="shrink-0 text-primary" />
                   <div className="min-w-0 flex-1">
@@ -935,6 +964,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
     if (confluence?.connection) void refreshConfluence();
   }, [id]);
   const [showHistory, setShowHistory] = useState(false);
+  const [releaseOpen, setReleaseOpen] = useState(false);
   const [moving, setMoving] = useState(false);
   const [showGraph, setShowGraph] = useState(true);
   const splitOpen = useNoteSplitOpen();
@@ -1056,6 +1086,15 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const backlinks = index.backlinks(id).map((b) => vault.get(b)!).filter(Boolean);
   const mentions = index.unlinkedMentions(id).map((m) => vault.get(m)!).filter((n) => n && n.access !== 'read');
   const local = index.localGraph(id, graphDepth);
+  /** Exports of a versioned note contain its latest release with the placeholders filled in (#53) */
+  const exportContent = async (): Promise<string> => {
+    const releases = note.releases ?? [];
+    const latest = releases[0]?.version;
+    let text = note.content;
+    if (latest && note.access !== 'read') text = (await api<NoteRelease>(`/notes/${id}/releases/${encodeURIComponent(latest)}`)).content;
+    return fillReleasePlaceholders(text, releases, releaseRenderOptions(lang));
+  };
+
   const pdf = pdfNoteOf(note.content);
   const drawing = excalidrawSceneOf(note.content);
   // Full-size panels replace the editor: a PDF viewer or a drawing canvas
@@ -1165,6 +1204,12 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                   <span className="hidden sm:inline">Confluence</span>
                 </button>
               )}
+              {note.versioning && (
+                <button type="button" className="chip shrink-0 tabular-nums" onClick={() => setReleaseOpen(true)} title={t('release.chipTitle')} data-release-chip>
+                  <NewReleases size={13} />
+                  <span>{releaseChipLabel(note)}</span>
+                </button>
+              )}
               {readOnly && (
                 <span title={sharedReadOnly ? t('note.readOnlyShared') : t('common.readOnly')}>
                   <Lock size={15} className="mr-1 text-on-surface-variant" />
@@ -1194,6 +1239,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 onShare={() => setSharing(true)}
                 onConfluence={isOwner && confluenceAvailable() ? () => setConfluenceOpen(true) : undefined}
                 onHistory={() => setShowHistory(true)}
+                onVersioning={!DEMO && (note.access === 'owner' || note.versioning) ? () => setReleaseOpen(true) : undefined}
+                exportContent={note.versioning ? exportContent : undefined}
                 onMove={() => setMoving(true)}
                 onDelete={handleDelete}
                 onCopy={() => void copyMarkdown()}
@@ -1295,6 +1342,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               stamp={version}
               presenceNote={id}
               dim={focus && features.focus.dim}
+              releases={note.versioning ? (note.releases ?? []) : null}
               onChange={(content) => void vault.update(id, { content })}
               onView={setView}
               onActivity={features.writingStats.enabled ? onEditorActivity : undefined}
@@ -1427,6 +1475,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           onClose={() => setMoving(false)}
         />
       )}
+      {releaseOpen && <ReleaseDialog note={note} locked={locked} onClose={() => setReleaseOpen(false)} />}
       {showHistory && <HistoryDialog noteId={id} current={note.content} canRestore={!readOnly} onClose={() => setShowHistory(false)} />}
       {sharing && <ShareDialog target={{ note: id }} onClose={() => setSharing(false)} />}
       {confluenceOpen && <ConfluenceDialog target={{ note: id, title: title || displayName }} onClose={() => setConfluenceOpen(false)} />}

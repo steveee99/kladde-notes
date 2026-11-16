@@ -60,7 +60,7 @@ export class ConfluenceSync {
   }
 
   private ownNotes(userId: string): SyncedNote[] {
-    return this.notes.ownedNotes(userId).filter((n) => !n.path.startsWith(SYSTEM_PREFIX));
+    return this.notes.publishedNotes(userId).filter((n) => !n.path.startsWith(SYSTEM_PREFIX));
   }
 
   private inFolder(sync: ConfluenceSyncRecord, note: { id: string; path: string }): boolean {

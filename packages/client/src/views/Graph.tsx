@@ -242,7 +242,7 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: ViewNo
       palette = colors();
       draw();
     });
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-scheme'] });
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-scheme', 'data-tone'] });
     resize();
     return () => {
       sim.stop();

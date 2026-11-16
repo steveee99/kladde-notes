@@ -36,6 +36,7 @@ import {
   Star,
   Upload,
   X,
+  TextFields,
 } from '../lib/icons';
 import {
   APP_VERSION,
@@ -52,7 +53,7 @@ import {
 import { api, deleteAvatar, uploadAvatar } from '../lib/api';
 import { confluenceAvailable, useConfluence } from '../lib/confluence';
 import { folderDisplayName, Lang, locale, setLang, tl, useLang } from '../lib/i18n';
-import { setInboxZero, setLigatures, useInboxZero, useLigatures } from '../lib/prefs';
+import { EDITOR_FONT_SIZES, setEditorFontSize, setInboxZero, setLigatures, useEditorFontSize, useInboxZero, useLigatures } from '../lib/prefs';
 import { useReadOnly } from '../lib/readOnly';
 import { setColorSchemeChoice, useColorSchemeChoice } from '../lib/theme';
 import { DEFAULT_PERCENT, MAX_PERCENT, MIN_PERCENT, setWidescreen, useWidescreen, WIDESCREEN_PRESETS } from '../lib/widescreen';
@@ -173,6 +174,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
   const widescreen = useWidescreen();
   const inboxZero = useInboxZero();
   const ligatures = useLigatures();
+  const editorFontSize = useEditorFontSize();
   const colorScheme = useColorSchemeChoice();
   const locked = useReadOnly();
   const features = vault.features();
@@ -388,6 +390,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
             {(
               [
                 ['dark', 'settings.colorSchemeDark'],
+                ['darker', 'settings.colorSchemeDarker'],
                 ['light', 'settings.colorSchemeLight'],
                 ['system', 'settings.colorSchemeSystem'],
               ] as const
@@ -463,6 +466,40 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
             label={tl(lang, 'settings.inboxZeroLabel')}
             onChange={setInboxZero}
           />
+        </div>
+
+        <hr className="my-5 border-outline-variant" />
+
+        {/* Editor font size (per device) */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2.5">
+            <TextFields size={18} className="mt-0.5 shrink-0 text-primary" />
+            <div>
+              <div className="text-sm font-medium">{tl(lang, 'settings.editorFontTitle')}</div>
+              <div className="text-xs text-on-surface-variant">{tl(lang, 'settings.editorFontDesc')}</div>
+            </div>
+          </div>
+          <div className="inline-flex max-w-full flex-wrap rounded-full border border-outline-variant bg-surface-container-high p-1 shrink-0" role="group" aria-label={tl(lang, 'settings.editorFontTitle')}>
+            {EDITOR_FONT_SIZES.map((size) => {
+              const active = editorFontSize === size;
+              return (
+                <button
+                  key={size}
+                  type="button"
+                  aria-pressed={active}
+                  aria-label={`${size} px`}
+                  title={`${size} px`}
+                  onClick={() => setEditorFontSize(size)}
+                  className={`inline-flex min-w-[2.75rem] items-center justify-center rounded-full px-3 py-1.5 font-medium tabular-nums transition-colors ${
+                    active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                  style={{ fontSize: `${Math.round(size * 0.8)}px` }}
+                >
+                  {size}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <hr className="my-5 border-outline-variant" />

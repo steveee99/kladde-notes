@@ -1,11 +1,12 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
-import { PublicNote as PublicNoteData, excalidrawSceneOf, extractMeta } from '@kladde/shared';
+import { PublicNote as PublicNoteData, excalidrawSceneOf, extractMeta, fillReleasePlaceholders } from '@kladde/shared';
 import { api } from '../lib/api';
 import { locale, tl, useLang } from '../lib/i18n';
 import { Editor } from '../editor/Editor';
 import type { EmbedResolver } from '../editor/embedContext';
 import { Avatar } from './Avatar';
 import { ExportMenu } from './ExportMenu';
+import { releaseRenderOptions } from '../editor/releases';
 
 const ExcalidrawPanel = lazy(() => import('./ExcalidrawPanel'));
 
@@ -36,7 +37,8 @@ export function PublicNote({ token }: { token: string }) {
       <div className="no-print mb-6 flex items-center gap-2.5 text-sm text-on-surface-variant">
         <Avatar name={note.owner} avatarUrl={note.ownerAvatar} size="md" />
         <span className="min-w-0 flex-1">{tl(lang, 'public.sharedBy', { owner: note.owner, date: new Date(note.updatedAt).toLocaleDateString(locale(lang)) })}</span>
-        <ExportMenu title={title} content={note.content} />
+        {note.showsRelease && <span className="chip shrink-0 tabular-nums">v{note.showsRelease}</span>}
+        <ExportMenu title={title} content={note.versioning ? fillReleasePlaceholders(note.content, note.releases ?? [], releaseRenderOptions(lang)) : note.content} />
       </div>
       <h1 className="mb-4 break-words text-headline-l">{title}</h1>
       {drawing !== null ? (
@@ -44,7 +46,7 @@ export function PublicNote({ token }: { token: string }) {
           <ExcalidrawPanel scene={drawing} readOnly lang={lang} />
         </Suspense>
       ) : (
-        <Editor docKey={token} value={note.content} readOnly resolveEmbed={resolveEmbed} />
+        <Editor docKey={token} value={note.content} readOnly resolveEmbed={resolveEmbed} releases={note.versioning ? (note.releases ?? []) : null} />
       )}
     </div>
   );

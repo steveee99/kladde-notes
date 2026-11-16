@@ -19,19 +19,24 @@
     <meta name="referrer" content="no-referrer" />
     <title>Kladde</title>
     <script>
-      // Language, Material 3 theme and color scheme, and content width percentage before first paint
+      // Language, Material 3 theme, color scheme and tone, editor font size and content width percentage before first paint
       try {
         var lang = localStorage.getItem('kladde_lang');
         if (lang === 'en' || lang === 'de') document.documentElement.lang = lang;
       } catch (e) {}
       document.documentElement.dataset.theme = 'material';
       var scheme = 'dark';
+      var tone = 'default';
       try {
         var cs = localStorage.getItem('kladde_color_scheme');
         if (cs === 'light') scheme = 'light';
+        else if (cs === 'darker') tone = 'darker';
         else if (cs === 'system' && window.matchMedia('(prefers-color-scheme: light)').matches) scheme = 'light';
+        var fs = Number(localStorage.getItem('kladde_editor_font_size'));
+        if (fs >= 12 && fs <= 28) document.documentElement.style.setProperty('--editor-font-size', Math.round(fs) + 'px');
       } catch (e) {}
       document.documentElement.dataset.scheme = scheme;
+      document.documentElement.dataset.tone = tone;
       try {
         var w = localStorage.getItem('kladde_widescreen');
         var cfg = w ? JSON.parse(w) : null;
