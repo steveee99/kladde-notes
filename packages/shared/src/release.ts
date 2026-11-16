@@ -1,4 +1,5 @@
 import { toDateString } from './tasks.js';
+import { cellText } from './table.js';
 import type { NoteReleaseInfo } from './types.js';
 
 /*
@@ -162,7 +163,7 @@ export function releaseFieldValue(release: NoteReleaseInfo | null | undefined, f
 
 /** Text safe inside a Markdown table cell */
 export function tableCell(text: string): string {
-  return text.replace(/\s+/g, ' ').replace(/\|/g, '\\|').trim();
+  return cellText(text.replace(/\s+/g, ' '));
 }
 
 /** Newest first, whatever order the list came in */
