@@ -630,6 +630,10 @@ html[data-readonly] .edit-only {
 }
 .cm-codeblock-first { border-top-left-radius: 10px; border-top-right-radius: 10px; padding-top: 6px !important; }
 .cm-codeblock-last { border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; padding-bottom: 6px !important; }
+/* Per-note text alignment (frontmatter `align`, set on a wrapper in NoteView); code and frontmatter stay left */
+[data-note-align='center'] .cm-line:not(.cm-codeblock):not(.cm-frontmatter) { text-align: center; }
+[data-note-align='right'] .cm-line:not(.cm-codeblock):not(.cm-frontmatter) { text-align: right; }
+[data-note-align='justify'] .cm-line:not(.cm-codeblock):not(.cm-frontmatter) { text-align: justify; hyphens: auto; }
 .cm-code-header {
   display: flex;
   justify-content: space-between;

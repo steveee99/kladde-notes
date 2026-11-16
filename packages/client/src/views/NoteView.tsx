@@ -46,11 +46,16 @@ import {
   Trash2,
   Undo2,
   X,
+  FormatAlignCenter,
+  FormatAlignJustify,
+  FormatAlignLeft,
+  FormatAlignRight,
 } from '../lib/icons';
 import { undo } from '@codemirror/commands';
 import {
   excerpt,
   extractDailyNoteDate,
+  parseFrontmatter,
   fillReleasePlaceholders,
   type NoteRelease,
   isFolderProjectHome,
@@ -303,6 +308,19 @@ function MenuItem({
   );
 }
 
+/** Text alignment of a note, stored as frontmatter `align` (left is the default and drops the key) */
+type NoteAlign = 'left' | 'center' | 'right' | 'justify';
+const NOTE_ALIGNS: { value: NoteAlign; icon: typeof Bold; label: I18nKey }[] = [
+  { value: 'left', icon: FormatAlignLeft, label: 'note.alignLeft' },
+  { value: 'center', icon: FormatAlignCenter, label: 'note.alignCenter' },
+  { value: 'right', icon: FormatAlignRight, label: 'note.alignRight' },
+  { value: 'justify', icon: FormatAlignJustify, label: 'note.alignJustify' },
+];
+function noteAlignOf(content: string): NoteAlign {
+  const raw = parseFrontmatter(content).data.align?.trim().toLowerCase();
+  return NOTE_ALIGNS.some((a) => a.value === raw) ? (raw as NoteAlign) : 'left';
+}
+
 /** Material 3 three-dot overflow menu: copy, favorite, code view, project actions, Share, History, Export, Move, Delete */
 function NoteOverflowMenu({
   title,
@@ -327,6 +345,8 @@ function NoteOverflowMenu({
   onConfluence,
   onVersioning,
   exportContent,
+  align,
+  onAlign,
 }: {
   title: string;
   content: string;
@@ -359,6 +379,9 @@ function NoteOverflowMenu({
   onVersioning?: () => void;
   /** What exports contain (a versioned note: its latest release, placeholders filled); default `content` */
   exportContent?: () => Promise<string>;
+  align: NoteAlign;
+  /** Only for editable notes */
+  onAlign?: (align: NoteAlign) => void;
 }) {
   useLang();
   const [open, setOpen] = useState(false);
@@ -524,6 +547,29 @@ function NoteOverflowMenu({
                   onAddProperty();
                 }}
               />
+            )}
+            {onAlign && (
+              <div className="flex items-center gap-3 px-3 py-1.5" role="group" aria-label={t('note.alignMenu')}>
+                <span className="flex-1 text-sm text-on-surface">{t('note.alignMenu')}</span>
+                <div className="flex gap-0.5 rounded-full border border-outline-variant p-0.5">
+                  {NOTE_ALIGNS.map(({ value, icon: Icon, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={align === value}
+                      title={t(label)}
+                      aria-label={t(label)}
+                      onClick={() => onAlign(value)}
+                      className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors ${
+                        align === value ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-low'
+                      }`}
+                    >
+                      <Icon size={16} />
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
             {(onFinishProject || onConvertProject) && <div className="my-1 border-t border-outline-variant/80" />}
             {onConvertProject && (
@@ -1096,6 +1142,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   };
 
   const pdf = pdfNoteOf(note.content);
+  const align = noteAlignOf(note.content);
   const drawing = excalidrawSceneOf(note.content);
   // Full-size panels replace the editor: a PDF viewer or a drawing canvas
   const showPdf = (!!pdf && !pdfAsText) || (drawing !== null && !drawingAsText);
@@ -1260,6 +1307,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                     : undefined
                 }
                 onConvertProject={isSingleProject ? () => void vault.convertProjectToFolder(id) : undefined}
+                align={align}
+                onAlign={!readOnly && view && !showPdf ? (value) => applyFrontmatter(view, { align: value === 'left' ? null : value }) : undefined}
               />
             </div>
           </div>
@@ -1334,6 +1383,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             </div>
           )}
           {!showPdf && (
+            <div className="contents" data-note-align={align !== 'left' && !(sourceMode && !readOnly) ? align : undefined}>
             <Editor
               docKey={id}
               value={note.content}
@@ -1347,6 +1397,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               onView={setView}
               onActivity={features.writingStats.enabled ? onEditorActivity : undefined}
             />
+            </div>
           )}
 
           {/* Bottom links/graph overview remains visible when the right split pane is collapsed */}
