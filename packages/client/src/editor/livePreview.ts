@@ -2,7 +2,7 @@ import { EditorState, Extension, Facet, Range, StateEffect, StateField } from '@
 import { Decoration, DecorationSet, EditorView } from '@codemirror/view';
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
-import { escapeRegExp, extractHeadings, parseEmbedLine, TOC_ANCHOR_RE, type NoteHeading } from '@kladde/shared';
+import { escapeRegExp, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, type NoteHeading, type ReleaseField } from '@kladde/shared';
 import { getLang } from '../lib/i18n';
 import {
   AutoLinkWidget,
@@ -29,6 +29,7 @@ import { embedContext } from './embedContext';
 import { embedWidgetFor } from './embed';
 import { markerStatus } from './taskStatus';
 import { getLigatures } from '../lib/prefs';
+import { releaseFacet, ReleaseFieldWidget, releaseRenderOptions } from './releases';
 
 /**
  * Obsidian-style live preview: Markdown syntax is hidden and rendered everywhere except in the
@@ -102,6 +103,9 @@ function build(state: EditorState): DecorationSet {
   // Inside an embed the editor is read-only, but its tasks may still be ticked (written to the source note)
   const embedSource = state.facet(embedContext).source;
   const tasksLocked = state.readOnly && !embedSource?.canWrite;
+  // Release versioning (#53): placeholders are shown filled in
+  const release = state.facet(releaseFacet);
+  const releaseOpts = release ? releaseRenderOptions(lang) : null;
   const active = new Set<number>();
   if (!all) {
     for (const r of state.selection.ranges) {
@@ -268,12 +272,26 @@ function build(state: EditorState): DecorationSet {
           }
           return;
         }
-        case 'Table':
+        case 'Table': {
+          let src = text();
+          let end = node.to;
+          if (release && hasReleasePlaceholders(src)) {
+            // A row template whose closing tag sits on the line after the table belongs to it
+            const next = doc.lineAt(node.to).number < doc.lines ? doc.line(doc.lineAt(node.to).number + 1) : null;
+            if (src.includes('{{#versions}}') && !src.includes('{{/versions}}') && next && next.text.trim() === '{{/versions}}') {
+              end = next.to;
+              src = doc.sliceString(node.from, end);
+            }
+            if (isActive(node.from, end)) return;
+            replace(doc.lineAt(node.from).from, doc.lineAt(end).to, Decoration.replace({ widget: new TableWidget(fillReleasePlaceholders(src, release.releases, releaseOpts!), lang, false), block: true }));
+            return false;
+          }
           if (!isActive(node.from, node.to)) {
             blockWidget(node, Decoration.replace({ widget: new TableWidget(text(), lang, !state.readOnly), block: true }));
             return false;
           }
           return;
+        }
         case 'FencedCode': {
           const info = node.getChild('CodeInfo');
           const langInfo = info ? doc.sliceString(info.from, info.to).trim().toLowerCase() : '';
@@ -282,6 +300,10 @@ function build(state: EditorState): DecorationSet {
           const body = firstLine.number < lastLine.number ? doc.sliceString(firstLine.to + 1, lastLine.number > firstLine.number + 1 ? doc.line(lastLine.number - 1).to : firstLine.to + 1) : '';
           for (let l = firstLine.number; l <= lastLine.number; l++) codeLines.add(l);
           const editing = isActive(node.from, node.to);
+          if (!editing && release && langInfo === 'versions') {
+            blockWidget(node, Decoration.replace({ widget: new TableWidget(releaseHistoryTable(release.releases, releaseOpts!), lang, false), block: true }));
+            return false;
+          }
           if (!editing && (langInfo === 'query' || langInfo === 'gallery' || langInfo === 'carousel')) {
             const widget =
               langInfo === 'query' ? new QueryWidget(body, stamp, state.readOnly, lang) : langInfo === 'carousel' ? new CarouselWidget(body, lang) : new GalleryWidget(body, lang);
@@ -334,6 +356,25 @@ function build(state: EditorState): DecorationSet {
     if (embed && free(ln.from, ln.to)) {
       replace(ln.from, ln.to, Decoration.replace({ widget: embedWidgetFor(state, embed, state.facet(noteIdFacet), lang), block: true }));
       continue;
+    }
+
+    if (release && !lineActive && VERSION_HISTORY_LINE_RE.test(ln.text) && free(ln.from, ln.to)) {
+      replace(ln.from, ln.to, Decoration.replace({ widget: new TableWidget(releaseHistoryTable(release.releases, releaseOpts!), lang, false), block: true }));
+      continue;
+    }
+    if (release && !lineActive && ln.text.includes('{{#versions}}') && ln.text.includes('{{/versions}}') && free(ln.from, ln.to)) {
+      // A one-line row template ("{{#versions}}v{{version}} {{/versions}}"): the whole line, filled in
+      replace(ln.from, ln.to, Decoration.replace({ widget: new ReleaseFieldWidget(fillReleasePlaceholders(ln.text, release.releases, releaseOpts!)) }));
+      continue;
+    }
+    if (release && ln.text.includes('{{')) {
+      for (const m of ln.text.matchAll(RELEASE_FIELD_RE)) {
+        const from = ln.from + m.index!;
+        const to = from + m[0].length;
+        protectedRanges.push([from, to]);
+        if (lineActive) decos.push(mark('cm-release-placeholder').range(from, to));
+        else replace(from, to, Decoration.replace({ widget: new ReleaseFieldWidget(releaseFieldValue(release.releases[0], m[1] as ReleaseField, releaseOpts!)) }));
+      }
     }
 
     if (!lineActive && TOC_ANCHOR_RE.test(ln.text)) {

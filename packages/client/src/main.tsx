@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client';
 import { App } from './App';
 import { DEMO, installDemoApi } from './demo/demoApi';
 import { applyTheme } from './lib/theme';
+import { applyEditorFontSize } from './lib/prefs';
 import { justUpdated, keepUpToDate } from './lib/update';
 import { fitKeyboardViewport, fitShortViewport, pinViewport, recordStartupReport } from './lib/viewport';
 import './index.css';
@@ -16,6 +17,7 @@ if (justUpdated()) {
 // GitHub Pages demo: no server, the API is answered in the browser
 if (DEMO) installDemoApi();
 applyTheme();
+applyEditorFontSize();
 pinViewport();
 fitShortViewport();
 fitKeyboardViewport();

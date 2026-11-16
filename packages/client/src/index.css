@@ -145,6 +145,36 @@
 }
 
 /*
+ * "Darker" (Einstellungen → Farbschema): the dark scheme with neutral dark grey surfaces instead of the
+ * blue-tinted ones, close to black. Only the neutral roles change (surfaces, outlines, secondary for the
+ * selected states); primary, tertiary, error and the custom colors stay the dark scheme's accents.
+ * <html data-tone="darker"> is set by lib/theme.ts and the inline script in index.html; data-scheme stays "dark".
+ */
+[data-theme='material'][data-scheme='dark'][data-tone='darker'] {
+  --primary-container: 40 48 68;
+  --secondary: 200 200 200;
+  --on-secondary: 47 47 47;
+  --secondary-container: 46 46 46;
+  --on-secondary-container: 228 228 228;
+  --surface: 8 8 8;
+  --surface-dim: 8 8 8;
+  --surface-bright: 38 38 38;
+  --surface-container-lowest: 4 4 4;
+  --surface-container-low: 13 13 13;
+  --surface-container: 17 17 17;
+  --surface-container-high: 24 24 24;
+  --surface-container-highest: 32 32 32;
+  --on-surface: 228 228 228;
+  --on-surface-variant: 198 198 198;
+  --outline: 142 142 142;
+  --outline-variant: 52 52 52;
+  --inverse-surface: 228 228 228;
+  --inverse-on-surface: 32 32 32;
+  --code-bg: 4 4 4;
+  --inline-code-bg: 32 32 32;
+}
+
+/*
  * The document itself never scrolls: iOS scrolls the window when the keyboard opens and, in the
  * home-screen app, often leaves it there, which shifts the header under the status bar and lifts
  * the bottom bar. #root scrolls instead (login and public pages); the shell scrolls inside <main>.
@@ -465,7 +495,7 @@ body {
     opacity: 1;
   }
   /* Focus mode "dim other paragraphs" (editor/focusDim.ts): lines and block widgets outside the current paragraph fade */
-  .cm-focus-dim .cm-content > :not(.cm-focus-current) {
+  .cm-focus-dim .cm-content > :not(.cm-focus-current):not(:focus-within) {
     opacity: 0.35;
     transition: opacity 200ms var(--ease);
   }
@@ -511,13 +541,22 @@ body {
 /* ------------------------------------------------------------------ editor (CodeMirror live preview) */
 
 .cm-editor {
-  font-size: 16px;
+  /* Settings → Appearance → Editor font size (lib/prefs.ts, per device) */
+  font-size: var(--editor-font-size, 16px);
   line-height: 1.7;
   background: transparent;
   color: rgb(var(--on-surface));
 }
 .cm-editor.cm-focused {
   outline: none;
+}
+/* Release versioning (#53): a filled-in {{version}} and friends, and the raw placeholder while the cursor is on its line */
+.cm-release-field {
+  color: rgb(var(--primary));
+  font-weight: 500;
+}
+.cm-release-placeholder {
+  color: rgb(var(--primary));
 }
 /* A section folded from the outline: a small tonal pill after the heading, click to unfold */
 .cm-editor .cm-foldPlaceholder {

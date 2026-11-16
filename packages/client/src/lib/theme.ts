@@ -1,8 +1,11 @@
 import { useSyncExternalStore } from 'react';
 
 export type ThemeChoice = 'material';
-/** Color scheme of the Material 3 design, stored per device ('system' follows the OS) */
-export type ColorSchemeChoice = 'dark' | 'light' | 'system';
+/**
+ * Color scheme of the Material 3 design, stored per device ('system' follows the OS). 'darker' is the dark
+ * scheme with neutral dark grey surfaces instead of the blue-tinted ones (`data-tone="darker"`).
+ */
+export type ColorSchemeChoice = 'dark' | 'darker' | 'light' | 'system';
 export type ColorScheme = 'dark' | 'light';
 
 const KEY = 'kladde_color_scheme';
@@ -13,7 +16,7 @@ function readChoice(): ColorSchemeChoice {
   try {
     if (typeof localStorage === 'undefined') return 'dark';
     const v = localStorage.getItem(KEY);
-    return v === 'light' || v === 'system' ? v : 'dark';
+    return v === 'light' || v === 'system' || v === 'darker' ? v : 'dark';
   } catch {
     return 'dark';
   }
@@ -27,7 +30,7 @@ export function getColorSchemeChoice(): ColorSchemeChoice {
 
 function resolveScheme(choice: ColorSchemeChoice): ColorScheme {
   if (choice === 'system') return lightQuery?.matches ? 'light' : 'dark';
-  return choice;
+  return choice === 'light' ? 'light' : 'dark';
 }
 
 /** Applies the Material 3 theme with the resolved color scheme and updates the browser bar color */
@@ -35,6 +38,7 @@ export function applyTheme(): void {
   const root = document.documentElement;
   root.dataset.theme = 'material';
   root.dataset.scheme = resolveScheme(current);
+  root.dataset.tone = current === 'darker' ? 'darker' : 'default';
   const bg = getComputedStyle(root).getPropertyValue('--surface').trim().split(/\s+/).join(',');
   if (bg) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', `rgb(${bg})`);
 }
@@ -76,7 +80,7 @@ export function useColorSchemeChoice(): ColorSchemeChoice {
 
 function subscribeRoot(cb: () => void): () => void {
   const mo = new MutationObserver(cb);
-  mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-scheme'] });
+  mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-scheme', 'data-tone'] });
   return () => mo.disconnect();
 }
 

@@ -1,9 +1,10 @@
 import express, { Response } from 'express';
+import { isReleaseBump } from '@kladde/shared';
 import type { AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
 import { Presence } from './Presence.js';
 import { attachmentUsageMap } from './cliActions.js';
 import { AvatarStore, MAX_AVATAR_BYTES } from './AvatarStore.js';
-import { NoteStore, TrashPathTaken } from './NoteStore.js';
+import { NoteStore, ReleaseConflict, TrashPathTaken, VersioningOff } from './NoteStore.js';
 import { DEFAULT_TRASH_DAYS, dropUnusedAttachments } from './trash.js';
 import { FileStore, MAX_FILE_BYTES } from './FileStore.js';
 import { UserRecord, UserStore } from './UserStore.js';
@@ -270,6 +271,47 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       res.json(notes.version(req.user!.id, req.params.id, req.params.version));
     } catch {
       notFound(res);
+    }
+  });
+
+  // ---------------------------------------------------------------- release versioning (#53)
+
+  router.get('/notes/:id/releases', (req, res) => {
+    try {
+      res.json(notes.releases(req.user!.id, req.params.id));
+    } catch {
+      notFound(res);
+    }
+  });
+
+  router.get('/notes/:id/releases/:version', (req, res) => {
+    try {
+      res.json(notes.releaseOf(req.user!.id, req.params.id, req.params.version));
+    } catch {
+      res.status(404).json({ error: 'Diese Version gibt es nicht.' });
+    }
+  });
+
+  // Only the owner turns versioning on or off and releases; released versions are never changed (no route, and a trigger)
+  router.put('/notes/:id/versioning', (req, res) => {
+    try {
+      res.json(notes.setVersioning(req.user!.id, req.params.id, !!req.body?.enabled));
+    } catch {
+      notFound(res);
+    }
+  });
+
+  router.post('/notes/:id/releases', (req, res) => {
+    const bump = req.body?.bump;
+    const baseVersion = Number(req.body?.baseVersion);
+    if (!isReleaseBump(bump) || !Number.isInteger(baseVersion)) return void res.status(400).json({ error: 'Ungültige Version.' });
+    try {
+      const release = notes.release(req.user!.id, req.params.id, { bump, note: req.body?.note, baseVersion });
+      res.json({ release, releases: notes.releases(req.user!.id, req.params.id) });
+    } catch (err) {
+      if (err instanceof ReleaseConflict) res.status(409).json({ error: 'Die Notiz wurde inzwischen geändert. Bitte erneut versuchen.', conflict: true });
+      else if (err instanceof VersioningOff) res.status(400).json({ error: 'Die Versionierung ist für diese Notiz aus.' });
+      else notFound(res);
     }
   });
 

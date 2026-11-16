@@ -31,8 +31,8 @@ export function parseMarkdownTable(src: string): MarkdownTable | null {
   return { headers, align: headers.map((_, i) => align[i] ?? null), rows };
 }
 
-/** A cell as Markdown: one line, pipes escaped */
-function cellText(value: string): string {
+/** A cell as Markdown: one line, pipes escaped (the way `parseMarkdownTable` reads them back) */
+export function cellText(value: string): string {
   return value.replace(/\r?\n/g, ' ').trim().replace(/(?<!\\)\|/g, '\\|');
 }
 

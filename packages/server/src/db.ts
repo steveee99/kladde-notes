@@ -383,6 +383,34 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 18,
+    description: 'Release versioning of notes: opt-in per note, immutable SemVer releases (encrypted, #53)',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE note_versioning (
+          note_id TEXT PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+          enabled INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE TABLE note_releases (
+          id TEXT PRIMARY KEY,
+          note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+          major INTEGER NOT NULL,
+          minor INTEGER NOT NULL,
+          patch INTEGER NOT NULL,
+          released_at INTEGER NOT NULL,
+          payload BLOB NOT NULL,
+          UNIQUE (note_id, major, minor, patch)
+        );
+        CREATE INDEX note_releases_note ON note_releases(note_id);
+        CREATE TRIGGER note_releases_immutable BEFORE UPDATE ON note_releases
+        BEGIN
+          SELECT RAISE(ABORT, 'released versions are immutable');
+        END;
+      `);
+    },
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number[] {

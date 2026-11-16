@@ -7,6 +7,7 @@ const SPLIT_OPEN_KEY = 'kladde_note_split_open';
 const SPLIT_TAB_KEY = 'kladde_note_split_tab';
 const SOURCE_MODE_KEY = 'kladde_source_mode';
 const LIGATURES_KEY = 'kladde_ligatures';
+const EDITOR_FONT_KEY = 'kladde_editor_font_size';
 
 const listeners = new Set<() => void>();
 
@@ -187,4 +188,46 @@ export function setLocalGraphDepth(depth: number): void {
 
 export function useLocalGraphDepth(): number {
   return useSyncExternalStore(subscribe, () => graphDepth);
+}
+
+/** Font sizes the editor offers (px); 16 is the default */
+export const EDITOR_FONT_SIZES = [14, 16, 18, 20, 22] as const;
+export const DEFAULT_EDITOR_FONT_SIZE = 16;
+
+function readEditorFontSize(): number {
+  try {
+    const n = Number(typeof localStorage !== 'undefined' ? localStorage.getItem(EDITOR_FONT_KEY) : null);
+    return Number.isInteger(n) && n >= 12 && n <= 28 ? n : DEFAULT_EDITOR_FONT_SIZE;
+  } catch {
+    return DEFAULT_EDITOR_FONT_SIZE;
+  }
+}
+
+let editorFontSize = readEditorFontSize();
+
+/** Sets --editor-font-size on <html> (the inline script in index.html does the same before first paint) */
+export function applyEditorFontSize(): void {
+  if (typeof document !== 'undefined') document.documentElement.style.setProperty('--editor-font-size', `${editorFontSize}px`);
+}
+
+export function getEditorFontSize(): number {
+  return editorFontSize;
+}
+
+/** Font size of the note editor in px, per device */
+export function setEditorFontSize(px: number): void {
+  const next = Math.min(28, Math.max(12, Math.round(px)));
+  if (editorFontSize === next) return;
+  editorFontSize = next;
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(EDITOR_FONT_KEY, String(next));
+  } catch {
+    // ignore
+  }
+  applyEditorFontSize();
+  listeners.forEach((l) => l());
+}
+
+export function useEditorFontSize(): number {
+  return useSyncExternalStore(subscribe, () => editorFontSize);
 }

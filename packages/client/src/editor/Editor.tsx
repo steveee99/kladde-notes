@@ -19,6 +19,8 @@ import { merge3, tagBeforeCursor, textChanges } from '@kladde/shared';
 import { slashCompletion } from './slash';
 import { remoteCursors } from './remoteCursors';
 import { focusDim } from './focusDim';
+import { releaseFacet } from './releases';
+import type { NoteReleaseInfo } from '@kladde/shared';
 import { outlineSupport } from './outline';
 import { useReadOnly } from '../lib/readOnly';
 import { t as i18n, useLang } from '../lib/i18n';
@@ -243,9 +245,11 @@ export interface EditorProps {
   dim?: boolean;
   /** Called after the text or the selection changed (e.g. for the word count) */
   onActivity?: (view: EditorView) => void;
+  /** Release versioning (#53) is on: the releases fill the placeholders ({{version}}, ```versions, …); null/undefined: off */
+  releases?: NoteReleaseInfo[] | null;
 }
 
-export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote, dim = false, onActivity, resolveEmbed }: EditorProps) {
+export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote, dim = false, onActivity, resolveEmbed, releases = null }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const changeRef = useRef(onChange);
@@ -260,6 +264,10 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   const placeholderConf = useRef(new Compartment());
   const previewConf = useRef(new Compartment());
   const dimConf = useRef(new Compartment());
+  const releaseConf = useRef(new Compartment());
+  const releasesRef = useRef(releases);
+  releasesRef.current = releases;
+  const releaseKey = releases ? JSON.stringify(releases) : '';
   const dimRef = useRef(dim);
   dimRef.current = dim;
   const lockedRef = useRef(locked);
@@ -300,6 +308,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           autocompletion({ override: [wikiCompletion, tagCompletion, slashCompletion(insertFiles)], icons: false }),
           fileHandlers(),
           dimConf.current.of(dimRef.current ? focusDim : []),
+          releaseConf.current.of(releaseFacet.of(releasesRef.current ? { releases: releasesRef.current } : null)),
           outlineSupport,
           EditorView.updateListener.of((u) => {
             if (u.docChanged || u.selectionSet) activityRef.current?.(u.view);
@@ -348,6 +357,18 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   useEffect(() => {
     view.current?.dispatch({ effects: dimConf.current.reconfigure(dim ? focusDim : []) });
   }, [dim]);
+
+  // New releases (or versioning turned on/off): the placeholders are drawn again
+  const firstRelease = useRef(true);
+  useEffect(() => {
+    if (firstRelease.current) {
+      firstRelease.current = false;
+      return;
+    }
+    view.current?.dispatch({
+      effects: [releaseConf.current.reconfigure(releaseFacet.of(releasesRef.current ? { releases: releasesRef.current } : null)), refreshEffect.of(Date.now())],
+    });
+  }, [releaseKey]);
 
   // Reconfigure placeholder cleanly when language or custom placeholder changes
   useEffect(() => {

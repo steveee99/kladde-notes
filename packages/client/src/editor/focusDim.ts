@@ -4,11 +4,15 @@ import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate
 /*
  * Focus mode "dim other paragraphs": every line outside the paragraph with the cursor fades out (CSS in
  * index.css, `.cm-focus-dim`). A paragraph is the run of non-empty lines around the cursor. Only line
- * decorations, so it stays separate from the live preview's StateField.
+ * decorations, so it stays separate from the live preview's StateField. Block widgets (tables, diagrams,
+ * embeds …) are not lines and take no line decoration: the plugin sets the class on their DOM itself when
+ * they lie in the current paragraph, and CSS keeps a widget bright while something inside it has focus
+ * (e.g. a table cell being edited).
  */
 
 const current = Decoration.line({ class: 'cm-focus-current' });
 const blank = /^\s*$/;
+const markKey = {};
 
 /** First and last line number of the paragraph around `line` (a blank line is its own paragraph) */
 export function paragraphAt(doc: Text, line: number): { from: number; to: number } {
@@ -34,14 +38,35 @@ function build(view: EditorView): DecorationSet {
   return builder.finish();
 }
 
+/** Marks the block widgets that belong to the paragraph with the cursor (mutations inside widgets are ignored by CodeMirror) */
+function markBlocks(view: EditorView): void {
+  const { doc } = view.state;
+  const { from, to } = paragraphAt(doc, doc.lineAt(view.state.selection.main.head).number);
+  const start = doc.line(from).from;
+  const end = doc.line(to).to;
+  for (const el of Array.from(view.contentDOM.children)) {
+    if (!(el instanceof HTMLElement) || el.classList.contains('cm-line')) continue;
+    let pos: number;
+    try {
+      pos = view.posAtDOM(el);
+    } catch {
+      continue;
+    }
+    el.classList.toggle('cm-focus-current', pos >= start && pos <= end);
+  }
+}
+
 const plugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
     constructor(view: EditorView) {
       this.decorations = build(view);
+      view.requestMeasure({ read: () => null, write: (_m, v) => markBlocks(v) });
     }
     update(u: ViewUpdate) {
       if (u.docChanged || u.selectionSet || u.viewportChanged) this.decorations = build(u.view);
+      // Widgets are (re)drawn with the update: mark them once the DOM is in place
+      u.view.requestMeasure({ key: markKey, read: () => null, write: (_m, v) => markBlocks(v) });
     }
   },
   { decorations: (p) => p.decorations }

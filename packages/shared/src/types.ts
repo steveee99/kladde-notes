@@ -18,6 +18,30 @@ export interface SyncedNote {
   ownerAvatar?: string | null;
   /** A shared note the user may delete (folder share with delete permission) */
   canDelete?: boolean;
+  /** Release versioning (#53) is on for this note */
+  versioning?: boolean;
+  /** Releases of the note, newest first (metadata only; only while versioning is on) */
+  releases?: NoteReleaseInfo[];
+  /** Fingerprint (`contentHash`) of the latest release's text: the draft differs from it when the hashes differ */
+  releaseHash?: string;
+  /** Read-only readers get the latest release instead of the draft: its version (the content is that release) */
+  showsRelease?: string;
+}
+
+/** A released version of a note (#53); immutable once created */
+export interface NoteReleaseInfo {
+  /** Semantic version, e.g. "1.2.0" */
+  version: string;
+  releasedAt: number;
+  /** Username of whoever released it */
+  releasedBy: string;
+  /** Optional changelog line */
+  note: string;
+}
+
+export interface NoteRelease extends NoteReleaseInfo {
+  path: string;
+  content: string;
 }
 
 /** What a user may do in a folder shared with them (reading is always allowed) */
@@ -222,6 +246,10 @@ export interface PublicNote {
   updatedAt: number;
   /** Notes the public note embeds (`![[…]]`) that the owner published too; others show "Not available" */
   embeds?: PublicEmbed[];
+  /** Versioned note (#53): the content is its latest release; the releases fill the placeholders */
+  versioning?: boolean;
+  releases?: NoteReleaseInfo[];
+  showsRelease?: string;
 }
 
 /** An embedded note on a public link */

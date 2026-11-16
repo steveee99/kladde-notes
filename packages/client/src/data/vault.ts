@@ -51,6 +51,8 @@ import {
   appendTaskLines,
   setTaskMeta,
   merge3,
+  type NoteReleaseInfo,
+  type ReleaseBump,
 } from '@kladde/shared';
 import { api, ApiError } from '../lib/api';
 import { getLang, locale, t } from '../lib/i18n';
@@ -925,6 +927,29 @@ class Vault {
     return inbox;
   }
 
+  // ------------------------------------------------------------------ release versioning (#53)
+
+  /** Turns release versioning of an own note on or off (online only; releases are kept when turned off) */
+  async setVersioning(id: string, enabled: boolean): Promise<void> {
+    const server = await api<SyncedNote>(`/notes/${id}/versioning`, { method: 'PUT', json: { enabled } });
+    const local = this.notes.get(id);
+    if (local) await this.put(withReleaseState(local, server));
+    this.emit();
+  }
+
+  /**
+   * Releases the note's current text as the next version. Local edits are pushed first: the server releases
+   * exactly the version this device has, and refuses when someone changed the note in the meantime.
+   */
+  async release(id: string, bump: ReleaseBump, note: string): Promise<NoteReleaseInfo> {
+    await this.sync();
+    const local = this.notes.get(id);
+    if (!local || local.dirty || local.version === 0) throw new Error(t('release.notSynced'));
+    const res = await api<{ release: NoteReleaseInfo }>(`/notes/${id}/releases`, { method: 'POST', json: { bump, note, baseVersion: local.version } });
+    await this.sync();
+    return res.release;
+  }
+
   // ------------------------------------------------------------------ sync
 
   /** Pushes soon after the last edit (typing produces many) */
@@ -1059,7 +1084,11 @@ class Vault {
     for (const server of res.notes) {
       const local = this.notes.get(server.id);
       if (local?.dirty && local.version < server.version) await this.resolveConflict(local, server);
-      else if (local?.dirty) continue;
+      else if (local?.dirty) {
+        // Same version, only the release state changed (#53): keep the local edits, take the new state
+        if (local.version === server.version) await this.put(withReleaseState(local, server));
+        continue;
+      }
       else await this.accept(server);
     }
     for (const id of res.revoked) {
@@ -1151,4 +1180,15 @@ if (import.meta.hot) {
     vault.close();
     location.reload();
   });
+}
+
+/** `local` with the release state (#53) of `server`: versioning, releases, release fingerprint */
+function withReleaseState(local: LocalNote, server: SyncedNote): LocalNote {
+  const { versioning: _v, releases: _r, releaseHash: _h, showsRelease: _s, ...rest } = local;
+  return {
+    ...rest,
+    ...(server.versioning ? { versioning: true, releases: server.releases ?? [] } : {}),
+    ...(server.releaseHash ? { releaseHash: server.releaseHash } : {}),
+    ...(server.showsRelease ? { showsRelease: server.showsRelease } : {}),
+  };
 }
