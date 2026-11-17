@@ -411,6 +411,24 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 19,
+    description: 'Groups: a group is an account-like owner of notes and attachments, members have a role (#58)',
+    up: (db) => {
+      db.exec(`
+        ALTER TABLE users ADD COLUMN is_group INTEGER NOT NULL DEFAULT 0;
+        CREATE TABLE group_members (
+          group_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          role TEXT NOT NULL CHECK (role IN ('owner', 'editor', 'reader')),
+          seq INTEGER NOT NULL,
+          created_at INTEGER NOT NULL,
+          PRIMARY KEY (group_id, user_id)
+        );
+        CREATE INDEX group_members_user ON group_members(user_id);
+      `);
+    },
+  },
 ];
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number[] {

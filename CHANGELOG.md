@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Groups (#58). Under "Groups" you can create a group, add people by username and give each one a role: owner (manages members and roles, renames and deletes the group), editor (creates, edits, moves and deletes notes) or reader. Notes created in a group belong to the group, not to a person, and every member sees them according to their role; deleted group notes go to the trash of the group's owners and editors. A group always keeps an owner: the last owner can neither leave, be removed nor give up the role until another member is owner. Deleting a group needs its name as confirmation and removes all its notes (with history, releases and trash) and its attachments for every member. Own notes and whole folders move into a group with "Move to group" (note menu, folder header): earlier single shares, folder shares and public links of those notes end, links between the moved notes keep working, links to notes outside only for people who can see them. Groups are optional; without one nothing changes. Moving notes from a group back into a personal space is not supported yet. Not available in desktop mode and the browser demo.
+
 ## [2.8.0] – 2026-11-16
 
 - New: Text alignment per note (left, center, right, justify) in the note's menu, stored as the frontmatter property `align`; code blocks stay left-aligned and the code view ignores it.

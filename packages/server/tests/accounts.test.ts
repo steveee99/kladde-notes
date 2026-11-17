@@ -91,6 +91,8 @@ describe('migration 2', () => {
     insert.run('u2', 'zweite', 'zweite', 2);
     insert.run('u1', 'erste', 'erste', 1);
     expect(migrate(db, MIGRATIONS.slice(0, 2))).toEqual([2]);
+    // The store works on the current schema
+    migrate(db);
     const users = new UserStore(db);
     expect(users.getUser('u1')).toMatchObject({ isAdmin: true, hasPassword: false });
     expect(users.getUser('u2')!.isAdmin).toBe(false);

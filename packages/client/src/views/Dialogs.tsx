@@ -35,22 +35,24 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
   );
 }
 
-function NewNoteDialog({ folder, type, shared }: { folder?: string; type?: NewNoteKind; shared?: SharedFolder }) {
+function NewNoteDialog({ folder, type, shared, group }: { folder?: string; type?: NewNoteKind; shared?: SharedFolder; group?: string }) {
   const lang = useLang();
   const templates: Template[] = vault.templates();
   const features = vault.features();
-  // PDFs are uploaded into the own space, so a shared folder offers notes and drawings only
-  const [kind, setKind] = useState<NewNoteKind>(shared && type === 'pdf' ? 'note' : (type ?? 'note'));
+  // A group (#58): the note belongs to the group and lands in one of its folders
+  const inGroup = group ? vault.group(group) : undefined;
+  // PDFs are uploaded into the own space, so a shared folder or a group offers notes and drawings only
+  const [kind, setKind] = useState<NewNoteKind>((shared || group) && type === 'pdf' ? 'note' : (type ?? 'note'));
   const [template, setTemplate] = useState<Template | null>(null);
   const [title, setTitle] = useState('');
-  const [target, setTarget] = useState(shared?.folder ?? folder ?? INBOX_FOLDER);
+  const [target, setTarget] = useState(shared?.folder ?? folder ?? (group ? '' : INBOX_FOLDER));
   const [busy, setBusy] = useState(false);
   const pdfInput = useRef<HTMLInputElement>(null);
-  const folders = vault.folders();
+  const folders = group ? vault.groupFolders(group) : vault.folders();
   const choose = (t: Template | null) => {
     setTemplate(t);
     // A template brings its home folder, unless the user started from a specific folder
-    if (!folder && !shared && t) setTarget(t.folder);
+    if (!folder && !shared && !group && t) setTarget(t.folder);
   };
   const create = async () => {
     if (busy) return;
@@ -61,10 +63,10 @@ function NewNoteDialog({ folder, type, shared }: { folder?: string; type?: NewNo
     setBusy(true);
     try {
       if (kind === 'drawing') {
-        if (await createDrawingNote(target, title, shared)) closeDialog();
+        if (await createDrawingNote(target, title, shared, group)) closeDialog();
         return;
       }
-      const note = await vault.createFromTemplate(template, title.trim() || (template?.label ?? tl(lang, 'common.newNote')), target, shared);
+      const note = await vault.createFromTemplate(template, title.trim() || (template?.label ?? tl(lang, 'common.newNote')), target, shared, group);
       closeDialog();
       navigate(`/n/${note.id}${title.trim() ? '' : '?new=1'}`);
     } catch (err) {
@@ -77,7 +79,7 @@ function NewNoteDialog({ folder, type, shared }: { folder?: string; type?: NewNo
     { value: 'note', label: tl(lang, 'nav.newNoteShort'), Icon: FileText },
     { value: 'drawing', label: tl(lang, 'nav.drawingNote'), Icon: Draw, hint: tl(lang, 'nav.drawingNoteTitle') },
   ];
-  if (!shared) {
+  if (!shared && !group) {
     kinds.push({ value: 'pdf', label: tl(lang, 'nav.pdfNote'), Icon: FileType2, hint: tl(lang, 'nav.pdfNoteTitle') });
     if (features.zettel.enabled) kinds.push({ value: 'zettel', label: 'Zettel', Icon: Lightbulb, hint: tl(lang, 'nav.zettelTitle') });
     kinds.push({ value: 'clip', label: tl(lang, 'clip.kind'), Icon: Globe, hint: tl(lang, 'clip.title') });
@@ -144,7 +146,7 @@ function NewNoteDialog({ folder, type, shared }: { folder?: string; type?: NewNo
             className="flex-1"
             options={[...new Set([target, ...folders, ''])].map((f) => ({
               value: f,
-              label: folderDisplayName(f, lang),
+              label: inGroup ? `${inGroup.name}${f ? ` / ${f}` : ''}` : folderDisplayName(f, lang),
             }))}
           />
         )}
@@ -316,7 +318,15 @@ function RecipeDialog({ initialUrl = '' }: { initialUrl?: string }) {
 export function Dialogs() {
   const dialog = useDialog();
   if (dialog?.kind === 'note')
-    return <NewNoteDialog key={`${dialog.type ?? ''}:${dialog.shared?.folder ?? dialog.folder ?? ''}`} folder={dialog.folder} type={dialog.type} shared={dialog.shared} />;
+    return (
+      <NewNoteDialog
+        key={`${dialog.type ?? ''}:${dialog.group ?? ''}:${dialog.shared?.folder ?? dialog.folder ?? ''}`}
+        folder={dialog.folder}
+        type={dialog.type}
+        shared={dialog.shared}
+        group={dialog.group}
+      />
+    );
   if (dialog?.kind === 'zettel') return <ZettelDialog />;
   if (dialog?.kind === 'recipe') return <RecipeDialog initialUrl={dialog.url} />;
   if (dialog?.kind === 'clip') return <WebClipDialog key={dialog.url ?? ''} initialUrl={dialog.url} title={dialog.title} selection={dialog.selection} />;

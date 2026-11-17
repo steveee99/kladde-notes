@@ -1,5 +1,5 @@
 import { useState, useSyncExternalStore } from 'react';
-import { Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, LayoutGrid, List, Plus, Table2, Trash2 } from '../lib/icons';
+import { Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, LayoutGrid, List, Plus, Table2, Trash2, Users } from '../lib/icons';
 import { INBOX_FOLDER, archiveTarget, excerpt, extractMeta, projectTitleOf, restoreTarget, splitPath } from '@kladde/shared';
 import type { SharedFolder } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
@@ -10,6 +10,8 @@ import { FolderNameInput, newNote } from './Shell';
 import { dragSource, useDropTarget } from '../lib/dnd';
 import { describePermissions } from './ShareDialog';
 import { Avatar } from './Avatar';
+import { MoveToGroupSheet } from './Groups';
+import { DEMO } from '../demo/demoApi';
 import { folderDisplayName, folderLeafDisplayName, locale, t, useLang, type I18nKey, type Lang } from '../lib/i18n';
 
 export type NoteViewMode = 'cards' | 'list' | 'table';
@@ -308,9 +310,11 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
   const lang = useLang();
   const [sort, setSort] = useState<'updated' | 'title'>('updated');
   const [creating, setCreating] = useState(false);
+  const [movingToGroup, setMovingToGroup] = useState(false);
   const rc = vault.roleConfig();
   let notes = vault.list();
-  if (mode === 'shared') notes = notes.filter((n) => n.access !== 'owner');
+  // Group notes (#58) live in their group, not among the notes shared with me
+  if (mode === 'shared') notes = notes.filter((n) => n.access !== 'owner' && !n.group);
   else notes = notes.filter((n) => n.access === 'owner');
   if (mode === 'folder' && folder !== undefined) notes = notes.filter((n) => splitPath(n.path).folder === folder);
   notes.sort((a, b) =>
@@ -376,6 +380,11 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
               )
             )
           )}
+          {mode === 'folder' && folder && !protectedFolders.has(folder) && folder !== features.daily.folder && !vault.standalone && !DEMO && vault.notesInFolder(folder) > 0 && (
+            <button className="edit-only btn-ghost shrink-0 max-sm:!px-2.5" title={t('groups.moveTitle')} onClick={() => setMovingToGroup(true)} data-move-folder-to-group>
+              <Users size={16} /> <span className="hidden sm:inline">{t('groups.moveFolderBtn')}</span>
+            </button>
+          )}
           {mode === 'folder' && folder && !protectedFolders.has(folder) && folder !== features.daily.folder && (
             <button
               className="edit-only btn-ghost shrink-0 hover:text-error max-sm:!px-2.5"
@@ -422,6 +431,9 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
             </li>
           )}
         </ul>
+      )}
+      {movingToGroup && folder && (
+        <MoveToGroupSheet noteIds={vault.notesOfFolder(folder).map((n) => n.id)} folder={folder} label={folderDisplayName(folder, lang)} onClose={() => setMovingToGroup(false)} />
       )}
       {mode === 'shared' ? (
         <SharedList notes={notes} />

@@ -6,6 +6,7 @@ import { APP_VERSION, type AdminStatus, type Me } from '@kladde/shared';
 import { DataCipher } from './crypto.js';
 import { AvatarStore } from './AvatarStore.js';
 import { UserRecord, UserStore } from './UserStore.js';
+import { GroupStore } from './GroupStore.js';
 import { NoteStore } from './NoteStore.js';
 import { FileStore } from './FileStore.js';
 import { ExportMirror } from './ExportMirror.js';
@@ -249,7 +250,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   if (!opts.standalone) {
     app.use('/api/admin', adminRouter({ users, audit, status }));
   }
-  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch }));
+  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db) }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
   if (opts.seaAssets && opts.seaAssets.size > 0) {

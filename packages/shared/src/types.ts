@@ -18,6 +18,8 @@ export interface SyncedNote {
   ownerAvatar?: string | null;
   /** A shared note the user may delete (folder share with delete permission) */
   canDelete?: boolean;
+  /** Id of the group that owns the note (#58); `owner` is then the group's name */
+  group?: string;
   /** Release versioning (#53) is on for this note */
   versioning?: boolean;
   /** Releases of the note, newest first (metadata only; only while versioning is on) */
@@ -66,6 +68,49 @@ export interface PullResponse {
   cursor: number;
   /** All folders other users currently share with the user (always complete, not only changes) */
   sharedFolders?: SharedFolder[];
+  /** All groups the user is a member of (always complete, not only changes) */
+  groups?: GroupInfo[];
+}
+
+/** A member's role in a group (#58): owners manage the group, editors write, readers only read */
+export type GroupRole = 'owner' | 'editor' | 'reader';
+
+/** A group the signed-in user belongs to; its notes belong to the group and every member sees them */
+export interface GroupInfo {
+  id: string;
+  name: string;
+  /** The signed-in user's role */
+  role: GroupRole;
+}
+
+export interface GroupMember {
+  username: string;
+  avatarUrl?: string | null;
+  role: GroupRole;
+}
+
+/** `GET /api/groups/:id`: a group with its members and what deleting it would remove */
+export interface GroupDetails extends GroupInfo {
+  createdAt: number;
+  members: GroupMember[];
+  /** Live notes of the group */
+  notes: number;
+  /** Attachments that belong to the group */
+  attachments: number;
+}
+
+/** `POST /api/groups/:id/move`: own notes (or a whole folder) move into the group */
+export interface GroupMoveRequest {
+  /** Ids of own notes to move (a single note, or every note of a folder) */
+  noteIds: string[];
+  /** The folder being moved: its name is kept below `target`; without it the notes land directly in `target` */
+  folder?: string;
+  /** Folder inside the group ('' = top level) */
+  target: string;
+}
+
+export interface GroupMoveResult {
+  moved: { id: string; path: string }[];
 }
 
 export interface PushChange {
@@ -79,6 +124,8 @@ export interface PushChange {
   updatedAt: number;
   /** New note in a folder another user shares with the caller: that user's name; the note belongs to them */
   owner?: string;
+  /** New note in a group (#58): the group's id; the note belongs to the group */
+  group?: string;
   /** Deleted together with a folder: a random id shared by all notes of that deletion (restored as one unit) */
   trashBatch?: string;
   /** The folder that was deleted with this note (shown in the trash) */
@@ -98,6 +145,8 @@ export interface TrashEntry {
   folder: string | null;
   /** Size of the content in bytes */
   size: number;
+  /** Name of the group the note belongs to (#58), when it is not the user's own */
+  group?: string;
 }
 
 export interface TrashList {

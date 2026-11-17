@@ -137,27 +137,27 @@ export class UserStore {
   // ------------------------------------------------------------------ users
 
   getUser(id: string): UserRecord | null {
-    const row = this.db.prepare('SELECT * FROM users WHERE id = ?').get(id) as Row | undefined;
+    const row = this.db.prepare('SELECT * FROM users WHERE id = ? AND is_group = 0').get(id) as Row | undefined;
     return row ? toUser(row) : null;
   }
 
   findByUsername(username: string): UserRecord | null {
-    const row = this.db.prepare('SELECT * FROM users WHERE username_lower = ?').get(username.trim().toLowerCase()) as Row | undefined;
+    const row = this.db.prepare('SELECT * FROM users WHERE username_lower = ? AND is_group = 0').get(username.trim().toLowerCase()) as Row | undefined;
     return row ? toUser(row) : null;
   }
 
   listUsers(): UserRecord[] {
-    return (this.db.prepare('SELECT * FROM users ORDER BY username_lower').all() as Row[]).map(toUser);
+    return (this.db.prepare('SELECT * FROM users WHERE is_group = 0 ORDER BY username_lower').all() as Row[]).map(toUser);
   }
 
   /** Oldest account in the database (used by standalone single-user mode) */
   firstUser(): UserRecord | null {
-    const row = this.db.prepare('SELECT * FROM users ORDER BY created_at ASC, rowid ASC LIMIT 1').get() as Row | undefined;
+    const row = this.db.prepare('SELECT * FROM users WHERE is_group = 0 ORDER BY created_at ASC, rowid ASC LIMIT 1').get() as Row | undefined;
     return row ? toUser(row) : null;
   }
 
   countUsers(): number {
-    return Number((this.db.prepare('SELECT COUNT(*) AS n FROM users').get() as { n: number }).n);
+    return Number((this.db.prepare('SELECT COUNT(*) AS n FROM users WHERE is_group = 0').get() as { n: number }).n);
   }
 
   checkNewUsername(username: unknown): string {
@@ -198,7 +198,7 @@ export class UserStore {
            (SELECT COUNT(*) FROM credentials WHERE user_id = users.id) AS passkeys,
            (SELECT COUNT(*) FROM notes WHERE owner_id = users.id AND deleted = 0) AS note_count,
            (SELECT MAX(last_used_at) FROM sessions WHERE user_id = users.id) AS last_seen
-         FROM users ORDER BY username_lower`
+         FROM users WHERE is_group = 0 ORDER BY username_lower`
       )
       .all() as Row[];
     return rows.map((r) => ({ ...toUser(r), passkeys: Number(r.passkeys), notes: Number(r.note_count), lastSeenAt: (r.last_seen as number | null) ?? null }));
@@ -276,7 +276,7 @@ export class UserStore {
   async checkLogin(username: unknown, password: unknown): Promise<UserRecord | null> {
     const name = typeof username === 'string' ? username.trim().toLowerCase() : '';
     const pw = typeof password === 'string' && password.length <= 200 ? password : '';
-    const row = name ? (this.db.prepare('SELECT id, password_hash FROM users WHERE username_lower = ?').get(name) as Row | undefined) : undefined;
+    const row = name ? (this.db.prepare('SELECT id, password_hash FROM users WHERE username_lower = ? AND is_group = 0').get(name) as Row | undefined) : undefined;
     const stored = (row?.password_hash as string | null) ?? null;
     const ok = await verifyPassword(pw, stored ?? DUMMY_HASH);
     return ok && stored && row ? this.getUser(row.id as string) : null;

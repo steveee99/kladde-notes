@@ -50,6 +50,7 @@ import {
   FormatAlignJustify,
   FormatAlignLeft,
   FormatAlignRight,
+  Users,
 } from '../lib/icons';
 import { undo } from '@codemirror/commands';
 import {
@@ -89,6 +90,7 @@ import { ParaBar } from './ParaBar';
 import { Graph, GraphLegend } from './Graph';
 import { Sheet } from './Dialogs';
 import { Avatar } from './Avatar';
+import { MoveToGroupSheet, groupPath, groupRoleLabel } from './Groups';
 import { PresenceBar, useAnnouncePresence } from './PresenceBar';
 import { folderDisplayName, t, useLang, type I18nKey, type Lang } from '../lib/i18n';
 import { setLocalGraphDepth, setNoteSplitOpen, setNoteSplitTab, setSourceMode, useLocalGraphDepth, useNoteSplitOpen, useNoteSplitTab, useSourceMode, type NoteSplitTab } from '../lib/prefs';
@@ -157,18 +159,19 @@ function Toolbar({ view, lang }: { view: EditorView | null; lang: Lang }) {
 }
 
 /** Mobile compact breadcrumb pill showing only the last folder breadcrumb; clicking reveals every clickable path level */
-function MobileBreadcrumbMenu({ folderSegments, lang }: { folderSegments: string[]; lang: Lang }) {
+function MobileBreadcrumbMenu({ folderSegments, lang, group }: { folderSegments: string[]; lang: Lang; group?: { id: string; name: string } }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // A group note's path starts at its group (#58)
   const items: { key: string; label: string; to: string; depth: number }[] = [
-    { key: '__root__', label: t('note.breadcrumbRoot'), to: '/notes', depth: 0 },
+    { key: '__root__', label: group ? group.name : t('note.breadcrumbRoot'), to: group ? groupPath(group.id) : '/notes', depth: 0 },
     ...folderSegments.map((seg, i) => ({
       key: folderSegments.slice(0, i + 1).join('/'),
-      label: i === 0 ? folderDisplayName(seg, lang) : seg,
-      to: `/f/${encodeURIComponent(folderSegments.slice(0, i + 1).join('/'))}`,
+      label: i === 0 && !group ? folderDisplayName(seg, lang) : seg,
+      to: group ? groupPath(group.id, folderSegments.slice(0, i + 1).join('/')) : `/f/${encodeURIComponent(folderSegments.slice(0, i + 1).join('/'))}`,
       depth: i + 1,
     })),
   ];
@@ -331,6 +334,7 @@ function NoteOverflowMenu({
   onShare,
   onHistory,
   onMove,
+  onMoveToGroup,
   onDelete,
   onCopy,
   favorite,
@@ -356,6 +360,8 @@ function NoteOverflowMenu({
   onShare: () => void;
   onHistory: () => void;
   onMove: () => void;
+  /** Own notes, when groups are available (#58) */
+  onMoveToGroup?: () => void;
   onDelete: () => void;
   onCopy: () => void;
   /** null: favorites are turned off */
@@ -731,6 +737,21 @@ function NoteOverflowMenu({
                 <span>{t('common.move')}</span>
               </button>
             )}
+            {onMoveToGroup && (
+              <button
+                type="button"
+                role="menuitem"
+                data-move-to-group
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-low"
+                onClick={() => {
+                  setOpen(false);
+                  onMoveToGroup();
+                }}
+              >
+                <Users size={16} className="shrink-0 text-on-surface-variant" />
+                <span>{t('groups.moveTitle')}</span>
+              </button>
+            )}
 
             {mayDelete && (
               <>
@@ -757,10 +778,23 @@ function NoteOverflowMenu({
 }
 
 /** Material 3 modal sheet for picking a destination folder when moving a note */
-function MoveNoteSheet({ noteTitle, currentFolder, onMove, onClose }: { noteTitle: string; currentFolder: string; onMove: (folder: string) => void; onClose: () => void }) {
+function MoveNoteSheet({
+  noteTitle,
+  currentFolder,
+  folders = vault.folders(),
+  onMove,
+  onClose,
+}: {
+  noteTitle: string;
+  currentFolder: string;
+  /** Folders to choose from: the own ones, or those of the note's group (#58) */
+  folders?: string[];
+  onMove: (folder: string) => void;
+  onClose: () => void;
+}) {
   const lang = useLang();
   const [filter, setFilter] = useState('');
-  const allFolders = ['', ...vault.folders()];
+  const allFolders = ['', ...folders];
   const q = filter.trim().toLowerCase();
   const visible = q
     ? allFolders.filter((f) => (f ? folderDisplayName(f, lang) : t('common.topLevelPlain')).toLowerCase().includes(q) || f.toLowerCase().includes(q))
@@ -1012,6 +1046,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const [showHistory, setShowHistory] = useState(false);
   const [releaseOpen, setReleaseOpen] = useState(false);
   const [moving, setMoving] = useState(false);
+  const [movingToGroup, setMovingToGroup] = useState(false);
   const [showGraph, setShowGraph] = useState(true);
   const splitOpen = useNoteSplitOpen();
   const sourceMode = useSourceMode();
@@ -1115,6 +1150,17 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   // The read-only switch locks the note like a share with read access
   const readOnly = sharedReadOnly || locked;
   const isOwner = note.access === 'owner' && !locked;
+  // A group note (#58): owners and editors of the group rename, move and delete it
+  const noteGroup = vault.group(note.group);
+  const groupManager = !locked && vault.managesGroupNote(note);
+  const canRename = isOwner || groupManager;
+  const accessLabel = noteGroup
+    ? groupRoleLabel(noteGroup.role)
+    : sharedReadOnly
+      ? t('note.sharedReadOnly')
+      : note.canDelete
+        ? t('note.sharedEditDelete')
+        : t('note.sharedEditOnly');
   // Own notes, or shared ones whose folder share allows deleting
   const mayDelete = !locked && vault.canDelete(note);
   const { folder } = splitPath(note.path);
@@ -1174,7 +1220,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const handleDelete = () => {
     if (confirm(t('note.deleteConfirm', { name: displayName }))) {
       void vault.remove(id);
-      navigate(!isOwner ? '/shared' : folder ? `/f/${encodeURIComponent(folder)}` : '/notes', true);
+      navigate(noteGroup ? groupPath(noteGroup.id, folder) : !isOwner ? '/shared' : folder ? `/f/${encodeURIComponent(folder)}` : '/notes', true);
     }
   };
 
@@ -1199,26 +1245,26 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             </button>
 
             {/* Mobile: single last folder breadcrumb + dropdown to tap any ancestor */}
-            <MobileBreadcrumbMenu folderSegments={folderSegments} lang={lang} />
+            <MobileBreadcrumbMenu folderSegments={folderSegments} lang={lang} group={noteGroup} />
 
             {/* Desktop: full folder path breadcrumbs */}
             <nav aria-label={t('note.breadcrumbAria')} className="hidden min-w-0 flex-1 flex-wrap items-center gap-1 md:flex">
               <button
                 type="button"
-                onClick={() => navigate('/notes')}
+                onClick={() => navigate(noteGroup ? groupPath(noteGroup.id) : '/notes')}
                 className="truncate rounded-lg px-1.5 py-0.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
               >
-                {t('note.breadcrumbRoot')}
+                {noteGroup ? noteGroup.name : t('note.breadcrumbRoot')}
               </button>
               {folderSegments.map((seg, i) => {
                 const segPath = folderSegments.slice(0, i + 1).join('/');
-                const label = i === 0 ? folderDisplayName(seg, lang) : seg;
+                const label = i === 0 && !noteGroup ? folderDisplayName(seg, lang) : seg;
                 return (
                   <Fragment key={segPath}>
                     <ChevronRight size={14} className="shrink-0 opacity-60" />
                     <button
                       type="button"
-                      onClick={() => navigate(`/f/${encodeURIComponent(segPath)}`)}
+                      onClick={() => navigate(noteGroup ? groupPath(noteGroup.id, segPath) : `/f/${encodeURIComponent(segPath)}`)}
                       className="truncate rounded-lg px-1.5 py-0.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
                     >
                       {label}
@@ -1229,9 +1275,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               <ChevronRight size={14} className="shrink-0 opacity-60" />
               <span className="truncate px-1 font-medium text-on-surface/85">{isProjectHome ? name : title || displayName}</span>
               {note.access !== 'owner' && (
-                <span className="chip ml-1 shrink-0">
-                  <Avatar name={note.owner ?? ''} avatarUrl={note.ownerAvatar} size="xs" /> {note.owner} ·{' '}
-                  {sharedReadOnly ? t('note.sharedReadOnly') : note.canDelete ? t('note.sharedEditDelete') : t('note.sharedEditOnly')}
+                <span className="chip ml-1 shrink-0" data-note-owner-chip>
+                  {noteGroup ? <Users size={14} /> : <Avatar name={note.owner ?? ''} avatarUrl={note.ownerAvatar} size="xs" />} {note.owner} · {accessLabel}
                 </span>
               )}
             </nav>
@@ -1280,15 +1325,16 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               <NoteOverflowMenu
                 title={title || displayName}
                 content={note.content}
-                isOwner={isOwner}
+                isOwner={canRename}
                 canShare={isOwner && !vault.standalone}
                 mayDelete={mayDelete}
                 onShare={() => setSharing(true)}
                 onConfluence={isOwner && confluenceAvailable() ? () => setConfluenceOpen(true) : undefined}
                 onHistory={() => setShowHistory(true)}
-                onVersioning={!DEMO && (note.access === 'owner' || note.versioning) ? () => setReleaseOpen(true) : undefined}
+                onVersioning={!DEMO && (note.access === 'owner' || groupManager || note.versioning) ? () => setReleaseOpen(true) : undefined}
                 exportContent={note.versioning ? exportContent : undefined}
                 onMove={() => setMoving(true)}
+                onMoveToGroup={isOwner && !vault.standalone && !DEMO ? () => setMovingToGroup(true) : undefined}
                 onDelete={handleDelete}
                 onCopy={() => void copyMarkdown()}
                 favorite={features.favorites.enabled ? vault.isFavorite(id) : null}
@@ -1315,9 +1361,9 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
 
           {note.access !== 'owner' && (
             <div className="no-print mb-2 inline-flex max-w-full items-center gap-1.5 chip md:hidden anim-fade-in">
-              <Avatar name={note.owner ?? ''} avatarUrl={note.ownerAvatar} size="xs" />{' '}
+              {noteGroup ? <Users size={14} /> : <Avatar name={note.owner ?? ''} avatarUrl={note.ownerAvatar} size="xs" />}{' '}
               <span className="truncate">
-                {note.owner} · {sharedReadOnly ? t('note.sharedReadOnly') : note.canDelete ? t('note.sharedEditDelete') : t('note.sharedEditOnly')}
+                {note.owner} · {accessLabel}
               </span>
             </div>
           )}
@@ -1334,7 +1380,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             rows={1}
             className="note-title mb-2 block w-full resize-none overflow-hidden break-words bg-transparent text-headline-l outline-none placeholder:text-on-surface-variant print:hidden"
             value={title}
-            readOnly={!isOwner}
+            readOnly={!canRename}
             placeholder={t('note.titlePlaceholder')}
             onChange={(e) => setTitle(e.target.value.replace(/[\r\n]+/g, ' '))}
             onBlur={commitTitle}
@@ -1519,6 +1565,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
         <MoveNoteSheet
           noteTitle={title || displayName}
           currentFolder={folder}
+          folders={noteGroup ? vault.groupFolders(noteGroup.id) : undefined}
           onMove={(targetFolder) => {
             setMoving(false);
             void vault.update(id, { folder: targetFolder });
@@ -1526,6 +1573,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           onClose={() => setMoving(false)}
         />
       )}
+      {movingToGroup && <MoveToGroupSheet noteIds={[id]} label={title || displayName} onClose={() => setMovingToGroup(false)} />}
       {releaseOpen && <ReleaseDialog note={note} locked={locked} onClose={() => setReleaseOpen(false)} />}
       {showHistory && <HistoryDialog noteId={id} current={note.content} canRestore={!readOnly} onClose={() => setShowHistory(false)} />}
       {sharing && <ShareDialog target={{ note: id }} onClose={() => setSharing(false)} />}

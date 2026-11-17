@@ -1,11 +1,12 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { CalendarCheck, CalendarDays, FileText, Home, Inbox as InboxIcon, ListChecks, Menu, Network, Pencil, Share2, Tags, X } from '../lib/icons';
+import { CalendarCheck, CalendarDays, FileText, Home, Inbox as InboxIcon, ListChecks, Menu, Network, Pencil, Share2, Tags, Users, X } from '../lib/icons';
 import { INBOX_FOLDER, Me, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { navigate, usePath } from '../lib/router';
 import { toggleMaterialSidebarMode, useMaterialSidebarMode } from '../lib/sidebarMode';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
 import { useSidebarWidth } from '../lib/sidebarWidth';
+import { DEMO } from '../demo/demoApi';
 import { NavBadge } from './NavBadge';
 import { reviewDue } from './Review';
 import { Dialogs } from './Dialogs';
@@ -109,7 +110,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
   // Overdue and today's open tasks (#45)
   const urgentTasks = urgentTaskCount(version);
   const taskBadge = urgentTasks ? <NavBadge tone="warn" count={urgentTasks} /> : undefined;
-  const sharedCount = vault.list().filter((n) => n.access !== 'owner').length;
+  const sharedCount = vault.list().filter((n) => n.access !== 'owner' && !n.group).length;
   const showShared = (sharedCount > 0 || vault.sharedFolders.length > 0) && !vault.standalone;
   const sidebarWidth = useSidebarWidth();
   const features = vault.features();
@@ -196,6 +197,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
               <NavItem to="/review" Icon={CalendarCheck} label={t('nav.review')} badge={reviewDue() ? <NavBadge dot className="m-1" /> : undefined} />
             )}
             {showShared && <NavItem to="/shared" Icon={Share2} label={t('nav.shared')} badge={sharedCount ? <NavBadge count={sharedCount} /> : undefined} />}
+            {!vault.standalone && !DEMO && <Destination active={path === '/groups' || path.startsWith('/g/')} onClick={() => navigate('/groups')} Icon={Users} label={t('nav.groups')} />}
             <div className="m3-status mt-auto flex flex-col items-center gap-2 pt-2">
               <RailDivider />
               <ReadOnlyToggle compact />

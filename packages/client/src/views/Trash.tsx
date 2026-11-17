@@ -1,5 +1,5 @@
 /**
- * Trash (#25): the deleted notes of the own space. Restore puts a note back at its old path (or asks for
+ * Trash (#25): the deleted notes of the own space (and of the groups the user writes in, #58). Restore puts a note back at its old path (or asks for
  * a new one when that path is taken), a folder deletion restores as one unit, and "Delete for good" /
  * "Empty trash" purge notes with their history. The server purges old entries on its own.
  */
@@ -191,7 +191,8 @@ export function TrashView() {
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium">{name}</div>
                     <div className="truncate text-xs text-on-surface-variant">
-                      {folder ? `${folderDisplayName(folder, lang)} · ` : ''}
+                      {g.entry.group ? `${t('groups.trashLabel', { name: g.entry.group })} · ` : ''}
+                      {folder ? `${g.entry.group ? folder : folderDisplayName(folder, lang)} · ` : ''}
                       {meta(g.entry.deletedAt, g.entry.deletedBy)}
                     </div>
                   </div>

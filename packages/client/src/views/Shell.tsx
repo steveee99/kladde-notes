@@ -32,6 +32,7 @@ import {
   Star,
   Tags,
   Trash2,
+  Users,
   X,
 } from '../lib/icons';
 import {
@@ -740,7 +741,8 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
   }, [version, loc]);
   const rootNotes = notesByFolder.get('') ?? [];
 
-  const shared = notes.filter((n) => n.access !== 'owner').length;
+  // Group notes (#58) have their own place: the groups
+  const shared = notes.filter((n) => n.access !== 'owner' && !n.group).length;
   const inboxCount = (notesByFolder.get(INBOX_FOLDER) ?? []).length;
 
   const terms = useMemo(() => query.trim().toLowerCase().split(/\s+/).filter(Boolean), [query]);
@@ -963,6 +965,14 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
               {(shared > 0 || vault.sharedFolders.length > 0) &&
                 !vault.standalone &&
                 navRow('shared', Share2, t('nav.sharedWithMe'), { to: '/shared', badge: <NavBadge count={shared} />, dataAttrs: { 'data-tree-shared': 'true' } })}
+              {!vault.standalone &&
+                !DEMO &&
+                navRow('groups', Users, t('nav.groups'), {
+                  to: '/groups',
+                  active: path === '/groups' || path.startsWith('/g/'),
+                  trailing: vault.groups.length || undefined,
+                  dataAttrs: { 'data-nav-groups': 'true' },
+                })}
             </nav>
           )}
           {favoriteNotes.length > 0 && (
