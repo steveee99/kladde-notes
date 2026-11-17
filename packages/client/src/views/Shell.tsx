@@ -70,6 +70,7 @@ import { useInboxZero } from '../lib/prefs';
 import { setMaterialSidebarMode } from '../lib/sidebarMode';
 import { createDrawingNote, createPdfNote } from '../lib/newNote';
 import { DEMO } from '../demo/demoApi';
+import { groupPath } from './Groups';
 
 export function newNote(folder?: string) {
   openDialog({ kind: 'note', folder });
@@ -578,6 +579,178 @@ function FolderItem({
   );
 }
 
+/** Star button of a group folder (#58): adds it to the favorites or removes it */
+function GroupFolderStar({ groupId, folder }: { groupId: string; folder: string }) {
+  const fav = vault.isFavoriteGroupFolder(groupId, folder);
+  return (
+    <button
+      type="button"
+      className={`rounded-full p-1 hover:bg-surface-container-low hover:text-on-surface ${fav ? 'text-primary' : ''}`}
+      title={fav ? t('groups.unfavorite') : t('groups.favorite')}
+      aria-label={fav ? t('groups.unfavorite') : t('groups.favorite')}
+      aria-pressed={fav}
+      onClick={(e) => {
+        e.stopPropagation();
+        void vault.toggleFavoriteGroupFolder(groupId, folder).catch(() => undefined);
+      }}
+    >
+      <Star size={13} filled={fav} />
+    </button>
+  );
+}
+
+/**
+ * A group (#58) in the folder tree: the group is the top folder (with the group symbol), its folders and notes below,
+ * so a group folder reads as "Group/Folder". Folders and the group itself can be favorites.
+ */
+function GroupTreeItem({ groupId, current, activeNoteId, onNavigate }: { groupId: string; current: string; activeNoteId: string | null; onNavigate?: () => void }) {
+  const group = vault.group(groupId)!;
+  const notes = vault.groupNotes(groupId);
+  const activeNote = activeNoteId ? notes.find((n) => n.id === activeNoteId) : undefined;
+  const loc = locale(useLang());
+  const byFolder = new Map<string, LocalNote[]>();
+  for (const n of notes) {
+    const f = splitPath(n.path).folder;
+    byFolder.set(f, [...(byFolder.get(f) ?? []), n]);
+  }
+  for (const list of byFolder.values()) list.sort((a, b) => splitPath(a.path).name.localeCompare(splitPath(b.path).name, loc, { numeric: true }));
+  const rootPath = groupPath(groupId);
+  const inGroup = current === rootPath || current.startsWith(`${rootPath}/`) || !!activeNote;
+  const [open, setOpen] = useState(inGroup);
+  useEffect(() => {
+    if (inGroup) setOpen(true);
+  }, [inGroup]);
+  const favorites = vault.features().favorites.enabled;
+  const active = current === rootPath;
+  const rootNotes = byFolder.get('') ?? [];
+
+  const folderNode = (node: TreeNode, depth: number): React.ReactNode => (
+    <GroupFolderNode key={node.path} groupId={groupId} node={node} depth={depth} byFolder={byFolder} current={current} activeNote={activeNote} activeNoteId={activeNoteId} favorites={favorites} onNavigate={onNavigate} render={folderNode} />
+  );
+  return (
+    <li data-tree-group={groupId}>
+      <div className={`group flex min-w-0 items-center rounded-full pr-1.5 text-sm transition-colors ${active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'}`}>
+        <button
+          type="button"
+          className={`shrink-0 p-1.5 transition-transform duration-200 ${notes.length ? '' : 'invisible'} ${open ? 'rotate-90' : ''}`}
+          onClick={() => setOpen(!open)}
+          aria-label={`${group.name}: ${open ? t('nav.collapseFolder') : t('nav.expandFolder')}`}
+          aria-expanded={notes.length ? open : undefined}
+        >
+          <ChevronRight size={14} />
+        </button>
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left"
+          title={t('groups.treeTitle', { name: group.name })}
+          onClick={() => {
+            setOpen(true);
+            navigate(rootPath);
+            onNavigate?.();
+          }}
+        >
+          <Users size={15} filled={active} className="shrink-0" />
+          <span className="truncate">{group.name}</span>
+        </button>
+        {favorites && (
+          <span className={`shrink-0 ${vault.isFavoriteGroupFolder(groupId, '') ? '' : 'opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100'}`}>
+            <GroupFolderStar groupId={groupId} folder="" />
+          </span>
+        )}
+        <NavBadge tone="plain" count={notes.length} />
+      </div>
+      {open && notes.length > 0 && (
+        <ul className="anim-fade-in">
+          {buildTree(vault.groupFolders(groupId)).map((n) => folderNode(n, 1))}
+          {rootNotes.map((n) => (
+            <SidebarNoteRow key={n.id} note={n} active={activeNoteId === n.id} depth={1} onNavigate={onNavigate} />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+function GroupFolderNode({
+  groupId,
+  node,
+  depth,
+  byFolder,
+  current,
+  activeNote,
+  activeNoteId,
+  favorites,
+  onNavigate,
+  render,
+}: {
+  groupId: string;
+  node: TreeNode;
+  depth: number;
+  byFolder: Map<string, LocalNote[]>;
+  current: string;
+  activeNote?: LocalNote;
+  activeNoteId: string | null;
+  favorites: boolean;
+  onNavigate?: () => void;
+  render: (node: TreeNode, depth: number) => React.ReactNode;
+}) {
+  const to = groupPath(groupId, node.path);
+  const activeFolder = activeNote ? splitPath(activeNote.path).folder : null;
+  const contains = current === to || current.startsWith(`${to}%2F`) || (activeFolder !== null && (activeFolder === node.path || activeFolder.startsWith(`${node.path}/`)));
+  const [open, setOpen] = useState(contains);
+  useEffect(() => {
+    if (contains) setOpen(true);
+  }, [contains]);
+  const notes = byFolder.get(node.path) ?? [];
+  const hasChildren = node.children.length > 0 || notes.length > 0;
+  const active = current === to;
+  const fav = vault.isFavoriteGroupFolder(groupId, node.path);
+  return (
+    <li>
+      <div
+        className={`group flex min-w-0 items-center rounded-full pr-1.5 text-sm transition-colors ${active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'}`}
+        style={{ paddingLeft: depth * 14 }}
+      >
+        <button
+          type="button"
+          className={`shrink-0 p-1.5 transition-transform duration-200 ${hasChildren ? '' : 'invisible'} ${open ? 'rotate-90' : ''}`}
+          onClick={() => setOpen(!open)}
+          aria-label={`${node.name}: ${open ? t('nav.collapseFolder') : t('nav.expandFolder')}`}
+          aria-expanded={hasChildren ? open : undefined}
+        >
+          <ChevronRight size={14} />
+        </button>
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left"
+          onClick={() => {
+            setOpen(true);
+            navigate(to);
+            onNavigate?.();
+          }}
+        >
+          {open && hasChildren ? <FolderOpen size={15} className="shrink-0" /> : <Folder size={15} className="shrink-0" />}
+          <span className="truncate">{node.name}</span>
+        </button>
+        {favorites && (
+          <span className={`shrink-0 ${fav ? '' : 'opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100'}`}>
+            <GroupFolderStar groupId={groupId} folder={node.path} />
+          </span>
+        )}
+        <NavBadge tone="plain" count={notes.length} />
+      </div>
+      {open && hasChildren && (
+        <ul className="anim-fade-in">
+          {node.children.map((c) => render(c, depth + 1))}
+          {notes.map((n) => (
+            <SidebarNoteRow key={n.id} note={n} active={activeNoteId === n.id} depth={depth + 1} onNavigate={onNavigate} />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
 const SECTION_KEY = 'kladde_sidebar_sections';
 
 function readSections(): Record<string, boolean> {
@@ -711,7 +884,11 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
     if (activeNote.access !== 'owner') {
       requestAnimationFrame(() =>
         requestAnimationFrame(() => {
-          const target = sidebarRef.current?.querySelector<HTMLElement>('[data-tree-shared="true"]');
+          // A group note (#58) sits in its group's folder tree, which opens around the open note
+          const target = activeNote.group
+            ? sidebarRef.current?.querySelector<HTMLElement>(`[data-tree-note-id="${CSS.escape(activeNote.id)}"]`) ??
+              sidebarRef.current?.querySelector<HTMLElement>(`[data-tree-group="${CSS.escape(activeNote.group)}"]`)
+            : sidebarRef.current?.querySelector<HTMLElement>('[data-tree-shared="true"]');
           target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
           target?.focus({ preventScroll: true });
         })
@@ -783,6 +960,9 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
         .map((id) => vault.get(id))
         .filter((n): n is LocalNote => !!n)
     : [];
+  // Group folders (#58) as favorites: "Group/Folder"
+  const favoriteGroupFolders = features.favorites.enabled ? vault.favoriteGroupFolders() : [];
+  const favoriteCount = favoriteNotes.length + favoriteGroupFolders.length;
 
   const nav = (to: string) => {
     navigate(to);
@@ -975,11 +1155,33 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
                 })}
             </nav>
           )}
-          {favoriteNotes.length > 0 && (
+          {favoriteCount > 0 && (
             <>
-              <SectionHeader icon={Star} label={t('nav.favorites')} open={favoritesOpen} onToggle={() => setFavoritesOpen(!favoritesOpen)} count={favoriteNotes.length} />
+              <SectionHeader icon={Star} label={t('nav.favorites')} open={favoritesOpen} onToggle={() => setFavoritesOpen(!favoritesOpen)} count={favoriteCount} />
               {favoritesOpen && (
                 <ul data-favorites-list className="max-h-[10.75rem] shrink-0 overflow-y-auto pl-6 scrollbar-thin">
+                  {favoriteGroupFolders.map(({ group, folder }) => {
+                    const to = groupPath(group.id, folder);
+                    const active = path === to;
+                    const FavIcon = folder ? Folder : Users;
+                    return (
+                      <li key={`${group.id}/${folder}`}>
+                        <button
+                          type="button"
+                          data-favorite-group-folder
+                          onClick={() => nav(to)}
+                          aria-current={active ? 'page' : undefined}
+                          className={`flex w-full min-w-0 items-center gap-2 rounded-full py-1.5 pl-[26px] pr-3 text-left text-sm transition-colors ${
+                            active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                          }`}
+                          title={folder ? `${group.name}/${folder}` : group.name}
+                        >
+                          <FavIcon size={14} className="shrink-0" />
+                          <span className="min-w-0 flex-1 truncate">{folder ? `${group.name}/${folder}` : group.name}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
                   {favoriteNotes.map((n) => (
                     <SidebarNoteRow key={n.id} note={n} label={projectTitleOf(n.path, n.content, roleConfig)} active={activeNoteId === n.id} depth={0} onNavigate={onNavigate} />
                   ))}
@@ -1047,6 +1249,9 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
                 onNavigate={onNavigate}
               />
             ))}
+            {/* Groups (#58): each group is a top folder with its own folders and notes */}
+            {!vault.standalone &&
+              vault.groups.map((g) => <GroupTreeItem key={g.id} groupId={g.id} current={path} activeNoteId={activeNoteId} onNavigate={onNavigate} />)}
             <li className="edit-only mt-1">
               <div {...rootDrop.props} className={`drop-target drop-zone-root rounded-xl border border-dashed border-outline-variant px-3 py-2 text-xs text-on-surface-variant ${rootDrop.over ? 'drop-over' : ''}`}>
                 {t('nav.dropTopLevel')}

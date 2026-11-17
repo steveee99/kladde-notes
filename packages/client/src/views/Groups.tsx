@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { GROUP_ROLES, canWriteInGroup, splitPath, type GroupDetails, type GroupInfo, type GroupRole } from '@kladde/shared';
-import { ArrowLeft, ChevronRight, CornerLeftUp, Folder, FolderInput, FolderPlus, Loader2, Plus, Settings, Trash2, Users } from '../lib/icons';
+import { ArrowLeft, ChevronRight, CornerLeftUp, Folder, FolderInput, FolderPlus, Loader2, Plus, Settings, Star, Trash2, Users } from '../lib/icons';
 import { api, ApiError } from '../lib/api';
 import { useVault, vault } from '../data/vault';
 import { openDialog } from '../lib/dialogs';
@@ -116,11 +116,23 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
       <div className="mb-6 flex flex-wrap items-center gap-2 anim-fade-up">
         <div className="min-w-0 flex-1 basis-40">
           <p className="flex items-center gap-1.5 truncate text-sm text-on-surface-variant">
-            <Users size={14} /> {group.name} · {groupRoleLabel(group.role)}
+            <Users size={14} /> {[group.name, ...folder.split('/').slice(0, -1)].join('/')} · {groupRoleLabel(group.role)}
           </p>
           <h1 className="truncate text-headline-m">{folder ? folder.split('/').pop() : group.name}</h1>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          {vault.features().favorites.enabled && (!folder || vault.groupFolders(groupId).includes(folder)) && (
+            <button
+              className={`btn-icon shrink-0 ${vault.isFavoriteGroupFolder(groupId, folder) ? 'text-primary' : ''}`}
+              aria-pressed={vault.isFavoriteGroupFolder(groupId, folder)}
+              title={vault.isFavoriteGroupFolder(groupId, folder) ? t('groups.unfavorite') : t('groups.favorite')}
+              aria-label={vault.isFavoriteGroupFolder(groupId, folder) ? t('groups.unfavorite') : t('groups.favorite')}
+              onClick={() => void vault.toggleFavoriteGroupFolder(groupId, folder).catch((err) => alert(message(err)))}
+              data-group-favorite
+            >
+              <Star size={20} filled={vault.isFavoriteGroupFolder(groupId, folder)} />
+            </button>
+          )}
           <button className="btn-ghost shrink-0 max-sm:!px-2.5" onClick={() => navigate(groupManagePath(groupId))} title={t('groups.manage')}>
             <Settings size={16} /> <span className="hidden sm:inline">{t('groups.manage')}</span>
           </button>

@@ -97,7 +97,7 @@ function redirectWith(uri: string, params: Record<string, string | null>): strin
 /**
  * MCP for AI assistants: a Streamable-HTTP endpoint (stateless, JSON answers) at /mcp, protected by OAuth 2.1
  * (dynamic client registration, PKCE, consent with the normal Kladde login) or a personal token.
- * Every tool works on the token owner's own notes only.
+ * Every tool works on the token owner's own notes and the notes of their groups (#58), with their role in each group.
  */
 export function mcpRouters(opts: McpOptions): { publicRouter: express.Router; accountRouter: express.Router } {
   const { users, notes, tokens, audit } = opts;

@@ -16,7 +16,9 @@ import {
   splitPath,
   toDateString,
   toggleTask,
+  canWriteInGroup,
   type FeatureSettings,
+  type GroupInfo,
   type SyncedNote,
 } from '@kladde/shared';
 import { MAX_NOTE_BYTES, NoteStore } from '../NoteStore.js';
@@ -24,7 +26,7 @@ import type { FileStore } from '../FileStore.js';
 import type { AttachmentTextStore } from '../attachments/AttachmentTextStore.js';
 import { attachmentPages, searchAttachments } from '../attachments/search.js';
 
-/** Who calls a tool: tools only ever see the notes this user owns */
+/** Who calls a tool: tools see the notes this user owns and those of their groups (#58), never other shares */
 export interface ToolContext {
   userId: string;
   canWrite: boolean;
@@ -62,9 +64,26 @@ export interface ToolDef {
 
 // ------------------------------------------------------------------ helpers
 
-/** The user's own notes without the hidden settings notes */
-function space(ctx: ToolContext): SyncedNote[] {
-  return ctx.notes.ownedNotes(ctx.userId).filter((n) => !n.path.startsWith(SYSTEM_PREFIX));
+/**
+ * A note as the tools show it. Group notes (#58) appear below their group's name ("Familie/Projekt/Plan.md");
+ * `realPath` is the path inside the group, which saving keeps.
+ */
+type SpaceNote = SyncedNote & { realPath?: string; groupName?: string };
+
+/** The user's own notes without the hidden settings notes, and the notes of their groups (#58) */
+function space(ctx: ToolContext): SpaceNote[] {
+  const own = ctx.notes.ownedNotes(ctx.userId).filter((n) => !n.path.startsWith(SYSTEM_PREFIX));
+  const grouped = ctx.notes
+    .groupNotes(ctx.userId)
+    .filter((n) => !n.path.startsWith(SYSTEM_PREFIX))
+    .map((n): SpaceNote => ({ ...n, path: `${n.owner}/${n.path}`, realPath: n.path, groupName: n.owner }));
+  return [...own, ...grouped];
+}
+
+/** Write tools refuse notes the user may only read (groups in which they are a reader) */
+function writable(note: SpaceNote): SpaceNote {
+  if (note.access === 'read') throw new ToolError(`In der Gruppe „${note.groupName ?? note.owner ?? ''}“ darfst du nur lesen.`);
+  return note;
 }
 
 /** Due date for tasks without one: tasks in a daily note belong to its day (settings note of the client) */
@@ -109,18 +128,26 @@ const int = (args: Record<string, unknown>, key: string, fallback: number, max: 
 
 const iso = (ms: number) => new Date(ms).toISOString();
 
-function summary(n: SyncedNote) {
+function summary(n: SpaceNote) {
   const meta = extractMeta(n.path, n.content);
-  return { id: n.id, path: n.path, title: meta.title, folder: meta.folder, tags: meta.tags, updated: iso(n.updatedAt) };
+  return {
+    id: n.id,
+    path: n.path,
+    title: meta.title,
+    folder: meta.folder,
+    tags: meta.tags,
+    updated: iso(n.updatedAt),
+    ...(n.groupName !== undefined ? { group: n.groupName, read_only: n.access === 'read' } : {}),
+  };
 }
 
 /** By id, by path or by title (resolved like a [[link]]: title, frontmatter id, Zettel id) */
-function findNote(notes: SyncedNote[], args: Record<string, unknown>): SyncedNote {
+function findNote(notes: SpaceNote[], args: Record<string, unknown>): SpaceNote {
   const id = str(args, 'id');
   const path = str(args, 'path');
   const title = str(args, 'title');
   if (!id && !path && !title) throw new ToolError('Gib "id", "path" oder "title" an.');
-  let found: SyncedNote | undefined;
+  let found: SpaceNote | undefined;
   if (id) found = notes.find((n) => n.id === id);
   else if (path) {
     const p = path.replace(/^\/+/, '').toLowerCase();
@@ -131,6 +158,26 @@ function findNote(notes: SyncedNote[], args: Record<string, unknown>): SyncedNot
   }
   if (!found) throw new ToolError('Notiz nicht gefunden. Suche sie mit search_notes oder list_notes.');
   return found;
+}
+
+/** One of the user's groups by name (or id) */
+function groupOf(ctx: ToolContext, name: string): GroupInfo {
+  const wanted = name.trim().toLowerCase();
+  const group = ctx.notes.groupsOf(ctx.userId).find((g) => g.id === name || g.name.toLowerCase() === wanted);
+  if (!group) throw new ToolError(`Die Gruppe „${name}“ gibt es nicht (oder du bist kein Mitglied). Die Gruppen stehen in list_notes → groups.`);
+  return group;
+}
+
+/** A folder inside a group; a leading group name (as in the shown paths) is dropped */
+function cleanGroupFolder(folder: string | undefined, groupName: string): string {
+  const parts = (folder ?? '')
+    .split('/')
+    .map((p) => p.trim())
+    .filter((p) => p && p !== '.' && p !== '..');
+  if (parts[0]?.toLowerCase() === groupName.toLowerCase()) parts.shift();
+  const clean = parts.join('/');
+  if (clean.startsWith(SYSTEM_PREFIX.slice(0, -1))) throw new ToolError('Dieser Ordner ist für Einstellungen reserviert.');
+  return clean;
 }
 
 function cleanFolder(folder: string | undefined): string {
@@ -154,10 +201,11 @@ function checkSize(content: string): void {
 }
 
 /** Saves through the normal sync path: next seq, live ping to the user's devices, export mirror */
-function save(ctx: ToolContext, note: SyncedNote, content: string) {
+function save(ctx: ToolContext, note: SpaceNote, content: string) {
+  writable(note);
   checkSize(content);
   const [result] = ctx.notes.push(ctx.userId, [
-    { id: note.id, baseVersion: note.version, path: note.path, content, deleted: false, createdAt: note.createdAt, updatedAt: Date.now() },
+    { id: note.id, baseVersion: note.version, path: note.realPath ?? note.path, content, deleted: false, createdAt: note.createdAt, updatedAt: Date.now() },
   ]);
   if (result.status === 'conflict') throw new ToolError('Die Notiz wurde gerade geändert. Lies sie erneut und versuche es noch einmal.');
   if (result.status !== 'ok') throw new ToolError('Die Notiz konnte nicht gespeichert werden.');
@@ -184,23 +232,27 @@ export const TOOLS: ToolDef[] = [
     name: 'list_notes',
     title: 'Notizen auflisten',
     description:
-      'Lists the user\'s own notes (newest first) with id, path, title, folder and tags. Folders follow PARA: "0 Inbox", "1 Projekte", "2 Bereiche", "3 Ressourcen", "4 Archiv", plus "Zettelkasten". Use `folder` to limit to a folder and its subfolders.',
+      'Lists the user\'s own notes and the notes of their groups (newest first) with id, path, title, folder and tags. Folders follow PARA: "0 Inbox", "1 Projekte", "2 Bereiche", "3 Ressourcen", "4 Archiv", plus "Zettelkasten". Group notes have paths starting with the group name and carry `group` and `read_only`; `groups` lists the groups with the user\'s role. Use `folder` to limit to a folder and its subfolders, `group` to one group.',
     inputSchema: {
       type: 'object',
       properties: {
-        folder: { type: 'string', description: 'Only this folder (with subfolders), e.g. "1 Projekte"' },
+        folder: { type: 'string', description: 'Only this folder (with subfolders), e.g. "1 Projekte" or "Familie/Urlaub" for a group folder' },
+        group: { type: 'string', description: 'Only the notes of this group (name)' },
         limit: { type: 'integer', minimum: 1, maximum: 500, default: 100 },
       },
     },
     write: false,
     run(args, ctx) {
       const folder = str(args, 'folder')?.replace(/^\/+|\/+$/g, '');
+      const group = str(args, 'group') !== undefined ? groupOf(ctx, str(args, 'group')!) : undefined;
       const limit = int(args, 'limit', 100, 500);
-      const all = space(ctx)
-        .filter((n) => !folder || n.path.startsWith(`${folder}/`))
+      const notes = space(ctx);
+      const all = notes
+        .filter((n) => (!folder || n.path.startsWith(`${folder}/`)) && (!group || n.group === group.id))
         .sort((a, b) => b.updatedAt - a.updatedAt);
-      const folders = [...new Set(space(ctx).map((n) => splitPath(n.path).folder).filter(Boolean))].sort();
-      return { total: all.length, notes: all.slice(0, limit).map(summary), folders };
+      const folders = [...new Set(notes.map((n) => splitPath(n.path).folder).filter(Boolean))].sort();
+      const groups = ctx.notes.groupsOf(ctx.userId).map((g) => ({ name: g.name, role: g.role, read_only: !canWriteInGroup(g.role) }));
+      return { total: all.length, notes: all.slice(0, limit).map(summary), folders, ...(groups.length ? { groups } : {}) };
     },
   },
   {
@@ -378,35 +430,45 @@ export const TOOLS: ToolDef[] = [
     name: 'create_note',
     title: 'Notiz anlegen',
     description:
-      'Creates a new note in the user\'s space (default folder "0 Inbox"). Content is Markdown; link other notes with [[Title]], tasks as "- [ ] text 📅 YYYY-MM-DD". An existing title gets a number appended.',
+      'Creates a new note in the user\'s space (default folder "0 Inbox"), or with `group` in that group (owners and editors only; `folder` is then a folder inside the group, default its top level). Content is Markdown; link other notes with [[Title]], tasks as "- [ ] text 📅 YYYY-MM-DD". An existing title gets a number appended.',
     inputSchema: {
       type: 'object',
       properties: {
         title: { type: 'string' },
         content: { type: 'string', description: 'Markdown body' },
-        folder: { type: 'string', description: 'e.g. "1 Projekte" or "3 Ressourcen/Rezepte"; default "0 Inbox"' },
+        folder: { type: 'string', description: 'e.g. "1 Projekte" or "3 Ressourcen/Rezepte"; default "0 Inbox" (in a group: its top level)' },
+        group: { type: 'string', description: 'Name of a group to create the note in (see list_notes → groups)' },
       },
       required: ['title'],
     },
     write: true,
     run(args, ctx) {
       const title = str(args, 'title', true)!.trim().slice(0, 200);
-      const folder = cleanFolder(str(args, 'folder'));
+      const groupName = str(args, 'group');
+      const group = groupName !== undefined ? groupOf(ctx, groupName) : undefined;
+      if (group && !canWriteInGroup(group.role)) throw new ToolError(`In der Gruppe „${group.name}“ darfst du nur lesen.`);
+      const folder = group ? cleanGroupFolder(str(args, 'folder'), group.name) : cleanFolder(str(args, 'folder'));
       const content = normalizeDueWords(str(args, 'content') ?? '', ctx.today ?? new Date());
       checkSize(content);
-      const path = uniquePath(space(ctx), folder, title);
+      // Paths are unique per space: the own notes, or the notes of the group (by their path inside it)
+      const taken: SyncedNote[] = group
+        ? space(ctx)
+            .filter((n) => n.group === group.id)
+            .map((n) => ({ ...n, path: n.realPath ?? n.path }))
+        : ctx.notes.ownedNotes(ctx.userId);
+      const path = uniquePath(taken, folder, title);
       const now = Date.now();
       const id = crypto.randomBytes(16).toString('hex');
-      const [result] = ctx.notes.push(ctx.userId, [{ id, baseVersion: 0, path, content, deleted: false, createdAt: now, updatedAt: now }]);
+      const [result] = ctx.notes.push(ctx.userId, [{ id, baseVersion: 0, path, content, deleted: false, createdAt: now, updatedAt: now, ...(group ? { group: group.id } : {}) }]);
       if (result.status !== 'ok') throw new ToolError('Die Notiz konnte nicht angelegt werden.');
-      return { id, path, version: result.version };
+      return { id, path: group ? `${group.name}/${path}` : path, version: result.version, ...(group ? { group: group.name } : {}) };
     },
   },
   {
     name: 'update_note',
     title: 'Notiz ersetzen',
     description:
-      'Replaces the full content of one of the user\'s notes. Pass the `version` you got from read_note: if the note changed since, nothing is written and you must read it again. Title and folder stay the same (rename and move in the app, so links are kept).',
+      'Replaces the full content of one of the user\'s notes (or of a group note, unless the user only reads in that group). Pass the `version` you got from read_note: if the note changed since, nothing is written and you must read it again. Title and folder stay the same (rename and move in the app, so links are kept).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -461,7 +523,8 @@ export const TOOLS: ToolDef[] = [
       const recordings: { id: string; line: number }[] = [];
       note.content.split('\n').forEach((text, line) => {
         for (const m of text.matchAll(/\/api\/files\/([A-Za-z0-9_-]{22})/g)) {
-          const meta = ctx.files!.getMeta(ctx.userId, m[1]);
+          // The note is visible to the user, so are its files (also when another group member recorded them)
+          const meta = ctx.files!.meta(m[1]);
           if (meta?.mime.startsWith('audio/')) recordings.push({ id: m[1], line });
         }
       });

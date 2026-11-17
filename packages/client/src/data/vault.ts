@@ -73,6 +73,8 @@ export function newId(): string {
 
 /** Synced setting with the ordered list of favorite note ids */
 const FAVORITES_SETTING = 'favorites';
+/** Synced setting with favorite group folders (#58): "<group id>/<folder>", the folder empty for the group itself */
+const FAVORITE_GROUP_FOLDERS_SETTING = 'favoriteGroupFolders';
 
 /**
  * The local copy of the user's space (offline first). Every edit lands in IndexedDB right away and is
@@ -807,6 +809,35 @@ class Vault {
     const next = list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
     await this.setSetting(FAVORITES_SETTING, next);
     return next.includes(id);
+  }
+
+  /** Favorite group folders (#58) in the user's order; groups the user left and folders without notes are skipped */
+  favoriteGroupFolders(): { group: GroupInfo; folder: string }[] {
+    const raw = this.setting<unknown>(FAVORITE_GROUP_FOLDERS_SETTING);
+    if (!Array.isArray(raw)) return [];
+    const out: { group: GroupInfo; folder: string }[] = [];
+    for (const key of raw) {
+      if (typeof key !== 'string') continue;
+      const i = key.indexOf('/');
+      const group = this.group(i < 0 ? key : key.slice(0, i));
+      const folder = i < 0 ? '' : key.slice(i + 1);
+      if (group && (!folder || this.groupFolders(group.id).includes(folder))) out.push({ group, folder });
+    }
+    return out;
+  }
+
+  isFavoriteGroupFolder(groupId: string, folder: string): boolean {
+    return this.favoriteGroupFolders().some((f) => f.group.id === groupId && f.folder === folder);
+  }
+
+  /** Adds or removes a group folder (or the group itself, `folder` empty) from the favorites */
+  async toggleFavoriteGroupFolder(groupId: string, folder: string): Promise<boolean> {
+    if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    const key = `${groupId}/${folder}`;
+    const list = this.favoriteGroupFolders().map((f) => `${f.group.id}/${f.folder}`);
+    const next = list.includes(key) ? list.filter((k) => k !== key) : [...list, key];
+    await this.setSetting(FAVORITE_GROUP_FOLDERS_SETTING, next);
+    return next.includes(key);
   }
 
   // ------------------------------------------------------------------ synced settings (system note)

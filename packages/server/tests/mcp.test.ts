@@ -10,6 +10,7 @@ import { NoteStore } from '../src/NoteStore';
 import { AuditLog } from '../src/security/AuditLog';
 import { McpTokenStore, isAllowedRedirectUri } from '../src/mcp/McpTokenStore';
 import { mcpRouters } from '../src/mcp/router';
+import { GroupStore } from '../src/GroupStore';
 
 const db = openDatabase(':memory:');
 const users = new UserStore(db);
@@ -250,5 +251,51 @@ describe('MCP tools', () => {
     expect((await rpc(token, 'nope')).body.error.code).toBe(-32601);
     const bad = await fetch(`${base}/mcp`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: '{' });
     expect(((await bad.json()) as any).error.code).toBe(-32700);
+  });
+});
+
+describe('MCP tools in groups (#58)', () => {
+  const groups = new GroupStore(db);
+  const { token } = tokens.createPersonalToken(anna.id, 'Gruppen', true);
+
+  it('sees group notes below the group name and writes with the group role', async () => {
+    const team = groups.create(ben.id, 'Team');
+    const club = groups.create(ben.id, 'Verein');
+    groups.setMember(ben.id, team.id, anna.id, 'editor');
+    groups.setMember(ben.id, club.id, anna.id, 'reader');
+    const now = Date.now();
+    notes.push(ben.id, [
+      { id: 'group-mcp-01', baseVersion: 0, path: 'Planung/Sprint.md', content: '# Sprint\n\n- [ ] Review 📅 2026-11-20', deleted: false, createdAt: now, updatedAt: now, group: team.id },
+      { id: 'group-mcp-02', baseVersion: 0, path: 'Satzung.md', content: '# Satzung', deleted: false, createdAt: now, updatedAt: now, group: club.id },
+    ]);
+
+    const list = (await call(token, 'list_notes', { group: 'team' })).structuredContent;
+    expect(list.notes).toEqual([expect.objectContaining({ id: 'group-mcp-01', path: 'Team/Planung/Sprint.md', group: 'Team', read_only: false })]);
+    expect(list.groups).toEqual([
+      { name: 'Team', role: 'editor', read_only: false },
+      { name: 'Verein', role: 'reader', read_only: true },
+    ]);
+    expect((await call(token, 'read_note', { path: 'Verein/Satzung.md' })).structuredContent).toMatchObject({ id: 'group-mcp-02', content: '# Satzung' });
+    expect((await call(token, 'list_tasks')).structuredContent.tasks.some((t: { note_id: string }) => t.note_id === 'group-mcp-01')).toBe(true);
+
+    // editors write (the note keeps its path inside the group), readers do not
+    const appended = await call(token, 'append_to_note', { id: 'group-mcp-01', text: '- [ ] Demo' });
+    expect(appended.isError).toBeFalsy();
+    expect(notes.groupNotes(ben.id).find((n) => n.id === 'group-mcp-01')).toMatchObject({ path: 'Planung/Sprint.md', content: expect.stringContaining('- [ ] Demo') });
+    const refused = await call(token, 'append_to_note', { id: 'group-mcp-02', text: 'nein' });
+    expect(refused.isError).toBe(true);
+    expect(refused.content[0].text).toContain('nur lesen');
+    expect((await call(token, 'create_note', { title: 'X', group: 'Verein' })).isError).toBe(true);
+
+    // a new note in a group belongs to the group
+    const created = (await call(token, 'create_note', { title: 'Retro', group: 'Team', folder: 'Team/Planung', content: 'Notizen' })).structuredContent;
+    expect(created).toMatchObject({ path: 'Team/Planung/Retro.md', group: 'Team' });
+    expect(notes.groupNotes(ben.id).find((n) => n.id === created.id)).toMatchObject({ path: 'Planung/Retro.md', group: team.id });
+    expect(notes.ownedNotes(anna.id).some((n) => n.id === created.id)).toBe(false);
+    expect((await call(token, 'create_note', { title: 'Y', group: 'Unbekannt' })).isError).toBe(true);
+
+    // leaving the group ends access
+    groups.removeMember(anna.id, team.id, anna.id);
+    expect((await call(token, 'read_note', { id: 'group-mcp-01' })).isError).toBe(true);
   });
 });

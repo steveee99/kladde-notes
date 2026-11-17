@@ -1437,6 +1437,9 @@ const de = {
   'groups.statNotes': 'Notizen',
   'groups.statAttachments': 'Anhänge',
   'groups.statMembers': 'Mitglieder',
+  'groups.favorite': 'Zu Favoriten hinzufügen',
+  'groups.unfavorite': 'Aus Favoriten entfernen',
+  'groups.treeTitle': 'Gruppe {name}',
 } as const;
 
 export type I18nKey = keyof typeof de;
@@ -2810,6 +2813,9 @@ const en: Record<I18nKey, string> = {
   'groups.statNotes': 'Notes',
   'groups.statAttachments': 'Attachments',
   'groups.statMembers': 'Members',
+  'groups.favorite': 'Add to favorites',
+  'groups.unfavorite': 'Remove from favorites',
+  'groups.treeTitle': 'Group {name}',
 };
 
 const dict: Record<Lang, Record<I18nKey, string>> = { de, en };

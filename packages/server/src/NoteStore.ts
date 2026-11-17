@@ -1041,6 +1041,24 @@ export class NoteStore {
     return rows.map((r) => this.toSynced(r, 'owner'));
   }
 
+  /**
+   * Live notes of the groups the user is a member of (#58), as the user sees them: `group` and the group's name
+   * as `owner`; readers get `read` access (and the latest release of versioned notes), owners and editors `write`
+   */
+  groupNotes(userId: string): SyncedNote[] {
+    const rows = this.db
+      .prepare(
+        `SELECT notes.*, g.username AS group_name, group_members.role AS group_role FROM group_members
+         JOIN notes ON notes.owner_id = group_members.group_id JOIN users g ON g.id = group_members.group_id
+         WHERE group_members.user_id = ? AND notes.deleted = 0`
+      )
+      .all(userId) as unknown as (NoteRow & { group_name: string; group_role: GroupRole })[];
+    return rows.map((r) => {
+      const writer = canWriteInGroup(r.group_role);
+      return { ...this.toSynced(r, writer ? 'write' : 'read', r.group_name), group: r.owner_id, ...(writer ? { canDelete: true } : {}) };
+    });
+  }
+
   /** The user's own live notes as exports show them: versioned notes as their latest release, placeholders filled (#53) */
   publishedNotes(userId: string): SyncedNote[] {
     return this.ownedNotes(userId).map((n) => ({ ...n, content: this.published(n.id, n.content) }));
