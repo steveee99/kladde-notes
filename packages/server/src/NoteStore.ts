@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, contentHash, embedsOf, extractMeta, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, splitPath } from '@kladde/shared';
+import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, contentHash, embedsOf, extractMeta, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, splitPath } from '@kladde/shared';
 import { DataCipher, randomToken } from './crypto.js';
 import { transaction } from './db.js';
 
@@ -188,6 +188,37 @@ export class NoteStore {
     return note;
   }
 
+  /** The user's role in a group (#58), null when `groupId` is no group or they are not a member */
+  groupRole(groupId: string, userId: string): GroupRole | null {
+    const row = this.db.prepare('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?').get(groupId, userId) as { role: GroupRole } | undefined;
+    return row?.role ?? null;
+  }
+
+  /** Groups the user is a member of, by name */
+  groupsOf(userId: string): GroupInfo[] {
+    const rows = this.db
+      .prepare('SELECT users.id, users.username, group_members.role FROM group_members JOIN users ON users.id = group_members.group_id WHERE group_members.user_id = ?')
+      .all(userId) as { id: string; username: string; role: GroupRole }[];
+    return rows.map((r) => ({ id: r.id, name: r.username, role: r.role })).sort((a, b) => a.name.localeCompare(b.name, 'de') || a.id.localeCompare(b.id));
+  }
+
+  private groupName(groupId: string): string {
+    return (this.db.prepare('SELECT username FROM users WHERE id = ? AND is_group = 1').get(groupId) as { username: string } | undefined)?.username ?? '';
+  }
+
+  /** A note as `userId` sees it: group notes (#58) carry the group, its name as owner and the delete permission */
+  private syncedFor(row: NoteRow, userId: string, access: NoteAccess): SyncedNote {
+    if (row.owner_id === userId) return this.toSynced(row, access);
+    const role = this.groupRole(row.owner_id, userId);
+    if (!role) return this.toSynced(row, access);
+    return { ...this.toSynced(row, access, this.groupName(row.owner_id)), group: row.owner_id, ...(canWriteInGroup(role) ? { canDelete: true } : {}) };
+  }
+
+  /** Owner, or a writing member of the group that owns the note: may rename, move and delete it, and manage its releases */
+  private canManage(row: NoteRow, userId: string): boolean {
+    return row.owner_id === userId || canWriteInGroup(this.groupRole(row.owner_id, userId));
+  }
+
   // ------------------------------------------------------------------ release versioning (#53)
 
   private versioningOn(noteId: string): boolean {
@@ -227,7 +258,7 @@ export class NoteStore {
   setVersioning(userId: string, noteId: string, enabled: boolean): SyncedNote {
     const events: NoteChangeEvent[] = [];
     const note = transaction(this.db, () => {
-      const row = this.ownedRow(userId, noteId);
+      const row = this.manageableRow(userId, noteId);
       if (this.versioningOn(noteId) !== enabled) {
         const now = Date.now();
         this.db
@@ -235,7 +266,8 @@ export class NoteStore {
           .run(noteId, enabled ? 1 : 0, now);
         events.push(this.touch(row));
       }
-      return this.toSynced(this.getRow(noteId)!, 'owner');
+      const fresh = this.getRow(noteId)!;
+      return this.syncedFor(fresh, userId, fresh.owner_id === userId ? 'owner' : 'write');
     });
     for (const e of events) this.onChange(e);
     return note;
@@ -248,7 +280,7 @@ export class NoteStore {
   release(userId: string, noteId: string, opts: { bump: ReleaseBump; note?: unknown; baseVersion: number }): NoteReleaseInfo {
     const events: NoteChangeEvent[] = [];
     const info = transaction(this.db, () => {
-      const row = this.ownedRow(userId, noteId);
+      const row = this.manageableRow(userId, noteId);
       if (!this.versioningOn(noteId)) throw new VersioningOff();
       if (row.version !== opts.baseVersion) throw new ReleaseConflict();
       const latest = this.releaseRows(noteId)[0];
@@ -297,6 +329,8 @@ export class NoteStore {
 
   accessOf(userId: string, row: NoteRow): NoteAccess | null {
     if (row.owner_id === userId) return 'owner';
+    const role = this.groupRole(row.owner_id, userId);
+    if (role) return canWriteInGroup(role) ? 'write' : 'read';
     const share = this.db.prepare('SELECT can_write FROM shares WHERE note_id = ? AND user_id = ?').get(row.id, userId) as
       | { can_write: number }
       | undefined;
@@ -305,7 +339,8 @@ export class NoteStore {
 
   private audience(row: NoteRow): string[] {
     const shared = this.db.prepare('SELECT user_id FROM shares WHERE note_id = ?').all(row.id) as { user_id: string }[];
-    return [row.owner_id, ...shared.map((s) => s.user_id)];
+    const members = this.db.prepare('SELECT user_id FROM group_members WHERE group_id = ?').all(row.owner_id) as { user_id: string }[];
+    return [row.owner_id, ...shared.map((s) => s.user_id), ...members.map((m) => m.user_id)];
   }
 
   /** Everybody who may see the note (owner and shares), or null for an unknown/deleted note; for live presence */
@@ -326,18 +361,31 @@ export class NoteStore {
          WHERE shares.user_id = ? AND (notes.seq > ? OR shares.seq > ?) AND notes.deleted = 0`
       )
       .all(userId, since, since) as unknown as (NoteRow & { can_write: number; owner_name: string; owner_avatar: string | null; can_delete: number | null })[];
+    // Notes of the user's groups (#58): changed ones, or all live ones after joining or a role change
+    const grouped = this.db
+      .prepare(
+        `SELECT notes.*, g.username AS group_name, group_members.role AS group_role FROM group_members
+         JOIN notes ON notes.owner_id = group_members.group_id JOIN users g ON g.id = group_members.group_id
+         WHERE group_members.user_id = ? AND (notes.seq > ? OR (group_members.seq > ? AND notes.deleted = 0))`
+      )
+      .all(userId, since, since) as unknown as (NoteRow & { group_name: string; group_role: GroupRole })[];
     const revoked = this.db
       .prepare('SELECT DISTINCT note_id FROM share_revocations WHERE user_id = ? AND seq > ?')
       .all(userId, since) as { note_id: string }[];
-    const sharedIds = new Set(shared.map((s) => s.id));
+    const sentIds = new Set([...shared.map((s) => s.id), ...grouped.map((g) => g.id)]);
     return {
       notes: [
         ...own.map((r) => this.toSynced(r, 'owner')),
         ...shared.map((r) => ({ ...this.toSynced(r, r.can_write ? 'write' : 'read', r.owner_name, r.owner_avatar), ...(r.can_delete ? { canDelete: true } : {}) })),
+        ...grouped.map((r) => {
+          const writer = canWriteInGroup(r.group_role);
+          return { ...this.toSynced(r, writer ? 'write' : 'read', r.group_name), group: r.owner_id, ...(writer ? { canDelete: true } : {}) };
+        }),
       ],
-      revoked: revoked.map((r) => r.note_id).filter((id) => !sharedIds.has(id) && !this.isShared(id, userId)),
+      revoked: revoked.map((r) => r.note_id).filter((id) => !sentIds.has(id) && !this.canSee(id, userId)),
       cursor,
       sharedFolders: this.sharedWith(userId),
+      groups: this.groupsOf(userId),
     };
   }
 
@@ -377,8 +425,10 @@ export class NoteStore {
       .get(noteId, userId);
   }
 
-  private isShared(noteId: string, userId: string): boolean {
-    return !!this.db.prepare('SELECT 1 FROM shares WHERE note_id = ? AND user_id = ?').get(noteId, userId);
+  /** The note exists, is not deleted and the user may see it (own, shared or through a group) */
+  private canSee(noteId: string, userId: string): boolean {
+    const row = this.getRow(noteId);
+    return !!row && !row.deleted && !!this.accessOf(userId, row);
   }
 
   push(userId: string, changes: PushChange[]): PushResult[] {
@@ -398,7 +448,11 @@ export class NoteStore {
           const path = cleanPath(change.path);
           // In a folder shared with the caller, the note belongs to the folder's owner (and lives in their space)
           let ownerId = userId;
-          if (change.owner !== undefined) {
+          if (change.group !== undefined) {
+            // In a group (#58) the note belongs to the group; owners and editors may create
+            if (typeof change.group !== 'string' || change.deleted || !canWriteInGroup(this.groupRole(change.group, userId))) return { id: change.id, status: 'forbidden' };
+            ownerId = change.group;
+          } else if (change.owner !== undefined) {
             const grant = this.createGrant(userId, change.owner, path);
             if (!grant || change.deleted) return { id: change.id, status: 'forbidden' };
             ownerId = grant;
@@ -411,19 +465,22 @@ export class NoteStore {
           if (!change.deleted) this.recordVersion(change.id, path, content, now);
           const shares = ownerId === userId ? folderShares() : this.folderSharesOf(ownerId);
           const added = change.deleted ? [] : this.applyFolderShares(ownerId, change.id, path, seq, shares);
-          events.push({ noteId: change.id, ownerId, audience: [...new Set([ownerId, userId, ...added])], path, previousPath: null, content, deleted: !!change.deleted });
+          const members = ownerId === userId ? [] : (this.db.prepare('SELECT user_id FROM group_members WHERE group_id = ?').all(ownerId) as { user_id: string }[]).map((m) => m.user_id);
+          events.push({ noteId: change.id, ownerId, audience: [...new Set([ownerId, userId, ...added, ...members])], path, previousPath: null, content, deleted: !!change.deleted });
           return { id: change.id, status: 'ok', version: 1 };
         }
         const access = this.accessOf(userId, row);
         if (access !== 'owner' && access !== 'write') return { id: change.id, status: 'forbidden' };
         if (row.version !== change.baseVersion) {
-          return { id: change.id, status: 'conflict', server: this.toSynced(row, access) };
+          return { id: change.id, status: 'conflict', server: this.syncedFor(row, userId, access) };
         }
+        // Writing group members (#58) manage the group's notes like an owner
+        const manager = access === 'owner' || this.canManage(row, userId);
         // A recipient deletes only with the folder share's permission (and an unknown owner is refused)
-        if (access !== 'owner' && change.deleted && !this.canDeleteShared(row.id, userId)) return { id: change.id, status: 'forbidden' };
+        if (!manager && change.deleted && !this.canDeleteShared(row.id, userId)) return { id: change.id, status: 'forbidden' };
         const old = this.payload(row);
         // Only the owner moves or renames a note: it lives in their space. Deleting also needs the folder share's permission
-        const path = access === 'owner' ? cleanPath(change.path) : old.path;
+        const path = manager ? cleanPath(change.path) : old.path;
         const deleted = !!change.deleted;
         const seq = this.nextSeq();
         this.db
@@ -510,11 +567,27 @@ export class NoteStore {
     return this.cipher.decryptJson<TrashPayload>(r.payload, `trash:${r.note_id}`);
   }
 
-  /** The owner's deleted notes, newest first */
+  /** Owners whose trash the user manages: themselves and the groups they write in (#58) */
+  private trashOwners(userId: string): string[] {
+    const groups = this.db.prepare("SELECT group_id FROM group_members WHERE user_id = ? AND role IN ('owner', 'editor')").all(userId) as { group_id: string }[];
+    return [userId, ...groups.map((g) => g.group_id)];
+  }
+
+  private trashRow(userId: string, noteId: string): TrashRow | undefined {
+    const t = this.db.prepare('SELECT * FROM trash WHERE note_id = ?').get(noteId) as TrashRow | undefined;
+    return t && this.trashOwners(userId).includes(t.owner_id) ? t : undefined;
+  }
+
+  /** The owner's deleted notes (and those of the groups they write in), newest first */
   trash(userId: string): TrashEntry[] {
+    const owners = this.trashOwners(userId);
     const rows = this.db
-      .prepare('SELECT trash.*, users.username AS deleted_by_name FROM trash LEFT JOIN users ON users.id = trash.deleted_by WHERE trash.owner_id = ? ORDER BY deleted_at DESC')
-      .all(userId) as unknown as (TrashRow & { deleted_by_name: string | null })[];
+      .prepare(
+        `SELECT trash.*, users.username AS deleted_by_name, g.username AS group_name FROM trash LEFT JOIN users ON users.id = trash.deleted_by
+         LEFT JOIN users g ON g.id = trash.owner_id AND g.is_group = 1
+         WHERE trash.owner_id IN (${owners.map(() => '?').join(', ')}) ORDER BY deleted_at DESC`
+      )
+      .all(...owners) as unknown as (TrashRow & { deleted_by_name: string | null; group_name: string | null })[];
     return rows.map((r) => {
       const p = this.trashPayload(r);
       return {
@@ -525,6 +598,7 @@ export class NoteStore {
         batch: r.batch,
         folder: p.folder,
         size: Buffer.byteLength(p.content),
+        ...(r.group_name !== null ? { group: r.group_name } : {}),
       };
     });
   }
@@ -543,13 +617,16 @@ export class NoteStore {
   restore(userId: string, noteIds: string[], opts: { path?: unknown; rename?: boolean } = {}): { id: string; path: string }[] {
     const events: NoteChangeEvent[] = [];
     const restored = transaction(this.db, () => {
-      const taken = this.livePaths(userId);
+      // Paths per owner: a group's trash (#58) restores into the group's space
+      const takenOf = new Map<string, Set<string>>();
       let cached: FolderShare[] | undefined;
       const out: { id: string; path: string }[] = [];
       for (const noteId of noteIds) {
-        const t = this.db.prepare('SELECT * FROM trash WHERE note_id = ? AND owner_id = ?').get(noteId, userId) as TrashRow | undefined;
+        const t = this.trashRow(userId, noteId);
         const row = t && this.getRow(noteId);
         if (!t || !row || !row.deleted) throw new Error('not found');
+        let taken = takenOf.get(t.owner_id);
+        if (!taken) takenOf.set(t.owner_id, (taken = this.livePaths(t.owner_id)));
         const p = this.trashPayload(t);
         let path = opts.path !== undefined && noteIds.length === 1 ? cleanPath(opts.path) : p.path;
         if (taken.has(path)) {
@@ -564,8 +641,8 @@ export class NoteStore {
           .run(seq, now, this.cipher.encryptJson({ path, content: p.content }, `note:${noteId}`), noteId);
         this.db.prepare('DELETE FROM trash WHERE note_id = ?').run(noteId);
         this.recordVersion(noteId, path, p.content, now);
-        const added = this.applyFolderShares(userId, noteId, path, seq, (cached ??= this.folderSharesOf(userId)));
-        events.push({ noteId, ownerId: userId, audience: [...new Set([userId, ...added])], path, previousPath: null, content: this.published(noteId, p.content), deleted: false });
+        const added = t.owner_id === userId ? this.applyFolderShares(userId, noteId, path, seq, (cached ??= this.folderSharesOf(userId))) : [];
+        events.push({ noteId, ownerId: t.owner_id, audience: [...new Set([userId, ...added, ...this.audience(row)])], path, previousPath: null, content: this.published(noteId, p.content), deleted: false });
         out.push({ id: noteId, path });
       }
       return out;
@@ -576,8 +653,9 @@ export class NoteStore {
 
   /** Ids of the owner's trashed notes deleted together (one folder deletion) */
   trashBatch(userId: string, batch: string): string[] {
-    const rows = this.db.prepare('SELECT note_id FROM trash WHERE owner_id = ? AND batch = ?').all(userId, batch) as { note_id: string }[];
-    return rows.map((r) => r.note_id);
+    const owners = this.trashOwners(userId);
+    const rows = this.db.prepare('SELECT note_id, owner_id FROM trash WHERE batch = ?').all(batch) as { note_id: string; owner_id: string }[];
+    return rows.filter((r) => owners.includes(r.owner_id)).map((r) => r.note_id);
   }
 
   /**
@@ -585,13 +663,19 @@ export class NoteStore {
    * empties the whole trash. Returns the purged contents (to find attachments nothing uses any more).
    */
   purge(userId: string, ids: string[] | null): string[] {
+    return this.purgeEntries(userId, ids).map((e) => e.content);
+  }
+
+  /** Like `purge`, with the owner of each purged note (the user or one of their groups, #58) */
+  purgeEntries(userId: string, ids: string[] | null): { ownerId: string; content: string }[] {
     return transaction(this.db, () => {
+      const owners = this.trashOwners(userId);
       const rows = (
         ids === null
-          ? this.db.prepare('SELECT * FROM trash WHERE owner_id = ?').all(userId)
-          : ids.map((id) => this.db.prepare('SELECT * FROM trash WHERE note_id = ? AND owner_id = ?').get(id, userId)).filter(Boolean)
+          ? owners.flatMap((o) => this.db.prepare('SELECT * FROM trash WHERE owner_id = ?').all(o))
+          : ids.map((id) => this.trashRow(userId, id)).filter(Boolean)
       ) as unknown as TrashRow[];
-      return rows.map((r) => this.purgeRow(r));
+      return rows.map((r) => ({ ownerId: r.owner_id, content: this.purgeRow(r) }));
     });
   }
 
@@ -629,6 +713,13 @@ export class NoteStore {
   private ownedRow(userId: string, noteId: string): NoteRow {
     const row = this.getRow(noteId);
     if (!row || row.owner_id !== userId || row.deleted) throw new Error('not found');
+    return row;
+  }
+
+  /** An own note, or one of a group the user writes in (#58) */
+  private manageableRow(userId: string, noteId: string): NoteRow {
+    const row = this.getRow(noteId);
+    if (!row || row.deleted || !this.canManage(row, userId)) throw new Error('not found');
     return row;
   }
 
@@ -950,6 +1041,24 @@ export class NoteStore {
     return rows.map((r) => this.toSynced(r, 'owner'));
   }
 
+  /**
+   * Live notes of the groups the user is a member of (#58), as the user sees them: `group` and the group's name
+   * as `owner`; readers get `read` access (and the latest release of versioned notes), owners and editors `write`
+   */
+  groupNotes(userId: string): SyncedNote[] {
+    const rows = this.db
+      .prepare(
+        `SELECT notes.*, g.username AS group_name, group_members.role AS group_role FROM group_members
+         JOIN notes ON notes.owner_id = group_members.group_id JOIN users g ON g.id = group_members.group_id
+         WHERE group_members.user_id = ? AND notes.deleted = 0`
+      )
+      .all(userId) as unknown as (NoteRow & { group_name: string; group_role: GroupRole })[];
+    return rows.map((r) => {
+      const writer = canWriteInGroup(r.group_role);
+      return { ...this.toSynced(r, writer ? 'write' : 'read', r.group_name), group: r.owner_id, ...(writer ? { canDelete: true } : {}) };
+    });
+  }
+
   /** The user's own live notes as exports show them: versioned notes as their latest release, placeholders filled (#53) */
   publishedNotes(userId: string): SyncedNote[] {
     return this.ownedNotes(userId).map((n) => ({ ...n, content: this.published(n.id, n.content) }));
@@ -961,6 +1070,72 @@ export class NoteStore {
     return rows.map((r) => {
       const p = this.payload(r);
       return { path: p.path, content: this.published(r.id, p.content) };
+    });
+  }
+
+  // ------------------------------------------------------------------ groups (#58)
+
+  /**
+   * Moves own notes into a group the user writes in: the group owns them from now on and every member sees
+   * them. Shares and public links of the notes end (their recipients lose access). Links are not rewritten:
+   * links between the moved notes keep working, links to notes outside only work for people who see those.
+   * Returns the new paths and the moved contents (their attachments may move along).
+   */
+  moveToGroup(userId: string, groupId: string, req: Partial<GroupMoveRequest>): { moved: { id: string; path: string }[]; contents: string[] } {
+    if (!canWriteInGroup(this.groupRole(groupId, userId))) throw new Error('forbidden');
+    const ids = Array.isArray(req.noteIds) ? [...new Set(req.noteIds.filter((id): id is string => typeof id === 'string' && ID_PATTERN.test(id)))] : [];
+    if (!ids.length || ids.length > 5000) throw new Error('invalid');
+    const folder = req.folder === undefined || req.folder === null || req.folder === '' ? undefined : cleanPath(req.folder);
+    const target = req.target === undefined || req.target === null || req.target === '' ? '' : cleanPath(req.target);
+    const events: NoteChangeEvent[] = [];
+    const result = transaction(this.db, () => {
+      const taken = this.livePaths(groupId);
+      const seq = this.nextSeq();
+      const now = Date.now();
+      const moved: { id: string; path: string }[] = [];
+      const contents: string[] = [];
+      for (const id of ids) {
+        const row = this.getRow(id);
+        if (!row || row.owner_id !== userId || row.deleted) throw new Error('not found');
+        const p = this.payload(row);
+        if (p.path.startsWith(SYSTEM_PREFIX) || (folder && !inFolder(p.path, folder))) throw new Error('not found');
+        const path = freePath(cleanPath(groupMovePath(p.path, target, folder)), taken);
+        taken.add(path);
+        const before = this.audience(row);
+        // Single shares and folder shares lose their effect, public links end
+        this.dropShares(id, seq);
+        this.db
+          .prepare('UPDATE notes SET owner_id = ?, version = version + 1, seq = ?, updated_at = ?, payload = ? WHERE id = ?')
+          .run(groupId, seq, now, this.cipher.encryptJson({ path, content: p.content }, `note:${id}`), id);
+        if (path !== p.path) this.recordVersion(id, path, p.content, now);
+        const after = this.getRow(id)!;
+        // Gone from the old owner's space (export mirror), new in the group's
+        events.push({ noteId: id, ownerId: userId, audience: [], path: p.path, previousPath: p.path, content: '', deleted: true });
+        events.push({ noteId: id, ownerId: groupId, audience: [...new Set([...before, ...this.audience(after)])], path, previousPath: null, content: this.published(id, p.content), deleted: false });
+        moved.push({ id, path });
+        contents.push(p.content);
+      }
+      return { moved, contents };
+    });
+    for (const e of events) this.onChange(e);
+    return result;
+  }
+
+  /**
+   * Deletes a group with all its notes, their history, releases and trash (only an owner may). Attachments
+   * must be removed from the file store before. Returns the former members (they pull the revocations).
+   */
+  deleteGroup(userId: string, groupId: string): string[] {
+    if (this.groupRole(groupId, userId) !== 'owner') throw new Error('forbidden');
+    return transaction(this.db, () => {
+      const members = (this.db.prepare('SELECT user_id FROM group_members WHERE group_id = ?').all(groupId) as { user_id: string }[]).map((m) => m.user_id);
+      const live = this.db.prepare('SELECT id FROM notes WHERE owner_id = ? AND deleted = 0').all(groupId) as { id: string }[];
+      const seq = this.nextSeq();
+      const revoke = this.db.prepare('INSERT INTO share_revocations (note_id, user_id, seq) VALUES (?, ?, ?)');
+      for (const n of live) for (const m of members) revoke.run(n.id, m, seq);
+      // Cascades to the notes (history, releases, trash, links), the memberships and the attachment rows
+      this.db.prepare('DELETE FROM users WHERE id = ? AND is_group = 1').run(groupId);
+      return members;
     });
   }
 

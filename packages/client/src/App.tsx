@@ -13,6 +13,7 @@ import { PublicNote } from './views/Public';
 import { Shell } from './views/Shell';
 import { HomeView } from './views/Home';
 import { NoteList } from './views/NoteList';
+import { GroupManageView, GroupView, GroupsView } from './views/Groups';
 import { NoteView } from './views/NoteView';
 import { SearchView } from './views/Search';
 import { SettingsView } from './views/Settings';
@@ -172,6 +173,8 @@ export function App() {
   const note = match(path, '/n/:id');
   const dailyDate = match(path, '/daily/:date');
   const tagRoute = match(path, '/tags/:tag');
+  const groupRoute = match(path, '/g/:id') ?? match(path, '/g/:id/:folder');
+  const groupManage = match(path, '/groups/:id');
   if (note) page = <NoteView key={note.id} id={note.id} isNew={location.search.includes('new=1')} />;
   else if (path === '/daily') page = <DailyNoteEmptyView key="today" />;
   else if (dailyDate) page = <DailyNoteEmptyView key={dailyDate.date} date={dailyDate.date} />;
@@ -189,6 +192,9 @@ export function App() {
   else if (path.startsWith('/f/')) page = <NoteList key={path} mode="folder" folder={decodeURIComponent(path.slice(3))} />;
   else if (path === '/notes') page = <NoteList mode="all" />;
   else if (path === '/shared' && !me.standalone) page = <NoteList mode="shared" />;
+  else if (path === '/groups' && !me.standalone) page = <GroupsView />;
+  else if (groupManage && !me.standalone) page = <GroupManageView key={path} groupId={groupManage.id} />;
+  else if (groupRoute && !me.standalone) page = <GroupView key={path} groupId={groupRoute.id} folder={groupRoute.folder ?? ''} />;
   else if (path === '/search') page = <SearchView />;
   else if (path === '/admin' && !me.standalone) page = <AdminView me={me} />;
   else if (path === '/settings/templates') page = <TemplatesView />;

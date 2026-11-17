@@ -7,7 +7,7 @@ import type { NewNoteKind } from './newNote';
  * can start as a given `type` and live in a folder another user shares (`shared`).
  */
 export type DialogState =
-  | { kind: 'note'; folder?: string; type?: NewNoteKind; shared?: SharedFolder }
+  | { kind: 'note'; folder?: string; type?: NewNoteKind; shared?: SharedFolder; group?: string }
   | { kind: 'zettel' }
   | { kind: 'recipe'; url?: string }
   | { kind: 'clip'; url?: string; title?: string; selection?: string }

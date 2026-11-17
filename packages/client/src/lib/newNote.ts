@@ -18,10 +18,14 @@ export function isPdfFile(file: File): boolean {
 }
 
 /** Creates an empty drawing note (`type: excalidraw`, see `shared/excalidrawNote.ts`) and opens it */
-export async function createDrawingNote(folder: string, title?: string, shared?: SharedFolder): Promise<LocalNote | null> {
+export async function createDrawingNote(folder: string, title?: string, shared?: SharedFolder, group?: string): Promise<LocalNote | null> {
   const name = title?.trim() || t('nav.drawingDefaultTitle');
   try {
-    const note = shared ? await vault.createShared(shared, name, excalidrawNoteMarkdown()) : await vault.create(folder, name, excalidrawNoteMarkdown());
+    const note = group
+      ? await vault.createInGroup(group, folder, name, excalidrawNoteMarkdown())
+      : shared
+        ? await vault.createShared(shared, name, excalidrawNoteMarkdown())
+        : await vault.create(folder, name, excalidrawNoteMarkdown());
     navigate(`/n/${note.id}`);
     return note;
   } catch (err) {

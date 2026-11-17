@@ -29,7 +29,8 @@ export function releaseChipLabel(note: LocalNote): string {
 export function ReleaseDialog({ note, locked = false, onClose }: { note: LocalNote; locked?: boolean; onClose: () => void }) {
   const lang = useLang();
   const fmt = (ms: number) => new Date(ms).toLocaleString(locale(lang), { dateStyle: 'medium', timeStyle: 'short' });
-  const isOwner = note.access === 'owner' && !locked;
+  // Owners, and owners and editors of the group a note belongs to (#58)
+  const isOwner = (note.access === 'owner' || vault.managesGroupNote(note)) && !locked;
   const canEdit = note.access !== 'read' && !locked;
   const releases = note.releases ?? [];
   const latest = releases[0]?.version ?? null;

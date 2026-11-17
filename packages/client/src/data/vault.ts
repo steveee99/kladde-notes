@@ -7,6 +7,8 @@ import {
   FEATURES_SETTING,
   FOLDERS_NOTE_PATH,
   FeatureSettings,
+  GroupInfo,
+  GroupMoveResult,
   INBOX_FOLDER,
   PROJECT_HOME_NAME,
   PullResponse,
@@ -51,6 +53,7 @@ import {
   appendTaskLines,
   setTaskMeta,
   merge3,
+  canWriteInGroup,
   type NoteReleaseInfo,
   type ReleaseBump,
 } from '@kladde/shared';
@@ -70,6 +73,8 @@ export function newId(): string {
 
 /** Synced setting with the ordered list of favorite note ids */
 const FAVORITES_SETTING = 'favorites';
+/** Synced setting with favorite group folders (#58): "<group id>/<folder>", the folder empty for the group itself */
+const FAVORITE_GROUP_FOLDERS_SETTING = 'favoriteGroupFolders';
 
 /**
  * The local copy of the user's space (offline first). Every edit lands in IndexedDB right away and is
@@ -86,6 +91,8 @@ class Vault {
   standalone = false;
   /** Folders other users share with this user (from the last pull) */
   sharedFolders: SharedFolder[] = [];
+  /** Groups the user is a member of (#58, from the last pull) */
+  groups: GroupInfo[] = [];
   private userId = '';
   private db: LocalDb | null = null;
   private version = 0;
@@ -150,6 +157,7 @@ class Vault {
     this.db = db;
     for (const n of await this.db.getAll('notes')) this.notes.set(n.id, n);
     this.sharedFolders = ((await this.db.get('meta', 'sharedFolders')) as SharedFolder[] | undefined) ?? [];
+    this.groups = ((await this.db.get('meta', 'groups')) as GroupInfo[] | undefined) ?? [];
     this.ready = true;
     this.emit();
     window.addEventListener('online', this.kick);
@@ -170,6 +178,7 @@ class Vault {
     presence.reset();
     this.notes.clear();
     this.sharedFolders = [];
+    this.groups = [];
     this.ready = false;
     this.db = null;
     this.emit();
@@ -208,7 +217,7 @@ class Vault {
       deleted: n.deleted,
       createdAt: n.createdAt,
       updatedAt: n.updatedAt,
-      ...(n.version === 0 && n.access !== 'owner' && n.owner ? { owner: n.owner } : {}),
+      ...newNoteSpace(n),
       ...(n.deleted && n.trashBatch ? { trashBatch: n.trashBatch, trashFolder: n.trashFolder } : {}),
     }));
     const body = JSON.stringify({ changes });
@@ -326,9 +335,11 @@ class Vault {
     await this.db?.put('notes', note);
   }
 
-  private uniquePath(folder: string, title: string, ignoreId?: string): string {
+  /** A free path for `title` in `folder` of one space (own notes, one other owner's space, or a group) */
+  private uniquePath(folder: string, title: string, ignoreId?: string, space = 'own'): string {
     let candidate = joinPath(folder, title);
-    for (let i = 2; [...this.notes.values()].some((n) => !n.deleted && n.id !== ignoreId && n.path === candidate); i++) {
+    const taken = (path: string) => [...this.notes.values()].some((n) => !n.deleted && n.id !== ignoreId && n.path === path && spaceOf(n) === space);
+    for (let i = 2; taken(candidate); i++) {
       candidate = joinPath(folder, `${title} ${i}`);
     }
     return candidate;
@@ -347,7 +358,7 @@ class Vault {
     const now = Date.now();
     const note: LocalNote = {
       id: newId(),
-      path: this.uniquePath(shared.folder, title),
+      path: this.uniquePath(shared.folder, title, undefined, `user:${shared.owner}`),
       content,
       version: 0,
       createdAt: now,
@@ -361,6 +372,85 @@ class Vault {
     await this.put(note);
     this.schedule();
     return note;
+  }
+
+  // ------------------------------------------------------------------ groups (#58)
+
+  group(id: string | undefined): GroupInfo | undefined {
+    return id ? this.groups.find((g) => g.id === id) : undefined;
+  }
+
+  /** Visible notes of a group */
+  groupNotes(groupId: string): LocalNote[] {
+    return this.list().filter((n) => n.group === groupId);
+  }
+
+  /** Folders of a group, from the paths of its notes (with their parents) */
+  groupFolders(groupId: string): string[] {
+    const set = new Set<string>();
+    for (const n of this.groupNotes(groupId)) {
+      const parts = splitPath(n.path).folder.split('/').filter(Boolean);
+      for (let i = 1; i <= parts.length; i++) set.add(parts.slice(0, i).join('/'));
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, locale(getLang()), { numeric: true }));
+  }
+
+  /** Groups the user may create notes in (and move notes into) */
+  writableGroups(): GroupInfo[] {
+    return this.groups.filter((g) => canWriteInGroup(g.role));
+  }
+
+  /** A group note the user may rename, move and delete (owners and editors of the group) */
+  managesGroupNote(note: LocalNote): boolean {
+    return !!note.group && note.access === 'write' && canWriteInGroup(this.group(note.group)?.role);
+  }
+
+  /** A new note in a group: it belongs to the group, every member sees it */
+  async createInGroup(groupId: string, folder: string, title: string, content = ''): Promise<LocalNote> {
+    if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    const group = this.group(groupId);
+    if (!group || !canWriteInGroup(group.role)) throw new Error(t('groups.noWrite'));
+    const now = Date.now();
+    const note: LocalNote = {
+      id: newId(),
+      path: this.uniquePath(folder, title, undefined, `group:${group.id}`),
+      content,
+      version: 0,
+      createdAt: now,
+      updatedAt: now,
+      deleted: false,
+      access: 'write',
+      owner: group.name,
+      group: group.id,
+      canDelete: true,
+      dirty: true,
+    };
+    await this.put(note);
+    this.schedule();
+    return note;
+  }
+
+  /**
+   * Moves own notes into a group (online only): a single note lands in `target`, a whole `folder` keeps its name
+   * and structure below it. Shares of the notes end; links between them keep working.
+   */
+  async moveToGroup(groupId: string, noteIds: string[], target: string, folder?: string): Promise<GroupMoveResult> {
+    if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    await this.sync();
+    if (noteIds.some((id) => this.notes.get(id)?.dirty)) throw new Error(t('groups.moveNotSynced'));
+    const result = await api<GroupMoveResult>(`/groups/${encodeURIComponent(groupId)}/move`, { method: 'POST', json: { noteIds, target, ...(folder ? { folder } : {}) } });
+    if (folder) {
+      await this.setFolders(this.storedFolders().filter((f) => f !== folder && !f.startsWith(`${folder}/`)));
+      // Folder shares of the moved folder end with it
+      void api('/folders/deleted', { method: 'POST', json: { folder } }).catch(() => {});
+    }
+    await this.sync();
+    return result;
+  }
+
+  /** Own notes inside `folder` and its subfolders (what moving the folder into a group takes along) */
+  notesOfFolder(folder: string): LocalNote[] {
+    return this.notesBelow(folder);
   }
 
   /** The shared folder (of its owner) a shared note lies in, the innermost one first */
@@ -394,9 +484,9 @@ class Vault {
     const note = this.notes.get(id);
     if (!note || note.access === 'read' || isReadOnly()) return;
     let path = note.path;
-    if (note.access === 'owner' && (patch.folder !== undefined || patch.title !== undefined)) {
+    if ((note.access === 'owner' || this.managesGroupNote(note)) && (patch.folder !== undefined || patch.title !== undefined)) {
       const cur = splitPath(note.path);
-      path = this.uniquePath(patch.folder ?? cur.folder, patch.title ?? cur.name, id);
+      path = this.uniquePath(patch.folder ?? cur.folder, patch.title ?? cur.name, id, spaceOf(note));
     }
     const content = patch.content !== undefined ? normalizeDueWords(patch.content) : note.content;
     if (content === note.content && path === note.path) return;
@@ -672,9 +762,10 @@ class Vault {
     return this.create(zettel.folder, `${zid} ${title}`.trim(), fm + body);
   }
 
-  /** A note from a template (or a blank one); with `shared` it goes into that shared folder instead of `folder` */
-  async createFromTemplate(template: Template | null, title: string, folder: string, shared?: SharedFolder): Promise<LocalNote> {
-    const make = (name: string, content: string) => (shared ? this.createShared(shared, name, content) : this.create(folder, name, content));
+  /** A note from a template (or a blank one); with `shared` it goes into that shared folder, with `group` into `folder` of that group */
+  async createFromTemplate(template: Template | null, title: string, folder: string, shared?: SharedFolder, group?: string): Promise<LocalNote> {
+    const make = (name: string, content: string) =>
+      group ? this.createInGroup(group, folder, name, content) : shared ? this.createShared(shared, name, content) : this.create(folder, name, content);
     if (!template) return make(title, '');
     const zid = zettelId();
     const content = fillTemplate(template.content, { title, zid });
@@ -718,6 +809,35 @@ class Vault {
     const next = list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
     await this.setSetting(FAVORITES_SETTING, next);
     return next.includes(id);
+  }
+
+  /** Favorite group folders (#58) in the user's order; groups the user left and folders without notes are skipped */
+  favoriteGroupFolders(): { group: GroupInfo; folder: string }[] {
+    const raw = this.setting<unknown>(FAVORITE_GROUP_FOLDERS_SETTING);
+    if (!Array.isArray(raw)) return [];
+    const out: { group: GroupInfo; folder: string }[] = [];
+    for (const key of raw) {
+      if (typeof key !== 'string') continue;
+      const i = key.indexOf('/');
+      const group = this.group(i < 0 ? key : key.slice(0, i));
+      const folder = i < 0 ? '' : key.slice(i + 1);
+      if (group && (!folder || this.groupFolders(group.id).includes(folder))) out.push({ group, folder });
+    }
+    return out;
+  }
+
+  isFavoriteGroupFolder(groupId: string, folder: string): boolean {
+    return this.favoriteGroupFolders().some((f) => f.group.id === groupId && f.folder === folder);
+  }
+
+  /** Adds or removes a group folder (or the group itself, `folder` empty) from the favorites */
+  async toggleFavoriteGroupFolder(groupId: string, folder: string): Promise<boolean> {
+    if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    const key = `${groupId}/${folder}`;
+    const list = this.favoriteGroupFolders().map((f) => `${f.group.id}/${f.folder}`);
+    const next = list.includes(key) ? list.filter((k) => k !== key) : [...list, key];
+    await this.setSetting(FAVORITE_GROUP_FOLDERS_SETTING, next);
+    return next.includes(key);
   }
 
   // ------------------------------------------------------------------ synced settings (system note)
@@ -1042,8 +1162,8 @@ class Vault {
           deleted: n.deleted,
           createdAt: n.createdAt,
           updatedAt: n.updatedAt,
-          // New note in a folder someone shares with us: it is created in their space
-          ...(n.version === 0 && n.access !== 'owner' && n.owner ? { owner: n.owner } : {}),
+          // New note in a folder someone shares with us or in a group: it is created in their space
+          ...newNoteSpace(n),
           // Deleted with a folder: the trash restores the whole folder as one unit
           ...(n.deleted && n.trashBatch ? { trashBatch: n.trashBatch, trashFolder: n.trashFolder } : {}),
         })),
@@ -1065,8 +1185,8 @@ class Vault {
       } else if (r.status === 'conflict') {
         await this.resolveConflict(current, r.server);
       } else if (current.version === 0 && current.access !== 'owner' && !current.deleted) {
-        // Creating in a shared folder is no longer allowed: the text stays, as an own note in the inbox
-        const { owner: _owner, canDelete: _canDelete, ...rest } = current;
+        // Creating in a shared folder or group is no longer allowed: the text stays, as an own note in the inbox
+        const { owner: _owner, canDelete: _canDelete, group: _group, ...rest } = current;
         await this.put({ ...rest, access: 'owner', path: this.uniquePath(INBOX_FOLDER, splitPath(current.path).name, current.id), dirty: true });
       } else if (current.deleted && current.access !== 'owner') {
         // Deleting is not (or no longer) allowed: the note comes back
@@ -1098,6 +1218,10 @@ class Vault {
     if (res.sharedFolders) {
       this.sharedFolders = res.sharedFolders;
       await this.db!.put('meta', res.sharedFolders, 'sharedFolders');
+    }
+    if (res.groups) {
+      this.groups = res.groups;
+      await this.db!.put('meta', res.groups, 'groups');
     }
     await this.db!.put('meta', res.cursor, 'cursor');
     this.emit();
@@ -1147,6 +1271,19 @@ function cleanFolder(path: string): string {
     .filter((p) => p && p !== '.' && p !== '..')
     .join('/');
   return cleaned === '.kladde' || cleaned.toLowerCase().startsWith('.kladde/') ? '' : cleaned;
+}
+
+/** Which space a note lives in: own notes, another user's space (shares) or a group (#58) */
+function spaceOf(n: LocalNote): string {
+  if (n.group) return `group:${n.group}`;
+  return n.access === 'owner' ? 'own' : `user:${n.owner ?? ''}`;
+}
+
+/** What a new note tells the server about where it belongs: a group, or a folder another user shares */
+function newNoteSpace(n: LocalNote): { group?: string; owner?: string } {
+  if (n.version !== 0) return {};
+  if (n.group) return { group: n.group };
+  return n.access !== 'owner' && n.owner ? { owner: n.owner } : {};
 }
 
 const safeObject = (s: string): Record<string, unknown> => {

@@ -2,7 +2,8 @@ import express, { Response } from 'express';
 import { isReleaseBump } from '@kladde/shared';
 import type { AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
 import { Presence } from './Presence.js';
-import { attachmentUsageMap } from './cliActions.js';
+import { FILE_URL_RE, attachmentUsageMap } from './cliActions.js';
+import { GroupError, GroupStore } from './GroupStore.js';
 import { AvatarStore, MAX_AVATAR_BYTES } from './AvatarStore.js';
 import { NoteStore, ReleaseConflict, TrashPathTaken, VersioningOff } from './NoteStore.js';
 import { DEFAULT_TRASH_DAYS, dropUnusedAttachments } from './trash.js';
@@ -62,6 +63,8 @@ export interface ApiRouterOptions {
   transcriber?: Transcriber | null;
   /** Full-text search in attachments (#37) */
   attachmentSearch?: { files: FileStore; texts: AttachmentTextStore; ocr: boolean };
+  /** Groups (#58); not in standalone mode */
+  groups?: GroupStore;
 }
 
 export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, live: LiveUpdates, opts: ApiRouterOptions = {}): express.Router {
@@ -243,9 +246,17 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
   });
 
   const purge = (userId: string, ids: string[] | null) => {
-    const contents = notes.purge(userId, ids);
-    dropUnusedAttachments(notes, files, userId, contents);
-    return contents.length;
+    const entries = notes.purgeEntries(userId, ids);
+    // A group's trash (#58) holds the group's notes: their attachments are looked up for the group
+    for (const owner of new Set(entries.map((e) => e.ownerId))) {
+      dropUnusedAttachments(
+        notes,
+        files,
+        owner,
+        entries.filter((e) => e.ownerId === owner).map((e) => e.content)
+      );
+    }
+    return entries.length;
   };
 
   router.delete('/trash/:id', (req, res) => {
@@ -404,6 +415,133 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
         res.json(notes.shares(req.user!.id, req.params.id));
       } catch {
         notFound(res);
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------- groups (#58)
+
+  if (!standalone && opts.groups) {
+    const groups = opts.groups;
+    const groupError = (res: Response, err: unknown) => {
+      if (err instanceof GroupError) return void res.status(err.status).json({ error: err.message });
+      const message = (err as Error).message;
+      if (message === 'forbidden') res.status(403).json({ error: 'In dieser Gruppe darfst du keine Notizen anlegen.' });
+      else if (message === 'invalid' || message === 'invalid path') res.status(400).json({ error: 'Ungültige Angaben.' });
+      else if (message === 'not found') res.status(404).json({ error: 'Notiz nicht gefunden (oder nicht deine).' });
+      else throw err;
+    };
+    const groupFiles = (groupId: string): Set<string> => {
+      const ids = new Set(files.listByOwner(groupId).map((f) => f.id));
+      for (const content of [...notes.allOf(groupId).map((n) => n.content), ...notes.trashedContents(groupId)]) {
+        for (const m of content.matchAll(FILE_URL_RE)) if (files.exists(m[1])) ids.add(m[1]);
+      }
+      return ids;
+    };
+    const memberTarget = (value: unknown) => {
+      const target = typeof value === 'string' ? users.findByUsername(value) : null;
+      if (!target || target.bannedAt) throw new GroupError('Diesen Benutzer gibt es nicht.');
+      return target;
+    };
+
+    router.get('/groups', (req, res) => {
+      res.json(notes.groupsOf(req.user!.id));
+    });
+
+    router.post('/groups', rateLimit(30, 10 * 60_000), (req, res) => {
+      try {
+        const group = groups.create(req.user!.id, req.body?.name);
+        live.notify([req.user!.id]);
+        res.json(group);
+      } catch (err) {
+        groupError(res, err);
+      }
+    });
+
+    router.get('/groups/:id', (req, res) => {
+      try {
+        const details = groups.details(req.user!.id, req.params.id);
+        res.json({ ...details, attachments: groupFiles(details.id).size });
+      } catch (err) {
+        groupError(res, err);
+      }
+    });
+
+    router.patch('/groups/:id', (req, res) => {
+      try {
+        res.json(groups.rename(req.user!.id, req.params.id, req.body?.name));
+        live.notify(groups.memberIds(req.params.id));
+      } catch (err) {
+        groupError(res, err);
+      }
+    });
+
+    router.put('/groups/:id/members', (req, res) => {
+      try {
+        const target = memberTarget(req.body?.username);
+        groups.setMember(req.user!.id, req.params.id, target.id, req.body?.role);
+        live.notify(groups.memberIds(req.params.id));
+        res.json(groups.details(req.user!.id, req.params.id));
+      } catch (err) {
+        groupError(res, err);
+      }
+    });
+
+    // Removing someone else needs the owner role; removing oneself is leaving the group
+    router.delete('/groups/:id/members/:username', (req, res) => {
+      try {
+        const target = users.findByUsername(req.params.username);
+        if (!target) throw new GroupError('Diese Person ist nicht in der Gruppe.', 404);
+        const before = groups.memberIds(req.params.id);
+        groups.removeMember(req.user!.id, req.params.id, target.id);
+        live.notify(before);
+        res.json(target.id === req.user!.id ? { left: true } : groups.details(req.user!.id, req.params.id));
+      } catch (err) {
+        groupError(res, err);
+      }
+    });
+
+    router.post('/groups/:id/leave', (req, res) => {
+      try {
+        const before = groups.memberIds(req.params.id);
+        groups.removeMember(req.user!.id, req.params.id, req.user!.id);
+        live.notify(before);
+        res.json({ left: true });
+      } catch (err) {
+        groupError(res, err);
+      }
+    });
+
+    // Deleting a group needs its name as confirmation; every note and attachment of the group goes with it
+    router.delete(
+      '/groups/:id',
+      handle((req, res) => {
+        const userId = req.user!.id;
+        const groupId = String(req.params.id);
+        try {
+          groups.checkDelete(userId, groupId, req.body?.confirm);
+          const contents = [...notes.allOf(groupId).map((n) => n.content), ...notes.trashedContents(groupId)];
+          const used = groupFiles(groupId);
+          for (const f of files.listByOwner(groupId)) files.delete(groupId, f.id);
+          const members = notes.deleteGroup(userId, groupId);
+          // Attachments members uploaded into group notes: gone too, unless their uploader still uses them elsewhere
+          const owners = new Set([...used].map((id) => files.meta(id)?.ownerId).filter((o): o is string => !!o));
+          for (const owner of owners) dropUnusedAttachments(notes, files, owner, contents);
+          live.notify(members);
+          res.json({ ok: true });
+        } catch (err) {
+          groupError(res, err);
+        }
+      })
+    );
+
+    // Own notes (a single note or a whole folder) move into the group: shares end, links between them keep working
+    router.post('/groups/:id/move', (req, res) => {
+      try {
+        const result = notes.moveToGroup(req.user!.id, req.params.id, req.body ?? {});
+        res.json({ moved: result.moved });
+      } catch (err) {
+        groupError(res, err);
       }
     });
   }
