@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { CalendarCheck, CalendarDays, FileText, Home, Inbox as InboxIcon, ListChecks, Menu, Network, Pencil, Share2, Tags, Users, X } from '../lib/icons';
+import { CalendarCheck, CalendarDays, FileText, Home, Inbox as InboxIcon, ListChecks, Menu, Network, Pencil, Search as SearchIcon, Share2, Tags, Users, X } from '../lib/icons';
+import { openSearch, SearchDialogHost } from './SearchDialog';
 import { INBOX_FOLDER, Me, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { navigate, usePath } from '../lib/router';
@@ -22,7 +23,7 @@ import { setFocusMode, useFocusMode } from '../lib/focus';
 /*
  * Shell of Kladde (Material 3): a navigation rail or sticky navigation drawer on tablet and desktop
  * (toggled cleanly via the 3-line Menu icon), content on a rounded M3 surface container, an optional
- * detached right inspector surface for open notes, and a navigation bar + modal drawer on mobile (< md).
+ * detached right inspector surface for open notes, and a navigation bar + modal drawer on mobile (< nav).
  */
 
 const RightPaneHostContext = createContext<HTMLDivElement | null>(null);
@@ -47,6 +48,7 @@ function Destination({
   bar,
   title,
   ariaLabel,
+  className = '',
 }: {
   active: boolean;
   onClick: () => void;
@@ -57,6 +59,7 @@ function Destination({
   bar?: boolean;
   title?: string;
   ariaLabel?: string;
+  className?: string;
 }) {
   return (
     <button
@@ -65,7 +68,7 @@ function Destination({
       aria-current={active ? 'page' : undefined}
       aria-label={ariaLabel}
       title={title}
-      className={`group flex min-w-0 flex-col items-center gap-1 text-label-m outline-none ${bar ? 'px-1 pb-1 pt-3' : 'w-full shrink-0 pb-1'} ${
+      className={`group flex min-w-0 flex-col items-center gap-1 text-label-m outline-none ${bar ? 'min-w-0 flex-1 basis-0 px-1 pb-1 pt-3' : 'w-full shrink-0 pb-1'} ${className} ${
         active ? 'text-on-surface' : 'text-on-surface-variant'
       }`}
     >
@@ -87,10 +90,10 @@ function RailDivider() {
   return <hr aria-hidden className="w-10 shrink-0 border-0 border-t border-outline-variant" />;
 }
 
-function NavItem({ to, Icon, label, badge, bar }: { to: string; Icon: Icon; label: string; badge?: React.ReactNode; bar?: boolean }) {
+function NavItem({ to, Icon, label, badge, bar, className }: { to: string; Icon: Icon; label: string; badge?: React.ReactNode; bar?: boolean; className?: string }) {
   const path = usePath();
   // A destination stays active on its sub pages (`/tags/<tag>`)
-  return <Destination active={path === to || (to !== '/' && path.startsWith(`${to}/`))} onClick={() => navigate(to)} Icon={Icon} label={label} badge={badge} bar={bar} />;
+  return <Destination active={path === to || (to !== '/' && path.startsWith(`${to}/`))} onClick={() => navigate(to)} Icon={Icon} label={label} badge={badge} bar={bar} className={className} />;
 }
 
 export function MaterialShell({ me, children, isAdmin }: { me: Me; children: React.ReactNode; isAdmin?: boolean }) {
@@ -127,23 +130,13 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
     if (focusMode && (!noteId || !features.focus.enabled)) setFocusMode(false);
   }, [focusMode, noteId, features.focus.enabled]);
 
-  useEffect(() => {
-    const onOpenSearch = () => {
-      setDrawer(true);
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => document.querySelector<HTMLInputElement>('[data-search-input]')?.select())
-      );
-    };
-    window.addEventListener('kladde:open-search', onOpenSearch);
-    return () => window.removeEventListener('kladde:open-search', onOpenSearch);
-  }, []);
 
   return (
-    <div className="flex h-full flex-col bg-surface md:bg-surface-container">
-      <div className="sticky top-0 z-20 hidden shrink-0 bg-surface-container [--pad-top:0.375rem] safe-top [@media(display-mode:standalone)]:md:block" />
+    <div className="flex h-full flex-col bg-surface nav:bg-surface-container">
+      <div className="sticky top-0 z-20 hidden shrink-0 bg-surface-container [--pad-top:0.375rem] safe-top [@media(display-mode:standalone)]:nav:block" />
       <div className="flex min-h-0 min-w-0 flex-1">
         {focus ? null : sticky ? (
-          <aside aria-label={t('nav.navigationLabel')} className="relative hidden shrink-0 py-4 pl-4 pr-3 md:flex" style={{ width: sidebarWidth }}>
+          <aside aria-label={t('nav.navigationLabel')} className="relative hidden shrink-0 py-4 pl-4 pr-3 nav:flex" style={{ width: sidebarWidth }}>
             <div className="flex min-h-0 w-full flex-col overflow-hidden">
               <Sidebar
                 me={me}
@@ -152,7 +145,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
                   <button
                     type="button"
                     onClick={toggleMaterialSidebarMode}
-                    className="btn-icon hidden md:inline-flex"
+                    className="btn-icon hidden nav:inline-flex"
                     title={t('nav.toggleSidebar')}
                     aria-label={t('nav.toggleSidebar')}
                   >
@@ -164,7 +157,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
             <SidebarResizeHandle />
           </aside>
         ) : (
-          <nav aria-label={t('nav.navigationLabel')} className="hidden w-24 shrink-0 flex-col items-center gap-3 overflow-y-auto overflow-x-hidden pb-4 pt-5 scrollbar-thin md:flex">
+          <nav aria-label={t('nav.navigationLabel')} className="hidden w-24 shrink-0 flex-col items-center gap-3 overflow-y-auto overflow-x-hidden pb-4 pt-5 scrollbar-thin nav:flex">
             <button
               type="button"
               className="btn-icon shrink-0"
@@ -214,9 +207,9 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
           </nav>
         )}
 
-        {/* Mobile navigation drawer (< md only) */}
+        {/* Mobile navigation drawer (< nav only) */}
         {drawer && (
-          <div className="fixed inset-0 z-40 md:hidden">
+          <div className="fixed inset-0 z-40 nav:hidden">
             <div className="absolute inset-0 bg-scrim/[0.32] anim-fade-in" onClick={() => setDrawer(false)} />
             <aside
               className="m3-status absolute inset-y-0 left-0 w-[85%] max-w-[360px] rounded-r-2xl bg-surface-container-low shadow-elevation-1 safe-top safe-bottom"
@@ -231,7 +224,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
                   <button
                     type="button"
                     onClick={() => setDrawer(false)}
-                    className="btn-icon md:hidden"
+                    className="btn-icon nav:hidden"
                     aria-label={t('common.close')}
                   >
                     <X size={24} />
@@ -242,30 +235,43 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
           </div>
         )}
 
-        <div className={`flex min-w-0 flex-1 flex-col ${focus ? 'bg-surface safe-top' : 'md:py-4 md:pr-4'}`}>
-          <header className={`sticky top-0 z-20 min-h-16 min-w-0 items-center gap-1 bg-surface [--pad-x:0.25rem] safe-top safe-x md:hidden ${focus ? 'hidden' : 'flex'}`}>
+        <div className={`flex min-w-0 flex-1 flex-col ${focus ? 'bg-surface safe-top' : 'nav:py-4 nav:pr-4'}`}>
+          <header className={`sticky top-0 z-20 min-h-16 min-w-0 items-center gap-1 bg-surface [--pad-x:0.25rem] safe-top safe-x nav:hidden ${focus ? 'hidden' : 'flex'}`}>
             <button className="btn-icon shrink-0" onClick={() => setDrawer(true)} aria-label={t('nav.openMenu')}>
               <Menu size={24} />
             </button>
             <span className="min-w-0 truncate pl-1 text-title-l">Kladde</span>
             <div className="m3-status ml-auto flex shrink-0 items-center gap-1 pr-2">
+              <button type="button" className="btn-icon shrink-0 sm:hidden" onClick={openSearch} aria-label={t('common.search')} title={t('common.search')}>
+                <SearchIcon size={24} />
+              </button>
               <ReadOnlyToggle />
               <SyncBadge />
             </div>
           </header>
-          <div className="flex min-h-0 min-w-0 flex-1 md:gap-3">
+          <div className="flex min-h-0 min-w-0 flex-1 nav:gap-3">
             <RightPaneHostContext.Provider value={rightHost}>
-              <main className={`vt-main min-h-0 min-w-0 flex-1 overflow-y-auto scrollbar-thin md:bg-surface ${focus ? '' : 'md:rounded-[28px]'} ${!noteId ? 'pb-24' : ''}`}>
+              <main className={`vt-main min-h-0 min-w-0 flex-1 overflow-y-auto scrollbar-thin nav:bg-surface ${focus ? '' : 'nav:rounded-[28px]'} ${!noteId ? 'pb-24' : ''}`}>
                 {children}
               </main>
             </RightPaneHostContext.Provider>
             <div ref={setRightHost} className={`no-print hidden shrink-0 empty:hidden ${focus ? '' : 'lg:flex'}`} />
           </div>
-          <nav aria-label={t('nav.navigationLabel')} className={`bottom-bar min-h-20 grid-cols-5 bg-surface-container safe-x md:hidden ${focus ? 'hidden' : 'grid'}`}>
+          {/*
+            Bottom navigation bar (phones, and tablets in portrait): on wider screens (from sm) it has room for
+            more destinations, so a tablet reaches daily note, search, tags and graph without opening the drawer.
+          */}
+          <nav aria-label={t('nav.navigationLabel')} className={`bottom-bar min-h-20 bg-surface-container safe-x nav:hidden ${focus ? 'hidden' : 'flex'}`}>
             <NavItem bar to="/" Icon={Home} label={t('nav.home')} />
+            {showDailyRail && (
+              <Destination bar className="max-sm:hidden" active={dailyActive} onClick={() => void openTodayDailyNote()} Icon={CalendarDays} label={t('daily.navShort')} title={t('daily.todayBtn')} />
+            )}
             <NavItem bar to="/tasks" Icon={ListChecks} label={t('nav.tasks')} badge={taskBadge} />
             <NavItem bar to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} />
             <NavItem bar to="/notes" Icon={FileText} label={t('nav.notes')} />
+            <Destination bar className="max-sm:hidden" active={false} onClick={openSearch} Icon={SearchIcon} label={t('common.search')} title={t('common.search')} />
+            <NavItem bar className="max-sm:hidden" to="/tags" Icon={Tags} label={t('nav.tags')} />
+            <NavItem bar className="max-md:hidden" to="/graph" Icon={Network} label={t('nav.graphShort')} />
             <Destination
               bar
               active={settingsActive}
@@ -280,7 +286,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
       </div>
       {!noteId && (
         <button
-          className="edit-only state-layer fixed bottom-[calc(6.5rem+max(0px,env(safe-area-inset-bottom)-1.5rem))] right-4 z-30 flex h-14 items-center gap-3 rounded-2xl bg-primary-container pl-4 pr-5 text-title-m text-on-primary-container shadow-elevation-3 transition-transform duration-200 ease-spring active:scale-95 md:bottom-[calc(2.5rem+env(safe-area-inset-bottom))] md:right-10"
+          className="edit-only state-layer fixed bottom-[calc(6.5rem+max(0px,env(safe-area-inset-bottom)-1.5rem))] right-4 z-30 flex h-14 items-center gap-3 rounded-2xl bg-primary-container pl-4 pr-5 text-title-m text-on-primary-container shadow-elevation-3 transition-transform duration-200 ease-spring active:scale-95 nav:bottom-[calc(2.5rem+env(safe-area-inset-bottom))] nav:right-10"
           onClick={() => setCapture(true)}
           title={t('nav.capture')}
         >
@@ -289,6 +295,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
       )}
       {capture && <QuickCapture onClose={() => setCapture(false)} />}
       <Dialogs />
+      <SearchDialogHost />
     </div>
   );
 }

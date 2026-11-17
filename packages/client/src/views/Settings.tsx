@@ -34,6 +34,7 @@ import {
   SunMoon,
   Trash2,
   Star,
+  Mood,
   Upload,
   X,
   TextFields,
@@ -863,6 +864,17 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
           enabled={features.favorites.enabled}
           locked={locked}
           onToggle={(enabled) => save({ ...features, favorites: { enabled } })}
+        />
+
+        <FeatureRow
+          id="feature-icons-switch"
+          Icon={Mood}
+          title={tl(lang, 'settings.iconsTitle')}
+          desc={tl(lang, 'settings.iconsDesc')}
+          toggleLabel={tl(lang, 'settings.iconsToggleLabel')}
+          enabled={features.icons.enabled}
+          locked={locked}
+          onToggle={(enabled) => save({ ...features, icons: { enabled } })}
         />
 
         <FeatureRow

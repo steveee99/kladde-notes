@@ -29,3 +29,4 @@ export * from './webclip.js';
 export * from './confluence.js';
 export * from './release.js';
 export * from './groups.js';
+export * from './icons.js';

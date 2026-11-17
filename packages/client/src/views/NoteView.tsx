@@ -51,6 +51,7 @@ import {
   FormatAlignLeft,
   FormatAlignRight,
   Users,
+  Mood,
 } from '../lib/icons';
 import { undo } from '@codemirror/commands';
 import {
@@ -73,6 +74,7 @@ import {
   type GraphEdge,
   type GraphNode,
   type Task,
+  noteIconOf,
 } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
@@ -96,6 +98,7 @@ import { folderDisplayName, t, useLang, type I18nKey, type Lang } from '../lib/i
 import { setLocalGraphDepth, setNoteSplitOpen, setNoteSplitTab, setSourceMode, useLocalGraphDepth, useNoteSplitOpen, useNoteSplitTab, useSourceMode, type NoteSplitTab } from '../lib/prefs';
 import { isCoarsePointer } from '../lib/viewport';
 import { useRightPaneHost } from './MaterialShell';
+import { IconPickerDialog } from './IconPicker';
 import { DailyCarryOver, DailyNoteBar } from './DailyNoteBar';
 import { NoteStats } from './NoteStats';
 import { setFocusMode, useFocusMode } from '../lib/focus';
@@ -125,7 +128,7 @@ function Toolbar({ view, lang }: { view: EditorView | null; lang: Lang }) {
     </button>
   );
   return (
-    <div className="note-toolbar sticky bottom-0 z-20 flex gap-1 overflow-x-auto border-t border-outline-variant bg-surface-container-low/95 px-2 pt-1.5 backdrop-blur [--pad-bottom:0.375rem] max-md:pb-1.5 md:safe-bottom scrollbar-thin">
+    <div className="note-toolbar sticky bottom-0 z-20 flex gap-1 overflow-x-auto border-t border-outline-variant bg-surface-container-low/95 px-2 pt-1.5 backdrop-blur [--pad-bottom:0.375rem] pb-1.5 nav:safe-bottom scrollbar-thin">
       {btn(CheckSquare, t('note.toolbarTask'), () => insertAtLineStart(view, '- [ ] '))}
       {btn(CalendarPlus, t('note.toolbarDueToday'), () => insertText(view, ` 📅 ${toDateString(new Date())}`))}
       {btn(Heading, t('note.toolbarHeading'), () => insertAtLineStart(view, '## '))}
@@ -339,6 +342,7 @@ function NoteOverflowMenu({
   onCopy,
   favorite,
   onToggleFavorite,
+  onIcon,
   sourceMode,
   onToggleSource,
   focusMode,
@@ -367,6 +371,8 @@ function NoteOverflowMenu({
   /** null: favorites are turned off */
   favorite: boolean | null;
   onToggleFavorite: () => void;
+  /** Only with the icons feature on and an editable note */
+  onIcon?: () => void;
   /** null: the note cannot be edited, so there is no code view */
   sourceMode: boolean | null;
   onToggleSource: () => void;
@@ -519,6 +525,16 @@ function NoteOverflowMenu({
                 onClick={() => {
                   setOpen(false);
                   onToggleFavorite();
+                }}
+              />
+            )}
+            {onIcon && (
+              <MenuItem
+                icon={Mood}
+                label={t('icons.menuLabel')}
+                onClick={() => {
+                  setOpen(false);
+                  onIcon();
                 }}
               />
             )}
@@ -1047,6 +1063,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const [releaseOpen, setReleaseOpen] = useState(false);
   const [moving, setMoving] = useState(false);
   const [movingToGroup, setMovingToGroup] = useState(false);
+  const [pickingIcon, setPickingIcon] = useState(false);
   const [showGraph, setShowGraph] = useState(true);
   const splitOpen = useNoteSplitOpen();
   const sourceMode = useSourceMode();
@@ -1339,6 +1356,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 onCopy={() => void copyMarkdown()}
                 favorite={features.favorites.enabled ? vault.isFavorite(id) : null}
                 onToggleFavorite={() => void vault.toggleFavorite(id).catch(() => undefined)}
+                onIcon={features.icons.enabled && !readOnly ? () => setPickingIcon(true) : undefined}
                 sourceMode={readOnly ? null : sourceMode}
                 onToggleSource={() => setSourceMode(!sourceMode)}
                 focusMode={features.focus.enabled && !showPdf ? focus : null}
@@ -1500,7 +1518,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               </div>
             )}
             {!readOnly && (
-              <div className={focus ? 'md:hidden' : ''}>
+              <div className={focus ? 'nav:hidden' : ''}>
                 <Toolbar view={view} lang={lang} />
               </div>
             )}
@@ -1576,6 +1594,14 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
       {movingToGroup && <MoveToGroupSheet noteIds={[id]} label={title || displayName} onClose={() => setMovingToGroup(false)} />}
       {releaseOpen && <ReleaseDialog note={note} locked={locked} onClose={() => setReleaseOpen(false)} />}
       {showHistory && <HistoryDialog noteId={id} current={note.content} canRestore={!readOnly} onClose={() => setShowHistory(false)} />}
+      {pickingIcon && (
+        <IconPickerDialog
+          title={t('icons.noteTitle')}
+          current={noteIconOf(note.content)}
+          onPick={(next) => (view && !showPdf ? applyFrontmatter(view, { icon: next }) : void vault.setNoteIcon(id, next))}
+          onClose={() => setPickingIcon(false)}
+        />
+      )}
       {sharing && <ShareDialog target={{ note: id }} onClose={() => setSharing(false)} />}
       {confluenceOpen && <ConfluenceDialog target={{ note: id, title: title || displayName }} onClose={() => setConfluenceOpen(false)} />}
     </div>
