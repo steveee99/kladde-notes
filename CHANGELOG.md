@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.9.0] – 2026-11-17
+
 - Changed: Search opens as an overlay (Ctrl/⌘+K, the search field in the sidebar, the search button on phones and tablets) instead of inside the sidebar, so the sidebar no longer opens for the shortcut. Results are compact (title, folder and the text around the match on two lines at most, matches highlighted) and are picked with the arrow keys and opened with Enter; without a query it lists the recently edited notes. Matches in attachments stay below the notes.
 - New: Icons (opt-in, Settings → Features → Icons). Notes and folders can get an emoji as their icon, shown in the folder tree, the favorites and the search. Notes get it via ⋮ → "Icon …" and keep it in their frontmatter (`icon: 🚀`), so it travels with shares and exports; folders (including group folders) get it from the smiley button in the tree, synced across devices, and keep it when renamed or moved.
 - Changed: Tablets in portrait (e.g. an iPad) use the phone layout with the navigation bar at the bottom instead of the navigation rail or sidebar, so the editor gets the full width; in landscape they keep the desktop layout. On wider screens the bottom bar also offers the daily note, search, tags and (from 768 px) the graph. With a mouse or trackpad nothing changes.
