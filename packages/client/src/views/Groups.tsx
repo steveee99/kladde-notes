@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { GROUP_ROLES, canWriteInGroup, splitPath, type GroupDetails, type GroupInfo, type GroupRole } from '@kladde/shared';
-import { ChevronRight, CornerLeftUp, Folder, FolderInput, FolderPlus, Loader2, Plus, Settings, Trash2, Users } from '../lib/icons';
+import { ArrowLeft, ChevronRight, CornerLeftUp, Folder, FolderInput, FolderPlus, Loader2, Plus, Settings, Trash2, Users } from '../lib/icons';
 import { api, ApiError } from '../lib/api';
 import { useVault, vault } from '../data/vault';
 import { openDialog } from '../lib/dialogs';
@@ -94,7 +94,6 @@ export function GroupsView() {
 export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: string }) {
   useVault();
   useLang();
-  const [managing, setManaging] = useState(false);
   const group = vault.group(groupId);
   if (!group) {
     return (
@@ -122,7 +121,7 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
           <h1 className="truncate text-headline-m">{folder ? folder.split('/').pop() : group.name}</h1>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          <button className="btn-ghost shrink-0 max-sm:!px-2.5" onClick={() => setManaging(true)} title={t('groups.manage')}>
+          <button className="btn-ghost shrink-0 max-sm:!px-2.5" onClick={() => navigate(groupManagePath(groupId))} title={t('groups.manage')}>
             <Settings size={16} /> <span className="hidden sm:inline">{t('groups.manage')}</span>
           </button>
           {writer && (
@@ -180,13 +179,16 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
       ) : (
         <NoteCollection notes={here} />
       )}
-      {managing && <GroupSettingsSheet groupId={groupId} onClose={() => setManaging(false)} />}
     </div>
   );
 }
 
-/** Members, roles, name and deletion of a group */
-export function GroupSettingsSheet({ groupId, onClose }: { groupId: string; onClose: () => void }) {
+/** Route of a group's management page */
+export const groupManagePath = (groupId: string) => `/groups/${encodeURIComponent(groupId)}`;
+
+/** `/groups/<id>`: name, members (as a table, for large groups), figures, leaving and deleting a group */
+export function GroupManageView({ groupId }: { groupId: string }) {
+  useVault();
   useLang();
   const me = vault.group(groupId);
   const [details, setDetails] = useState<GroupDetails | null>(null);
@@ -195,6 +197,8 @@ export function GroupSettingsSheet({ groupId, onClose }: { groupId: string; onCl
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [role, setRole] = useState<GroupRole>('editor');
+  const [filter, setFilter] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const [confirmName, setConfirmName] = useState('');
 
   const load = useCallback(async () => {
@@ -224,153 +228,265 @@ export function GroupSettingsSheet({ groupId, onClose }: { groupId: string; onCl
       setBusy(false);
     }
   };
-  const owner = details?.role === 'owner';
-  const owners = details?.members.filter((m) => m.role === 'owner').length ?? 0;
+
+  const back = (
+    <button className="btn-icon -ml-2 shrink-0 rounded-full" onClick={() => navigate(groupPath(groupId))} title={t('groups.backToGroup')} aria-label={t('groups.backToGroup')}>
+      <ArrowLeft size={18} />
+    </button>
+  );
+  if (!details) {
+    return (
+      <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
+        {back}
+        {error ? <p className="mt-6 text-center text-on-surface-variant">{error}</p> : <Loader2 size={20} className="mx-auto mt-10 animate-spin text-on-surface-variant" />}
+      </div>
+    );
+  }
+
+  const addMember = () => {
+    if (busy || !username.trim()) return;
+    void run(() => api(`/groups/${encodeURIComponent(groupId)}/members`, { method: 'PUT', json: { username: username.trim(), role } })).then((ok) => ok && setUsername(''));
+  };
+  const owner = details.role === 'owner';
+  const owners = details.members.filter((m) => m.role === 'owner').length;
+  const q = filter.trim().toLowerCase();
+  const shown = q ? details.members.filter((m) => m.username.toLowerCase().includes(q) || groupRoleLabel(m.role).toLowerCase().includes(q)) : details.members;
+  const stats: { label: string; value: number }[] = [
+    { label: t('groups.statNotes'), value: details.notes },
+    { label: t('groups.statAttachments'), value: details.attachments },
+    { label: t('groups.statMembers'), value: details.members.length },
+  ];
 
   return (
-    <Sheet title={t('groups.settingsTitle')} onClose={onClose}>
-      {!details ? (
-        error ? <p className="mb-4 text-sm text-error">{error}</p> : <Loader2 size={20} className="mx-auto mb-6 animate-spin text-on-surface-variant" />
-      ) : (
-        <div className="space-y-6 pb-2">
-          {owner && (
-            <section>
-              <label className="mb-1.5 block text-sm font-medium" htmlFor="group-name">
-                {t('groups.nameLabel')}
-              </label>
-              <div className="flex gap-2">
-                <input id="group-name" className="input flex-1" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
-                <button
-                  className="btn-tonal shrink-0"
-                  disabled={busy || !name.trim() || name.trim() === details.name}
-                  onClick={() =>
-                    void run(() => api(`/groups/${encodeURIComponent(groupId)}`, { method: 'PATCH', json: { name } })).then((ok) => {
-                      if (ok) void load();
-                    })
-                  }
-                >
-                  {t('groups.rename')}
-                </button>
-              </div>
-            </section>
-          )}
+    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
+      <div className="mb-6 flex items-center gap-2 anim-fade-up">
+        {back}
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 truncate text-sm text-on-surface-variant">
+            <Users size={14} /> {details.name} · {groupRoleLabel(details.role)}
+          </p>
+          <h1 className="truncate text-headline-m">{t('groups.settingsTitle')}</h1>
+        </div>
+      </div>
 
-          <section>
-            <h3 className="mb-2 text-title-s">{t('groups.members')}</h3>
-            <ul className="space-y-1" data-group-members>
-              {details.members.map((m) => {
-                const lastOwner = m.role === 'owner' && owners <= 1;
-                return (
-                  <li key={m.username} className="flex items-center gap-2 rounded-2xl px-2 py-1.5">
-                    <Avatar name={m.username} avatarUrl={m.avatarUrl} size="sm" />
-                    <span className="min-w-0 flex-1 truncate text-sm">{m.username}</span>
-                    {owner ? (
-                      <Dropdown
-                        className="!w-36 shrink-0"
-                        value={m.role}
-                        aria-label={t('groups.roleLabel', { user: m.username })}
-                        onChange={(next) => void run(() => api(`/groups/${encodeURIComponent(groupId)}/members`, { method: 'PUT', json: { username: m.username, role: next } }))}
-                        options={GROUP_ROLES.map((r) => ({ value: r, label: groupRoleLabel(r), disabled: lastOwner && r !== 'owner' }))}
-                      />
-                    ) : (
-                      <span className="chip shrink-0">{groupRoleLabel(m.role)}</span>
-                    )}
-                    {owner && (
-                      <button
-                        className="btn-icon shrink-0 hover:text-error"
-                        disabled={busy || lastOwner}
-                        title={lastOwner ? t('groups.lastOwnerHint') : t('groups.remove')}
-                        aria-label={t('groups.remove')}
-                        onClick={() =>
-                          confirm(t('groups.removeConfirm', { user: m.username })) &&
-                          void run(() => api(`/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(m.username)}`, { method: 'DELETE' }))
-                        }
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-            {owner && (
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                <input
-                  className="input min-w-0 flex-1"
-                  placeholder={t('groups.usernamePlaceholder')}
-                  aria-label={t('groups.usernamePlaceholder')}
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  autoComplete="off"
-                />
-                <Dropdown className="shrink-0 sm:!w-36" value={role} onChange={(r) => setRole(r as GroupRole)} aria-label={t('groups.newMemberRole')} options={GROUP_ROLES.map((r) => ({ value: r, label: groupRoleLabel(r) }))} />
-                <button
-                  className="btn-tonal shrink-0"
-                  disabled={busy || !username.trim()}
-                  onClick={() =>
-                    void run(() => api(`/groups/${encodeURIComponent(groupId)}/members`, { method: 'PUT', json: { username: username.trim(), role } })).then((ok) => ok && setUsername(''))
-                  }
-                >
-                  <Plus size={16} /> {t('groups.addMember')}
-                </button>
-              </div>
-            )}
-            <ul className="mt-3 space-y-0.5 text-xs text-on-surface-variant">
-              {GROUP_ROLES.map((r) => (
-                <li key={r}>
-                  <span className="font-medium">{groupRoleLabel(r)}</span>: {roleHint(r)}
-                </li>
-              ))}
-            </ul>
-            {owner && owners <= 1 && <p className="mt-2 text-xs text-on-surface-variant">{t('groups.lastOwnerHint')}</p>}
-          </section>
-
-          {me && !(owner && owners <= 1) && (
-            <section>
+      <div className="space-y-6">
+        {owner && (
+          <section className="card p-4 anim-fade-up">
+            <label className="mb-1.5 block text-title-s" htmlFor="group-name">
+              {t('groups.nameLabel')}
+            </label>
+            <div className="flex gap-2">
+              <input id="group-name" className="input min-w-0 flex-1" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
               <button
-                className="btn-outlined"
-                disabled={busy}
-                onClick={async () => {
-                  if (!confirm(t('groups.leaveConfirm', { name: details.name }))) return;
-                  const ok = await run(() => api(`/groups/${encodeURIComponent(groupId)}/leave`, { method: 'POST', json: {} }));
-                  if (ok) {
-                    onClose();
-                    navigate('/groups', true);
-                  }
+                className="btn-tonal shrink-0"
+                disabled={busy || !name.trim() || name.trim() === details.name}
+                onClick={() =>
+                  void run(() => api(`/groups/${encodeURIComponent(groupId)}`, { method: 'PATCH', json: { name } })).then((ok) => {
+                    if (ok) void load();
+                  })
+                }
+              >
+                {t('groups.rename')}
+              </button>
+            </div>
+          </section>
+        )}
+
+        <section className="card p-4 anim-fade-up">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <h2 className="flex-1 text-title-m">{t('groups.members')}</h2>
+            {details.members.length > 6 && (
+              <input
+                className="input !w-full sm:!w-60"
+                placeholder={t('groups.filterMembers')}
+                aria-label={t('groups.filterMembers')}
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              />
+            )}
+          </div>
+          {owner && (
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+              <input
+                className="input min-w-0 flex-1"
+                placeholder={t('groups.usernamePlaceholder')}
+                aria-label={t('groups.usernamePlaceholder')}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addMember()}
+                autoComplete="off"
+              />
+              <Dropdown className="shrink-0 sm:!w-40" value={role} onChange={(r) => setRole(r as GroupRole)} aria-label={t('groups.newMemberRole')} options={GROUP_ROLES.map((r) => ({ value: r, label: groupRoleLabel(r) }))} />
+              <button
+                className="btn-tonal shrink-0"
+                disabled={busy || !username.trim()}
+                onClick={addMember}
+              >
+                <Plus size={16} /> {t('groups.addMember')}
+              </button>
+            </div>
+          )}
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm" data-group-members>
+              <thead>
+                <tr className="border-b border-outline-variant text-left text-label-l text-on-surface-variant">
+                  <th scope="col" className="px-2 py-2 font-medium">
+                    {t('groups.memberCol')}
+                  </th>
+                  <th scope="col" className="w-32 px-2 py-2 font-medium sm:w-44">
+                    {t('groups.roleCol')}
+                  </th>
+                  {owner && (
+                    <th scope="col" className="w-10 px-1 py-2">
+                      <span className="sr-only">{t('groups.remove')}</span>
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((m) => {
+                  const lastOwner = m.role === 'owner' && owners <= 1;
+                  return (
+                    <tr key={m.username} className="border-b border-outline-variant/50 last:border-b-0">
+                      <td className="max-w-0 px-2 py-1">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <Avatar name={m.username} avatarUrl={m.avatarUrl} size="sm" />
+                          <span className="truncate">{m.username}</span>
+                        </span>
+                      </td>
+                      <td className="px-1 py-1 sm:px-2">
+                        {owner ? (
+                          <Dropdown
+                            variant="ghost"
+                            value={m.role}
+                            aria-label={t('groups.roleLabel', { user: m.username })}
+                            onChange={(next) => void run(() => api(`/groups/${encodeURIComponent(groupId)}/members`, { method: 'PUT', json: { username: m.username, role: next } }))}
+                            options={GROUP_ROLES.map((r) => ({ value: r, label: groupRoleLabel(r), disabled: lastOwner && r !== 'owner' }))}
+                          />
+                        ) : (
+                          groupRoleLabel(m.role)
+                        )}
+                      </td>
+                      {owner && (
+                        <td className="px-1 py-1 text-right">
+                          <button
+                            className="btn-icon hover:text-error"
+                            disabled={busy || lastOwner}
+                            title={lastOwner ? t('groups.lastOwnerHint') : t('groups.remove')}
+                            aria-label={t('groups.removeUser', { user: m.username })}
+                            onClick={() =>
+                              confirm(t('groups.removeConfirm', { user: m.username })) &&
+                              void run(() => api(`/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(m.username)}`, { method: 'DELETE' }))
+                            }
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+                {shown.length === 0 && (
+                  <tr>
+                    <td colSpan={owner ? 3 : 2} className="px-2 py-4 text-center text-on-surface-variant">
+                      {t('groups.noMatch')}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <dl className="mt-4 grid grid-cols-3 gap-2" data-group-stats>
+            {stats.map((s) => (
+              <div key={s.label} className="rounded-2xl bg-surface-container-high px-3 py-2 text-center">
+                <dd className="text-title-l tabular-nums">{s.value}</dd>
+                <dt className="text-xs text-on-surface-variant">{s.label}</dt>
+              </div>
+            ))}
+          </dl>
+          <ul className="mt-4 space-y-0.5 text-xs text-on-surface-variant">
+            {GROUP_ROLES.map((r) => (
+              <li key={r}>
+                <span className="font-medium">{groupRoleLabel(r)}</span>: {roleHint(r)}
+              </li>
+            ))}
+          </ul>
+          {owner && owners <= 1 && <p className="mt-2 text-xs text-on-surface-variant">{t('groups.lastOwnerHint')}</p>}
+        </section>
+
+        {error && <p className="text-sm text-error">{error}</p>}
+
+        <div className="flex flex-wrap gap-2 anim-fade-up">
+          {me && !(owner && owners <= 1) && (
+            <button
+              className="btn-outlined"
+              disabled={busy}
+              onClick={async () => {
+                if (!confirm(t('groups.leaveConfirm', { name: details.name }))) return;
+                const ok = await run(() => api(`/groups/${encodeURIComponent(groupId)}/leave`, { method: 'POST', json: {} }));
+                if (ok) navigate('/groups', true);
+              }}
+            >
+              {t('groups.leave')}
+            </button>
+          )}
+          {owner && (
+            <button className="btn-outlined !border-error/60 !text-error" disabled={busy} onClick={() => setDeleting(true)} data-group-delete>
+              <Trash2 size={16} /> {t('groups.deleteTitle')}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {deleting && (
+        <Sheet
+          title={t('groups.deleteTitle')}
+          onClose={() => {
+            setDeleting(false);
+            setConfirmName('');
+          }}
+        >
+          <div className="pb-2">
+            <p className="mb-4 rounded-2xl border border-error/40 bg-error/10 px-3 py-2.5 text-sm text-error" role="alert">
+              {t('groups.deleteDesc', { notes: details.notes, attachments: details.attachments })}
+            </p>
+            <label className="mb-1.5 block text-sm" htmlFor="group-delete-confirm">
+              {t('groups.deleteConfirmLabel', { name: details.name })}
+            </label>
+            <input
+              id="group-delete-confirm"
+              className="input mb-4"
+              value={confirmName}
+              onChange={(e) => setConfirmName(e.target.value)}
+              autoComplete="off"
+              autoFocus={!isCoarsePointer()}
+            />
+            {error && <p className="mb-3 text-sm text-error">{error}</p>}
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                className="btn-text"
+                onClick={() => {
+                  setDeleting(false);
+                  setConfirmName('');
                 }}
               >
-                {t('groups.leave')}
+                {t('common.cancel')}
               </button>
-            </section>
-          )}
-
-          {owner && (
-            <section className="rounded-3xl border border-error/40 p-4" data-group-delete>
-              <h3 className="mb-1 text-title-s text-error">{t('groups.deleteTitle')}</h3>
-              <p className="mb-3 text-sm text-on-surface-variant">{t('groups.deleteDesc', { notes: details.notes, attachments: details.attachments })}</p>
-              <label className="mb-1.5 block text-sm" htmlFor="group-delete-confirm">
-                {t('groups.deleteConfirmLabel', { name: details.name })}
-              </label>
-              <input id="group-delete-confirm" className="input mb-3" value={confirmName} onChange={(e) => setConfirmName(e.target.value)} autoComplete="off" />
               <button
                 className="btn-primary !bg-error !text-on-error"
                 disabled={busy || confirmName.trim() !== details.name}
                 onClick={async () => {
                   const ok = await run(() => api(`/groups/${encodeURIComponent(groupId)}`, { method: 'DELETE', json: { confirm: confirmName.trim() } }));
-                  if (ok) {
-                    onClose();
-                    navigate('/groups', true);
-                  }
+                  if (ok) navigate('/groups', true);
                 }}
               >
-                <Trash2 size={16} /> {t('groups.deleteBtn')}
+                {busy ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} {t('groups.deleteBtn')}
               </button>
-            </section>
-          )}
-          {error && <p className="text-sm text-error">{error}</p>}
-        </div>
+            </div>
+          </div>
+        </Sheet>
       )}
-    </Sheet>
+    </div>
   );
 }
 

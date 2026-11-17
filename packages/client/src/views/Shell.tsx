@@ -969,7 +969,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
                 !DEMO &&
                 navRow('groups', Users, t('nav.groups'), {
                   to: '/groups',
-                  active: path === '/groups' || path.startsWith('/g/'),
+                  active: path === '/groups' || path.startsWith('/groups/') || path.startsWith('/g/'),
                   trailing: vault.groups.length || undefined,
                   dataAttrs: { 'data-nav-groups': 'true' },
                 })}

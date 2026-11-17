@@ -1428,6 +1428,15 @@ const de = {
   'groups.moveBtn': 'Verschieben',
   'groups.moveNone': 'Lege zuerst eine Gruppe an (oder lass dich als Bearbeiter in eine aufnehmen), in die du Notizen verschieben darfst.',
   'groups.trashLabel': 'Gruppe {name}',
+  'groups.backToGroup': 'Zurück zur Gruppe',
+  'groups.memberCol': 'Mitglied',
+  'groups.roleCol': 'Rolle',
+  'groups.filterMembers': 'Mitglieder filtern',
+  'groups.noMatch': 'Kein Mitglied passt zum Filter.',
+  'groups.removeUser': '{user} entfernen',
+  'groups.statNotes': 'Notizen',
+  'groups.statAttachments': 'Anhänge',
+  'groups.statMembers': 'Mitglieder',
 } as const;
 
 export type I18nKey = keyof typeof de;
@@ -2792,6 +2801,15 @@ const en: Record<I18nKey, string> = {
   'groups.moveBtn': 'Move',
   'groups.moveNone': 'Create a group first (or have someone add you as an editor) that you may move notes into.',
   'groups.trashLabel': 'Group {name}',
+  'groups.backToGroup': 'Back to the group',
+  'groups.memberCol': 'Member',
+  'groups.roleCol': 'Role',
+  'groups.filterMembers': 'Filter members',
+  'groups.noMatch': 'No member matches the filter.',
+  'groups.removeUser': 'Remove {user}',
+  'groups.statNotes': 'Notes',
+  'groups.statAttachments': 'Attachments',
+  'groups.statMembers': 'Members',
 };
 
 const dict: Record<Lang, Record<I18nKey, string>> = { de, en };

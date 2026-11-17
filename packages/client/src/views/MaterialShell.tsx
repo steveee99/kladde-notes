@@ -197,7 +197,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
               <NavItem to="/review" Icon={CalendarCheck} label={t('nav.review')} badge={reviewDue() ? <NavBadge dot className="m-1" /> : undefined} />
             )}
             {showShared && <NavItem to="/shared" Icon={Share2} label={t('nav.shared')} badge={sharedCount ? <NavBadge count={sharedCount} /> : undefined} />}
-            {!vault.standalone && !DEMO && <Destination active={path === '/groups' || path.startsWith('/g/')} onClick={() => navigate('/groups')} Icon={Users} label={t('nav.groups')} />}
+            {!vault.standalone && !DEMO && <Destination active={path === '/groups' || path.startsWith('/groups/') || path.startsWith('/g/')} onClick={() => navigate('/groups')} Icon={Users} label={t('nav.groups')} />}
             <div className="m3-status mt-auto flex flex-col items-center gap-2 pt-2">
               <RailDivider />
               <ReadOnlyToggle compact />
