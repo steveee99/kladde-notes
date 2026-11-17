@@ -41,6 +41,14 @@ import {
   notesByTag,
   restoreTarget,
   setFrontmatter,
+  cleanIcon,
+  dropFolderIcons,
+  folderIconKey,
+  FOLDER_ICONS_SETTING,
+  ICON_KEY,
+  normalizeFolderIcons,
+  noteIconOf,
+  renameFolderIcons,
   dailyDueResolver,
   toDateString,
   zettelId,
@@ -840,6 +848,47 @@ class Vault {
     return next.includes(key);
   }
 
+  // ------------------------------------------------------------------ icons (opt-in feature)
+
+  private iconCache: { version: number; icons: Record<string, string> } | null = null;
+
+  /** Folder icons from the synced settings: folder path (group folders `g:<group id>/<folder>`) → emoji */
+  folderIcons(): Record<string, string> {
+    if (!this.iconCache || this.iconCache.version !== this.version) {
+      this.iconCache = { version: this.version, icons: normalizeFolderIcons(this.setting(FOLDER_ICONS_SETTING)) };
+    }
+    return this.iconCache.icons;
+  }
+
+  /** The icon of an own folder, or with `groupId` of a group folder; null without one or with icons turned off */
+  folderIcon(folder: string, groupId?: string): string | null {
+    if (!this.features().icons.enabled) return null;
+    return this.folderIcons()[folderIconKey(folder, groupId)] ?? null;
+  }
+
+  /** Sets (or with null removes) a folder icon */
+  async setFolderIcon(folder: string, icon: string | null, groupId?: string): Promise<void> {
+    if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    const key = folderIconKey(folder, groupId);
+    const next = { ...this.folderIcons() };
+    const clean = cleanIcon(icon);
+    if (clean) next[key] = clean;
+    else delete next[key];
+    await this.setSetting(FOLDER_ICONS_SETTING, next);
+  }
+
+  /** The icon a note sets in its frontmatter; null without one or with icons turned off */
+  noteIcon(note: Pick<LocalNote, 'content'>): string | null {
+    return this.features().icons.enabled ? noteIconOf(note.content) : null;
+  }
+
+  /** Writes (or with null removes) the `icon` frontmatter key of a note the user may edit */
+  async setNoteIcon(id: string, icon: string | null): Promise<void> {
+    const note = this.notes.get(id);
+    if (!note) return;
+    await this.update(id, { content: setFrontmatter(note.content, { [ICON_KEY]: cleanIcon(icon) }) });
+  }
+
   // ------------------------------------------------------------------ synced settings (system note)
 
   private settingsId() {
@@ -995,6 +1044,8 @@ class Vault {
       await this.put({ ...note, path: this.uniquePath(swap(folder), name, note.id), updatedAt: Date.now(), dirty: true });
     }
     await this.setFolders([...this.storedFolders().map(swap), target]);
+    const icons = this.folderIcons();
+    if (Object.keys(icons).some((k) => k === from || k.startsWith(`${from}/`))) await this.setSetting(FOLDER_ICONS_SETTING, renameFolderIcons(icons, from, target));
     this.schedule();
     // Folder shares follow the folder (best effort: offline, the notes leave the share until it is set again)
     if (!this.standalone) void api('/folders/renamed', { method: 'POST', json: { from, to: target } }).catch(() => {});
@@ -1008,8 +1059,16 @@ class Vault {
   async deleteFolder(folder: string): Promise<boolean> {
     if (!this.isFolderEmpty(folder) || isReadOnly()) return false;
     await this.setFolders(this.storedFolders().filter((f) => f !== folder && !f.startsWith(`${folder}/`)));
+    await this.forgetFolderIcons(folder);
     if (!this.standalone) void api('/folders/deleted', { method: 'POST', json: { folder } }).catch(() => {});
     return true;
+  }
+
+  /** A deleted folder takes its icons along, so a new folder with the same name starts without one */
+  private async forgetFolderIcons(folder: string) {
+    const icons = this.folderIcons();
+    const next = dropFolderIcons(icons, folder);
+    if (Object.keys(next).length !== Object.keys(icons).length) await this.setSetting(FOLDER_ICONS_SETTING, next);
   }
 
   /** Number of own notes inside `folder` and its subfolders */
@@ -1024,6 +1083,7 @@ class Vault {
     const trashBatch = newId();
     for (const note of this.notesBelow(folder)) await this.put({ ...note, deleted: true, updatedAt: now, dirty: true, trashBatch, trashFolder: folder });
     await this.setFolders(this.storedFolders().filter((f) => f !== folder && !f.startsWith(`${folder}/`)));
+    await this.forgetFolderIcons(folder);
     this.schedule(0);
     if (!this.standalone) void api('/folders/deleted', { method: 'POST', json: { folder } }).catch(() => {});
     return true;
@@ -1144,6 +1204,7 @@ class Vault {
       favorites: { enabled: false },
       writingStats: { enabled: true },
       focus: { enabled: true, dim: false },
+      icons: { enabled: false },
     } satisfies FeatureSettings);
     for (const w of welcomeNotes(getLang())) await this.insert(w.folder, w.title, w.content);
   }

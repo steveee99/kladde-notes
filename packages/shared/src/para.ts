@@ -78,6 +78,10 @@ export interface FeatureSettings {
     enabled: boolean;
     dim: boolean;
   };
+  /** Icons (one emoji) on notes (frontmatter `icon`) and folders, shown in the tree and the search */
+  icons: {
+    enabled: boolean;
+  };
 }
 
 /** Configurable folder mapping per role; `null` disables matching for that role */
@@ -208,6 +212,9 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
     focus: {
       enabled: optOutFlag(obj.focus),
       dim: !!obj.focus && typeof obj.focus === 'object' && (obj.focus as Record<string, unknown>).dim === true,
+    },
+    icons: {
+      enabled: optInFlag(obj.icons),
     },
   };
 }

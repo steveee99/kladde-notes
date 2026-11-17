@@ -19,6 +19,15 @@ export default {
   darkMode: ['class', '[data-scheme="dark"]'],
   theme: {
     extend: {
+      /*
+       * `nav:` switches between the mobile layout (top app bar, bottom navigation bar, modal drawer) and the
+       * desktop layout (navigation rail or sidebar). With a mouse or trackpad that happens at 768px; touch
+       * screens (tablets) keep the mobile layout in portrait and switch in landscape from 1024px on, so an
+       * iPad in portrait gives the editor the full width.
+       */
+      screens: {
+        nav: { raw: '(min-width: 768px) and (pointer: fine), (min-width: 1024px) and (orientation: landscape), (min-width: 1280px)' },
+      },
       colors: Object.fromEntries(roles.map((r) => [r, v(r)])),
       fontFamily: {
         sans: ['var(--font-sans)'],

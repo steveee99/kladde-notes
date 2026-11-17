@@ -24,6 +24,7 @@ import {
   LocateFixed,
   Lock,
   LockOpen,
+  Mood,
   Network,
   Pencil,
   Plus,
@@ -33,10 +34,8 @@ import {
   Tags,
   Trash2,
   Users,
-  X,
 } from '../lib/icons';
 import {
-  excerpt,
   isExcalidrawNote,
   INBOX_FOLDER,
   Me,
@@ -60,14 +59,14 @@ import { MaterialShell } from './MaterialShell';
 import { Avatar } from './Avatar';
 import { AppLogo } from './AppLogo';
 import { NavBadge } from './NavBadge';
-import { AttachmentHitList, useAttachmentSearch } from './AttachmentHits';
+import { openSearch } from './SearchDialog';
+import { IconPickerDialog, ItemIcon } from './IconPicker';
 import { ConfluenceDialog } from './ConfluenceDialog';
 import { confluenceAvailable } from '../lib/confluence';
 import { getFocusMode, setFocusMode, toggleFocusMode } from '../lib/focus';
 import { editorHost } from '../editor/host';
 import { folderDisplayName, locale, t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
-import { setMaterialSidebarMode } from '../lib/sidebarMode';
 import { createDrawingNote, createPdfNote } from '../lib/newNote';
 import { DEMO } from '../demo/demoApi';
 import { groupPath } from './Groups';
@@ -361,6 +360,7 @@ function SidebarNoteRow({
 }) {
   const name = label ?? splitPath(note.path).name;
   const Icon = pdfNoteOf(note.content) ? FileType2 : isExcalidrawNote(note.content) ? Draw : FileText;
+  const icon = vault.noteIcon(note);
   const openNote = () => {
     navigate(`/n/${note.id}`);
     onNavigate?.();
@@ -390,10 +390,14 @@ function SidebarNoteRow({
               : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
         }`}
       >
-        <Icon
-          size={14}
-          className={`shrink-0 ${highlighted ? 'text-primary' : active ? 'text-on-secondary-container' : 'text-on-surface-variant'}`}
-        />
+        {icon ? (
+          <ItemIcon icon={icon} size={14} />
+        ) : (
+          <Icon
+            size={14}
+            className={`shrink-0 ${highlighted ? 'text-primary' : active ? 'text-on-secondary-container' : 'text-on-surface-variant'}`}
+          />
+        )}
         <span className="min-w-0 flex-1 truncate">{name}</span>
       </div>
     </li>
@@ -429,6 +433,9 @@ function FolderItem({
   const [mode, setMode] = useState<'idle' | 'new' | 'rename'>('idle');
   const [sharing, setSharing] = useState(false);
   const [confluenceOpen, setConfluenceOpen] = useState(false);
+  const [pickingIcon, setPickingIcon] = useState(false);
+  const iconsEnabled = vault.features().icons.enabled;
+  const icon = vault.folderIcon(node.path);
   const drop = useDropTarget(node.path, () => setOpen(true));
   const active = current === `/f/${encodeURIComponent(node.path)}`;
   const empty = vault.isFolderEmpty(node.path);
@@ -502,10 +509,15 @@ function FolderItem({
             }}
             onDoubleClick={() => !isReadOnly() && setMode('rename')}
           >
-            {open && hasChildren ? <FolderOpen size={15} className="shrink-0" /> : <Folder size={15} className="shrink-0" />}
+            {icon ? <ItemIcon icon={icon} /> : open && hasChildren ? <FolderOpen size={15} className="shrink-0" /> : <Folder size={15} className="shrink-0" />}
             <span className="truncate">{displayName}</span>
           </div>
           <span className="edit-only flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+            {iconsEnabled && (
+              <button className="rounded-full p-1 hover:bg-surface-container-low hover:text-on-surface" title={t('icons.setFolder')} aria-label={t('icons.setFolder')} onClick={() => setPickingIcon(true)}>
+                <Mood size={13} />
+              </button>
+            )}
             <button className="rounded-full p-1 hover:bg-surface-container-low hover:text-on-surface" title={t('list.subfolderAdd')} onClick={() => (setOpen(true), setMode('new'))}>
               <FolderPlus size={13} />
             </button>
@@ -536,6 +548,14 @@ function FolderItem({
       {/* Portal: the sidebar may be transformed (mobile drawer), which would trap a fixed overlay */}
       {sharing && createPortal(<ShareDialog target={{ folder: node.path }} onClose={() => setSharing(false)} />, document.body)}
       {confluenceOpen && <ConfluenceDialog target={{ folder: node.path }} onClose={() => setConfluenceOpen(false)} />}
+      {pickingIcon && (
+        <IconPickerDialog
+          title={t('icons.folderTitle', { name: displayName })}
+          current={icon}
+          onPick={(next) => void vault.setFolderIcon(node.path, next).catch(() => undefined)}
+          onClose={() => setPickingIcon(false)}
+        />
+      )}
       {open && (hasChildren || mode === 'new') && (
         <ul className="anim-fade-in">
           {mode === 'new' && (
@@ -705,6 +725,9 @@ function GroupFolderNode({
   const hasChildren = node.children.length > 0 || notes.length > 0;
   const active = current === to;
   const fav = vault.isFavoriteGroupFolder(groupId, node.path);
+  const iconsEnabled = vault.features().icons.enabled;
+  const icon = vault.folderIcon(node.path, groupId);
+  const [pickingIcon, setPickingIcon] = useState(false);
   return (
     <li>
       <div
@@ -729,9 +752,28 @@ function GroupFolderNode({
             onNavigate?.();
           }}
         >
-          {open && hasChildren ? <FolderOpen size={15} className="shrink-0" /> : <Folder size={15} className="shrink-0" />}
+          {icon ? <ItemIcon icon={icon} /> : open && hasChildren ? <FolderOpen size={15} className="shrink-0" /> : <Folder size={15} className="shrink-0" />}
           <span className="truncate">{node.name}</span>
         </button>
+        {iconsEnabled && (
+          <button
+            type="button"
+            className="edit-only shrink-0 rounded-full p-1 opacity-0 transition-opacity hover:bg-surface-container-low hover:text-on-surface group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+            title={t('icons.setFolder')}
+            aria-label={t('icons.setFolder')}
+            onClick={() => setPickingIcon(true)}
+          >
+            <Mood size={13} />
+          </button>
+        )}
+        {pickingIcon && (
+          <IconPickerDialog
+            title={t('icons.folderTitle', { name: node.name })}
+            current={icon}
+            onPick={(next) => void vault.setFolderIcon(node.path, next, groupId).catch(() => undefined)}
+            onClose={() => setPickingIcon(false)}
+          />
+        )}
         {favorites && (
           <span className={`shrink-0 ${fav ? '' : 'opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100'}`}>
             <GroupFolderStar groupId={groupId} folder={node.path} />
@@ -824,8 +866,6 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
   const inboxZero = useInboxZero();
   const locked = useReadOnly();
   const [newRoot, setNewRoot] = useState(false);
-  const [query, setQuery] = useState('');
-  const [activeResult, setActiveResult] = useState(0);
   const [favoritesOpen, setFavoritesOpen] = useSectionOpen('favorites', () => window.innerHeight >= 700);
   const [foldersOpen, setFoldersOpen] = useSectionOpen('folders', () => true);
   const [navOpen, setNavOpen] = useSectionOpen('nav', () => true);
@@ -880,7 +920,6 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
 
   const focusOpenNote = () => {
     if (!activeNote) return;
-    if (query) setQuery('');
     if (activeNote.access !== 'owner') {
       requestAnimationFrame(() =>
         requestAnimationFrame(() => {
@@ -921,38 +960,6 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
   // Group notes (#58) have their own place: the groups
   const shared = notes.filter((n) => n.access !== 'owner' && !n.group).length;
   const inboxCount = (notesByFolder.get(INBOX_FOLDER) ?? []).length;
-
-  const terms = useMemo(() => query.trim().toLowerCase().split(/\s+/).filter(Boolean), [query]);
-  const attachmentHits = useAttachmentSearch(query);
-  const searchResults = useMemo(() => {
-    if (!terms.length) return [];
-    const rc = vault.roleConfig();
-    const list = vault
-      .list()
-      .filter((n) => {
-        const hay = `${projectTitleOf(n.path, n.content, rc)}\n${n.path}\n${n.content}`.toLowerCase();
-        return terms.every((term) => hay.includes(term));
-      })
-      .sort((a, b) => {
-        const nameA = projectTitleOf(a.path, a.content, rc).toLowerCase();
-        const nameB = projectTitleOf(b.path, b.content, rc).toLowerCase();
-        const hitA = terms.every((term) => nameA.includes(term)) ? 1 : 0;
-        const hitB = terms.every((term) => nameB.includes(term)) ? 1 : 0;
-        if (hitA !== hitB) return hitB - hitA;
-        return b.updatedAt - a.updatedAt;
-      });
-    return list.slice(0, 60);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [terms, version]);
-
-  // Arrow keys move through the results; a new query starts again at the top
-  useEffect(() => setActiveResult(0), [query]);
-  const selectedResult = Math.min(activeResult, Math.max(searchResults.length - 1, 0));
-  useEffect(() => {
-    sidebarRef.current
-      ?.querySelector<HTMLElement>(`[data-search-result="${selectedResult}"]`)
-      ?.scrollIntoView({ block: 'nearest' });
-  }, [selectedResult, searchResults]);
 
   const favoriteNotes = features.favorites.enabled
     ? vault
@@ -1024,94 +1031,22 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
         <NewNoteButton zettel={features.zettel.enabled} recipe={features.recipe.enabled} folder={activeFolder} onNavigate={onNavigate} />
       </div>
 
-      {/* Inline Material 3 search bar in the sidebar */}
-      <div className="mb-2 flex h-10 shrink-0 items-center gap-2 rounded-full border border-outline-variant/60 bg-surface-container-high px-3.5 transition-colors focus-within:border-primary">
-        <Search size={16} className="shrink-0 text-on-surface-variant" />
-        <input
-          data-search-input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              setQuery('');
-              e.currentTarget.blur();
-            } else if (e.key === 'ArrowDown' && searchResults.length) {
-              e.preventDefault();
-              setActiveResult((selectedResult + 1) % searchResults.length);
-            } else if (e.key === 'ArrowUp' && searchResults.length) {
-              e.preventDefault();
-              setActiveResult((selectedResult - 1 + searchResults.length) % searchResults.length);
-            } else if (e.key === 'Enter' && searchResults[selectedResult]) {
-              e.preventDefault();
-              nav(`/n/${searchResults[selectedResult].id}`);
-            }
-          }}
-          role="combobox"
-          aria-expanded={terms.length > 0}
-          aria-controls="sidebar-search-results"
-          aria-activedescendant={terms.length > 0 && searchResults.length ? `sidebar-search-result-${selectedResult}` : undefined}
-          placeholder={t('search.sidebarPlaceholder')}
-          aria-label={t('common.search')}
-          className="min-w-0 flex-1 bg-transparent text-sm text-on-surface placeholder:text-on-surface-variant outline-none"
-        />
-        {query && (
-          <button type="button" onClick={() => setQuery('')} aria-label={t('search.clear')} title={t('search.clear')} className="rounded-full p-0.5 text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface">
-            <X size={14} />
-          </button>
-        )}
-      </div>
+      {/* Looks like a search field, opens the search overlay (Ctrl/⌘+K) */}
+      <button
+        type="button"
+        onClick={() => {
+          onNavigate?.();
+          openSearch();
+        }}
+        aria-haspopup="dialog"
+        aria-keyshortcuts="Control+K Meta+K"
+        className="mb-2 flex h-10 w-full shrink-0 items-center gap-2 rounded-full border border-outline-variant/60 bg-surface-container-high px-3.5 text-left text-sm text-on-surface-variant transition-colors hover:border-outline focus-visible:border-primary focus-visible:outline-none"
+      >
+        <Search size={16} className="shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{t('search.sidebarPlaceholder')}</span>
+      </button>
 
-      {terms.length > 0 ? (
-        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin pr-0.5">
-          <div className="mb-1.5 flex items-center gap-1 px-2 text-xs font-medium text-on-surface-variant">
-            <span className="min-w-0 flex-1 truncate">{t('search.resultsCount', { n: searchResults.length })}</span>
-            {activeNote && (
-              <button
-                type="button"
-                data-focus-open-note="true"
-                className="rounded-full p-1 transition-colors hover:bg-surface-container-high hover:text-on-surface"
-                title={t('nav.focusOpenNote')}
-                aria-label={t('nav.focusOpenNote')}
-                onClick={focusOpenNote}
-              >
-                <LocateFixed size={14} />
-              </button>
-            )}
-          </div>
-          {searchResults.length === 0 ? (
-            !attachmentHits.length && <p className="px-2 py-6 text-center text-sm text-on-surface-variant">{t('search.noResults')}</p>
-          ) : (
-            <ul id="sidebar-search-results" role="listbox" className="space-y-1">
-              {searchResults.map((n, i) => {
-                const { folder } = splitPath(n.path);
-                const title = projectTitleOf(n.path, n.content, roleConfig);
-                const active = path === `/n/${n.id}`;
-                const selected = i === selectedResult;
-                return (
-                  <li key={n.id} id={`sidebar-search-result-${i}`} role="option" aria-selected={selected}>
-                    <button
-                      data-search-result={i}
-                      tabIndex={-1}
-                      onClick={() => nav(`/n/${n.id}`)}
-                      onMouseMove={() => selected || setActiveResult(i)}
-                      aria-current={active ? 'page' : undefined}
-                      className={`w-full rounded-2xl px-3 py-2 text-left transition-colors ${
-                        active ? 'bg-secondary-container text-on-secondary-container' : selected ? 'bg-surface-container-high' : 'hover:bg-surface-container-high'
-                      } ${selected ? 'ring-2 ring-inset ring-primary/60' : ''}`}
-                    >
-                      <div className="truncate text-sm font-medium">{title}</div>
-                      <div className="truncate text-[11px] text-on-surface-variant">{folderDisplayName(folder, lang)}</div>
-                      {excerpt(n.content, 65) && <div className="mt-0.5 truncate text-xs text-on-surface-variant">{excerpt(n.content, 65)}</div>}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <AttachmentHitList compact hits={attachmentHits} onOpen={(id) => nav(`/n/${id}`)} />
-        </div>
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto scrollbar-thin">
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto scrollbar-thin">
           <SectionHeader
             label={t('nav.navigationLabel')}
             open={navOpen}
@@ -1164,6 +1099,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
                     const to = groupPath(group.id, folder);
                     const active = path === to;
                     const FavIcon = folder ? Folder : Users;
+                    const favIcon = folder ? vault.folderIcon(folder, group.id) : null;
                     return (
                       <li key={`${group.id}/${folder}`}>
                         <button
@@ -1176,7 +1112,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
                           }`}
                           title={folder ? `${group.name}/${folder}` : group.name}
                         >
-                          <FavIcon size={14} className="shrink-0" />
+                          {favIcon ? <ItemIcon icon={favIcon} size={14} /> : <FavIcon size={14} className="shrink-0" />}
                           <span className="min-w-0 flex-1 truncate">{folder ? `${group.name}/${folder}` : group.name}</span>
                         </button>
                       </li>
@@ -1277,26 +1213,18 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
             <SyncBadge compact />
           </div>
         </div>
-      )}
     </div>
   );
 }
 
-/** Strg/⌘+K opens/focuses the search bar in the sidebar from anywhere */
+/** Strg/⌘+K opens the search overlay from anywhere (the sidebar stays as it is) */
 function useSearchShortcut() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'k') return;
       e.preventDefault();
       e.stopPropagation();
-      if (window.innerWidth >= 768) {
-        setMaterialSidebarMode('sticky');
-      } else {
-        window.dispatchEvent(new CustomEvent('kladde:open-search'));
-      }
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => document.querySelector<HTMLInputElement>('[data-search-input]')?.select())
-      );
+      openSearch();
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
@@ -1447,7 +1375,7 @@ export function Shell({ me, children, isAdmin }: { me: Me; children: React.React
           <div
             role="status"
             aria-live="polite"
-            className="m3-snackbar no-print pointer-events-none fixed bottom-24 left-1/2 z-[80] flex min-h-12 max-w-[min(calc(100vw-2rem),42rem)] -translate-x-1/2 items-center gap-3 px-4 py-3 text-body-m anim-fade-up md:bottom-6"
+            className="m3-snackbar no-print pointer-events-none fixed bottom-24 left-1/2 z-[80] flex min-h-12 max-w-[min(calc(100vw-2rem),42rem)] -translate-x-1/2 items-center gap-3 px-4 py-3 text-body-m anim-fade-up nav:bottom-6"
           >
             {toast.tone === 'ok' && <CheckCircle2 size={20} className="shrink-0 text-inverse-primary" />}
             {toast.tone === 'warn' && <CloudOff size={20} className="shrink-0" />}
