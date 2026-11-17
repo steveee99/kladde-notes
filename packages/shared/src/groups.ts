@@ -38,7 +38,8 @@ export function keepsAnOwner(members: { userId: string; role: GroupRole }[], use
  * name and inner structure below `target`; otherwise the note lands directly in `target`.
  */
 export function groupMovePath(path: string, target: string, folder?: string): string {
-  const base = target.replace(/^\/+|\/+$/g, '');
+  // Split instead of a /\/+$/ regex: that backtracks polynomially on long runs of slashes
+  const base = target.split('/').filter(Boolean).join('/');
   let rel: string;
   if (folder) {
     const parent = folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) : '';

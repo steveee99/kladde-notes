@@ -39,5 +39,10 @@ describe('groups (#58)', () => {
     // a single note lands directly in the target
     expect(groupMovePath('Arbeit/Kunde/A.md', '')).toBe('A.md');
     expect(groupMovePath('Arbeit/Kunde/A.md', 'Ziel/Unter/')).toBe('Ziel/Unter/A.md');
+    expect(groupMovePath('A.md', '//Ziel//')).toBe('Ziel/A.md');
+    // long runs of slashes stay fast
+    const start = Date.now();
+    expect(groupMovePath('A.md', `${'/'.repeat(50_000)}x`)).toBe('x/A.md');
+    expect(Date.now() - start).toBeLessThan(200);
   });
 });
