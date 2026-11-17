@@ -114,7 +114,7 @@ export function TasksView() {
               ] as const
             ).map(([id, Icon, key]) => (
               <button key={id} type="button" aria-pressed={prefs.layout === id} title={t(key)} aria-label={t(key)} onClick={() => setPrefs({ layout: id })}>
-                {prefs.layout === id ? <Check size={18} /> : <Icon size={18} />} <span className="max-sm:hidden">{t(key)}</span>
+                {prefs.layout === id ? <Check size={18} /> : <Icon size={18} />} <span className="hidden sm:inline">{t(key)}</span>
               </button>
             ))}
           </div>
@@ -176,7 +176,7 @@ export function TasksView() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />
-        <button className="btn-tonal max-sm:!px-4" disabled={!input.trim()}>
+        <button className="btn-tonal phone:!px-4" disabled={!input.trim()}>
           {t('home.addBtn')}
         </button>
       </form>

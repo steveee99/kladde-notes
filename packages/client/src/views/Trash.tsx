@@ -124,7 +124,7 @@ export function TrashView() {
     <div className="flex shrink-0 flex-wrap items-center gap-1">
       <button type="button" className="btn-tonal h-9 !px-3" disabled={locked || busy !== null} onClick={onRestore}>
         {busy === key ? <Loader2 size={16} className="animate-spin" /> : <Undo2 size={16} />}
-        <span className="max-sm:hidden">{restoreLabel}</span>
+        <span className="hidden sm:inline">{restoreLabel}</span>
       </button>
       <button type="button" className="btn-icon h-9 w-9" disabled={locked || busy !== null} onClick={onPurge} title={t('trash.purge')} aria-label={t('trash.purge')}>
         <Trash2 size={18} />

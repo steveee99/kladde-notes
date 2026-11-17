@@ -27,6 +27,13 @@ export default {
        */
       screens: {
         nav: { raw: '(min-width: 768px) and (pointer: fine), (min-width: 1024px) and (orientation: landscape), (min-width: 1280px)' },
+        /*
+         * Tablet-sized screens (wide and tall enough): the bottom navigation bar offers extra destinations
+         * there. Phones, also in landscape, keep the five main ones. Because `nav` is a raw query, Tailwind
+         * generates no `max-*` variants; use `phone:` (below `sm`) instead.
+         */
+        tablet: { raw: '(min-width: 640px) and (min-height: 600px)' },
+        phone: { raw: '(max-width: 639.98px)' },
       },
       colors: Object.fromEntries(roles.map((r) => [r, v(r)])),
       fontFamily: {

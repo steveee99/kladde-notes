@@ -258,20 +258,20 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
             <div ref={setRightHost} className={`no-print hidden shrink-0 empty:hidden ${focus ? '' : 'lg:flex'}`} />
           </div>
           {/*
-            Bottom navigation bar (phones, and tablets in portrait): on wider screens (from sm) it has room for
-            more destinations, so a tablet reaches daily note, search, tags and graph without opening the drawer.
+            Bottom navigation bar (phones, and tablets in portrait): on tablets (`tablet:` screen) it has room for
+            more destinations; phones keep the five main ones, so a tablet reaches daily note, search, tags and graph without opening the drawer.
           */}
           <nav aria-label={t('nav.navigationLabel')} className={`bottom-bar min-h-20 bg-surface-container safe-x nav:hidden ${focus ? 'hidden' : 'flex'}`}>
             <NavItem bar to="/" Icon={Home} label={t('nav.home')} />
             {showDailyRail && (
-              <Destination bar className="max-sm:hidden" active={dailyActive} onClick={() => void openTodayDailyNote()} Icon={CalendarDays} label={t('daily.navShort')} title={t('daily.todayBtn')} />
+              <Destination bar className="hidden tablet:flex" active={dailyActive} onClick={() => void openTodayDailyNote()} Icon={CalendarDays} label={t('daily.navShort')} title={t('daily.todayBtn')} />
             )}
             <NavItem bar to="/tasks" Icon={ListChecks} label={t('nav.tasks')} badge={taskBadge} />
             <NavItem bar to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} />
             <NavItem bar to="/notes" Icon={FileText} label={t('nav.notes')} />
-            <Destination bar className="max-sm:hidden" active={false} onClick={openSearch} Icon={SearchIcon} label={t('common.search')} title={t('common.search')} />
-            <NavItem bar className="max-sm:hidden" to="/tags" Icon={Tags} label={t('nav.tags')} />
-            <NavItem bar className="max-md:hidden" to="/graph" Icon={Network} label={t('nav.graphShort')} />
+            <Destination bar className="hidden tablet:flex" active={false} onClick={openSearch} Icon={SearchIcon} label={t('common.search')} title={t('common.search')} />
+            <NavItem bar className="hidden tablet:flex" to="/tags" Icon={Tags} label={t('nav.tags')} />
+            <NavItem bar className="hidden md:tablet:flex" to="/graph" Icon={Network} label={t('nav.graphShort')} />
             <Destination
               bar
               active={settingsActive}

@@ -135,7 +135,7 @@ export function HomeView() {
               </button>
             )}
             <button type="button" className="btn-text" onClick={() => navigate('/tasks')} title={t('tasks.allTitle')}>
-              <span className="max-sm:hidden">{t('tasks.allBtn')}</span> <ArrowRight size={18} />
+              <span className="hidden sm:inline">{t('tasks.allBtn')}</span> <ArrowRight size={18} />
             </button>
             <div role="group" aria-label={t('home.layoutAria')} className="segmented">
               {(
@@ -152,7 +152,7 @@ export function HomeView() {
                   onClick={() => setLayout(id)}
                   aria-label={t(key)}
                 >
-                  {layout === id ? <Check size={18} /> : <Icon size={18} />} <span className="max-sm:hidden">{t(key)}</span>
+                  {layout === id ? <Check size={18} /> : <Icon size={18} />} <span className="hidden sm:inline">{t(key)}</span>
                 </button>
               ))}
             </div>
@@ -175,7 +175,7 @@ export function HomeView() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
-          <button className="btn-tonal max-sm:!px-4" disabled={!input.trim()}>
+          <button className="btn-tonal phone:!px-4" disabled={!input.trim()}>
             {t('home.addBtn')}
           </button>
         </form>
