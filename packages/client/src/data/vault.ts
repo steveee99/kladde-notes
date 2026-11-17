@@ -34,6 +34,8 @@ import {
   resolveDailyNote,
   templateUsesZettelId,
   TEMPLATES_SETTING,
+  DAILY_TEMPLATE_SETTING,
+  normalizeDailyTemplate,
   joinPath,
   linkFirstMention,
   renameWikiLinks,
@@ -601,8 +603,8 @@ class Vault {
     const existing = this.list().find((n) => n.access === 'owner' && n.path.toLowerCase() === target);
     if (existing) return existing;
     if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
-    const heading = /^\d{1,2}$/.test(resolved.name) ? toDateString(dateObj) : resolved.name;
-    return this.insert(resolved.folder, resolved.name, `# ${heading}\n\n`);
+    // The title already shows the date, so the daily template starts without a heading
+    return this.insert(resolved.folder, resolved.name, fillTemplate(this.dailyTemplate(), { title: resolved.name, date: toDateString(dateObj) }));
   }
 
   async updateFeatures(next: FeatureSettings): Promise<FeatureSettings> {
@@ -791,6 +793,15 @@ class Vault {
     if (i >= 0) list[i] = template;
     else list.push(template);
     await this.setSetting(TEMPLATES_SETTING, list);
+  }
+
+  /** Content for new daily notes (synced setting, shown as a fixed entry under templates) */
+  dailyTemplate(): string {
+    return normalizeDailyTemplate(this.setting(DAILY_TEMPLATE_SETTING));
+  }
+
+  async saveDailyTemplate(content: string): Promise<void> {
+    await this.setSetting(DAILY_TEMPLATE_SETTING, content);
   }
 
   async removeTemplate(id: string): Promise<void> {

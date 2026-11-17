@@ -4,6 +4,11 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- Fixed: Phones show the five main destinations in the bottom navigation bar again; daily note, search, tags and graph appear there only on tablets. Since 2.9.0 the extra destinations, some button labels and the compact button spacing meant for phones were shown on phones as well.
+
+- Changed: The word count (words, characters, reading time) appears directly below the note title instead of as a bar over the bottom of the note.
+- Changed: New daily notes no longer start with a heading repeating the date that the title already shows. Their content comes from the new "Daily note" entry under Settings → Templates (shown while daily notes are on), which can be edited like any template; `{{title}}` is the daily note's name and `{{date}}` its day.
+
 ## [2.9.0] – 2026-11-17
 
 - Changed: Search opens as an overlay (Ctrl/⌘+K, the search field in the sidebar, the search button on phones and tablets) instead of inside the sidebar, so the sidebar no longer opens for the shortcut. Results are compact (title, folder and the text around the match on two lines at most, matches highlighted) and are picked with the arrow keys and opened with Enter; without a query it lists the recently edited notes. Matches in attachments stay below the notes.

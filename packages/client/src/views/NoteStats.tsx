@@ -4,7 +4,7 @@ import { countWords, writingStats } from '@kladde/shared';
 import { t, type Lang } from '../lib/i18n';
 
 /**
- * Status line under a note: words, characters and reading time (frontmatter and code blocks are not
+ * Status line under the note title: words, characters and reading time (frontmatter and code blocks are not
  * counted); with a selection also its word count. `tick` changes whenever the editor's text or
  * selection changed, so the numbers follow typing before the note is saved.
  */
@@ -23,7 +23,7 @@ export function NoteStats({ content, view, tick, lang }: { content: string; view
   ];
   if (stats.minutes) parts.push(t('stats.readingTime', { n: fmt(stats.minutes) }));
   return (
-    <div role="status" aria-live="off" className="note-stats flex min-w-0 items-center justify-end gap-2 px-4 py-1 text-label-s tabular-nums text-on-surface-variant sm:px-8">
+    <div role="status" aria-live="off" className="note-stats flex min-w-0 items-center gap-2 text-label-s tabular-nums text-on-surface-variant sm:px-8">
       {selected !== null && (
         <span className="shrink-0 rounded-full bg-secondary-container px-2 py-0.5 text-on-secondary-container">
           {t(selected === 1 ? 'stats.selectedOne' : 'stats.selected', { n: fmt(selected) })}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, FilePlus2, LayoutTemplate, Pencil, Trash2 } from '../lib/icons';
+import { ArrowLeft, CalendarDays, FilePlus2, LayoutTemplate, Pencil, Trash2 } from '../lib/icons';
 import { INBOX_FOLDER, Template, TEMPLATE_PLACEHOLDERS } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { folderDisplayName, tl, useLang } from '../lib/i18n';
@@ -16,6 +16,8 @@ export function TemplatesView() {
   const readOnly = useReadOnly();
   const templates = vault.templates();
   const [editing, setEditing] = useState<Template | null>(null);
+  const [editingDaily, setEditingDaily] = useState(false);
+  const daily = vault.features().daily;
 
   return (
     <div className="content-container space-y-6 px-4 py-6 sm:px-8 sm:py-10">
@@ -27,10 +29,33 @@ export function TemplatesView() {
       </div>
       <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'templates.intro')}</p>
 
-      {editing ? (
+      {editingDaily ? (
+        <TemplateEditor
+          daily
+          template={{ id: 'daily', label: tl(lang, 'templates.dailyLabel'), folder: daily.folder, content: vault.dailyTemplate() }}
+          isNew={false}
+          onDone={() => setEditingDaily(false)}
+        />
+      ) : editing ? (
         <TemplateEditor key={editing.id} template={editing} isNew={!templates.some((t) => t.id === editing.id)} onDone={() => setEditing(null)} />
       ) : (
         <>
+          {daily.enabled && (
+            <section className="card anim-fade-up">
+              <div className="flex items-center gap-3 p-4">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary-container text-on-secondary-container">
+                  <CalendarDays size={18} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium">{tl(lang, 'templates.dailyLabel')}</div>
+                  <div className="truncate text-xs text-on-surface-variant">{tl(lang, 'templates.dailyHint')}</div>
+                </div>
+                <button className="btn-icon h-8 w-8 shrink-0" disabled={readOnly} title={tl(lang, 'common.edit')} onClick={() => setEditingDaily(true)}>
+                  <Pencil size={15} />
+                </button>
+              </div>
+            </section>
+          )}
           <section className="card divide-y divide-outline-variant anim-fade-up">
             {!templates.length && (
               <div className="flex flex-col items-center gap-2 p-8 text-center text-sm text-on-surface-variant">
@@ -81,7 +106,8 @@ export function TemplatesView() {
   );
 }
 
-function TemplateEditor({ template, isNew, onDone }: { template: Template; isNew: boolean; onDone: () => void }) {
+/** Edits an own template; with `daily` the fixed daily note template (no name or folder, those come from the daily note settings) */
+function TemplateEditor({ template, isNew, daily, onDone }: { template: Template; isNew: boolean; daily?: boolean; onDone: () => void }) {
   const lang = useLang();
   const [label, setLabel] = useState(template.label);
   const [folder, setFolder] = useState(template.folder);
@@ -89,13 +115,18 @@ function TemplateEditor({ template, isNew, onDone }: { template: Template; isNew
   const folders = [...new Set([folder, ...vault.folders(), ''])];
 
   const placeholderLabel = (token: string, fallback: string) => {
-    if (token === '{{title}}') return tl(lang, 'templates.placeholder.title');
-    if (token === '{{date}}') return tl(lang, 'templates.placeholder.date');
+    if (token === '{{title}}') return tl(lang, daily ? 'templates.placeholder.dailyTitle' : 'templates.placeholder.title');
+    if (token === '{{date}}') return tl(lang, daily ? 'templates.placeholder.dailyDate' : 'templates.placeholder.date');
     if (token === '{{zid}}') return tl(lang, 'templates.placeholder.zid');
     return fallback;
   };
 
   const save = async () => {
+    if (daily) {
+      await vault.saveDailyTemplate(content);
+      onDone();
+      return;
+    }
     await vault.saveTemplate({
       id: template.id,
       label: label.trim(),
@@ -110,34 +141,40 @@ function TemplateEditor({ template, isNew, onDone }: { template: Template; isNew
       className="card space-y-3 p-5 anim-fade-up"
       onSubmit={(e) => {
         e.preventDefault();
-        if (label.trim()) void save();
+        if (daily || label.trim()) void save();
       }}
     >
-      <h2 className="font-medium">{isNew ? tl(lang, 'templates.createTitle') : tl(lang, 'templates.editTitle')}</h2>
-      <input autoFocus={isNew} className="input" placeholder={tl(lang, 'templates.namePlaceholder')} value={label} onChange={(e) => setLabel(e.target.value)} />
-      <div className="flex flex-col gap-1.5 text-sm text-on-surface-variant sm:flex-row sm:items-center sm:gap-2">
-        <span className="shrink-0">{tl(lang, 'templates.folderLabel')}</span>
-        <Dropdown
-          value={folder}
-          onChange={setFolder}
-          aria-label={tl(lang, 'templates.folderLabel')}
-          className="sm:w-auto sm:min-w-[14rem]"
-          options={folders.map((f) => ({
-            value: f,
-            label: folderDisplayName(f, lang),
-          }))}
-        />
-      </div>
+      <h2 className="font-medium">{daily ? tl(lang, 'templates.dailyLabel') : isNew ? tl(lang, 'templates.createTitle') : tl(lang, 'templates.editTitle')}</h2>
+      {daily ? (
+        <p className="text-sm text-on-surface-variant">{tl(lang, 'templates.dailyHint')}</p>
+      ) : (
+        <>
+          <input autoFocus={isNew} className="input" placeholder={tl(lang, 'templates.namePlaceholder')} value={label} onChange={(e) => setLabel(e.target.value)} />
+          <div className="flex flex-col gap-1.5 text-sm text-on-surface-variant sm:flex-row sm:items-center sm:gap-2">
+            <span className="shrink-0">{tl(lang, 'templates.folderLabel')}</span>
+            <Dropdown
+              value={folder}
+              onChange={setFolder}
+              aria-label={tl(lang, 'templates.folderLabel')}
+              className="sm:w-auto sm:min-w-[14rem]"
+              options={folders.map((f) => ({
+                value: f,
+                label: folderDisplayName(f, lang),
+              }))}
+            />
+          </div>
+        </>
+      )}
       <textarea
         className="input min-h-[16rem] font-mono text-sm leading-relaxed"
         spellCheck={false}
         value={content}
         onChange={(e) => setContent(e.target.value)}
-        placeholder={tl(lang, 'templates.contentPlaceholder')}
+        placeholder={tl(lang, daily ? 'templates.dailyContentPlaceholder' : 'templates.contentPlaceholder')}
       />
       <div className="text-xs text-on-surface-variant">
         {tl(lang, 'templates.placeholdersLabel')}{' '}
-        {TEMPLATE_PLACEHOLDERS.map((p, i) => (
+        {TEMPLATE_PLACEHOLDERS.filter((p) => !daily || p.token !== '{{zid}}').map((p, i) => (
           <span key={p.token}>
             {i > 0 && ' · '}
             <button type="button" className="font-mono text-on-surface-variant hover:text-primary" title={tl(lang, 'templates.insertEndTitle')} onClick={() => setContent((c) => c + p.token)}>
@@ -148,7 +185,7 @@ function TemplateEditor({ template, isNew, onDone }: { template: Template; isNew
         ))}
       </div>
       <div className="flex gap-2">
-        <button className="btn-primary rounded-full px-5" disabled={!label.trim()}>
+        <button className="btn-primary rounded-full px-5" disabled={!daily && !label.trim()}>
           {tl(lang, 'common.save')}
         </button>
         <button type="button" className="btn-ghost rounded-full px-4" onClick={onDone}>
