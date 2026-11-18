@@ -44,6 +44,8 @@ services:
       # Only the default: admins change it under Settings → Administration → Backups. The key is never in a backup
       - BACKUP_KEEP=${BACKUP_KEEP:-7}
       - TRASH_RETENTION_DAYS=${TRASH_RETENTION_DAYS:-30}
+      # Optional default storage limit per account and group in MB, empty/0 = unlimited (admins can set own limits)
+      - STORAGE_QUOTA_MB=${STORAGE_QUOTA_MB:-}
       # Optional plain Markdown mirror of all notes (e.g. a NAS share mounted at /app/export), empty = off
       - EXPORT_DIR=${EXPORT_DIR:-}
     volumes:

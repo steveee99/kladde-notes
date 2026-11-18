@@ -1,13 +1,16 @@
 import express, { Request } from 'express';
-import type { AdminAuditEntry, AdminStatus } from '@kladde/shared';
+import type { AdminUser, AdminAuditEntry, AdminStatus } from '@kladde/shared';
 import { AccountError, UserStore } from '../UserStore.js';
 import { AuditLog } from '../security/AuditLog.js';
 import { handle, requireUser } from '../http.js';
 import type { BackupService } from '../backup/BackupService.js';
+import type { StorageStore } from '../StorageStore.js';
 import { tarSize, writeTar } from '../backup/tar.js';
 
 export interface AdminRouterOptions {
   users: UserStore;
+  /** Storage usage and quotas (#91) */
+  storage: StorageStore;
   audit: AuditLog;
   status: () => AdminStatus;
   /** Backups (#65); missing for an in-memory database */
@@ -19,7 +22,7 @@ export interface AdminRouterOptions {
 }
 
 /** Admin area of the web app: accounts, invites, password resets and the audit log (admins only) */
-export function adminRouter({ users, audit, status, backups, onRestore, enterMaintenance }: AdminRouterOptions): express.Router {
+export function adminRouter({ users, storage, audit, status, backups, onRestore, enterMaintenance }: AdminRouterOptions): express.Router {
   const router = express.Router();
   const authed = requireUser(users);
   router.use(authed, (req, res, next) => {
@@ -45,7 +48,9 @@ export function adminRouter({ users, audit, status, backups, onRestore, enterMai
 
   // ---------------------------------------------------------------- accounts
 
-  router.get('/users', (_req, res) => res.json(users.listForAdmin()));
+  const userList = (): AdminUser[] => users.listForAdmin().map((u) => ({ ...u, storage: storage.usage(u.id) }));
+
+  router.get('/users', (_req, res) => res.json(userList()));
 
   router.post(
     '/users/:id/ban',
@@ -54,7 +59,7 @@ export function adminRouter({ users, audit, status, backups, onRestore, enterMai
       const user = target(req, banned ? 'Du kannst dich nicht selbst sperren.' : undefined);
       users.setBanned(user.id, banned);
       record(req, `${banned ? 'sperren' : 'entsperren'} ${user.username}`);
-      res.json(users.listForAdmin());
+      res.json(userList());
     })
   );
 
@@ -65,7 +70,7 @@ export function adminRouter({ users, audit, status, backups, onRestore, enterMai
       const user = target(req);
       users.setAdmin(user.id, admin);
       record(req, `admin ${admin ? 'an' : 'aus'} ${user.username}`);
-      res.json(users.listForAdmin());
+      res.json(userList());
     })
   );
 
@@ -88,6 +93,25 @@ export function adminRouter({ users, audit, status, backups, onRestore, enterMai
       if (user.bannedAt) throw new AccountError('Das Konto ist gesperrt.', 409);
       record(req, `gerätecode ${user.username}`);
       res.json({ username: user.username, ...users.createDeviceLink(user.id) });
+    })
+  );
+
+  // ---------------------------------------------------------------- storage (#91)
+
+  router.get('/storage/groups', (_req, res) => res.json(storage.groups()));
+
+  /** `{ mb: number }` sets a limit, `{ mb: 0 }` means unlimited, `{ mb: null }` falls back to the server default; works for accounts and groups */
+  router.put(
+    '/storage/:id/quota',
+    handle((req, res) => {
+      const id = String(req.params.id);
+      const owner = storage.ownerName(id);
+      if (!owner) throw new AccountError('Dieses Konto gibt es nicht.', 404);
+      const mb = req.body?.mb;
+      if (mb !== null && (typeof mb !== 'number' || !Number.isFinite(mb) || mb < 0)) throw new AccountError('Ungültiges Limit.', 400);
+      storage.setQuota(id, mb === null ? null : mb === 0 ? 'unlimited' : mb * 1024 * 1024);
+      record(req, `speicherlimit ${owner}: ${mb === null ? 'standard' : mb === 0 ? 'unbegrenzt' : `${mb} MB`}`);
+      res.json({ storage: storage.usage(id) });
     })
   );
 

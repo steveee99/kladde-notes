@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import type { MyStorage } from '@kladde/shared';
+import { StorageMeter } from './StorageMeter';
 import { AttachmentInfo, AttachmentNoteRef, projectTitleOf } from '@kladde/shared';
 import {
   AlertTriangle,
@@ -17,7 +19,7 @@ import {
   X,
 } from '../lib/icons';
 import { useVault, vault } from '../data/vault';
-import { deleteFiles, listFiles } from '../lib/api';
+import { api, deleteFiles, listFiles } from '../lib/api';
 import { locale, t, tl, useLang } from '../lib/i18n';
 import { useReadOnly } from '../lib/readOnly';
 import { navigate } from '../lib/router';
@@ -51,6 +53,7 @@ export function FilesView() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [preview, setPreview] = useState<AttachmentInfo | null>(null);
+  const [storage, setStorage] = useState<MyStorage | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,6 +63,7 @@ export function FilesView() {
         await vault.sync();
       }
       const data = await listFiles();
+      api<MyStorage>('/storage').then(setStorage, () => setStorage(null));
       setItems(data);
       setSelected((prev) => {
         const validIds = new Set(data.filter((f) => f.usedIn.length === 0).map((f) => f.id));
@@ -230,6 +234,15 @@ export function FilesView() {
           <span className="hidden sm:inline">{tl(lang, 'files.refresh')}</span>
         </button>
       </header>
+
+      {storage && (
+        <section className="card space-y-3 p-4" aria-label={tl(lang, 'storage.title')}>
+          <StorageMeter usage={storage.user} label={tl(lang, 'storage.yours')} />
+          {storage.groups.map((g) => (
+            <StorageMeter key={g.id} usage={g.storage} label={g.name} />
+          ))}
+        </section>
+      )}
 
       {locked && (
         <div className="flex items-center gap-2 rounded-2xl border border-outline-variant bg-surface-container-high px-3.5 py-2.5 text-sm text-on-surface-variant">

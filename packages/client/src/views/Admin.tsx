@@ -5,8 +5,10 @@ import { api } from '../lib/api';
 import { I18nKey, Lang, locale, tl, useLang } from '../lib/i18n';
 import { Avatar } from './Avatar';
 import { BackupsTab } from './AdminBackups';
+import { GroupsStorageTab, QuotaEditor } from './AdminStorage';
+import { StorageMeter } from './StorageMeter';
 
-type Tab = 'users' | 'invites' | 'backups' | 'audit';
+type Tab = 'users' | 'groups' | 'invites' | 'backups' | 'audit';
 
 function since(ms: number, lang: Lang): string {
   const min = Math.round((Date.now() - ms) / 60_000);
@@ -121,6 +123,10 @@ function UsersTab({ me, onError }: { me: Me; onError: (msg: string) => void }) {
                   activity: u.lastSeenAt ? tl(lang, 'admin.activeAgo', { since: since(u.lastSeenAt, lang) }) : tl(lang, 'admin.notLoggedIn'),
                 })}
               </p>
+              <div className="mt-2">
+                <StorageMeter usage={u.storage} />
+                <QuotaEditor id={u.id} usage={u.storage} onError={onError} onChange={(storage) => setUsers((list) => list && list.map((x) => (x.id === u.id ? { ...x, storage } : x)))} />
+              </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {!self && (
                   <button
@@ -337,6 +343,7 @@ export function AdminView({ me }: { me: Me }) {
 
   const tabs: { id: Tab; label: string; Icon: typeof Users }[] = [
     { id: 'users', label: tl(lang, 'admin.tabUsers'), Icon: Users },
+    { id: 'groups', label: tl(lang, 'admin.tabGroups'), Icon: Users },
     { id: 'invites', label: tl(lang, 'admin.tabInvites'), Icon: Mail },
     { id: 'backups', label: tl(lang, 'admin.tabBackups'), Icon: Backup },
     { id: 'audit', label: tl(lang, 'admin.tabAudit'), Icon: ScrollText },
@@ -377,6 +384,7 @@ export function AdminView({ me }: { me: Me }) {
       </div>
       {error && <p className="mb-4 text-sm text-error anim-fade-in">{error}</p>}
       {tab === 'users' && <UsersTab me={me} onError={setError} />}
+      {tab === 'groups' && <GroupsStorageTab onError={setError} />}
       {tab === 'invites' && <InvitesTab onError={setError} />}
       {tab === 'backups' && <BackupsTab onError={setError} />}
       {tab === 'audit' && <AuditTab onError={setError} />}

@@ -441,6 +441,18 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 21,
+    description: 'Storage quotas per account and group, set in the admin area (#91)',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE storage_quotas (
+          owner_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          quota_bytes INTEGER NOT NULL
+        );
+      `);
+    },
+  },
 ];
 
 /** The schema version this build migrates to */

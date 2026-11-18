@@ -221,6 +221,39 @@ export interface AdminUser {
   passkeys: number;
   notes: number;
   lastSeenAt: number | null;
+  /** Storage used and the quota that applies (#91) */
+  storage: StorageUsage;
+}
+
+/** Warn when this share of the quota is used (#91) */
+export const STORAGE_WARN_RATIO = 0.8;
+
+/** What an account or group stores, in bytes (#91) */
+export interface StorageUsage {
+  notes: number;
+  attachments: number;
+  /** Version history and releases */
+  history: number;
+  trash: number;
+  total: number;
+  /** Quota in bytes that applies (own limit or the server default); null = unlimited */
+  quota: number | null;
+  /** The quota was set for this account/group by an admin (otherwise it is the default, if any) */
+  customQuota: boolean;
+}
+
+/** The signed-in user's own usage and that of their groups (#91) */
+export interface MyStorage {
+  user: StorageUsage;
+  groups: { id: string; name: string; storage: StorageUsage }[];
+}
+
+/** A group as the admin area lists its storage (#91) */
+export interface AdminGroupStorage {
+  id: string;
+  name: string;
+  members: number;
+  storage: StorageUsage;
 }
 
 export interface AdminInvite {

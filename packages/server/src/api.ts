@@ -1,6 +1,6 @@
 import express, { Response } from 'express';
 import { isReleaseBump } from '@kladde/shared';
-import type { AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
+import type { MyStorage, AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
 import { Presence } from './Presence.js';
 import { FILE_URL_RE, attachmentUsageMap } from './cliActions.js';
 import { GroupError, GroupStore } from './GroupStore.js';
@@ -8,7 +8,8 @@ import { AvatarStore, MAX_AVATAR_BYTES } from './AvatarStore.js';
 import { NoteStore, ReleaseConflict, TrashPathTaken, VersioningOff } from './NoteStore.js';
 import { DEFAULT_TRASH_DAYS, dropUnusedAttachments } from './trash.js';
 import { FileStore, MAX_FILE_BYTES } from './FileStore.js';
-import { UserRecord, UserStore } from './UserStore.js';
+import { AccountError, UserRecord, UserStore } from './UserStore.js';
+import type { StorageStore } from './StorageStore.js';
 import { handle, rateLimit, requireUser } from './http.js';
 import { ImportError, importRecipe } from './RecipeImport.js';
 import { clipPage } from './WebClip.js';
@@ -62,6 +63,8 @@ export interface ApiRouterOptions {
   /** Speech-to-text for voice notes, when TRANSCRIBE_URL is set */
   transcriber?: Transcriber | null;
   /** Full-text search in attachments (#37) */
+  /** Storage usage and quotas (#91) */
+  storage?: StorageStore;
   attachmentSearch?: { files: FileStore; texts: AttachmentTextStore; ocr: boolean };
   /** Groups (#58); not in standalone mode */
   groups?: GroupStore;
@@ -592,6 +595,16 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     );
   }
 
+  router.get('/storage', (req, res) => {
+    if (!opts.storage) return void res.status(404).json({ error: 'Nicht verfügbar.' });
+    const storage = opts.storage;
+    const mine: MyStorage = {
+      user: storage.usage(req.user!.id),
+      groups: notes.groupsOf(req.user!.id).map((g) => ({ id: g.id, name: g.name, storage: storage.usage(g.id) })),
+    };
+    res.json(mine);
+  });
+
   router.get(
     '/files',
     handle((req, res) => {
@@ -619,7 +632,7 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
         const saved = files.save(req.user!.id, name, mime, req.body as Buffer);
         res.json({ ...saved, url: `/api/files/${saved.id}`, name });
       } catch (err) {
-        res.status(400).json({ error: (err as Error).message });
+        res.status(err instanceof AccountError ? err.status : 400).json({ error: (err as Error).message });
       }
     })
   );
