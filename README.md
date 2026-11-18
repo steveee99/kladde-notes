@@ -78,6 +78,7 @@ npm run dev
 ```bash
 npm run build   # shared → server → client
 npm run test    # query language, tasks, note/user store, sync, MCP, import, …
+npm run test:e2e   # browser tests (Playwright; after npm run build and once npx playwright install chromium)
 npm run lint
 npm run build:demo   # browser-only demo without server → packages/client/dist-demo
 ```

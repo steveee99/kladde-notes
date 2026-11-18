@@ -75,6 +75,7 @@ npm run dev
 ```bash
 npm run build   # shared → server → client
 npm run test    # Abfragesprache, Aufgaben, Notiz-/Benutzer-Store
+npm run test:e2e   # Browser-Tests (Playwright; nach npm run build und einmalig npx playwright install chromium)
 npm run build:demo   # Demo nur im Browser, ohne Server → packages/client/dist-demo
 ```
 

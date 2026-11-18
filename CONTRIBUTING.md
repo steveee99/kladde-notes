@@ -35,6 +35,14 @@ The code is a TypeScript monorepo (`packages/shared`, `packages/server`, `packag
    npm run test
    ```
 
+   Changes to the UI or to sync should also pass the browser tests (Playwright, `e2e/`). They start their own server with a fresh database and the accounts `anna`, `ben` and `cara`, and run at phone, tablet and desktop sizes:
+
+   ```bash
+   npx playwright install chromium   # once
+   npm run test:e2e                  # after npm run build
+   npx playwright test --project=desktop --ui   # interactive
+   ```
+
 4. Add a line for user-visible changes under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md).
 5. Open a pull request against `main` and fill in the template.
 

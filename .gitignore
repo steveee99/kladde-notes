@@ -11,3 +11,7 @@ coverage/
 # Local data (database, key, files)
 packages/server/data/
 .idea/
+# Playwright (npm run test:e2e)
+e2e/.auth/
+test-results/
+playwright-report/
