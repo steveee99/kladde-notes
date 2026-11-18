@@ -17,7 +17,7 @@ const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
 const isListItem = (text: string) => text === '-' || text.startsWith('- ');
 
 /** `key: value` / `key:`; a key ends at the first ": " (or ":" at the end), so URLs in values stay whole */
-const KEY_LINE = /^("[^"]*"|'[^']*'|[^\s"'#\-[{][^:]*?|-[^\s:][^:]*?):(?:\s+(.*))?$/;
+const KEY_LINE = /^("[^"]*"|'[^']*'|[^\s"'#\-[{][^:]*|-[^\s:][^:]*):(?:\s(.*))?$/;
 
 function unquote(raw: string): string {
   const s = raw.trim();

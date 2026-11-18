@@ -32,8 +32,9 @@ function markdownPathLinks(content: string): string[] {
   if (!content.includes('](')) return [];
   const prose = content.replace(/```[\s\S]*?(```|$)/g, '').replace(/`[^`\n]*`/g, '');
   const out: string[] = [];
-  for (const m of prose.matchAll(/(!?)\[[^\]\n]*\]\(([^)\s]+)\)/g)) {
-    if (!m[1] && !/^[a-z][a-z0-9+.-]*:|^#|^\/\/|^\/api\//i.test(m[2])) out.push(m[2]);
+  for (const m of prose.matchAll(/\[[^[\]\n]*\]\(([^()\s]+)\)/g)) {
+    const image = m.index! > 0 && prose[m.index! - 1] === '!';
+    if (!image && !/^[a-z][a-z0-9+.-]*:|^#|^\/\/|^\/api\//i.test(m[1])) out.push(m[1]);
   }
   return out;
 }

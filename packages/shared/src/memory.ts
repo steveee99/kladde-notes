@@ -5,6 +5,7 @@
  * Pure rules shared by server and client: metadata, trust level, validation, stamping, index/log upkeep, rules.
  */
 import { splitPath } from './markdown.js';
+import { trimSlashes } from './util.js';
 import { readFrontmatterYaml, setFrontmatterValues, yamlProblems, type YamlMap, type YamlValue } from './yaml.js';
 
 export const OKF_VERSION = '0.2';
@@ -59,7 +60,7 @@ export interface MemoryProblem {
 
 // ------------------------------------------------------------------ paths
 
-const clean = (folder: string) => folder.replace(/^\/+|\/+$/g, '');
+const clean = (folder: string) => trimSlashes(folder);
 
 /** Whether a path lies in the memory folder (at any depth) */
 export function isMemoryPath(path: string, folder: string): boolean {
@@ -210,7 +211,9 @@ export function actorId(name: string): string {
       .trim()
       .toLowerCase()
       .replace(/[^\p{L}\p{N}._/-]+/gu, '-')
-      .replace(/^-+|-+$/g, '')
+      .split('-')
+      .filter(Boolean)
+      .join('-')
       .slice(0, 60) || 'agent'
   );
 }
@@ -317,6 +320,13 @@ export function adoptedContent(content: string, sourceTitle: string): string {
 
 // ------------------------------------------------------------------ index and log
 
+/** Text without trailing line breaks (a loop: `/\n+$/` is quadratic on long runs) */
+function trimNewlines(text: string): string {
+  let end = text.length;
+  while (end > 0 && (text[end - 1] === '\n' || text[end - 1] === '\r')) end--;
+  return text.slice(0, end);
+}
+
 export interface MemoryIndexEntry {
   /** Link target that resolves to the note ([[target]]) */
   target: string;
@@ -348,7 +358,7 @@ function indexLineFor(lines: string[], target: string): number {
 export function syncMemoryIndex(current: string | null, heading: string, entries: MemoryIndexEntry[], subfolders: { target: string; label: string }[], root: boolean, known?: (target: string) => boolean): string {
   let text = current ?? `# ${heading}\n\n${INDEX_NOTE}\n`;
   if (root && !readFrontmatterYaml(text)?.data.okf_version) text = setFrontmatterValues(text, { okf_version: OKF_VERSION });
-  const lines = text.replace(/\n+$/, '').split('\n');
+  const lines = trimNewlines(text).split('\n');
   const line = (e: MemoryIndexEntry) => `- ${linkOf(e)}${e.description ? `: ${e.description}` : ''}${e.deprecated ? ' _(veraltet)_' : ''}`;
   const addUnder = (section: string, entry: string) => {
     let at = lines.findIndex((l) => l.trim().toLowerCase() === `## ${section}`.toLowerCase());
@@ -388,7 +398,7 @@ export type MemoryLogKind = 'Creation' | 'Update' | 'Deprecation';
 /** Adds a log entry under today's date heading (`## YYYY-MM-DD`, newest first); the same entry is not repeated */
 export function addMemoryLogEntry(current: string | null, date: string, kind: MemoryLogKind, text: string): string {
   const entry = `**${kind}** ${text}`;
-  const lines = (current ?? '').replace(/\n+$/, '').split('\n');
+  const lines = trimNewlines(current ?? '').split('\n');
   if (lines.length === 1 && !lines[0]) lines.length = 0;
   const dateRe = /^#{1,3}\s+(\d{4}-\d{2}-\d{2})\s*$/;
   const first = lines.findIndex((l) => dateRe.test(l));
@@ -407,7 +417,9 @@ export function addMemoryLogEntry(current: string | null, date: string, kind: Me
       lines.push(...block);
     }
   }
-  return `${lines.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\n+$/, '')}\n`;
+  // At most one blank line in a row
+  const out = lines.filter((l, i) => l.trim() || (i > 0 && lines[i - 1].trim()));
+  return `${trimNewlines(out.join('\n'))}\n`;
 }
 
 // ------------------------------------------------------------------ rules for agents
@@ -477,8 +489,11 @@ export function toOkfBundle(notes: { id: string; path: string; content: string }
   const inside = notes.filter((n) => isMemoryPath(n.path, folder));
   const byId = new Map(inside.map((n) => [n.id, n]));
   const files = inside.map((n) => {
-    const content = n.content.replace(/(!?)\[\[([^\]|#\n]+)(#[^\]|\n]*)?(?:\|([^\]\n]*))?\]\]/g, (all, bang: string, target: string, anchor: string | undefined, alias: string | undefined) => {
-      if (bang) return all;
+    const content = n.content.replace(/\[\[([^[\]|#\n]+)((?:#[^[\]|\n]*)?)((?:\|[^[\]\n]*)?)\]\]/g, (all: string, target: string, anchorRaw: string, aliasRaw: string, at: number, text: string) => {
+      // Embeds (![[…]]) stay as they are
+      if (at > 0 && text[at - 1] === '!') return all;
+      const anchor = anchorRaw || undefined;
+      const alias = aliasRaw ? aliasRaw.slice(1) : undefined;
       const id = resolve(target.trim());
       const to = id ? byId.get(id) : undefined;
       if (!to) return all;
@@ -529,8 +544,9 @@ export function fromOkfBundle(files: BundleFile[], folder: string): BundleFile[]
   }
   return md.map((f) => {
     const from = splitPath(f.path).folder;
-    const content = f.content.replace(/(!?)\[([^\]\n]*)\]\(([^)\s]+)\)/g, (all, bang: string, text: string, url: string) => {
-      if (bang) return all;
+    const content = f.content.replace(/\[([^[\]\n]*)\]\(([^()\s]+)\)/g, (all: string, text: string, url: string, at: number, whole: string) => {
+      // Images stay as they are
+      if (at > 0 && whole[at - 1] === '!') return all;
       const target = okfLinkTarget(url, from);
       const hit = target ? ids.get(target.toLowerCase()) : undefined;
       if (!hit) return all;

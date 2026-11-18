@@ -87,3 +87,19 @@ describe('the rewritten regexes keep their results', () => {
     expect(stripBlockIds('Absatz ^abc\n^tabelle\nkein^id\nText ^x  ')).toBe('Absatz\n\nkein^id\nText');
   });
 });
+
+describe('AI memory regexes stay linear (#94)', () => {
+  it('yaml, memory and OKF links', async () => {
+    const m = await import('../src/index');
+    fast(() => m.parseYaml(`!:${'  '.repeat(N)}`));
+    fast(() => m.setFrontmatterValues(`---\n!:${'  '.repeat(N)}x\n---\n`, { type: 'X' }));
+    fast(() => m.memoryMeta(`---\ntype: X\n---\n${'[['.repeat(N)}`, `${'/'.repeat(N)}a`));
+    fast(() => m.isMemoryPath('AI-Memory/x.md', `${'/'.repeat(N)}AI-Memory${'/'.repeat(N)}`));
+    fast(() => m.actorId(`${'-'.repeat(N)}x${'-'.repeat(N)}`));
+    fast(() => m.addMemoryLogEntry(`x${'\n'.repeat(N)}y${'\n'.repeat(N)}`, '2026-01-01', 'Update', 'z'));
+    fast(() => m.syncMemoryIndex(`x${'\n'.repeat(N)}`, 'h', [], [], false));
+    fast(() => m.toOkfBundle([{ id: 'a', path: 'M/a.md', content: `[[${'[["#|\\'.repeat(N / 5)}` }], 'M', () => null));
+    fast(() => m.fromOkfBundle([{ path: 'a.md', content: `[${'[\\'.repeat(N)}](${'[](!'.repeat(N / 5)}` }], 'M'));
+    fast(() => new m.LinkIndex([{ id: 'a', path: 'a.md', content: `[${'[]('.repeat(N / 5)}` }]));
+  });
+});
