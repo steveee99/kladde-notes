@@ -191,7 +191,7 @@ export class UserStore {
   }
 
   /** Accounts with what the admin area shows about them */
-  listForAdmin(): AdminUser[] {
+  listForAdmin(): Omit<AdminUser, 'storage'>[] {
     const rows = this.db
       .prepare(
         `SELECT users.*,

@@ -16,6 +16,7 @@ import { appCsp, inlineScriptHashes } from './security/csp.js';
 import { authRouter } from './auth.js';
 import { gitlabConfigFromEnv, openSignupFromEnv } from './gitlabAuth.js';
 import { apiRouter, LiveUpdates } from './api.js';
+import { StorageStore, defaultQuotaBytes } from './StorageStore.js';
 import { adminRouter } from './admin/adminRouter.js';
 import { McpTokenStore } from './mcp/McpTokenStore.js';
 import { mcpRouters } from './mcp/router.js';
@@ -99,6 +100,9 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   // Git sync was removed: its working copies (plain Markdown of the notes) must not stay on disk
   fs.rmSync(path.join(opts.dataDir, 'git'), { recursive: true, force: true });
   const files = new FileStore(opts.db, cipher, opts.dataDir);
+  // Quotas (#91): STORAGE_QUOTA_MB is the default for every account and group, admins set own limits
+  const storage = new StorageStore(opts.db, defaultQuotaBytes(env));
+  files.guard = (ownerId, size) => storage.assertRoom(ownerId, size);
   const transcriber = transcriberFromEnv(env);
   // Full-text search in attachments (#37): every new PDF (and image, with OCR) is indexed in the background
   const attachmentTexts = new AttachmentTextStore(opts.db, cipher);
@@ -272,6 +276,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       '/api/admin',
       adminRouter({
         users,
+        storage,
         audit,
         status,
         backups,
@@ -282,7 +287,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       })
     );
   }
-  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db) }));
+  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db) }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
   if (opts.seaAssets && opts.seaAssets.size > 0) {

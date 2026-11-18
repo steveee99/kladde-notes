@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { MAX_FILE_BYTES, MAX_NOTE_BYTES, PushChange, SYSTEM_PREFIX, cleanPath } from '@kladde/shared';
 import { FileStore } from '../FileStore.js';
 import { NoteStore } from '../NoteStore.js';
-import { UserStore } from '../UserStore.js';
+import { AccountError, UserStore } from '../UserStore.js';
 import { AuditLog } from '../security/AuditLog.js';
 import { handle, rateLimit, requireUser } from '../http.js';
 import { ImportTokenStore } from './ImportTokenStore.js';
@@ -74,7 +74,7 @@ export function importRouters(opts: ImportOptions): { bearerRouter: express.Rout
         const saved = files.save(req.importUserId!, name, mime, Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0));
         res.json({ id: saved.id, url: `/api/files/${saved.id}`, name });
       } catch (err) {
-        res.status(400).json({ error: (err as Error).message });
+        res.status(err instanceof AccountError ? err.status : 400).json({ error: (err as Error).message });
       }
     })
   );

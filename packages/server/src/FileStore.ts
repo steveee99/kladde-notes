@@ -39,6 +39,8 @@ const toMeta = (r: FileRow): StoredFileMeta => ({
 /** Attachments (images, PDFs), encrypted on disk below <data>/files. Ids are random and act as the access key */
 export class FileStore {
   private readonly dir: string;
+  /** Called before a file is stored (quota check, #91); throws to refuse it */
+  guard: ((ownerId: string, size: number) => void) | null = null;
   private readonly savedListeners: ((id: string, mime: string) => void)[] = [];
 
   constructor(
@@ -57,6 +59,7 @@ export class FileStore {
     if (Array.isArray(data)) throw new Error('Ungültige Datei.');
     if (!ALLOWED.test(mime)) throw new Error('Nur Bilder, PDF- und Audiodateien sind erlaubt.');
     if (data.length > MAX_FILE_BYTES) throw new Error('Die Datei ist zu groß (max. 25 MB).');
+    this.guard?.(ownerId, data.length);
     const id = crypto.randomBytes(16).toString('base64url');
     fs.writeFileSync(path.join(this.dir, id), this.cipher.encrypt(data, `file:${id}`), { mode: 0o600 });
     this.db
