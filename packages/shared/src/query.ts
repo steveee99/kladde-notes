@@ -16,6 +16,7 @@
  */
 
 import { extractMeta } from './markdown.js';
+import { memoryMeta } from './memory.js';
 import { parseTasks, toDateString } from './tasks.js';
 import { tagMatches } from './tags.js';
 
@@ -205,6 +206,22 @@ function matches(values: Record<string, unknown>, c: Condition, today: Date): bo
   }
 }
 
+/**
+ * OKF metadata of notes in the AI memory (#94) as query fields: trust, stale, generated_by, generated_at,
+ * verified_by; only for notes whose frontmatter has a `type` (the flat parser cannot read the nested fields)
+ */
+function memoryFields(content: string, flat: Record<string, string>, today: Date): Record<string, unknown> {
+  if (!flat.type) return {};
+  const m = memoryMeta(content, '', today.getTime());
+  return {
+    trust: m.trust,
+    stale: m.stale,
+    generated_by: m.generated?.by ?? '',
+    generated_at: m.generated?.at ?? '',
+    verified_by: m.verified.map((v) => v.by),
+  };
+}
+
 export interface QueryOptions {
   /** Due date of tasks that name none (daily notes: the note's date) */
   defaultDue?: (path: string) => string | null;
@@ -226,6 +243,7 @@ export function runQuery(src: string | Query, notes: QueryNote[], today = new Da
       links: meta.links,
       created: note.createdAt,
       updated: note.updatedAt,
+      ...memoryFields(note.content, meta.frontmatter, today),
     };
     if (query.mode === 'tasks') {
       for (const t of parseTasks(note.content, today, opts.defaultDue?.(note.path) ?? null)) {

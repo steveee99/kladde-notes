@@ -1,6 +1,24 @@
 import { useSyncExternalStore } from 'react';
 import {
+  HUMAN_ACTOR,
+  actorId,
+  addVerification,
+  adoptedContent,
+  applyMemoryFields,
+  fromOkfBundle,
+  isMemoryPath,
+  isReservedMemoryNote,
+  isoNow,
+  memoryChangeKind,
+  memoryUpkeep,
+  setMemoryStatus,
+  stampGenerated,
+  toOkfBundle,
+  zipStore,
+  type BundleFile,
+  type MemoryLogRequest,
   DEFAULT_DAILY_FOLDER,
+  DEFAULT_MEMORY_FOLDER,
   DEFAULT_DAILY_FORMAT,
   DEFAULT_PARA_FOLDERS,
   DEFAULT_ZETTEL_FOLDER,
@@ -925,7 +943,124 @@ class Vault {
     const note = this.notes.get(id);
     if (!note || !this.canDelete(note) || isReadOnly()) return;
     await this.put({ ...note, deleted: true, updatedAt: Date.now(), dirty: true });
+    // The memory's index drops the entry (#94)
+    if (this.isMemoryNote(note)) await this.memoryUpkeep(note.path, null);
     this.schedule(0);
+  }
+
+  // ------------------------------------------------------------------ AI memory (#94)
+
+  /** The signed-in user's name: their actor id (`human:<name>`) in the AI memory */
+  actorName = '';
+
+  /** The memory folder when the AI memory is on, else null */
+  memoryFolder(): string | null {
+    const memory = this.features().memory;
+    return memory.enabled ? memory.folder : null;
+  }
+
+  /** An own note inside the memory folder (index and log included) */
+  isMemoryNote(note: LocalNote): boolean {
+    const folder = this.memoryFolder();
+    return !!folder && spaceOf(note) === 'own' && isMemoryPath(note.path, folder);
+  }
+
+  humanActor(): string {
+    return `${HUMAN_ACTOR}${actorId(this.actorName || 'user')}`;
+  }
+
+  private ownSpaceNotes(): LocalNote[] {
+    return this.list().filter((n) => spaceOf(n) === 'own');
+  }
+
+  /** Brings the indexes (and with `log` the log) of the memory up to date after `path` changed */
+  async memoryUpkeep(path: string, log: MemoryLogRequest | null): Promise<void> {
+    const folder = this.memoryFolder();
+    if (!folder || isReadOnly()) return;
+    const own = this.ownSpaceNotes();
+    const index = new LinkIndex(own, this.roleConfig());
+    for (const w of memoryUpkeep(own, folder, path, (t) => index.resolve(t), log)) {
+      if (w.id) await this.update(w.id, { content: w.content });
+      else {
+        const { folder: dir, name } = splitPath(w.path);
+        await this.insert(dir, name, w.content);
+      }
+    }
+  }
+
+  private memoryLog(kind: MemoryLogRequest['kind']): MemoryLogRequest {
+    return { kind, actor: this.humanActor(), date: isoNow().slice(0, 10) };
+  }
+
+  /**
+   * After the user edited a memory note (called when they leave it): `generated` names them, index and log follow.
+   * `before` is the content when the note was opened ('' for a new note).
+   */
+  async finishMemoryEdit(id: string, before: string): Promise<void> {
+    const note = this.get(id);
+    if (!note || !this.isMemoryNote(note) || isReservedMemoryNote(note.path) || note.content === before || isReadOnly()) return;
+    const content = stampGenerated(note.content, this.humanActor());
+    await this.update(id, { content });
+    await this.memoryUpkeep(note.path, this.memoryLog(memoryChangeKind(before.trim() ? before : null, content)));
+  }
+
+  /** The user confirms a memory note (`verified: human:<name>`) */
+  async verifyMemoryNote(id: string): Promise<void> {
+    const note = this.get(id);
+    if (!note || !this.isMemoryNote(note)) return;
+    await this.update(id, { content: addVerification(note.content, this.humanActor()) });
+  }
+
+  /** draft / stable / deprecated; deprecating is logged */
+  async setMemoryNoteStatus(id: string, status: string): Promise<void> {
+    const note = this.get(id);
+    if (!note || !this.isMemoryNote(note)) return;
+    const content = stampGenerated(setMemoryStatus(note.content, status), this.humanActor());
+    await this.update(id, { content });
+    await this.memoryUpkeep(note.path, this.memoryLog(memoryChangeKind(note.content, content)));
+  }
+
+  /** Sets the required `type` (quick fix for notes the user created in the memory) */
+  async setMemoryNoteType(id: string, type: string): Promise<void> {
+    const note = this.get(id);
+    if (!note || !this.isMemoryNote(note)) return;
+    await this.update(id, { content: applyMemoryFields(note.content, { type }) });
+  }
+
+  /** Copies a memory note into the user's own notes, without agent metadata and with a link back */
+  async adoptMemoryNote(id: string, folder: string): Promise<LocalNote | null> {
+    const note = this.get(id);
+    if (!note) return null;
+    const name = splitPath(note.path).name;
+    const target = this.links().resolve(name) === id ? name : note.path.replace(/\.md$/, '');
+    return this.create(folder, name, adoptedContent(note.content, target));
+  }
+
+  /** The memory as an OKF bundle (ZIP) */
+  memoryBundle(): Uint8Array | null {
+    const folder = this.memoryFolder();
+    if (!folder) return null;
+    const index = this.links();
+    return zipStore(toOkfBundle(this.ownSpaceNotes(), folder, (t) => index.resolve(t)));
+  }
+
+  /** Imports the Markdown files of an OKF bundle into the memory; existing paths are left alone */
+  async importMemoryBundle(files: BundleFile[]): Promise<{ created: number; skipped: number }> {
+    const folder = this.memoryFolder();
+    if (!folder || isReadOnly()) return { created: 0, skipped: 0 };
+    const taken = new Set(this.ownSpaceNotes().map((n) => n.path.toLowerCase()));
+    let created = 0;
+    let skipped = 0;
+    for (const f of fromOkfBundle(files, folder)) {
+      if (taken.has(f.path.toLowerCase())) {
+        skipped++;
+        continue;
+      }
+      const { folder: dir, name } = splitPath(f.path);
+      await this.insert(dir, name, f.content);
+      created++;
+    }
+    return { created, skipped };
   }
 
   /** Own notes, and shared ones from a folder share that allows deleting */
@@ -1216,6 +1351,7 @@ class Vault {
       writingStats: { enabled: true },
       focus: { enabled: true, dim: false },
       icons: { enabled: false },
+      memory: { enabled: false, folder: DEFAULT_MEMORY_FOLDER },
     } satisfies FeatureSettings);
     for (const w of welcomeNotes(getLang())) await this.insert(w.folder, w.title, w.content);
   }

@@ -164,6 +164,7 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       writingStats: { enabled: true },
       focus: { enabled: true, dim: false },
       icons: { enabled: false },
+      memory: { enabled: false, folder: 'AI-Memory' },
     });
 
     const upgraded = normalizeFeatures(undefined, ['0 Inbox', '1 Projekte', 'Zettelkasten', '3 Ressourcen/Rezepte']);
@@ -178,6 +179,7 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       writingStats: { enabled: true },
       focus: { enabled: true, dim: false },
       icons: { enabled: false },
+      memory: { enabled: false, folder: 'AI-Memory' },
     });
 
     const explicitDisabled = normalizeFeatures(

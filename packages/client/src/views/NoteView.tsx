@@ -52,6 +52,7 @@ import {
   FormatAlignRight,
   Users,
   Mood,
+  Psychology,
 } from '../lib/icons';
 import { undo } from '@codemirror/commands';
 import {
@@ -75,6 +76,7 @@ import {
   type GraphNode,
   type Task,
   noteIconOf,
+  memoryMeta,
 } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
@@ -89,6 +91,7 @@ import { applyFrontmatter } from '../editor/widgets';
 import { ShareDialog } from './ShareDialog';
 import { HistoryDialog } from './History';
 import { ParaBar } from './ParaBar';
+import { MemoryPanel } from './MemoryPanel';
 import { Graph, GraphLegend } from './Graph';
 import { Sheet } from './Dialogs';
 import { Avatar } from './Avatar';
@@ -1098,6 +1101,14 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
       if (statsTimer.current) clearTimeout(statsTimer.current);
     };
   }, []);
+  // AI memory (#94): when the user leaves a memory note they edited, `generated` names them and index/log follow
+  const memoryEdit = useRef<{ before: string; edited: boolean }>({ before: '', edited: false });
+  useEffect(() => {
+    memoryEdit.current = { before: vault.get(id)?.content ?? '', edited: false };
+    return () => {
+      if (memoryEdit.current.edited) void vault.finishMemoryEdit(id, memoryEdit.current.before);
+    };
+  }, [id]);
 
   useLayoutEffect(() => {
     const el = titleRef.current;
@@ -1192,7 +1203,11 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
     statsTimer.current = setTimeout(() => setStatsTick((n) => n + 1), 150);
   };
   const index = vault.links();
-  const backlinks = index.backlinks(id).map((b) => vault.get(b)!).filter(Boolean);
+  const allBacklinks = index.backlinks(id).map((b) => vault.get(b)!).filter(Boolean);
+  // Links from the AI memory (#94) get their own section under the user's own notes
+  const inMemory = vault.isMemoryNote(note);
+  const backlinks = inMemory ? allBacklinks : allBacklinks.filter((b) => !vault.isMemoryNote(b));
+  const memoryBacklinks = inMemory ? [] : allBacklinks.filter((b) => vault.isMemoryNote(b));
   const mentions = index.unlinkedMentions(id).map((m) => vault.get(m)!).filter((n) => n && n.access !== 'read');
   const local = index.localGraph(id, graphDepth);
   /** Exports of a versioned note contain its latest release with the placeholders filled in (#53) */
@@ -1422,6 +1437,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               <ParaBar note={note} />
             </div>
           )}
+          {!focus && vault.isMemoryNote(note) && <MemoryPanel note={note} readOnly={readOnly} />}
           {/* "Edit as text" and fullscreen live inside the canvas, so the drawing gets the room */}
           {showDrawing && (
             <Suspense fallback={<div className="flex min-h-[60vh] flex-1 items-center justify-center text-sm text-on-surface-variant">{t('common.loading')}</div>}>
@@ -1463,7 +1479,11 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               presenceNote={id}
               dim={focus && features.focus.dim}
               releases={note.versioning ? (note.releases ?? []) : null}
-              onChange={(content) => void vault.update(id, { content })}
+              onChange={(content) => {
+                // Echoes of synced or programmatic changes equal the stored text; only real typing counts
+                if (content !== vault.get(id)?.content) memoryEdit.current.edited = true;
+                void vault.update(id, { content });
+              }}
               onView={setView}
               onActivity={features.writingStats.enabled ? onEditorActivity : undefined}
             />
@@ -1471,8 +1491,23 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           )}
 
           {/* Bottom links/graph overview remains visible when the right split pane is collapsed */}
-          {!showPdf && !splitOpen && !focus && (backlinks.length > 0 || mentions.length > 0 || local.nodes.length > 1) && (
+          {!showPdf && !splitOpen && !focus && (backlinks.length > 0 || memoryBacklinks.length > 0 || mentions.length > 0 || local.nodes.length > 1) && (
             <div className="no-print mb-10 space-y-6 border-t border-outline-variant pt-4">
+              {memoryBacklinks.length > 0 && (
+                <section className="anim-fade-in" data-memory-backlinks>
+                  <h2 className="mb-2 flex items-center gap-1.5 text-title-s text-on-surface-variant">
+                    <Psychology size={16} /> {t('memory.backlinksTitle', { n: memoryBacklinks.length })}
+                  </h2>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {memoryBacklinks.map((b) => (
+                      <button key={b.id} className="w-full min-w-0 rounded-xl border border-dashed border-outline-variant p-3 text-left text-sm transition hover:border-primary/40" onClick={() => navigate(`/n/${b.id}`)}>
+                        <div className="truncate font-medium">{memoryMeta(b.content, b.path).title}</div>
+                        <div className="line-clamp-1 break-words text-on-surface-variant">{memoryMeta(b.content, b.path).description || excerpt(b.content, 90)}</div>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
               {backlinks.length > 0 && (
                 <section className="anim-fade-in">
                   <h2 className="mb-2 text-title-s text-on-surface-variant">{t('note.backlinksTitle', { n: backlinks.length })}</h2>

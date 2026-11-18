@@ -1,6 +1,7 @@
 import { escapeRegExp } from './util.js';
 import { extractMeta, mapOutsideCode, splitPath } from './markdown.js';
 import { PARA, RoleFolderMap, ZETTEL_ID_PATTERN, isFolderProjectHome } from './para.js';
+import { okfLinkTarget } from './memory.js';
 
 /**
  * Link resolution. A [[link]] matches, in this order: a note title, a frontmatter `id`
@@ -26,11 +27,24 @@ export interface GraphEdge {
   target: string;
 }
 
+/** Targets of Markdown links `[text](target)` that are no URL (OKF bundle links), outside code and images */
+function markdownPathLinks(content: string): string[] {
+  if (!content.includes('](')) return [];
+  const prose = content.replace(/```[\s\S]*?(```|$)/g, '').replace(/`[^`\n]*`/g, '');
+  const out: string[] = [];
+  for (const m of prose.matchAll(/(!?)\[[^\]\n]*\]\(([^)\s]+)\)/g)) {
+    if (!m[1] && !/^[a-z][a-z0-9+.-]*:|^#|^\/\/|^\/api\//i.test(m[2])) out.push(m[2]);
+  }
+  return out;
+}
+
 const WIKI = /\[\[([^\]|#\n]+)((?:#[^\]|\n]*)?)((?:\|[^\]\n]*)?)\]\]/g;
 
 export class LinkIndex {
   private byTitle = new Map<string, string>();
   private byId = new Map<string, string>();
+  /** Path suffixes ("Produkte/index", "AI-Memory/Produkte/index"): [[folder/name]] links and OKF path links (#94) */
+  private byPath = new Map<string, string>();
   readonly notes = new Map<string, LinkNote & { title: string; folder: string; links: string[]; zid: string | null }>();
   private outgoingCache = new Map<string, string[]>();
   private incoming = new Map<string, Set<string>>();
@@ -53,9 +67,22 @@ export class LinkIndex {
       }
       if (meta.frontmatter.title && !this.byTitle.has(meta.frontmatter.title.toLowerCase())) this.byTitle.set(meta.frontmatter.title.toLowerCase(), n.id);
       if (zid && !this.byId.has(zid)) this.byId.set(zid, n.id);
+      const segments = n.path.replace(/\.md$/i, '').split('/');
+      // The full path wins over a shorter suffix of another note
+      this.byPath.set(segments.join('/').toLowerCase(), n.id);
+    }
+    for (const n of this.notes.values()) {
+      const segments = n.path.replace(/\.md$/i, '').split('/');
+      for (let i = segments.length - 2; i >= 1; i--) {
+        const key = segments.slice(i).join('/').toLowerCase();
+        if (!this.byPath.has(key)) this.byPath.set(key, n.id);
+      }
     }
     for (const [id, n] of this.notes) {
-      const targets = [...new Set(n.links.map((l) => this.resolve(l)).filter((t): t is string => !!t && t !== id))];
+      const pathLinks = markdownPathLinks(n.content).map((url) => okfLinkTarget(url, n.folder));
+      const targets = [
+        ...new Set([...n.links.map((l) => this.resolve(l)), ...pathLinks.map((p) => (p ? this.resolvePath(p) : null))].filter((t): t is string => !!t && t !== id)),
+      ];
       this.outgoingCache.set(id, targets);
       for (const t of targets) {
         if (!this.incoming.has(t)) this.incoming.set(t, new Set());
@@ -70,7 +97,18 @@ export class LinkIndex {
     if (this.byTitle.has(key)) return this.byTitle.get(key)!;
     const zid = ZETTEL_ID_PATTERN.exec(key)?.[1];
     if (zid && this.byId.has(zid)) return this.byId.get(zid)!;
+    if (key.includes('/')) return this.resolvePath(key);
     return null;
+  }
+
+  /** Note id for a path or path suffix ("Produkte/Foo", "/Produkte/Foo.md"), or null */
+  resolvePath(path: string): string | null {
+    const key = path
+      .trim()
+      .toLowerCase()
+      .replace(/^\.?\/+/, '')
+      .replace(/\.md$/, '');
+    return this.byPath.get(key) ?? null;
   }
 
   outgoing(id: string): string[] {

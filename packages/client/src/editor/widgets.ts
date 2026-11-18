@@ -631,6 +631,20 @@ function siteIcon(url: URL): HTMLElement {
   return box;
 }
 
+/** "/Produkte/Foo", "./foo.md", "../a/b.md" → "Produkte/Foo", "foo", "a/b"; null for URLs, anchors and API paths */
+function localNotePath(url: string): string | null {
+  const raw = url.trim();
+  if (!raw || raw.startsWith('#') || raw.startsWith('//') || raw.startsWith('/api/') || /^[a-z][a-z0-9+.-]*:/i.test(raw)) return null;
+  let path = raw.replace(/[?#].*$/, '');
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    /* keep as written */
+  }
+  path = path.replace(/^(?:\.{1,2}\/)+/, '').replace(/^\/+/, '').replace(/\.md$/i, '');
+  return path || null;
+}
+
 export class LinkWidget extends WidgetType {
   constructor(
     readonly text: string,
@@ -642,6 +656,19 @@ export class LinkWidget extends WidgetType {
     return o.text === this.text && o.url === this.url;
   }
   toDOM() {
+    // A path link to a note (OKF bundles in the AI memory, #94) opens the note like a [[link]]
+    const notePath = localNotePath(this.url);
+    if (notePath && editorHost.wikiExists(notePath)) {
+      const s = document.createElement('span');
+      s.className = 'cm-wikilink';
+      s.textContent = stripInline(this.text) || this.url;
+      s.title = this.url;
+      s.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        editorHost.openWiki(notePath);
+      });
+      return s;
+    }
     const href = safeUrl(this.url);
     if (!href) {
       // javascript:, data: and other schemes never become a clickable link (stored XSS through shared notes)
