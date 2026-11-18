@@ -38,6 +38,8 @@ import { ConfluenceStore } from './confluence/ConfluenceStore.js';
 import { ConfluenceSync } from './confluence/ConfluenceSync.js';
 import { httpsTransport, type HttpTransport } from './confluence/ConfluenceClient.js';
 import { confluenceRouter } from './confluence/router.js';
+import { BackupService } from './backup/BackupService.js';
+import { ServerSettings } from './ServerSettings.js';
 
 export interface KladdeAppOptions {
   db: DatabaseSync;
@@ -53,6 +55,10 @@ export interface KladdeAppOptions {
   /** Requests to Confluence (#48); tests answer them without a network */
   confluenceTransport?: HttpTransport;
   onRegistered?: (user: UserRecord, inviteNote: string) => void;
+  /** Backups in the admin area (#65): where they go and how many daily ones `BACKUP_KEEP` keeps; missing = no backups */
+  backup?: { dir: string; defaultKeep: number };
+  /** Restarts the server (a restore is applied at start); without it the admin area cannot restore */
+  onRestart?: () => void;
 }
 
 export interface KladdeAppContext {
@@ -70,6 +76,8 @@ export interface KladdeAppContext {
   standaloneUser?: UserRecord;
   /** One run of the Web Push reminder job (not in standalone mode); returns the number of messages sent */
   sendReminders?: (now?: Date) => Promise<number>;
+  /** Backups of database and attachments (#65), when the app has a backup directory */
+  backups?: BackupService;
 }
 
 /** Builds the Express app and stores for either multi-user server mode or single-user desktop standalone mode */
@@ -119,6 +127,13 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
 
   if (mirror) for (const u of users.listUsers()) mirror.writeAll(u.id, notes.allOf(u.id));
 
+  const backups =
+    opts.backup && !opts.standalone
+      ? new BackupService({ db: opts.db, dataDir: opts.dataDir, backupDir: opts.backup.dir, settings: new ServerSettings(opts.db), defaultKeep: opts.backup.defaultKeep })
+      : undefined;
+  // While a restore waits for the restart nothing may change the database any more
+  let maintenance = false;
+
   const status = (): AdminStatus => ({
     version: APP_VERSION,
     startedAt,
@@ -147,7 +162,12 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     next();
   });
 
-  app.get('/health', (_req, res) => res.json({ ok: true, version: APP_VERSION, standalone: opts.standalone }));
+  app.get('/health', (_req, res) => res.json({ ok: true, version: APP_VERSION, standalone: opts.standalone, ...(maintenance ? { maintenance } : {}) }));
+  app.use(['/api', '/mcp'], (_req, res, next) => {
+    if (!maintenance) return next();
+    res.setHeader('Retry-After', '10');
+    res.status(503).json({ error: 'Kladde wird gerade wiederhergestellt und startet neu.' });
+  });
   // PWA share target: the service worker normally answers this POST (client/public/share-target.js). Without it
   // (not installed yet, cleared site data) the shared content cannot be read here, so the app shows a hint instead.
   app.post('/share', (_req, res) => res.redirect(303, '/share?error=1'));
@@ -248,7 +268,19 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   app.use('/api/mcp', mcp.accountRouter);
   app.use('/api/confluence', confluenceRouter({ users, sync: confluence, audit, allowPrivate: confluenceAllowPrivate, standaloneUser }));
   if (!opts.standalone) {
-    app.use('/api/admin', adminRouter({ users, audit, status }));
+    app.use(
+      '/api/admin',
+      adminRouter({
+        users,
+        audit,
+        status,
+        backups,
+        onRestore: opts.onRestart,
+        enterMaintenance: () => {
+          maintenance = true;
+        },
+      })
+    );
   }
   app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db) }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
@@ -304,5 +336,5 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
 
   const sendReminders = push ? (now?: Date) => runReminders(push, notes, pushSubject, now) : undefined;
-  return { app, users, notes, files, avatars, attachmentIndexer, confluence, audit, live, standaloneUser, sendReminders };
+  return { app, users, notes, files, avatars, attachmentIndexer, confluence, audit, live, standaloneUser, sendReminders, backups };
 }

@@ -135,7 +135,8 @@ Ohne Zugriff auf den Server importierst du einen lokalen Ordner (z. B. einen Obs
 | `GITLAB_ALLOWED_GROUPS` | Nur Mitglieder dieser Gruppen (kommagetrennte Pfade, z. B. `familie,firma/team`; Untergruppen zählen mit), leer = alle |
 | `GITLAB_ALLOW_SIGNUP` | Ältere Schreibweise für `SIGNUP_WITHOUT_INVITE=gitlab` (funktioniert weiter) |
 | `GITLAB_LABEL` | Beschriftung des Knopfs, z. B. Name der eigenen Instanz (Standard `GitLab`) |
-| `BACKUP_KEEP` | Tägliche Datenbank-Backups in `data/backups` (Standard 7, `0` = aus) |
+| `BACKUP_KEEP` | Vorgabe für die tägliche vollständige Sicherung (Datenbank und verschlüsselte Anhänge) in `data/backups`: wie viele aufbewahrt werden (Standard 7, `0` = aus). Änderbar unter Einstellungen → Verwaltung → Sicherungen |
+| `BACKUP_DIR` | Ablage der Sicherungen (Standard `data/backups`) |
 | `TRASH_RETENTION_DAYS` | Tage, die gelöschte Notizen im Papierkorb bleiben, bevor sie endgültig gelöscht werden (Standard 30, `0` = bis zum manuellen Leeren) |
 | `TRANSCRIBE_URL` | Optionale Spracherkennung für Sprachnotizen: ein OpenAI-kompatibler Transkriptions-Endpunkt, den du selbst betreibst, z. B. ein lokales Whisper (`http://whisper:8000/v1/audio/transcriptions`). Nicht gesetzt = keine Transkription; Aufnahmen gehen standardmäßig nie an einen fremden Dienst. `TRANSCRIBE_MODEL` (Standard `whisper-1`) und `TRANSCRIBE_API_KEY` sind optional |
 | `OCR` | `true` schaltet die Texterkennung (OCR) für Bilder und gescannte PDF-Seiten ein, damit die Volltextsuche auch deren Text findet (Tesseract als WebAssembly, läuft auf dem Server, nichts verlässt ihn; kostet CPU, Standard aus). Der Text normaler PDFs wird immer indexiert. `OCR_LANGS` wählt die Sprachen: `deu`, `eng` oder `deu+eng` (Standard) |
@@ -168,6 +169,8 @@ claude mcp add --transport http kladde https://notes.example.org/mcp
 ```
 
 **Zur Verschlüsselung:** Liegt der Schlüssel im selben Volume wie die Datenbank, schützt das Kopien der Datenbank und Backups (NAS, Git), nicht einen vollständig übernommenen Server. Für mehr Schutz `DATA_KEY` als Secret übergeben. Den Schlüssel unbedingt sichern – ohne ihn sind die Notizen verloren.
+
+**Sicherungen:** Unter Einstellungen → Verwaltung → Sicherungen sehen Admins alle Sicherungen mit Datum und Größe, legen mit „Jetzt sichern“ eine an, stellen die tägliche Sicherung und die Zahl der aufbewahrten ein, laden eine Sicherung als `.tar`-Archiv herunter und stellen eine wieder her. Eine Sicherung enthält die Datenbank sowie Anhänge und Profilbilder, alles weiterhin verschlüsselt; Anhänge werden per Hardlink übernommen, tägliche Sicherungen brauchen daher wenig zusätzlichen Platz. **Der Schlüssel ist nie Teil einer Sicherung** – bewahre `DATA_KEY` bzw. `data/secret.key` getrennt auf, ohne ihn ist eine Sicherung nicht lesbar. Eine Wiederherstellung sichert zuerst den aktuellen Stand, startet dann den Server neu (die Docker-Restart-Policy startet ihn wieder) und spielt die Sicherung ein, bevor die Datenbank geöffnet wird; sie steht im Protokoll. Ein heruntergeladenes Archiv stellst du von Hand wieder her, indem du den Container stoppst, das Archiv entpackst und `kladde.sqlite`, `files/` und `avatars/` ins Daten-Volume kopierst (`kladde.sqlite-wal` und `kladde.sqlite-shm` dabei löschen).
 
 ---
 

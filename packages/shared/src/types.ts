@@ -240,6 +240,43 @@ export interface AdminAuditEntry {
   detail: string | null;
 }
 
+/** Why a backup was taken */
+export type AdminBackupTrigger = 'manual' | 'scheduled' | 'pre-restore' | 'pre-migration' | 'unknown';
+
+/** One backup in the admin area (#65) */
+export interface AdminBackup {
+  /** Folder or file name below the backup directory, e.g. `kladde-2026-11-18-12-00-00` */
+  id: string;
+  createdAt: number;
+  /** Bytes of the database copy plus the attachments */
+  size: number;
+  /** `full`: database and the (encrypted) attachments and profile pictures; `database`: only a database copy (older backups, pre-migration copies, the CLI) */
+  kind: 'full' | 'database';
+  trigger: AdminBackupTrigger;
+  /** Attachments and profile pictures in the backup */
+  files: number;
+  /** Kladde version that took it (full backups) */
+  version: string | null;
+  /** Only full backups whose schema this version knows can be restored */
+  restorable: boolean;
+}
+
+export interface AdminBackupSchedule {
+  /** A full backup once a day */
+  enabled: boolean;
+  /** How many daily backups are kept; manual ones stay until deleted */
+  keep: number;
+}
+
+export interface AdminBackupOverview {
+  backups: AdminBackup[];
+  schedule: AdminBackupSchedule;
+  /** Where the backups are stored on the server */
+  dir: string;
+  /** Whether a backup is being created right now */
+  busy: boolean;
+}
+
 export interface AdminStatus {
   version: string;
   startedAt: number;

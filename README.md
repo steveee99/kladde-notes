@@ -142,7 +142,8 @@ Without access to the server you can import a local folder (e.g. an Obsidian vau
 | `GITLAB_ALLOWED_GROUPS` | Only members of these groups (comma-separated paths, e.g. `family,company/team`; subgroups count), empty = everyone |
 | `GITLAB_ALLOW_SIGNUP` | Older spelling of `SIGNUP_WITHOUT_INVITE=gitlab` (keeps working) |
 | `GITLAB_LABEL` | Button label, e.g. the name of your own instance (default `GitLab`) |
-| `BACKUP_KEEP` | Daily database backups in `data/backups` (default 7, `0` = off) |
+| `BACKUP_KEEP` | Default for the daily full backup (database and encrypted attachments) in `data/backups`: how many to keep (default 7, `0` = off). Can be changed under Settings → Administration → Backups |
+| `BACKUP_DIR` | Where backups are stored (default `data/backups`) |
 | `EXPORT_DIR` | Plain-text mirror of the notes (e.g. NAS), empty = off |
 | `TRASH_RETENTION_DAYS` | Days deleted notes stay in the trash before they are purged (default 30, `0` = until emptied by hand) |
 | `TRANSCRIBE_URL` | Optional speech-to-text for voice notes: an OpenAI-compatible transcription endpoint you run yourself, e.g. a local Whisper (`http://whisper:8000/v1/audio/transcriptions`). Unset = no transcription; recordings never go to a third-party service by default. `TRANSCRIBE_MODEL` (default `whisper-1`) and `TRANSCRIBE_API_KEY` are optional |
@@ -179,6 +180,8 @@ claude mcp add --transport http kladde https://notes.example.org/mcp
 ```
 
 **About encryption:** if the key lives in the same volume as the database, it protects copies of the database and backups (NAS, Git), but not a fully compromised server. For more protection pass `DATA_KEY` as a secret. Back the key up: without it the notes are lost.
+
+**Backups:** under Settings → Administration → Backups admins see all backups with date and size, take one with "Back up now", set the daily backup and how many to keep, download a backup as a `.tar` archive and restore one. A backup holds the database and the attachments and profile pictures, all still encrypted; attachments are hard-linked, so daily backups take little extra space. **The key is never part of a backup** – keep `DATA_KEY` or `data/secret.key` somewhere else, without it a backup cannot be read. A restore first backs up the current state, then restarts the server (the Docker restart policy starts it again) and swaps in the backup before the database opens; it is recorded in the audit log. To restore a downloaded archive by hand, stop the container, unpack it, and copy `kladde.sqlite`, `files/` and `avatars/` into the data volume (removing `kladde.sqlite-wal` and `kladde.sqlite-shm`).
 
 ---
 

@@ -3,7 +3,8 @@ import path from 'path';
 import type express from 'express';
 import { APP_VERSION } from '@kladde/shared';
 import { createKladdeApp } from './app.js';
-import { backupDatabase, openDatabase } from './db.js';
+import { openDatabase } from './db.js';
+import { applyPendingRestore, type RestoreRequest } from './backup/BackupService.js';
 import { purgeExpiredTrash, trashRetentionDays } from './trash.js';
 import { launchDesktopWindow, probeRunningKladde, startDesktopLifecycle } from './desktop.js';
 import {
@@ -110,12 +111,25 @@ async function main(): Promise<void> {
     return;
   }
 
+  // A restore requested in the admin area (#65) replaces the database and attachments before anything opens them
+  let restored: RestoreRequest | null = null;
+  if (DB_PATH !== ':memory:') {
+    try {
+      restored = applyPendingRestore({ dataDir: DATA_DIR, dbPath: DB_PATH, backupDir: BACKUP_DIR });
+      if (restored) console.log(`♻️  Sicherung ${restored.id} wiederhergestellt (angefordert von ${restored.username})`);
+    } catch (err) {
+      console.error('Restore failed, starting with the current data:', err);
+    }
+  }
+
   const db = openDatabase(DB_PATH, { backupDir: BACKUP_KEEP > 0 ? BACKUP_DIR : undefined });
   const PUBLIC_URL = standalone ? null : env.PUBLIC_URL?.trim() || null;
   const TRUST_PROXY = !standalone && (env.TRUST_PROXY === '1' || env.TRUST_PROXY === 'true');
   const clientDist = path.resolve(baseDir, '..', '..', 'client', 'dist');
 
-  const { app, users, audit, live, notes, files, attachmentIndexer, confluence, sendReminders } = createKladdeApp({
+  // Set below: ends the process so the container's restart policy starts it again (a restore applies at start)
+  let restart = () => {};
+  const { app, users, audit, live, notes, files, attachmentIndexer, confluence, sendReminders, backups } = createKladdeApp({
     db,
     dataDir: DATA_DIR,
     env,
@@ -125,8 +139,11 @@ async function main(): Promise<void> {
     trustProxy: TRUST_PROXY,
     clientDist,
     seaAssets: loadSeaClientAssets(),
+    backup: DB_PATH !== ':memory:' ? { dir: BACKUP_DIR, defaultKeep: BACKUP_KEEP } : undefined,
+    onRestart: () => restart(),
   });
   handler = app;
+  if (restored) audit.record('backup_restored', { username: restored.username, detail: restored.id });
 
   if (!standalone) {
     const inviteUrl = (code: string) => `${(PUBLIC_URL ?? `http://localhost:${isProduction ? port : 5174}`).replace(/\/$/, '')}/invite/${code}`;
@@ -140,18 +157,19 @@ async function main(): Promise<void> {
   const localUrl = `http://${host ?? 'localhost'}:${port}`;
   console.log(`📝 Kladde ${APP_VERSION} läuft auf ${localUrl}${standalone ? ` (Standalone · Daten: ${DATA_DIR})` : ''}`);
 
-  if (BACKUP_KEEP > 0 && DB_PATH !== ':memory:') {
-    const runBackup = () => {
-      try {
-        backupDatabase(db, BACKUP_DIR, BACKUP_KEEP);
-        audit.prune();
-      } catch (err) {
-        console.error('Backup failed:', err);
-      }
-    };
+  // Daily full backup (#65) as set in the admin area (default from BACKUP_KEEP): checked hourly, taken when the last one is a day old
+  if (backups) {
+    const runBackup = () =>
+      backups.runSchedule().then(
+        (b) => b && console.log(`💾 Sicherung ${b.id} erstellt`),
+        (err) => console.error('Backup failed:', err)
+      );
     setTimeout(runBackup, 60_000).unref();
-    setInterval(runBackup, 24 * 60 * 60 * 1000).unref();
+    setInterval(runBackup, 60 * 60 * 1000).unref();
   }
+  const pruneAudit = () => audit.prune();
+  setTimeout(pruneAudit, 60_000).unref();
+  setInterval(pruneAudit, 24 * 60 * 60 * 1000).unref();
 
   // Deleted notes older than TRASH_RETENTION_DAYS leave the trash for good (shortly after start, then every 6 hours)
   const trashDays = trashRetentionDays(env);
@@ -209,7 +227,7 @@ async function main(): Promise<void> {
       } catch {
         // already closed
       }
-      process.exit(0);
+      process.exit();
     });
     setTimeout(() => {
       try {
@@ -217,8 +235,14 @@ async function main(): Promise<void> {
       } catch {
         // already closed
       }
-      process.exit(0);
+      process.exit();
     }, 1500).unref();
+  };
+  // Exit code 75 (temporary failure): restart policies like "on-failure" restart it as well as "unless-stopped"
+  restart = () => {
+    process.exitCode = 75;
+    console.log('🔁 Neustart für die Wiederherstellung');
+    shutdown();
   };
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);

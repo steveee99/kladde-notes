@@ -3,15 +3,23 @@ import type { AdminAuditEntry, AdminStatus } from '@kladde/shared';
 import { AccountError, UserStore } from '../UserStore.js';
 import { AuditLog } from '../security/AuditLog.js';
 import { handle, requireUser } from '../http.js';
+import type { BackupService } from '../backup/BackupService.js';
+import { tarSize, writeTar } from '../backup/tar.js';
 
 export interface AdminRouterOptions {
   users: UserStore;
   audit: AuditLog;
   status: () => AdminStatus;
+  /** Backups (#65); missing for an in-memory database */
+  backups?: BackupService;
+  /** Called after a restore was prepared and answered: the server has to restart to apply it */
+  onRestore?: () => void;
+  /** Turns away every other API request while the restore is pending */
+  enterMaintenance?: () => void;
 }
 
 /** Admin area of the web app: accounts, invites, password resets and the audit log (admins only) */
-export function adminRouter({ users, audit, status }: AdminRouterOptions): express.Router {
+export function adminRouter({ users, audit, status, backups, onRestore, enterMaintenance }: AdminRouterOptions): express.Router {
   const router = express.Router();
   const authed = requireUser(users);
   router.use(authed, (req, res, next) => {
@@ -98,6 +106,93 @@ export function adminRouter({ users, audit, status }: AdminRouterOptions): expre
     if (ok) record(req, `einladung gelöscht ${req.params.code}`);
     res.status(ok ? 200 : 404).json(ok ? { ok } : { error: 'Diesen Code gibt es nicht.' });
   });
+
+  // ---------------------------------------------------------------- backups (#65)
+
+  const backupService = () => {
+    if (!backups) throw new AccountError('Sicherungen sind ohne Datenbankdatei nicht verfügbar.', 404);
+    return backups;
+  };
+
+  router.get(
+    '/backups',
+    handle((_req, res) => res.json(backupService().overview()))
+  );
+
+  router.post(
+    '/backups',
+    handle(async (req, res) => {
+      const backup = await backupService().create('manual');
+      record(req, `sicherung erstellt ${backup.id}`);
+      res.json(backupService().overview());
+    })
+  );
+
+  router.put(
+    '/backups/schedule',
+    handle((req, res) => {
+      const schedule = backupService().setSchedule({ enabled: req.body?.enabled, keep: req.body?.keep });
+      record(req, `tägliche sicherung ${schedule.enabled ? `an (${schedule.keep} behalten)` : 'aus'}`);
+      res.json(backupService().overview());
+    })
+  );
+
+  router.delete(
+    '/backups/:id',
+    handle((req, res) => {
+      const id = String(req.params.id);
+      if (!backupService().remove(id)) throw new AccountError('Diese Sicherung gibt es nicht.', 404);
+      record(req, `sicherung gelöscht ${id}`);
+      res.json(backupService().overview());
+    })
+  );
+
+  router.get(
+    '/backups/:id/download',
+    handle(async (req, res) => {
+      const id = String(req.params.id);
+      const download = backupService().download(id);
+      if (!download) throw new AccountError('Diese Sicherung gibt es nicht.', 404);
+      record(req, `sicherung heruntergeladen ${id}`);
+      res.setHeader('Cache-Control', 'no-store');
+      if (download.kind === 'file') {
+        res.download(download.file, download.filename);
+        return;
+      }
+      res.setHeader('Content-Type', 'application/x-tar');
+      res.setHeader('Content-Disposition', `attachment; filename="${download.filename}"`);
+      res.setHeader('Content-Length', String(tarSize(download.entries)));
+      try {
+        await writeTar(download.entries, res);
+        res.end();
+      } catch (err) {
+        // The download was cancelled or a file vanished: the archive is incomplete either way
+        console.error('Backup download failed:', err);
+        res.destroy();
+      }
+    })
+  );
+
+  /** Restores a full backup: safety backup, marker, then a restart that applies it before the database opens */
+  router.post(
+    '/backups/:id/restore',
+    handle(async (req, res) => {
+      const id = String(req.params.id);
+      const service = backupService();
+      if (req.body?.confirm !== id) throw new AccountError('Bitte die Wiederherstellung bestätigen.', 400);
+      if (!onRestore) throw new AccountError('Wiederherstellen ist hier nicht möglich.', 409);
+      const { safetyBackup } = await service.requestRestore(id, req.user!.username);
+      audit.record('backup_restore_requested', {
+        userId: req.user!.id,
+        username: req.user!.username,
+        ip: req.ip,
+        detail: `${id} (vorher gesichert: ${safetyBackup.id})`,
+      });
+      enterMaintenance?.();
+      res.on('finish', () => setTimeout(onRestore, 250));
+      res.json({ restarting: true, safetyBackup: safetyBackup.id });
+    })
+  );
 
   // ---------------------------------------------------------------- audit log
 
