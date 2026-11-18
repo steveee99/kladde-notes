@@ -1,6 +1,6 @@
 import { useState, useSyncExternalStore } from 'react';
 import { Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, LayoutGrid, List, Plus, Table2, Trash2, Users } from '../lib/icons';
-import { INBOX_FOLDER, archiveTarget, excerpt, extractMeta, projectTitleOf, restoreTarget, splitPath } from '@kladde/shared';
+import { INBOX_FOLDER, archiveTarget, excerpt, extractMeta, findDatabaseNote, inferPropertyKeys, isDatabasePath, newDatabaseContent, projectTitleOf, restoreTarget, splitPath } from '@kladde/shared';
 import type { SharedFolder } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
@@ -11,6 +11,7 @@ import { dragSource, useDropTarget } from '../lib/dnd';
 import { describePermissions } from './ShareDialog';
 import { Avatar } from './Avatar';
 import { MoveToGroupSheet } from './Groups';
+import { DatabaseView } from './DatabaseView';
 import { DEMO } from '../demo/demoApi';
 import { compareText, folderDisplayName, folderLeafDisplayName, locale, t, useLang, type I18nKey, type Lang } from '../lib/i18n';
 
@@ -316,6 +317,8 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
   // Group notes (#58) live in their group, not among the notes shared with me
   if (mode === 'shared') notes = notes.filter((n) => n.access !== 'owner' && !n.group);
   else notes = notes.filter((n) => n.access === 'owner');
+  // The schema note of a database (#76) is edited through the database view, not listed
+  notes = notes.filter((n) => !isDatabasePath(n.path));
   if (mode === 'folder' && folder !== undefined) notes = notes.filter((n) => splitPath(n.path).folder === folder);
   notes.sort((a, b) =>
     sort === 'updated'
@@ -323,6 +326,11 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
       : compareText(projectTitleOf(a.path, a.content, rc), projectTitleOf(b.path, b.content, rc), lang) ||
         compareText(a.path, b.path, lang)
   );
+  const dbNote = mode === 'folder' && folder ? findDatabaseNote(folder, vault.list().filter((n) => n.access === 'owner')) : null;
+  const makeDatabase = () => {
+    const keys = inferPropertyKeys(folder!, vault.list());
+    void vault.create(folder!, '_database', newDatabaseContent(keys)).catch((err: Error) => alert(err.message));
+  };
   const subfolders = mode === 'folder' ? vault.folders().filter((f) => f.startsWith(`${folder}/`) && !f.slice(folder!.length + 1).includes('/')) : [];
   // Notes in a folder and all its subfolders (owned ones, like the list itself)
   const countIn = (f: string) => vault.list().filter((n) => n.access === 'owner' && (splitPath(n.path).folder === f || splitPath(n.path).folder.startsWith(`${f}/`))).length;
@@ -400,6 +408,11 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
               <Trash2 size={16} /> <span className="hidden sm:inline">{t('list.deleteFolderBtn')}</span>
             </button>
           )}
+          {mode === 'folder' && folder && !dbNote && !protectedFolders.has(folder) && (
+            <button className="edit-only btn-ghost shrink-0 phone:!px-2.5" title={t('db.makeTitle')} onClick={makeDatabase} data-make-database>
+              <Table2 size={16} /> <span className="hidden sm:inline">{t('db.makeBtn')}</span>
+            </button>
+          )}
           {mode !== 'shared' && (
             <button className="edit-only btn-tonal hidden md:inline-flex" onClick={() => newNote(folder)}>
               <Plus size={18} /> {t('list.newBtn')}
@@ -437,6 +450,8 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
       )}
       {mode === 'shared' ? (
         <SharedList notes={notes} />
+      ) : dbNote ? (
+        <DatabaseView folder={folder!} dbNote={dbNote} />
       ) : notes.length === 0 ? (
         <div className="py-16 text-center text-on-surface-variant anim-fade-in">{t('list.emptyFolder')}</div>
       ) : (

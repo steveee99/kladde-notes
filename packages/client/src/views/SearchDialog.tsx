@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { excerpt, isExcalidrawNote, pdfNoteOf, projectTitleOf, splitPath } from '@kladde/shared';
+import { excerpt, isDatabasePath, isExcalidrawNote, pdfNoteOf, projectTitleOf, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { Draw, FileText, FileType2, Psychology, Search as SearchIcon, Users, X } from '../lib/icons';
@@ -125,7 +125,7 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
   };
 
   const results = useMemo(() => {
-    const notes = vault.list().filter((n) => withMemory || !vault.isMemoryNote(n));
+    const notes = vault.list().filter((n) => !isDatabasePath(n.path) && (withMemory || !vault.isMemoryNote(n)));
     const titleOf = (n: LocalNote) => projectTitleOf(n.path, n.content, roleConfig);
     const ranked = terms.length ? searchNotes(notes, terms, titleOf) : [...notes].sort((a, b) => b.updatedAt - a.updatedAt);
     const ordered = memoryOn ? [...ranked.filter((n) => !vault.isMemoryNote(n)), ...ranked.filter((n) => vault.isMemoryNote(n))] : ranked;

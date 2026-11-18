@@ -4,6 +4,7 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Folders as databases (#76). "Make database" in a folder creates a `_database.md` note whose frontmatter holds the schema: typed properties (text, number, date, select, multi-select, checkbox, link to a note) and saved views. The folder then shows its notes as a table with editable cells that write the note's frontmatter, a board grouped by a select property (drag a card to change its value) or a gallery with each note's first image; every view has its own filters and sort order, and "Schema" edits properties and views (renaming a property moves its values in the notes). New notes in the folder start with the properties prefilled with their defaults. Schema and views are plain Markdown/YAML in the folder, so they sync, export and work offline, and the values stay ordinary frontmatter that `query` blocks can use.
 - New: Storage quotas for accounts and groups (#91): the admin area shows what each account and group stores (notes, attachments, history, trash) and lets admins set a limit or lift it; `STORAGE_QUOTA_MB` sets a default. Uploads over the limit are refused with a clear message (offline uploads stay queued and can be retried), a warning appears at 80 %, and everyone sees their usage under Attachments.
 
 ## [2.11.0] – 2026-11-18
