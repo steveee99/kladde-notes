@@ -508,7 +508,7 @@ export class CheckboxWidget extends WidgetType {
     box.addEventListener('contextmenu', (e) => {
       if (view.state.readOnly) return;
       e.preventDefault();
-      openStatusMenu(box, this.status, this.lang, (status) => setLineStatus(view, this.line, status));
+      openStatusMenu(box, this.status, this.lang, (status) => setLineStatus(view, this.line, status), { moveFocus: false });
     });
     return box;
   }
@@ -518,21 +518,41 @@ export class CheckboxWidget extends WidgetType {
 }
 
 /** Small menu below `anchor` to pick a task status */
-export function openStatusMenu(anchor: HTMLElement, current: TaskStatus, lang: Lang, pick: (status: TaskStatus) => void) {
+export function openStatusMenu(anchor: HTMLElement, current: TaskStatus, lang: Lang, pick: (status: TaskStatus) => void, opts: { moveFocus?: boolean } = {}) {
+  // Inside the editor the text keeps the focus (and the on-screen keyboard stays); elsewhere the menu takes it
+  const moveFocus = opts.moveFocus ?? true;
   document.querySelector('.wz-status-menu')?.remove();
   const menu = document.createElement('div');
   menu.className = 'wz-status-menu card';
   menu.setAttribute('role', 'menu');
-  const close = () => {
+  menu.setAttribute('aria-label', tl(lang, 'home.taskStatusAria'));
+  const items: HTMLButtonElement[] = [];
+  const close = (refocus = false) => {
     menu.remove();
     document.removeEventListener('pointerdown', outside, true);
     document.removeEventListener('keydown', onKey, true);
+    if (refocus && moveFocus && anchor.isConnected) anchor.focus({ preventScroll: true });
   };
   const outside = (e: Event) => {
     if (!menu.contains(e.target as Node)) close();
   };
+  // Keyboard (#63): arrows move between the statuses, Escape closes and returns to the button, Tab leaves
   const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') close();
+    const i = items.indexOf(document.activeElement as HTMLButtonElement);
+    const focusAt = (n: number) => items[(n + items.length) % items.length]?.focus();
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      close(true);
+    } else if (e.key === 'Tab') {
+      close();
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      focusAt(i < 0 ? 0 : i + (e.key === 'ArrowDown' ? 1 : -1));
+    } else if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      focusAt(e.key === 'Home' ? 0 : items.length - 1);
+    }
   };
   for (const status of TASK_STATUSES) {
     const item = document.createElement('button');
@@ -547,9 +567,11 @@ export function openStatusMenu(anchor: HTMLElement, current: TaskStatus, lang: L
     item.append(dot, label);
     item.addEventListener('mousedown', (e) => e.preventDefault());
     item.addEventListener('click', () => {
-      close();
+      close(true);
       if (status !== current) pick(status);
     });
+    item.tabIndex = -1;
+    items.push(item);
     menu.append(item);
   }
   document.body.append(menu);
@@ -560,6 +582,7 @@ export function openStatusMenu(anchor: HTMLElement, current: TaskStatus, lang: L
   menu.style.top = `${r.bottom + 6 + h > window.innerHeight - 8 ? Math.max(8, r.top - 6 - h) : r.bottom + 6}px`;
   document.addEventListener('pointerdown', outside, true);
   document.addEventListener('keydown', onKey, true);
+  if (moveFocus) (items.find((it) => it.getAttribute('aria-checked') === 'true') ?? items[0])?.focus({ preventScroll: true });
 }
 
 /** Rewrites the status of the task in `lineIndex` as one minimal change */

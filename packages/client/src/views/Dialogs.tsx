@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChefHat, ClipboardPaste, Draw, FileText, FileType2, Globe, Lightbulb, Loader2, X } from '../lib/icons';
 import { INBOX_FOLDER, Recipe, recipeNoteTitle, recipeToMarkdown, SharedFolder, Template, ZETTEL_TYPES, ZettelType } from '@kladde/shared';
@@ -9,21 +9,34 @@ import { createDrawingNote, createPdfNote, type NewNoteKind } from '../lib/newNo
 import { folderDisplayName, tl, useLang, zettelTypeLabel } from '../lib/i18n';
 import { navigate } from '../lib/router';
 import { isCoarsePointer, useVisualViewport } from '../lib/viewport';
+import { useModal } from '../lib/modal';
 import { Dropdown } from './Dropdown';
 import { WebClipDialog } from './WebClipDialog';
 
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   const lang = useLang();
   const vp = useVisualViewport();
+  const panel = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useModal(panel, onClose);
   return createPortal(
     <div
       className="fixed inset-x-0 z-50 flex items-end justify-center sm:items-center"
       style={vp ? { top: `${vp.top}px`, height: `${vp.height}px` } : { top: 0, bottom: 0 }}
     >
       <div className="fixed inset-0 bg-scrim/[0.32] anim-fade-in" onClick={onClose} />
-      <div className="relative max-h-[min(90vh,100%)] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface-container-high px-6 pt-6 shadow-elevation-3 anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-3xl">
+      <div
+        ref={panel}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="relative max-h-[min(90vh,100%)] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface-container-high px-6 pt-6 shadow-elevation-3 outline-none anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-3xl"
+      >
         <div className="mb-4 flex items-center gap-2">
-          <h2 className="min-w-0 flex-1 truncate text-headline-s">{title}</h2>
+          <h2 id={titleId} className="min-w-0 flex-1 truncate text-headline-s">
+            {title}
+          </h2>
           <button className="btn-icon shrink-0" onClick={onClose} title={tl(lang, 'common.close')} aria-label={tl(lang, 'common.close')}>
             <X size={18} />
           </button>

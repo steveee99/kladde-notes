@@ -155,6 +155,10 @@ const de = {
   'nav.newNote': 'Neue Notiz',
   'nav.newNoteShort': 'Notiz',
   'nav.capture': 'Schnell festhalten',
+  'nav.badgeTasks': '{n} überfällig oder heute fällig',
+  'nav.badgeInbox': '{n} Notizen in der Inbox',
+  'nav.badgeShared': '{n} geteilte Notizen',
+  'nav.badgeReviewDue': 'fällig',
   'nav.zettel': 'Neuer Zettel',
   'nav.recipe': 'Rezept aus URL',
   'nav.newNoteMore': 'Weitere Notizarten',
@@ -807,6 +811,7 @@ const de = {
 
   // Editor & Widgets
   'editor.placeholder': 'Schreib los …',
+  'editor.ariaLabel': 'Notiztext',
   'editor.codeCopy': 'Kopieren',
   'editor.codeCopied': 'Kopiert ✓',
   'editor.codeLabel': 'Code',
@@ -1618,6 +1623,10 @@ const en: Record<I18nKey, string> = {
   'nav.newNote': 'New note',
   'nav.newNoteShort': 'Note',
   'nav.capture': 'Quick capture',
+  'nav.badgeTasks': '{n} overdue or due today',
+  'nav.badgeInbox': '{n} notes in the inbox',
+  'nav.badgeShared': '{n} shared notes',
+  'nav.badgeReviewDue': 'due',
   'nav.zettel': 'New Zettel',
   'nav.recipe': 'Recipe from URL',
   'nav.newNoteMore': 'More ways to start a note',
@@ -2270,6 +2279,7 @@ const en: Record<I18nKey, string> = {
 
   // Editor & Widgets
   'editor.placeholder': 'Start writing …',
+  'editor.ariaLabel': 'Note text',
   'editor.codeCopy': 'Copy',
   'editor.codeCopied': 'Copied ✓',
   'editor.codeLabel': 'Code',

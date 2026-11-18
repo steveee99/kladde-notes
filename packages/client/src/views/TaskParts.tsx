@@ -225,6 +225,8 @@ export function TaskItem({ task, compact }: { task: TaskRow; compact: boolean })
         className={`cm-checkbox shrink-0 ${top ? 'mt-0.5' : ''}`}
         data-status={leaving ? (task.done ? 'open' : 'done') : task.status}
         title={t(`task.status.${task.status}`)}
+        // The task is the checkbox's name; the status is in the title and the checked state
+        aria-label={task.text || t('home.taskEmpty')}
         checked={task.done !== leaving}
         disabled={locked}
         onContextMenu={(e) => {
@@ -358,7 +360,8 @@ export function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
                     type="button"
                     className={`flex shrink-0 rounded-md disabled:cursor-default ${hasMeta ? 'mt-0.5' : ''}`}
                     disabled={locked}
-                    aria-label={t('home.taskStatusAria')}
+                    aria-label={`${t('home.taskStatusAria')} (${t(`task.status.${tk.status}`)}): ${tk.text || t('home.taskEmpty')}`}
+                    aria-haspopup="menu"
                     title={t('home.taskStatusAria')}
                     onClick={(e) => pickStatus(e.currentTarget, tk, lang)}
                   >

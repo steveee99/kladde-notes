@@ -25,6 +25,9 @@ import { outlineSupport } from './outline';
 import { useReadOnly } from '../lib/readOnly';
 import { t as i18n, useLang } from '../lib/i18n';
 
+/** The placeholder and the name screen readers announce for the text field (follows the language) */
+const placeholderAndLabel = (text: string): Extension => [cmPlaceholder(text), EditorView.contentAttributes.of({ 'aria-label': i18n('editor.ariaLabel') })];
+
 /** Read-only notes show everything rendered and accept no input */
 const readOnlyExtensions = (on: boolean): Extension => [previewAll.of(on), EditorState.readOnly.of(on), EditorView.editable.of(!on)];
 
@@ -304,7 +307,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           previewConf.current.of(previewExtensions(sourceRef.current)),
           lockConf.current.of(readOnlyExtensions(lockedRef.current)),
           EditorView.contentAttributes.of({ spellcheck: 'true', autocapitalize: 'sentences' }),
-          placeholderConf.current.of(cmPlaceholder(resolvedPlaceholder)),
+          placeholderConf.current.of(placeholderAndLabel(resolvedPlaceholder)),
           autocompletion({ override: [wikiCompletion, tagCompletion, slashCompletion(insertFiles)], icons: false }),
           fileHandlers(),
           dimConf.current.of(dimRef.current ? focusDim : []),
@@ -374,8 +377,8 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   useEffect(() => {
     const v = view.current;
     if (!v) return;
-    v.dispatch({ effects: placeholderConf.current.reconfigure(cmPlaceholder(resolvedPlaceholder)) });
-  }, [resolvedPlaceholder]);
+    v.dispatch({ effects: placeholderConf.current.reconfigure(placeholderAndLabel(resolvedPlaceholder)) });
+  }, [resolvedPlaceholder, lang]);
 
   // Changes from sync (another device or person) while the note is open: merged with what was typed here
   // since the last flush, applied as small changes so the cursor, selection and undo history stay

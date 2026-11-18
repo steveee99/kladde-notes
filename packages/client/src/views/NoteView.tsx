@@ -100,6 +100,7 @@ import { PresenceBar, useAnnouncePresence } from './PresenceBar';
 import { folderDisplayName, t, useLang, type I18nKey, type Lang } from '../lib/i18n';
 import { setLocalGraphDepth, setNoteSplitOpen, setNoteSplitTab, setSourceMode, useLocalGraphDepth, useNoteSplitOpen, useNoteSplitTab, useSourceMode, type NoteSplitTab } from '../lib/prefs';
 import { isCoarsePointer } from '../lib/viewport';
+import { useModal } from '../lib/modal';
 import { useRightPaneHost } from './MaterialShell';
 import { IconPickerDialog } from './IconPicker';
 import { DailyCarryOver, DailyNoteBar } from './DailyNoteBar';
@@ -1047,6 +1048,24 @@ function PdfPanel({ url, name, onEditText }: { url: string; name: string; onEdit
   );
 }
 
+/** The side pane as a sheet from the right on narrow screens: a modal dialog (Escape closes, focus stays inside) */
+function SideSheet({ label, onClose, children }: { label: string; onClose: () => void; children: React.ReactNode }) {
+  const panel = useRef<HTMLDivElement>(null);
+  useModal(panel, onClose);
+  return (
+    <div
+      ref={panel}
+      role="dialog"
+      aria-modal="true"
+      aria-label={label}
+      tabIndex={-1}
+      className="absolute inset-y-0 right-0 flex w-[90%] max-w-sm flex-col rounded-l-2xl bg-surface-container-low p-4 shadow-elevation-1 outline-none safe-top safe-bottom"
+    >
+      {children}
+    </div>
+  );
+}
+
 export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const version = useVault();
   const lang = useLang();
@@ -1589,7 +1608,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
         createPortal(
           <div data-splitview-sheet="true" className="no-print fixed inset-0 z-50 lg:hidden">
             <div className="absolute inset-0 bg-scrim/[0.32] anim-fade-in" onClick={() => setNoteSplitOpen(false)} />
-            <div className="absolute inset-y-0 right-0 flex w-[90%] max-w-sm flex-col rounded-l-2xl bg-surface-container-low p-4 shadow-elevation-1 safe-top safe-bottom">
+            <SideSheet label={t('note.splitviewTitle')} onClose={() => setNoteSplitOpen(false)}>
               <NoteInspectorPane
                 noteId={id}
                 outline={outline}
@@ -1604,7 +1623,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 onJump={(pos) => jumpToPos(pos, true)}
                 onClose={() => setNoteSplitOpen(false)}
               />
-            </div>
+            </SideSheet>
           </div>,
           document.body
         )}

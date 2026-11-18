@@ -366,6 +366,7 @@ export function AdminView({ me }: { me: Me }) {
               setTab(id);
               setError('');
             }}
+            aria-pressed={tab === id}
             className={`flex min-w-0 items-center justify-center gap-1.5 rounded-full px-1.5 py-2 text-xs font-medium transition-colors sm:px-2 sm:text-sm ${
               tab === id ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:text-on-surface'
             }`}

@@ -244,14 +244,14 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
               const snippet = snippetOf(n.content, terms);
               const isSelected = i === selected;
               return (
+                // The option itself is clickable: a button inside an option would be a control in a control (#63);
+                // the keyboard works through the combobox (arrows, Enter)
                 <li key={n.id} id={`search-dialog-result-${i}`} role="option" aria-selected={isSelected}>
-                  <button
-                    type="button"
-                    tabIndex={-1}
+                  <div
                     data-search-result={i}
                     onClick={() => open(n.id)}
                     onMouseMove={() => isSelected || setActive(i)}
-                    className={`flex w-full min-w-0 items-start gap-3 rounded-2xl px-3 py-2 text-left transition-colors ${
+                    className={`flex w-full min-w-0 cursor-pointer items-start gap-3 rounded-2xl px-3 py-2 text-left transition-colors ${
                       isSelected ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'
                     }`}
                   >
@@ -276,7 +276,7 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
                         </span>
                       )}
                     </span>
-                  </button>
+                  </div>
                 </li>
               );
             })}

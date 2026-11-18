@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useModal } from '../lib/modal';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, RotateCcw, X } from '../lib/icons';
 import { diffLines, diffStats, NoteVersion, NoteVersionInfo, splitPath } from '@kladde/shared';
@@ -62,20 +63,24 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
 
   const vp = useVisualViewport();
 
+  const panel = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useModal(panel, onClose);
+
   return createPortal(
     <div
       className="fixed inset-x-0 z-50 flex items-end justify-center sm:items-center"
       style={vp ? { top: `${vp.top}px`, height: `${vp.height}px` } : { top: 0, bottom: 0 }}
     >
       <div className="fixed inset-0 bg-scrim/[0.32] anim-fade-in" onClick={onClose} />
-      <div className="relative flex h-[min(90vh,100%)] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl bg-surface-container-high shadow-elevation-3 anim-sheet sm:rounded-3xl">
+      <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="relative flex h-[min(90vh,100%)] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl bg-surface-container-high shadow-elevation-3 outline-none anim-sheet sm:rounded-3xl">
         <div className="flex items-center gap-2 border-b border-outline-variant px-4 py-3">
           {detail && (
             <button className="btn-icon shrink-0 sm:hidden" onClick={() => setDetail(false)} title={tl(lang, 'history.backToList')}>
               <ArrowLeft size={18} />
             </button>
           )}
-          <h2 className="min-w-0 flex-1 truncate text-headline-s">{tl(lang, 'history.title')}</h2>
+          <h2 id={titleId} className="min-w-0 flex-1 truncate text-headline-s">{tl(lang, 'history.title')}</h2>
           <button className="btn-icon ml-auto shrink-0" onClick={onClose} title={tl(lang, 'common.close')}>
             <X size={18} />
           </button>
