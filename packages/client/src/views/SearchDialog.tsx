@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { excerpt, isExcalidrawNote, pdfNoteOf, projectTitleOf, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
-import { Draw, FileText, FileType2, Search as SearchIcon, Users, X } from '../lib/icons';
+import { Draw, FileText, FileType2, Psychology, Search as SearchIcon, Users, X } from '../lib/icons';
 import { folderDisplayName, t, useLang } from '../lib/i18n';
 import { navigate } from '../lib/router';
 import { useVisualViewport } from '../lib/viewport';
@@ -38,6 +38,7 @@ export function SearchDialogHost() {
 }
 
 const MAX_RESULTS = 60;
+const MEMORY_PREF = 'kladde_search_memory';
 const RECENT = 8;
 
 /** Lower-cased words of the query */
@@ -105,13 +106,32 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
   const attachmentHits = useAttachmentSearch(query);
   const roleConfig = vault.roleConfig();
 
+  // The AI memory (#94) can be left out; its hits come after the user's own notes
+  const memoryOn = !!vault.memoryFolder();
+  const [withMemory, setWithMemory] = useState(() => {
+    try {
+      return localStorage.getItem(MEMORY_PREF) !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  const toggleMemory = () => {
+    setWithMemory(!withMemory);
+    try {
+      localStorage.setItem(MEMORY_PREF, withMemory ? 'off' : 'on');
+    } catch {
+      // per-device convenience only
+    }
+  };
+
   const results = useMemo(() => {
-    const notes = vault.list();
+    const notes = vault.list().filter((n) => withMemory || !vault.isMemoryNote(n));
     const titleOf = (n: LocalNote) => projectTitleOf(n.path, n.content, roleConfig);
-    if (terms.length) return searchNotes(notes, terms, titleOf);
-    return [...notes].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, RECENT);
+    const ranked = terms.length ? searchNotes(notes, terms, titleOf) : [...notes].sort((a, b) => b.updatedAt - a.updatedAt);
+    const ordered = memoryOn ? [...ranked.filter((n) => !vault.isMemoryNote(n)), ...ranked.filter((n) => vault.isMemoryNote(n))] : ranked;
+    return terms.length ? ordered : ordered.slice(0, RECENT);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [terms, version]);
+  }, [terms, version, withMemory, memoryOn]);
 
   // A new query starts again at the top
   useEffect(() => setActive(0), [query]);
@@ -194,9 +214,22 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2 scrollbar-thin">
-          <p className="px-3 pb-1 pt-1.5 text-label-m text-on-surface-variant">
-            {terms.length ? t('search.resultsCount', { n: results.length }) : results.length ? t('search.recent') : ''}
-          </p>
+          <div className="flex items-center gap-2 px-3 pb-1 pt-1.5">
+            <p className="min-w-0 flex-1 text-label-m text-on-surface-variant">
+              {terms.length ? t('search.resultsCount', { n: results.length }) : results.length ? t('search.recent') : ''}
+            </p>
+            {memoryOn && (
+              <button
+                type="button"
+                className={`chip shrink-0 ${withMemory ? 'bg-secondary-container text-on-secondary-container' : ''}`}
+                aria-pressed={withMemory}
+                onClick={toggleMemory}
+                data-search-memory
+              >
+                <Psychology size={14} /> {t('memory.searchToggle')}
+              </button>
+            )}
+          </div>
           {terms.length > 0 && results.length === 0 && !attachmentHits.length && (
             <p className="px-3 py-8 text-center text-body-m text-on-surface-variant">{t('search.noResults')}</p>
           )}
@@ -205,7 +238,7 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
               const { folder } = splitPath(n.path);
               const title = projectTitleOf(n.path, n.content, roleConfig);
               const icon = vault.noteIcon(n);
-              const TypeIcon = pdfNoteOf(n.content) ? FileType2 : isExcalidrawNote(n.content) ? Draw : FileText;
+              const TypeIcon = vault.isMemoryNote(n) ? Psychology : pdfNoteOf(n.content) ? FileType2 : isExcalidrawNote(n.content) ? Draw : FileText;
               const group = groupName(n);
               const where = [group, folder ? folderDisplayName(folder, lang) : ''].filter(Boolean).join(' / ');
               const snippet = snippetOf(n.content, terms);

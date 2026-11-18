@@ -1,5 +1,5 @@
-import { APP_VERSION } from '@kladde/shared';
-import { ToolContent, ToolContext, ToolError, TOOLS, toolsFor } from './tools.js';
+import { APP_VERSION, memoryInstructions, memoryRulesText } from '@kladde/shared';
+import { memoryRulesOf, ToolContent, ToolContext, ToolError, TOOLS, toolsFor } from './tools.js';
 
 /** Newest first; an unknown version requested by the client gets the newest */
 export const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
@@ -10,6 +10,15 @@ const INSTRUCTIONS = [
   'Before update_note, read the note and pass its version. Prefer append_to_note for small additions.',
   'Write in the language of the user\'s notes (usually German).',
 ].join(' ');
+
+const RULES_URI = 'kladde://memory/rules';
+const RULE_URI = 'kladde://memory/rule/';
+
+/** The fixed instructions plus, with the AI memory on (#94), what it is and the user's rules for assistants */
+function instructionsFor(ctx: ToolContext): string {
+  const memory = memoryRulesOf(ctx);
+  return memory ? `${INSTRUCTIONS}\n\n${memoryInstructions(memory.folder, memory.rules)}` : INSTRUCTIONS;
+}
 
 interface RpcRequest {
   jsonrpc: '2.0';
@@ -39,9 +48,9 @@ export function handleMessage(msg: unknown, ctx: ToolContext): RpcResponse | nul
       const requested = typeof params.protocolVersion === 'string' ? params.protocolVersion : '';
       return ok({
         protocolVersion: PROTOCOL_VERSIONS.includes(requested) ? requested : PROTOCOL_VERSIONS[0],
-        capabilities: { tools: { listChanged: false } },
+        capabilities: { tools: { listChanged: false }, resources: { listChanged: false }, prompts: { listChanged: false } },
         serverInfo: { name: 'kladde', title: 'Kladde', version: APP_VERSION },
-        instructions: INSTRUCTIONS,
+        instructions: instructionsFor(ctx),
       });
     }
     case 'ping':
@@ -74,10 +83,39 @@ export function handleMessage(msg: unknown, ctx: ToolContext): RpcResponse | nul
         return ok({ content: [{ type: 'text', text: 'Interner Fehler im Kladde-Server.' }], isError: true });
       }
     }
-    case 'resources/list':
-      return ok({ resources: [] });
-    case 'prompts/list':
-      return ok({ prompts: [] });
+    // The rules of the AI memory (#94) also as a resource and a prompt, for clients that do not show instructions
+    case 'resources/list': {
+      const memory = memoryRulesOf(ctx);
+      if (!memory) return ok({ resources: [] });
+      return ok({
+        resources: [
+          { uri: RULES_URI, name: 'memory_rules', title: 'Regeln aus dem KI-Gedächtnis', description: 'Instructions the user gives to AI assistants', mimeType: 'text/markdown' },
+          ...memory.rules.map((r) => ({ uri: `${RULE_URI}${r.id}`, name: r.title, title: r.title, description: r.description || undefined, mimeType: 'text/markdown' })),
+        ],
+      });
+    }
+    case 'resources/read': {
+      const memory = memoryRulesOf(ctx);
+      const uri = typeof params.uri === 'string' ? params.uri : '';
+      if (memory && uri === RULES_URI) return ok({ contents: [{ uri, mimeType: 'text/markdown', text: memoryRulesText(memory.rules, Infinity) || 'Keine Regeln.' }] });
+      const rule = memory?.rules.find((r) => `${RULE_URI}${r.id}` === uri);
+      if (rule) return ok({ contents: [{ uri, mimeType: 'text/markdown', text: `# ${rule.title}\n\n${rule.body}` }] });
+      return error(msg.id, -32002, `Resource not found: ${uri}`);
+    }
+    case 'resources/templates/list':
+      return ok({ resourceTemplates: [] });
+    case 'prompts/list': {
+      const memory = memoryRulesOf(ctx);
+      return ok({ prompts: memory ? [{ name: 'memory_rules', title: 'Regeln aus dem KI-Gedächtnis', description: 'Loads the rules from the AI memory into the conversation' }] : [] });
+    }
+    case 'prompts/get': {
+      const memory = memoryRulesOf(ctx);
+      if (!memory || params.name !== 'memory_rules') return error(msg.id, -32602, `Unknown prompt: ${String(params.name)}`);
+      return ok({
+        description: 'Rules from the AI memory',
+        messages: [{ role: 'user', content: { type: 'text', text: memoryInstructions(memory.folder, memory.rules) } }],
+      });
+    }
     default:
       return error(msg.id, -32601, `Method not found: ${msg.method}`);
   }

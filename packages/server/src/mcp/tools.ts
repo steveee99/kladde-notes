@@ -17,6 +17,21 @@ import {
   toDateString,
   toggleTask,
   canWriteInGroup,
+  MEMORY_TYPES,
+  applyMemoryFields,
+  checkMemoryNote,
+  guardVerified,
+  isMemoryPath,
+  isReservedMemoryNote,
+  isoNow,
+  memoryChangeKind,
+  memoryOverview,
+  memoryUpkeep,
+  replaceMemoryBody,
+  stampGenerated,
+  memoryRules,
+  type MemoryProblem,
+  type MemoryRule,
   type FeatureSettings,
   type GroupInfo,
   type SyncedNote,
@@ -36,6 +51,8 @@ export interface ToolContext {
   /** Extracted text of PDF/image attachments (#37); without it the searches only look at notes */
   attachmentTexts?: { texts: AttachmentTextStore; ocr: boolean };
   today?: Date;
+  /** Actor id of the connection (its name), stamped into `generated.by` in the AI memory (#94) */
+  agent?: string;
 }
 
 /** Search deps for attachments, when both the files and their texts are available */
@@ -203,13 +220,83 @@ function checkSize(content: string): void {
 /** Saves through the normal sync path: next seq, live ping to the user's devices, export mirror */
 function save(ctx: ToolContext, note: SpaceNote, content: string) {
   writable(note);
+  const memory = memoryWrite(ctx, note.realPath === undefined && note.access === 'owner' ? note.path : null, note.content, content);
+  content = memory.content;
   checkSize(content);
   const [result] = ctx.notes.push(ctx.userId, [
     { id: note.id, baseVersion: note.version, path: note.realPath ?? note.path, content, deleted: false, createdAt: note.createdAt, updatedAt: Date.now() },
   ]);
   if (result.status === 'conflict') throw new ToolError('Die Notiz wurde gerade geändert. Lies sie erneut und versuche es noch einmal.');
   if (result.status !== 'ok') throw new ToolError('Die Notiz konnte nicht gespeichert werden.');
-  return { id: note.id, path: note.path, version: result.version };
+  memory.after();
+  return { id: note.id, path: note.path, version: result.version, ...(memory.warnings.length ? { warnings: memory.warnings } : {}) };
+}
+
+// ------------------------------------------------------------------ AI memory (#94)
+
+/** The memory folder when the user turned the AI memory on, else null */
+function memoryFolder(ctx: ToolContext): string | null {
+  const memory = featuresOf(ctx.notes, ctx.userId).memory;
+  return memory.enabled ? memory.folder : null;
+}
+
+/** The memory folder and its rules for the MCP instructions, resources and prompts; null when off */
+export function memoryRulesOf(ctx: ToolContext): { folder: string; rules: MemoryRule[] } | null {
+  const folder = memoryFolder(ctx);
+  if (!folder) return null;
+  const own = ctx.notes.ownedNotes(ctx.userId).filter((n) => !n.path.startsWith(SYSTEM_PREFIX));
+  return { folder, rules: memoryRules(own, folder) };
+}
+
+const agentOf = (ctx: ToolContext) => ctx.agent || 'agent';
+const describeProblems = (problems: MemoryProblem[]) => problems.map((p) => `- ${p.message}`).join('\n');
+
+/** Link check and duplicate titles over the user's own notes, with `path` holding `content` */
+function memoryCheckContext(ctx: ToolContext, path: string, content: string) {
+  const own = ctx.notes.ownedNotes(ctx.userId).filter((n) => !n.path.startsWith(SYSTEM_PREFIX));
+  const notes = [...own.filter((n) => n.path !== path), { id: '\u0000new', path, content }];
+  const index = new LinkIndex(notes);
+  return { notes, index };
+}
+
+/**
+ * Checks and stamps a write into the memory: human confirmations stay as they were, `generated` names this
+ * connection, errors in the format refuse the write. `after()` updates the index and the log once saved.
+ * Writes outside the memory (and to index/log) pass unchanged.
+ */
+function memoryWrite(ctx: ToolContext, path: string | null, before: string | null, content: string): { content: string; warnings: string[]; after: () => void } {
+  const folder = memoryFolder(ctx);
+  const none = { content, warnings: [], after: () => undefined };
+  if (!folder || path === null || !isMemoryPath(path, folder) || isReservedMemoryNote(path)) return none;
+  const agent = agentOf(ctx);
+  const guarded = guardVerified(before, content, agent);
+  if ('error' in guarded) throw new ToolError(guarded.error);
+  const stamped = stampGenerated(guarded.content, agent, isoNow());
+  const { index } = memoryCheckContext(ctx, path, stamped);
+  const problems = checkMemoryNote(path, stamped, { resolveLink: (t) => !!index.resolve(t) });
+  const errors = problems.filter((p) => p.level === 'error');
+  if (errors.length) throw new ToolError(`Nicht gespeichert, die Notiz im KI-Gedächtnis „${folder}“ verletzt das Format:\n${describeProblems(errors)}`);
+  return {
+    content: stamped,
+    warnings: problems.map((p) => p.message),
+    after: () => upkeep(ctx, folder, path, { kind: memoryChangeKind(before, stamped), actor: agent, date: isoNow().slice(0, 10) }),
+  };
+}
+
+/** Writes the index and log notes after a change in the memory */
+function upkeep(ctx: ToolContext, folder: string, path: string, log: Parameters<typeof memoryUpkeep>[4]): void {
+  const own = ctx.notes.ownedNotes(ctx.userId).filter((n) => !n.path.startsWith(SYSTEM_PREFIX));
+  const index = new LinkIndex(own);
+  const writes = memoryUpkeep(own, folder, path, (t) => index.resolve(t), log);
+  const byId = new Map(own.map((n) => [n.id, n]));
+  const now = Date.now();
+  const changes = writes.map((w) => {
+    const old = w.id ? byId.get(w.id) : undefined;
+    return old
+      ? { id: old.id, baseVersion: old.version, path: old.path, content: w.content, deleted: false, createdAt: old.createdAt, updatedAt: now }
+      : { id: crypto.randomBytes(16).toString('hex'), baseVersion: 0, path: w.path, content: w.content, deleted: false, createdAt: now, updatedAt: now };
+  });
+  if (changes.length) ctx.notes.push(ctx.userId, changes);
 }
 
 function snippet(content: string, word: string): string {
@@ -448,8 +535,7 @@ export const TOOLS: ToolDef[] = [
       const group = groupName !== undefined ? groupOf(ctx, groupName) : undefined;
       if (group && !canWriteInGroup(group.role)) throw new ToolError(`In der Gruppe „${group.name}“ darfst du nur lesen.`);
       const folder = group ? cleanGroupFolder(str(args, 'folder'), group.name) : cleanFolder(str(args, 'folder'));
-      const content = normalizeDueWords(str(args, 'content') ?? '', ctx.today ?? new Date());
-      checkSize(content);
+      let content = normalizeDueWords(str(args, 'content') ?? '', ctx.today ?? new Date());
       // Paths are unique per space: the own notes, or the notes of the group (by their path inside it)
       const taken: SyncedNote[] = group
         ? space(ctx)
@@ -457,11 +543,21 @@ export const TOOLS: ToolDef[] = [
             .map((n) => ({ ...n, path: n.realPath ?? n.path }))
         : ctx.notes.ownedNotes(ctx.userId);
       const path = uniquePath(taken, folder, title);
+      const memory = memoryWrite(ctx, group ? null : path, null, content);
+      content = memory.content;
+      checkSize(content);
       const now = Date.now();
       const id = crypto.randomBytes(16).toString('hex');
       const [result] = ctx.notes.push(ctx.userId, [{ id, baseVersion: 0, path, content, deleted: false, createdAt: now, updatedAt: now, ...(group ? { group: group.id } : {}) }]);
       if (result.status !== 'ok') throw new ToolError('Die Notiz konnte nicht angelegt werden.');
-      return { id, path: group ? `${group.name}/${path}` : path, version: result.version, ...(group ? { group: group.name } : {}) };
+      memory.after();
+      return {
+        id,
+        path: group ? `${group.name}/${path}` : path,
+        version: result.version,
+        ...(group ? { group: group.name } : {}),
+        ...(memory.warnings.length ? { warnings: memory.warnings } : {}),
+      };
     },
   },
   {
@@ -558,6 +654,105 @@ export const TOOLS: ToolDef[] = [
       if (!task) throw new ToolError(`In Zeile ${line} steht keine Aufgabe. Hole die Zeilen mit list_tasks.`);
       const saved = save(ctx, note, toggleTask(note.content, line, today));
       return { ...saved, task: task.text, done: !task.done };
+    },
+  },
+  {
+    name: 'memory_save',
+    title: 'Im KI-Gedächtnis speichern',
+    description: [
+      'Creates or updates a note in the AI memory, the shared, provider-independent knowledge folder the user turned on (see the instructions).',
+      'Use it for lasting knowledge: facts about products and tools (Reference), how to do something (Technique), decisions (Decision), the user\'s preferences (Preference); Rule notes are instructions the user gives to assistants.',
+      'Kladde writes the frontmatter (type, title, description, tags, status, stale_after, sources), stamps `generated` with this connection, checks the format and updates `index` and `log`.',
+      'A note with this title in `folder` is updated: pass the `version` from read_note, and leave out `content` to keep the text. Cite sources in the text as footnotes [^id].',
+    ].join(' '),
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Title (file name) of the note' },
+        type: { type: 'string', description: `Kind of knowledge: ${MEMORY_TYPES.join(', ')} or your own` },
+        description: { type: 'string', description: 'One sentence for the index and search' },
+        content: { type: 'string', description: 'Markdown body without frontmatter; link notes with [[Title]]' },
+        folder: { type: 'string', description: 'Subfolder inside the memory, e.g. "Produkte"; default its top level' },
+        tags: { type: 'array', items: { type: 'string' } },
+        status: { type: 'string', enum: ['draft', 'stable', 'deprecated'] },
+        stale_after: { type: 'string', description: 'Date (YYYY-MM-DD) after which the knowledge should be checked again' },
+        resource: { type: 'string', description: 'URL of the thing the note describes' },
+        sources: {
+          type: 'array',
+          items: { type: 'object', properties: { id: { type: 'string' }, resource: { type: 'string' }, title: { type: 'string' } }, required: ['id'] },
+        },
+        version: { type: 'integer', description: 'Version from read_note when the note exists' },
+      },
+      required: ['title', 'type'],
+    },
+    write: true,
+    run(args, ctx) {
+      const folder = memoryFolder(ctx);
+      if (!folder) throw new ToolError('Das KI-Gedächtnis ist nicht eingeschaltet. Der Nutzer schaltet es in Kladde unter Einstellungen → Funktionen ein.');
+      const title = str(args, 'title', true)!.trim().slice(0, 200);
+      if (/^(index|log)$/i.test(title)) throw new ToolError('„index“ und „log“ pflegt Kladde selbst.');
+      const sub = cleanFolder(str(args, 'folder') ?? '');
+      const target = sub ? `${folder}/${sub}` : folder;
+      const path = joinPath(target, title.replace(/[\\/]/g, '-'));
+      const tags = Array.isArray(args.tags) ? args.tags.filter((t): t is string => typeof t === 'string').map((t) => t.trim().replace(/^#/, '')).filter(Boolean) : undefined;
+      const sources = Array.isArray(args.sources)
+        ? args.sources
+            .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object')
+            .map((s) => ({ id: String(s.id ?? '').trim(), resource: typeof s.resource === 'string' ? s.resource : undefined, title: typeof s.title === 'string' ? s.title : undefined }))
+            .filter((s) => s.id)
+        : undefined;
+      const fields = {
+        type: str(args, 'type', true)!.trim(),
+        title,
+        description: str(args, 'description'),
+        tags,
+        status: str(args, 'status'),
+        stale_after: str(args, 'stale_after'),
+        resource: str(args, 'resource'),
+        sources,
+      };
+      const body = str(args, 'content');
+      const existing = ctx.notes.ownedNotes(ctx.userId).find((n) => n.path.toLowerCase() === path.toLowerCase());
+      if (existing) {
+        if (args.version === undefined || Number(args.version) !== existing.version) {
+          throw new ToolError(`„${title}“ gibt es schon (Version ${existing.version}). Lies die Notiz mit read_note und gib ihre version mit, um sie zu ändern.`);
+        }
+        let content = applyMemoryFields(existing.content, fields);
+        if (body !== undefined) content = replaceMemoryBody(content, normalizeDueWords(body, ctx.today ?? new Date()));
+        return { ...save(ctx, existing, content), created: false };
+      }
+      const content = applyMemoryFields(`\n${normalizeDueWords(body ?? '', ctx.today ?? new Date()).replace(/^\n+/, '')}`, fields);
+      const memory = memoryWrite(ctx, path, null, content);
+      checkSize(memory.content);
+      const now = Date.now();
+      const id = crypto.randomBytes(16).toString('hex');
+      const [result] = ctx.notes.push(ctx.userId, [{ id, baseVersion: 0, path, content: memory.content, deleted: false, createdAt: now, updatedAt: now }]);
+      if (result.status !== 'ok') throw new ToolError('Die Notiz konnte nicht angelegt werden.');
+      memory.after();
+      return { id, path, version: result.version, created: true, ...(memory.warnings.length ? { warnings: memory.warnings } : {}) };
+    },
+  },
+  {
+    name: 'memory_check',
+    title: 'KI-Gedächtnis prüfen',
+    description:
+      'Checks every note in the AI memory against its format (frontmatter with `type`, timestamps, description, links, sources) and lists the problems, outdated notes (stale_after passed) and how many notes the user has confirmed. Fix errors with memory_save or update_note.',
+    inputSchema: { type: 'object', properties: { only_problems: { type: 'boolean', default: true } } },
+    write: false,
+    run(args, ctx) {
+      const folder = memoryFolder(ctx);
+      if (!folder) throw new ToolError('Das KI-Gedächtnis ist nicht eingeschaltet.');
+      const own = ctx.notes.ownedNotes(ctx.userId).filter((n) => !n.path.startsWith(SYSTEM_PREFIX));
+      const index = new LinkIndex(own);
+      const overview = memoryOverview(own, folder, { resolveLink: (t) => !!index.resolve(t), now: (ctx.today ?? new Date()).getTime() });
+      const onlyProblems = args.only_problems !== false;
+      return {
+        folder,
+        ...overview,
+        notes: overview.notes
+          .filter((n) => !onlyProblems || n.problems.length || n.stale)
+          .map((n) => ({ ...n, problems: n.problems.map((p) => `${p.level === 'error' ? 'Fehler' : 'Hinweis'}: ${p.message}`) })),
+      };
     },
   },
 ];

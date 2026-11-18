@@ -1,6 +1,6 @@
 import express, { NextFunction, Request, Response } from 'express';
 import crypto from 'crypto';
-import type { OAuthRequestInfo } from '@kladde/shared';
+import { actorId, type OAuthRequestInfo } from '@kladde/shared';
 import { NoteStore } from '../NoteStore.js';
 import type { FileStore } from '../FileStore.js';
 import type { AttachmentTextStore } from '../attachments/AttachmentTextStore.js';
@@ -262,7 +262,7 @@ export function mcpRouters(opts: McpOptions): { publicRouter: express.Router; ac
     },
     (req: Request, res: Response) => {
       const grant = req.mcpGrant!;
-      const answer = handleBody(req.body, { userId: grant.userId, canWrite: grant.canWrite, notes, files: opts.files, attachmentTexts: opts.attachmentTexts });
+      const answer = handleBody(req.body, { userId: grant.userId, canWrite: grant.canWrite, agent: actorId(grant.name), notes, files: opts.files, attachmentTexts: opts.attachmentTexts });
       if (answer === null) res.status(202).end();
       else res.json(answer);
     }

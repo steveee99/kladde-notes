@@ -15,7 +15,7 @@ interface SimNode extends SimulationNodeDatum, ViewNode {}
 type SimLink = SimulationLinkDatum<SimNode>;
 
 /** Node colour by PARA role, taken from the theme variables */
-const ROLE_VAR: Record<string, string> = { inbox: '--warn', projects: '--primary', areas: '--ok', resources: '--tertiary', archive: '--outline', zettel: '--error' };
+const ROLE_VAR: Record<string, string> = { inbox: '--warn', projects: '--primary', areas: '--ok', resources: '--tertiary', archive: '--outline', zettel: '--error', memory: '--secondary' };
 const LEGEND: [string, I18nKey][] = [
   ['projects', 'graph.legendProjects'],
   ['areas', 'graph.legendAreas'],
@@ -23,6 +23,7 @@ const LEGEND: [string, I18nKey][] = [
   ['zettel', 'graph.legendZettel'],
   ['inbox', 'graph.legendInbox'],
   ['archive', 'graph.legendArchive'],
+  ['memory', 'graph.legendMemory'],
 ];
 
 function cssColor(name: string, alpha = 1): string {
@@ -36,7 +37,8 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: ViewNo
   const wrapRef = useRef<HTMLDivElement>(null);
   const [hoverTitle, setHoverTitle] = useState<string | null>(null);
   const roleConfig = vault.roleConfig();
-  const roleConfigKey = JSON.stringify(roleConfig);
+  const memoryFolder = vault.memoryFolder();
+  const roleConfigKey = JSON.stringify([roleConfig, memoryFolder]);
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -129,7 +131,7 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: ViewNo
         ctx.stroke();
       }
       for (const n of simNodes) {
-        const role = roleOfFolder(n.folder, roleConfig);
+        const role = memoryFolder && (n.folder === memoryFolder || n.folder.startsWith(`${memoryFolder}/`)) ? 'memory' : roleOfFolder(n.folder, roleConfig);
         const dim = active && n.id !== active.id && !near!.has(n.id);
         ctx.globalAlpha = dim ? 0.25 : 1;
         const fill = (role && palette.role[role]) || palette.other;
@@ -269,9 +271,10 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: ViewNo
 export function GraphLegend({ orphans }: { orphans?: boolean }) {
   useVault();
   useLang();
-  const { para, zettel } = vault.features();
+  const { para, zettel, memory } = vault.features();
   const visible = LEGEND.filter(([role]) => {
     if (role === 'inbox') return true;
+    if (role === 'memory') return memory.enabled;
     if (role === 'zettel') return zettel.enabled;
     return para.enabled;
   });

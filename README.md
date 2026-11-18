@@ -44,6 +44,7 @@ The app and its UI are available in **English and German**. Some of the guides i
 | **Recipe import** | Import recipes by link (schema.org, e.g. from recipe sites and food blogs) into `3 Resources/Recipes`: ingredient table, numbered steps, source |
 | **Web clipper** | "New note → Web page" or a bookmarklet saves an article (or just the selected text) as Markdown in the inbox, with source, author and date; images optionally as attachments |
 | **AI & MCP** | MCP server (`/mcp`, Streamable HTTP) for assistants such as Claude Desktop, Claude Code, Cursor: OAuth 2.1 or personal access tokens; access limited to your own notes |
+| **AI memory** | Opt-in folder (`AI-Memory`) where assistants of any provider and you build knowledge in an OKF-compatible format; Kladde checks it, stamps who changed what, keeps index and log, and hands notes of type `Rule` to every connected assistant |
 | **Apple Shortcuts** | Token-protected API (`/api/shortcuts`) for the iOS Shortcuts app: save links, text, photos and PDFs from the share sheet, quick notes into the daily note, new tasks, and a morning automation with the tasks due today. See [docs/SHORTCUTS.md](docs/SHORTCUTS.md) |
 | **Weekly review** | Opt-in under Settings → Features. `/review`: inbox, overdue tasks, projects without a next step, dormant areas, old fleeting and unconnected Zettel; reminder after 7 days |
 | **Templates** | Your own templates under Settings → Templates (`{{title}}`, `{{date}}`, `{{zid}}`), with a default target folder and encrypted sync |
@@ -170,6 +171,8 @@ Without access to the server you can import a local folder (e.g. an Obsidian vau
 Existing accounts link GitLab under *Settings → Sign in with GitLab*; after that the GitLab button is enough. New people register through their invitation link with "Register with GitLab" (username = GitLab name), or without an invitation if `SIGNUP_WITHOUT_INVITE` contains `gitlab`. Blocked accounts stay blocked; a link can only be removed while a passkey or password remains.
 
 **AI assistants (MCP):** an MCP server (Streamable HTTP) runs at `PUBLIC_URL/mcp`. Clients such as claude.ai, Claude Desktop or Claude Code sign in via OAuth 2.1 (dynamic registration, PKCE, consent with the normal Kladde login) or with an access token from Settings → AI assistants (`Authorization: Bearer kld_…`). Every connection only sees the notes of its own account. The reverse proxy must forward `/mcp`, `/oauth/…` and `/.well-known/oauth-…` to the app (the default if everything goes to Kladde); `PUBLIC_URL` should be set so that the OAuth addresses are correct.
+
+**AI memory:** with Settings → Features → AI memory turned on, assistants learn about the folder (default `AI-Memory`) when they connect and save knowledge there with `memory_save`; notes of type `Rule` in it are sent along with the MCP instructions (and as the resource `kladde://memory/rules` and the prompt `memory_rules`). The connection's name (OAuth client or token name) becomes `generated.by`, so give personal tokens a recognizable name.
 
 ```bash
 claude mcp add --transport http kladde https://notes.example.org/mcp

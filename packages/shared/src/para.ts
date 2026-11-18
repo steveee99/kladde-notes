@@ -30,6 +30,7 @@ export const STANDALONE_RECIPE_FOLDER = 'Rezepte';
 export const DEFAULT_DAILY_FOLDER = '0 Daily';
 export const DEFAULT_DAILY_FORMAT = 'YYYY/MM/YYYY-MM-DD.md';
 export const PROJECT_HOME_NAME = 'Home';
+export const DEFAULT_MEMORY_FOLDER = 'AI-Memory';
 
 export interface ParaFolderSettings {
   projects: string;
@@ -81,6 +82,11 @@ export interface FeatureSettings {
   /** Icons (one emoji) on notes (frontmatter `icon`) and folders, shown in the tree and the search */
   icons: {
     enabled: boolean;
+  };
+  /** AI memory (#94): the folder where AI agents and the user build knowledge together (opt-in) */
+  memory: {
+    enabled: boolean;
+    folder: string;
   };
 }
 
@@ -215,6 +221,10 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
     },
     icons: {
       enabled: optInFlag(obj.icons),
+    },
+    memory: {
+      enabled: optInFlag(obj.memory),
+      folder: cleanFeatureFolder(obj.memory && typeof obj.memory === 'object' ? (obj.memory as Record<string, unknown>).folder : undefined, DEFAULT_MEMORY_FOLDER),
     },
   };
 }

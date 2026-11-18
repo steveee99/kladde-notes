@@ -26,6 +26,8 @@ export interface McpGrant {
   connectionId: string;
   userId: string;
   canWrite: boolean;
+  /** Name of the connection (OAuth client name or token name): the agent's actor id in the AI memory (#94) */
+  name: string;
 }
 
 export interface IssuedTokens {
@@ -162,7 +164,7 @@ export class McpTokenStore {
     if (row.access_expires_at !== null && row.access_expires_at < now) return null;
     // Only write once a minute: every MCP call reads the token
     if ((row.last_used_at ?? 0) < now - 60_000) this.db.prepare('UPDATE mcp_tokens SET last_used_at = ? WHERE id = ?').run(now, row.id);
-    return { connectionId: row.id, userId: row.user_id, canWrite: !!row.can_write };
+    return { connectionId: row.id, userId: row.user_id, canWrite: !!row.can_write, name: row.name };
   }
 
   // ------------------------------------------------------------------ managing

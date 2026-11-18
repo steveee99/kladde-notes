@@ -97,6 +97,7 @@ export function App() {
     const cached = cachedMe();
     if (cached) {
       vault.standalone = !!cached.standalone;
+      vault.actorName = cached.username;
       void vault.open(cached.id);
     }
     return cached ?? undefined;
@@ -115,6 +116,7 @@ export function App() {
       // ignore
     }
     setMe(user);
+    vault.actorName = user.username;
     void vault.open(user.id);
   }, []);
 

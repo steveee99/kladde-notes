@@ -38,6 +38,8 @@ import {
   Upload,
   X,
   TextFields,
+  Psychology,
+  Download,
 } from '../lib/icons';
 import {
   APP_VERSION,
@@ -704,6 +706,58 @@ function FolderPicker({
   );
 }
 
+/** Export of the AI memory as an OKF bundle (ZIP) and import of a bundle folder (#94) */
+function MemoryBundleActions({ disabled }: { disabled: boolean }) {
+  const lang = useLang();
+  const input = useRef<HTMLInputElement>(null);
+  const [status, setStatus] = useState('');
+  useEffect(() => {
+    // Folder pick: not in the React types
+    input.current?.setAttribute('webkitdirectory', '');
+  }, []);
+  const download = () => {
+    const zip = vault.memoryBundle();
+    if (!zip) return;
+    const url = URL.createObjectURL(new Blob([zip as BlobPart], { type: 'application/zip' }));
+    const a = Object.assign(document.createElement('a'), { href: url, download: `${vault.memoryFolder() ?? 'memory'}.zip` });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const upload = async (list: FileList | null) => {
+    if (!list?.length) return;
+    const files = await Promise.all(
+      [...list]
+        .filter((f) => /\.md$/i.test(f.name))
+        .map(async (f) => {
+          // The first path segment is the picked folder itself
+          const rel = (f.webkitRelativePath || f.name).split('/').slice(1).join('/') || f.name;
+          return { path: rel, content: await f.text() };
+        })
+    );
+    const result = await vault.importMemoryBundle(files);
+    setStatus(tl(lang, 'settings.memoryImportDone', { created: result.created, skipped: result.skipped }));
+    if (input.current) input.current.value = '';
+  };
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className="btn-tonal" onClick={download}>
+          <Download size={16} /> {tl(lang, 'settings.memoryExport')}
+        </button>
+        <button type="button" className="btn-outlined" disabled={disabled} onClick={() => input.current?.click()}>
+          <Upload size={16} /> {tl(lang, 'settings.memoryImport')}
+        </button>
+        <input ref={input} type="file" multiple hidden onChange={(e) => void upload(e.target.files)} data-memory-import />
+      </div>
+      {status && (
+        <p role="status" className="text-body-s text-on-surface-variant">
+          {status}
+        </p>
+      )}
+    </div>
+  );
+}
+
 const DAILY_TOKENS = ['YYYY', 'YY', 'MMMM', 'MM', 'DD', 'WW', 'dddd'] as const;
 
 /** Synced per-account workflow settings (Daily Notes, PARA, Zettelkasten, Recipe import) with configurable target folders */
@@ -979,6 +1033,27 @@ function FeaturesSection({ features, folders, locked }: { features: FeatureSetti
             disabled={locked}
             onChange={(folder) => save({ ...features, zettel: { ...features.zettel, folder } })}
           />
+        </FeatureRow>
+
+        <FeatureRow
+          id="feature-memory-switch"
+          Icon={Psychology}
+          title={tl(lang, 'settings.memoryTitle')}
+          desc={tl(lang, 'settings.memoryDesc')}
+          toggleLabel={tl(lang, 'settings.memoryToggleLabel')}
+          enabled={features.memory.enabled}
+          locked={locked}
+          onToggle={(enabled) => save({ ...features, memory: { ...features.memory, enabled } })}
+        >
+          <FolderPicker
+            id="memory-target-folder"
+            label={tl(lang, 'settings.targetFolderLabel')}
+            value={features.memory.folder}
+            folders={folders}
+            disabled={locked}
+            onChange={(folder) => save({ ...features, memory: { ...features.memory, folder } })}
+          />
+          <MemoryBundleActions disabled={locked} />
         </FeatureRow>
 
         <FeatureRow
