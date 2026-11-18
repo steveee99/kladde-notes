@@ -40,7 +40,8 @@ services:
       - GITLAB_LABEL=${GITLAB_LABEL:-}
       # GitLab with a certificate from your own CA: mount the CA (PEM) and point Node at it (see docs/GITLAB.md)
       # - NODE_EXTRA_CA_CERTS=/certs/gitlab-ca.pem
-      # Daily database backup in data/backups; how many to keep, 0 = off
+      # Daily full backup (database + encrypted attachments) in data/backups; how many to keep, 0 = off.
+      # Only the default: admins change it under Settings → Administration → Backups. The key is never in a backup
       - BACKUP_KEEP=${BACKUP_KEEP:-7}
       - TRASH_RETENTION_DAYS=${TRASH_RETENTION_DAYS:-30}
       # Optional plain Markdown mirror of all notes (e.g. a NAS share mounted at /app/export), empty = off

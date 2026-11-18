@@ -19,7 +19,7 @@
 
 > A *Kladde* (German) is the notebook where everything goes first, before it is written up properly.
 
-The app and its UI are available in **English and German**. Some of the guides in `docs/` and a few CLI command names are still German.
+The app and its UI are available in **English and German**; the guides in `docs/` exist in both languages.
 
 ---
 
@@ -78,6 +78,7 @@ npm run dev
 ```bash
 npm run build   # shared → server → client
 npm run test    # query language, tasks, note/user store, sync, MCP, import, …
+npm run test:e2e   # browser tests (Playwright; after npm run build and once npx playwright install chromium)
 npm run lint
 npm run build:demo   # browser-only demo without server → packages/client/dist-demo
 ```
@@ -119,16 +120,16 @@ docker logs kladde   # contains the first invitation
 
 The app then runs on port `13002`. **Passkeys need HTTPS** (except on localhost) and are bound to the domain from `PUBLIC_URL`. Run the app behind a reverse proxy (Caddy, nginx, Traefik) and set `TRUST_PROXY=1`. Without HTTPS (e.g. directly via `http://192.168.1.10:13002` in your home network) you sign in with username and password.
 
-CLI tool (import/export, search, attachments, backup and administration). The command names are German:
+CLI tool (import/export, search, attachments, backup and administration). The German command names of earlier versions (`hilfe`, `einladen`, …) still work:
 
 ```bash
-docker exec kladde node packages/server/dist/cli.js hilfe       # help
+docker exec kladde node packages/server/dist/cli.js help
 docker exec kladde node packages/server/dist/cli.js import /import/folder Projects --overwrite
 docker exec kladde node packages/server/dist/cli.js export / /export/space --with-files
-docker exec kladde node packages/server/dist/cli.js einladen Anna   # create an invitation
+docker exec kladde node packages/server/dist/cli.js invite Anna   # create an invitation
 ```
 
-Without access to the server you can import a local folder (e.g. an Obsidian vault) with the import CLI and an import token from the settings: `npm run import -- <folder> --url <Kladde URL>`. Guide: [`docs/IMPORT.md`](docs/IMPORT.md) (German).
+Without access to the server you can import a local folder (e.g. an Obsidian vault) with the import CLI and an import token from the settings: `npm run import -- <folder> --url <Kladde URL>`. Guide: [`docs/IMPORT.md`](docs/IMPORT.md).
 
 | Variable | Meaning |
 | --- | --- |
@@ -142,7 +143,8 @@ Without access to the server you can import a local folder (e.g. an Obsidian vau
 | `GITLAB_ALLOWED_GROUPS` | Only members of these groups (comma-separated paths, e.g. `family,company/team`; subgroups count), empty = everyone |
 | `GITLAB_ALLOW_SIGNUP` | Older spelling of `SIGNUP_WITHOUT_INVITE=gitlab` (keeps working) |
 | `GITLAB_LABEL` | Button label, e.g. the name of your own instance (default `GitLab`) |
-| `BACKUP_KEEP` | Daily database backups in `data/backups` (default 7, `0` = off) |
+| `BACKUP_KEEP` | Default for the daily full backup (database and encrypted attachments) in `data/backups`: how many to keep (default 7, `0` = off). Can be changed under Settings → Administration → Backups |
+| `BACKUP_DIR` | Where backups are stored (default `data/backups`) |
 | `EXPORT_DIR` | Plain-text mirror of the notes (e.g. NAS), empty = off |
 | `TRASH_RETENTION_DAYS` | Days deleted notes stay in the trash before they are purged (default 30, `0` = until emptied by hand) |
 | `TRANSCRIBE_URL` | Optional speech-to-text for voice notes: an OpenAI-compatible transcription endpoint you run yourself, e.g. a local Whisper (`http://whisper:8000/v1/audio/transcriptions`). Unset = no transcription; recordings never go to a third-party service by default. `TRANSCRIBE_MODEL` (default `whisper-1`) and `TRANSCRIBE_API_KEY` are optional |
@@ -151,7 +153,7 @@ Without access to the server you can import a local folder (e.g. an Obsidian vau
 | `VAPID_SUBJECT` | Contact for Web Push services (`mailto:…` or `https://…`), sent with every reminder. Default: `PUBLIC_URL` if it is https |
 | `PUSH_ALLOWED_HOSTS` | Extra push service hosts (comma-separated) besides Google, Mozilla, Apple and Microsoft; other endpoints are refused |
 
-**Sign in with GitLab** (detailed guide for self-hosted instances, networking, custom certificates and troubleshooting: [`docs/GITLAB.md`](docs/GITLAB.md), German):
+**Sign in with GitLab** (detailed guide for self-hosted instances, networking, custom certificates and troubleshooting: [`docs/GITLAB.md`](docs/GITLAB.md)):
 
 1. Create an OAuth application in GitLab: *User settings → Applications* (just for you), or *Group → Settings → Applications*, or *Admin → Applications* (own instance).
    - **Redirect URI:** `https://notes.example.org/api/auth/gitlab/callback` (that is `PUBLIC_URL` + `/api/auth/gitlab/callback`)
@@ -179,6 +181,8 @@ claude mcp add --transport http kladde https://notes.example.org/mcp
 ```
 
 **About encryption:** if the key lives in the same volume as the database, it protects copies of the database and backups (NAS, Git), but not a fully compromised server. For more protection pass `DATA_KEY` as a secret. Back the key up: without it the notes are lost.
+
+**Backups:** under Settings → Administration → Backups admins see all backups with date and size, take one with "Back up now", set the daily backup and how many to keep, download a backup as a `.tar` archive and restore one. A backup holds the database and the attachments and profile pictures, all still encrypted; attachments are hard-linked, so daily backups take little extra space. **The key is never part of a backup** – keep `DATA_KEY` or `data/secret.key` somewhere else, without it a backup cannot be read. A restore first backs up the current state, then restarts the server (the Docker restart policy starts it again) and swaps in the backup before the database opens; it is recorded in the audit log. To restore a downloaded archive by hand, stop the container, unpack it, and copy `kladde.sqlite`, `files/` and `avatars/` into the data volume (removing `kladde.sqlite-wal` and `kladde.sqlite-shm`).
 
 ---
 

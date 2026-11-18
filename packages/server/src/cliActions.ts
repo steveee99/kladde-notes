@@ -105,13 +105,13 @@ function resolveUser(users: UserStore, flags: Map<string, string | boolean>): Us
   const name = getFlagString(flags, 'user', 'u');
   if (name) {
     const user = users.findByUsername(name);
-    if (!user) throw new CliError(`Benutzer "${name}" nicht gefunden.`);
+    if (!user) throw new CliError(`User "${name}" not found.`);
     return user;
   }
   const all = users.listUsers();
-  if (all.length === 0) throw new CliError('Es gibt noch keine Benutzerkonten. Lege zuerst eins per Einladung an.');
+  if (all.length === 0) throw new CliError('There are no user accounts yet. Create one with an invitation first.');
   if (all.length === 1) return all[0];
-  throw new CliError(`Mehrere Konten vorhanden (${all.map((u) => u.username).join(', ')}). Bitte --user <Name> angeben.`);
+  throw new CliError(`Several accounts exist (${all.map((u) => u.username).join(', ')}). Please pass --user <name>.`);
 }
 
 function formatBytes(bytes: number): string {
@@ -146,46 +146,76 @@ export function attachmentUsageMap(notes: NoteStore, userId: string): Map<string
   return map;
 }
 
+/**
+ * German command names from before 2.11.0, still accepted so existing scripts keep working.
+ * They are no longer listed in the help.
+ */
+export const GERMAN_COMMAND_ALIASES: Readonly<Record<string, string>> = {
+  hilfe: 'help',
+  notizen: 'notes',
+  suche: 'search',
+  ordner: 'folders',
+  anhaenge: 'attachments',
+  'anhaenge-bereinigen': 'clean-attachments',
+  einladen: 'invite',
+  einladungen: 'invites',
+  'einladung-loeschen': 'delete-invite',
+  einladung_loeschen: 'delete-invite',
+  konten: 'users',
+  sperren: 'suspend',
+  entsperren: 'unsuspend',
+  passwort: 'reset-password',
+  protokoll: 'audit-log',
+};
+
+/** The English command name for `raw` (lower-cased, German aliases resolved) */
+export function canonicalCommand(raw: string): string {
+  const cmd = raw.toLowerCase();
+  return GERMAN_COMMAND_ALIASES[cmd] ?? cmd;
+}
+
 export function cliHelpText(): string {
   return [
-    'Kladde CLI – Befehle:',
+    'Kladde CLI – commands:',
     '',
-    'Space Import & Export:',
-    '  import <quelle> <ziel>     Datei oder Ordner rekursiv in den Space importieren',
-    '                             Optionen: --user <name>, --overwrite | --rename | --skip (Standard), --dry-run',
-    '  export <quelle> <ziel>     Space ("/"), Ordner oder einzelne Notiz nach <ziel> exportieren',
-    '                             Optionen: --user <name>, --strip-frontmatter, --with-files, --skip',
+    'Space import & export:',
+    '  import <source> <target>   Import a file or folder (recursively) into the space',
+    '                             Options: --user <name>, --overwrite | --rename | --skip (default), --dry-run',
+    '  export <source> <target>   Export the space ("/"), a folder or a single note to <target>',
+    '                             Options: --user <name>, --strip-frontmatter, --with-files, --skip',
     '',
-    'Notizen & Anhänge:',
-    '  notizen [ordner]           Notizen auflisten (--user, --limit <n>)',
-    '  suche <suchbegriff>        Semantische Suche über alle Notizen (--user, --folder, --limit)',
-    '  ordner                     Ordner mit Notizanzahl anzeigen (--user)',
-    '  anhaenge                   Anhänge mit Verwendungsstatus auflisten (--user, --unused)',
-    '  anhaenge-bereinigen        Ungenutzte Anhänge sicher löschen (--user, --dry-run)',
+    'Notes & attachments:',
+    '  notes [folder]             List notes (--user, --limit <n>)',
+    '  search <query>             Semantic search across all notes (--user, --folder, --limit)',
+    '  folders                    Show folders with their note count (--user)',
+    '  attachments                List attachments and where they are used (--user, --unused)',
+    '  clean-attachments          Safely delete unused attachments (--user, --dry-run)',
     '',
-    'Server, Sicherung & Konten:',
-    '  status                     Systemstatus (Version, Konten, Notizen, Freigaben, Anhänge)',
-    '  backup <ziel>              Konsistentes SQLite-Backup (Datei oder Ordner)',
-    '  einladen [Notiz]           Neuen Einladungscode erzeugen',
-    '  einladungen                Alle Einladungscodes anzeigen',
-    '  einladung-loeschen <Code>  Einladungscode entfernen',
-    '  konten                     Alle Benutzerkonten auflisten',
-    '  sperren <Benutzer>         Konto sperren & Sitzungen beenden',
-    '  entsperren <Benutzer>      Konto entsperren',
-    '  passwort <Benutzer>        Zufallspasswort setzen & Sitzungen beenden',
-    '  admin <Benutzer> [an|aus]  Admin-Rolle vergeben oder entziehen',
-    '  protokoll [Anzahl]         Letzte Audit-Log-Einträge anzeigen',
-    '  hilfe                      Diese Hilfe anzeigen',
+    'Server, backups & accounts:',
+    '  status                     System status (version, accounts, notes, shares, attachments)',
+    '  backup <target>            Consistent SQLite backup (file or folder)',
+    '  invite [note]              Create a new invitation code',
+    '  invites                    List all invitation codes',
+    '  delete-invite <code>       Remove an invitation code',
+    '  users                      List all user accounts',
+    '  suspend <user>             Suspend an account and end its sessions',
+    '  unsuspend <user>           Lift the suspension',
+    '  reset-password <user>      Set a random password and end the sessions',
+    '  admin <user> [on|off]      Grant or revoke the admin role',
+    '  audit-log [count]          Show the latest audit log entries',
+    '  help                       Show this help',
+    '',
+    'The German command names from earlier versions (hilfe, notizen, einladen, …) still work.',
   ].join('\n');
 }
 
 export async function runCli(argv: string[], deps: CliDeps): Promise<CliResult> {
   const [rawCmd, ...rest] = argv;
-  if (!rawCmd || rawCmd === 'hilfe' || rawCmd === 'help' || rawCmd === '--help' || rawCmd === '-h') {
+  const cmd = rawCmd ? canonicalCommand(rawCmd) : 'help';
+  if (cmd === 'help' || cmd === '--help' || cmd === '-h') {
     return { lines: [cliHelpText()] };
   }
 
-  const cmd = rawCmd.toLowerCase();
   const { positionals, flags } = parseCliArgs(rest);
   if (hasFlag(flags, 'help', 'h')) return { lines: [cliHelpText()] };
 
@@ -198,7 +228,7 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<CliResult> 
     case 'export':
       return runExport(positionals, flags, deps);
 
-    case 'notizen': {
+    case 'notes': {
       const user = resolveUser(deps.users, flags);
       const folderArg = positionals[0] ?? getFlagString(flags, 'folder', 'f');
       const folder = folderArg ? cleanSpaceFolder(folderArg) : undefined;
@@ -209,51 +239,51 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<CliResult> 
         .sort((a, b) => b.updatedAt - a.updatedAt);
       const shown = all.slice(0, limit);
       const lines = shown.map((n) => `${n.path}  (${n.id}, v${n.version})`);
-      lines.push(`Gesamt: ${all.length} Notizen${shown.length < all.length ? ` (${shown.length} angezeigt)` : ''}`);
+      lines.push(`Total: ${all.length} notes${shown.length < all.length ? ` (${shown.length} shown)` : ''}`);
       return { lines, data: { total: all.length, notes: shown.map((n) => ({ id: n.id, path: n.path, version: n.version })) } };
     }
 
-    case 'suche': {
+    case 'search': {
       const query = positionals.join(' ').trim();
-      if (!query) throw new CliError('Verwendung: suche <Suchbegriff> [--user <Name>] [--folder <Ordner>]');
+      if (!query) throw new CliError('Usage: search <query> [--user <name>] [--folder <folder>]');
       const user = resolveUser(deps.users, flags);
       const folderArg = getFlagString(flags, 'folder', 'f');
       const folder = folderArg ? cleanSpaceFolder(folderArg) : undefined;
       const limit = Math.max(1, Math.min(50, Number(getFlagString(flags, 'limit', 'n') ?? 10) || 10));
       const all = deps.notes.ownedNotes(user.id).filter((n) => !n.path.startsWith(SYSTEM_PREFIX));
-      const hits = semanticSearch(query, all, { folder, limit });
+      const hits = semanticSearch(query, all, { folder, limit, corpusKey: user.id });
       const lines = hits.length
         ? hits.map((h) => `[${h.score.toFixed(2)}] ${h.note.path} (${h.reasons.join(', ')}) — ${h.snippet}`)
-        : ['Keine passenden Notizen gefunden.'];
+        : ['No matching notes found.'];
       return { lines, data: hits };
     }
 
-    case 'ordner': {
+    case 'folders': {
       const user = resolveUser(deps.users, flags);
       const all = deps.notes.ownedNotes(user.id).filter((n) => !n.path.startsWith(SYSTEM_PREFIX));
       const counts = new Map<string, number>();
       for (const n of all) {
-        const f = splitPath(n.path).folder || '(oberste Ebene)';
+        const f = splitPath(n.path).folder || '(top level)';
         counts.set(f, (counts.get(f) ?? 0) + 1);
       }
-      const entries = [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0], 'de'));
-      const lines = entries.length ? entries.map(([f, c]) => `${f}: ${c}`) : ['Keine Notizen im Space.'];
+      const entries = [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+      const lines = entries.length ? entries.map(([f, c]) => `${f}: ${c}`) : ['No notes in the space.'];
       return { lines, data: Object.fromEntries(entries) };
     }
 
-    case 'anhaenge': {
+    case 'attachments': {
       const user = resolveUser(deps.users, flags);
       const onlyUnused = hasFlag(flags, 'unused');
       const usage = attachmentUsageMap(deps.notes, user.id);
       const list = deps.files.listByOwner(user.id).map((f) => ({ ...f, usedIn: usage.get(f.id) ?? [] }));
       const filtered = onlyUnused ? list.filter((f) => f.usedIn.length === 0) : list;
       const lines = filtered.length
-        ? filtered.map((f) => `${f.id}  ${f.name}  (${formatBytes(f.size)}, ${f.usedIn.length ? `verwendet in ${f.usedIn.length} Notiz(en)` : 'ungenutzt'})`)
-        : [onlyUnused ? 'Keine ungenutzten Anhänge.' : 'Keine Anhänge vorhanden.'];
+        ? filtered.map((f) => `${f.id}  ${f.name}  (${formatBytes(f.size)}, ${f.usedIn.length ? `used in ${f.usedIn.length} note(s)` : 'unused'})`)
+        : [onlyUnused ? 'No unused attachments.' : 'No attachments.'];
       return { lines, data: filtered };
     }
 
-    case 'anhaenge-bereinigen': {
+    case 'clean-attachments': {
       const user = resolveUser(deps.users, flags);
       const dryRun = hasFlag(flags, 'dry-run');
       const usage = attachmentUsageMap(deps.notes, user.id);
@@ -273,9 +303,9 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<CliResult> 
           freedBytes += f.size;
         }
       }
-      const verb = dryRun ? 'Würden gelöscht' : 'Gelöscht';
+      const verb = dryRun ? 'Would delete' : 'Deleted';
       return {
-        lines: [`${verb}: ${deleted.length} ungenutzte(r) Anhang/Anhänge (${formatBytes(freedBytes)}). Geschützt (in Notizen verwendet): ${protectedCount}.`],
+        lines: [`${verb}: ${deleted.length} unused attachment(s) (${formatBytes(freedBytes)}). Kept (used in notes): ${protectedCount}.`],
         data: { dryRun, deleted: unused.map((f) => ({ id: f.id, name: f.name, size: f.size })), protectedCount, freedBytes },
       };
     }
@@ -286,17 +316,17 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<CliResult> 
       const fRow = deps.db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(size), 0) AS bytes FROM files').get() as { n: number; bytes: number };
       const lines = [
         `Kladde ${APP_VERSION}`,
-        `Konten: ${uCount}`,
-        `Notizen: ${nCount}`,
-        `Freigaben: ${sCount}`,
-        `Anhänge: ${fRow.n} (${formatBytes(Number(fRow.bytes))})`,
+        `Accounts: ${uCount}`,
+        `Notes: ${nCount}`,
+        `Shares: ${sCount}`,
+        `Attachments: ${fRow.n} (${formatBytes(Number(fRow.bytes))})`,
       ];
       return { lines, data: { version: APP_VERSION, users: uCount, notes: nCount, shares: sCount, files: fRow.n, fileBytes: Number(fRow.bytes) } };
     }
 
     case 'backup': {
       const targetArg = positionals[0] ?? deps.defaultBackupDir;
-      if (!targetArg) throw new CliError('Bitte einen Zielpfad (Datei oder Ordner) für das Backup angeben.');
+      if (!targetArg) throw new CliError('Please give a target path (file or folder) for the backup.');
       const resolved = path.resolve(targetArg);
       let filePath: string;
       if (resolved.endsWith('.sqlite') || resolved.endsWith('.db')) {
@@ -307,85 +337,84 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<CliResult> 
       } else {
         filePath = backupDatabase(deps.db, resolved, 30);
       }
-      return { lines: [`Backup erstellt: ${filePath}`], data: { path: filePath } };
+      return { lines: [`Backup created: ${filePath}`], data: { path: filePath } };
     }
 
-    case 'einladen': {
+    case 'invite': {
       const invite = deps.users.createInvite(positionals.join(' '));
       return { lines: [publicBase ? `${publicBase}/invite/${invite.code}` : invite.code], data: invite };
     }
 
-    case 'einladungen': {
+    case 'invites': {
       const list = deps.users.listInvites();
       return {
-        lines: list.length ? list.map((i) => `${i.code}  ${i.note}  ${i.usedBy ? `benutzt von ${i.usedBy}` : 'offen'}`) : ['Keine Einladungen.'],
+        lines: list.length ? list.map((i) => `${i.code}  ${i.note}  ${i.usedBy ? `used by ${i.usedBy}` : 'open'}`) : ['No invitations.'],
         data: list,
       };
     }
 
-    case 'einladung-loeschen':
-    case 'einladung_loeschen': {
+    case 'delete-invite': {
       const code = positionals[0];
-      if (!code) throw new CliError('Bitte Einladungscode angeben.');
+      if (!code) throw new CliError('Please give an invitation code.');
       const ok = deps.users.deleteInvite(code);
-      if (!ok) throw new CliError(`Einladung "${code}" nicht gefunden.`);
-      return { lines: ['Einladung gelöscht.'] };
+      if (!ok) throw new CliError(`Invitation "${code}" not found.`);
+      return { lines: ['Invitation deleted.'] };
     }
 
-    case 'konten': {
+    case 'users': {
       const list = deps.users.listUsers();
       return {
         lines: list.length
-          ? list.map((u) => `${u.username}${u.isAdmin ? ' [Admin]' : ''}${u.bannedAt ? ' (gesperrt)' : ''}`)
-          : ['Keine Konten vorhanden.'],
+          ? list.map((u) => `${u.username}${u.isAdmin ? ' [Admin]' : ''}${u.bannedAt ? ' (suspended)' : ''}`)
+          : ['No accounts.'],
         data: list,
       };
     }
 
-    case 'sperren':
-    case 'entsperren': {
+    case 'suspend':
+    case 'unsuspend': {
       const username = positionals[0];
       if (!username) throw new CliError('Bitte einen Benutzernamen angeben.');
       const u = deps.users.findByUsername(username);
       if (!u) throw new CliError(`Benutzer "${username}" nicht gefunden.`);
-      const ban = cmd === 'sperren';
+      const ban = cmd === 'suspend';
       deps.users.setBanned(u.id, ban);
-      return { lines: [`${u.username} ${ban ? 'gesperrt' : 'entsperrt'}.`] };
+      return { lines: [`${u.username} ${ban ? 'suspended' : 'unsuspended'}.`] };
     }
 
-    case 'passwort': {
+    case 'reset-password': {
       const username = positionals[0];
       if (!username) throw new CliError('Bitte einen Benutzernamen angeben.');
       const u = deps.users.findByUsername(username);
       if (!u) throw new CliError(`Benutzer "${username}" nicht gefunden.`);
       const password = await deps.users.resetPassword(u.id);
-      return { lines: [`Neues Passwort für ${u.username}: ${password}`], data: { username: u.username, password } };
+      return { lines: [`New password for ${u.username}: ${password}`], data: { username: u.username, password } };
     }
 
     case 'admin': {
       const username = positionals[0];
-      if (!username) throw new CliError('Verwendung: admin <Benutzer> [an|aus]');
+      if (!username) throw new CliError('Usage: admin <user> [on|off]');
       const u = deps.users.findByUsername(username);
       if (!u) throw new CliError(`Benutzer "${username}" nicht gefunden.`);
-      const on = (positionals[1] ?? 'an').toLowerCase() !== 'aus';
+      const on = !['off', 'aus'].includes((positionals[1] ?? 'on').toLowerCase());
       deps.users.setAdmin(u.id, on);
-      return { lines: [`${u.username} ist ${on ? 'jetzt Admin' : 'kein Admin mehr'}.`] };
+      return { lines: [`${u.username} ${on ? 'is now an admin' : 'is no longer an admin'}.`] };
     }
 
-    case 'protokoll': {
-      if (!deps.audit) return { lines: ['Kein Audit-Log verfügbar.'] };
+    case 'audit-log': {
+      if (!deps.audit) return { lines: ['No audit log available.'] };
       const limit = Math.max(1, Number(positionals[0] ?? 25) || 25);
       const entries = deps.audit.recent(limit);
       return {
         lines: entries.length
           ? entries.map((e) => `${new Date(e.at).toISOString()}  ${e.event}  ${e.username ?? '-'}  ${e.detail ?? ''}`.trim())
-          : ['Protokoll ist leer.'],
+          : ['The audit log is empty.'],
         data: entries,
       };
     }
 
     default:
-      throw new CliError(`Unbekannter Befehl "${rawCmd}". "hilfe" zeigt alle Befehle.`);
+      throw new CliError(`Unknown command "${rawCmd}". "help" lists all commands.`);
   }
 }
 
@@ -394,14 +423,14 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<CliResult> 
 async function runImport(positionals: string[], flags: Map<string, string | boolean>, deps: CliDeps): Promise<CliResult> {
   const [srcArg, dstArg] = positionals;
   if (!srcArg || !dstArg) {
-    throw new CliError('Verwendung: import <quelle> <ziel> [--user <Name>] [--overwrite|--rename|--skip] [--dry-run]');
+    throw new CliError('Usage: import <source> <target> [--user <name>] [--overwrite|--rename|--skip] [--dry-run]');
   }
 
   const user = resolveUser(deps.users, flags);
   const srcPath = path.resolve(srcArg);
-  if (!fs.existsSync(srcPath)) throw new CliError(`Quellpfad existiert nicht: ${srcArg}`);
+  if (!fs.existsSync(srcPath)) throw new CliError(`Source path does not exist: ${srcArg}`);
   const stat = fs.lstatSync(srcPath);
-  if (!stat.isFile() && !stat.isDirectory()) throw new CliError(`Quelle muss eine Datei oder ein Ordner sein: ${srcArg}`);
+  if (!stat.isFile() && !stat.isDirectory()) throw new CliError(`Source must be a file or a folder: ${srcArg}`);
 
   const dryRun = hasFlag(flags, 'dry-run');
   const conflictMode: 'overwrite' | 'rename' | 'skip' = hasFlag(flags, 'overwrite')
@@ -432,7 +461,7 @@ async function runImport(positionals: string[], flags: Map<string, string | bool
     if (!mime) return null;
     const data = fs.readFileSync(diskFile);
     if (data.length > MAX_FILE_BYTES) {
-      throw new CliError(`Anhang zu groß (> ${formatBytes(MAX_FILE_BYTES)}): ${diskFile}`);
+      throw new CliError(`Attachment too large (> ${formatBytes(MAX_FILE_BYTES)}): ${diskFile}`);
     }
     const name = path.basename(diskFile);
     const id = dryRun ? `dryrun_${crypto.randomBytes(11).toString('base64url').slice(0, 15)}` : deps.files.save(user.id, name, mime, data).id;
@@ -456,7 +485,7 @@ async function runImport(positionals: string[], flags: Map<string, string | bool
 
   const queueNote = (desiredPath: string, content: string, mtimeMs: number) => {
     if (Buffer.byteLength(content) > MAX_NOTE_BYTES) {
-      throw new CliError(`Notiz überschreitet 2 MB Grenze: ${desiredPath}`);
+      throw new CliError(`Note exceeds the 2 MB limit: ${desiredPath}`);
     }
     const lowerKey = desiredPath.toLowerCase();
     const existing = byLowerPath.get(lowerKey);
@@ -530,7 +559,7 @@ async function runImport(positionals: string[], flags: Map<string, string | bool
       importedPaths.push(info.url);
     } else {
       ignored++;
-      throw new CliError(`Dateityp nicht unterstützt: ${path.basename(srcPath)}`);
+      throw new CliError(`File type not supported: ${path.basename(srcPath)}`);
     }
   } else {
     const targetRoot = cleanSpaceFolder(dstArg);
@@ -562,7 +591,7 @@ async function runImport(positionals: string[], flags: Map<string, string | bool
     for (let i = 0; i < pendingChanges.length; i += 250) {
       const results = deps.notes.push(user.id, pendingChanges.slice(i, i + 250));
       const bad = results.find((r) => r.status !== 'ok');
-      if (bad) throw new CliError(`Fehler beim Speichern von Notiz ${bad.id}: ${bad.status}`);
+      if (bad) throw new CliError(`Could not save note ${bad.id}: ${bad.status}`);
     }
   }
 
@@ -576,10 +605,10 @@ async function runImport(positionals: string[], flags: Map<string, string | bool
     ignored,
     paths: importedPaths,
   };
-  const prefix = dryRun ? '[Vorschau] ' : '';
+  const prefix = dryRun ? '[Preview] ' : '';
   return {
     lines: [
-      `${prefix}Import für "${user.username}" abgeschlossen: ${notesCreated} angelegt, ${notesUpdated} aktualisiert, ${notesSkipped} übersprungen, ${filesImported} Anhänge importiert${ignored ? `, ${ignored} ignoriert` : ''}.`,
+      `${prefix}Import for "${user.username}" finished: ${notesCreated} created, ${notesUpdated} updated, ${notesSkipped} skipped, ${filesImported} attachments imported${ignored ? `, ${ignored} ignored` : ''}.`,
     ],
     data: summary,
   };
@@ -588,7 +617,7 @@ async function runImport(positionals: string[], flags: Map<string, string | bool
 function runExport(positionals: string[], flags: Map<string, string | boolean>, deps: CliDeps): Promise<CliResult> | CliResult {
   const [srcArg, dstArg] = positionals;
   if (!srcArg || !dstArg) {
-    throw new CliError('Verwendung: export <quelle> <ziel> [--user <Name>] [--strip-frontmatter] [--with-files] [--skip]');
+    throw new CliError('Usage: export <source> <target> [--user <name>] [--strip-frontmatter] [--with-files] [--skip]');
   }
 
   const user = resolveUser(deps.users, flags);
@@ -620,7 +649,7 @@ function runExport(positionals: string[], flags: Map<string, string | boolean>, 
         .filter((n) => n.path.toLowerCase().startsWith(prefixLower))
         .map((n) => ({ relPath: n.path.slice(prefix.length), content: n.content, noteId: n.id }));
       if (!selected.length) {
-        throw new CliError(`Quelle "${srcArg}" im Space von "${user.username}" nicht gefunden.`);
+        throw new CliError(`Source "${srcArg}" not found in the space of "${user.username}".`);
       }
     }
   }
@@ -656,7 +685,7 @@ function runExport(positionals: string[], flags: Map<string, string | boolean>, 
   for (const item of selected) {
     const outFile = singleFileOutput ? dstResolved : path.resolve(exportRoot, ...item.relPath.split('/'));
     if (outFile !== dstResolved && !outFile.startsWith(exportRootSep)) {
-      throw new CliError(`Ungültiger Zielpfad: ${outFile}`);
+      throw new CliError(`Invalid target path: ${outFile}`);
     }
     fs.mkdirSync(path.dirname(outFile), { recursive: true });
     if (skipExisting && fs.existsSync(outFile)) {
@@ -686,7 +715,7 @@ function runExport(positionals: string[], flags: Map<string, string | boolean>, 
 
   return {
     lines: [
-      `Export für "${user.username}" nach "${dstArg}" abgeschlossen: ${exportedNotes} Notizen${skippedNotes ? `, ${skippedNotes} übersprungen` : ''}${withFiles ? `, ${exportedFiles} Anhänge` : ''}.`,
+      `Export for "${user.username}" to "${dstArg}" finished: ${exportedNotes} notes${skippedNotes ? `, ${skippedNotes} skipped` : ''}${withFiles ? `, ${exportedFiles} attachments` : ''}.`,
     ],
     data: { user: user.username, destination: dstArg, exportedNotes, skippedNotes, exportedFiles },
   };

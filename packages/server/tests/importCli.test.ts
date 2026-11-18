@@ -96,14 +96,14 @@ describe('import CLI', () => {
     expect(plan.scan.notes.some((n) => n.rel.includes('.obsidian'))).toBe(false);
 
     const text = renderPreview(plan, 'http://kladde.test').join('\n');
-    expect(text).toContain('Import nach http://kladde.test');
-    expect(text).toContain('Zielordner: Import/');
-    expect(text).toMatch(/Neue Notizen \(2\):\n {2}neu +Reise\.md → Import\/Reise\.md/);
-    expect(text).toMatch(/Neue Anhänge \(2\):/);
-    expect(text).toMatch(/Übersprungen \(Pfad vorhanden\) \(2\):\n {2}übersprungen/);
-    expect(text).toMatch(/ignoriert +Handbuch\.pdf \(nicht verlinkt\)/);
-    expect(text).toMatch(/ignoriert +Bericht\.docx \(Dateityp nicht unterstützt\)/);
-    expect(text).toContain('2 neue Notizen, 2 neue Anhänge, 2 übersprungen, 3 ignoriert, 0 Fehler');
+    expect(text).toContain('Import to http://kladde.test');
+    expect(text).toContain('Target folder: Import/');
+    expect(text).toMatch(/New notes \(2\):\n {2}new +Reise\.md → Import\/Reise\.md/);
+    expect(text).toMatch(/New attachments \(2\):/);
+    expect(text).toMatch(/Skipped \(path exists\) \(2\):\n {2}skipped/);
+    expect(text).toMatch(/ignored +Handbuch\.pdf \(not linked\)/);
+    expect(text).toMatch(/ignored +Bericht\.docx \(file type not supported\)/);
+    expect(text).toContain('2 new notes, 2 new attachments, 2 skipped, 3 ignored, 0 errors');
   });
 
   it('writes nothing with --dry-run', async () => {
@@ -111,7 +111,7 @@ describe('import CLI', () => {
     const filesBefore = ctx.files.listByOwner(anna.id).length;
     const { io: cli, out } = io();
     expect(await runImportCli([vault, 'Import', '--url', base, '--allow-insecure', '--dry-run'], cli)).toBe(0);
-    expect(out.join('\n')).toContain('2 neue Notizen');
+    expect(out.join('\n')).toContain('2 new notes');
     expect(ownNotes().length).toBe(before);
     expect(ctx.files.listByOwner(anna.id).length).toBe(filesBefore);
   });
@@ -123,14 +123,14 @@ describe('import CLI', () => {
     expect(noTty.err.join('\n')).toContain('--yes');
     const no = io({ isTTY: true, ask: async () => 'n' });
     expect(await runImportCli([vault, 'Import', '--url', base, '--allow-insecure'], no.io)).toBe(0);
-    expect(no.out.join('\n')).toContain('Abgebrochen');
+    expect(no.out.join('\n')).toContain('Cancelled');
     expect(ownNotes().length).toBe(before);
   });
 
   it('imports new notes and only linked attachments, then skips everything on a second run', async () => {
     const { io: cli, out } = io({ isTTY: true, ask: async () => 'J' });
     expect(await runImportCli([vault, 'Import', '--url', `${base}/`, '--allow-insecure'], cli)).toBe(0);
-    expect(out.join('\n')).toContain('Fertig: 2 Notizen angelegt, 2 übersprungen, 2 Anhänge hochgeladen, 3 ignoriert, 0 Fehler.');
+    expect(out.join('\n')).toContain('Done: 2 notes created, 2 skipped, 2 attachments uploaded, 3 ignored, 0 errors.');
 
     const uploaded = ctx.files.listByOwner(anna.id);
     expect(uploaded.map((f) => f.name).sort()).toEqual(['bild.png', 'bild2.jpg']);
@@ -146,8 +146,8 @@ describe('import CLI', () => {
     const again = io({ ask: async () => { throw new Error('should not ask'); } });
     expect(await runImportCli([vault, 'Import', '--url', base, '--allow-insecure'], again.io)).toBe(0);
     const text = again.out.join('\n');
-    expect(text).toContain('0 neue Notizen, 0 neue Anhänge, 4 übersprungen');
-    expect(text).toContain('Nichts Neues zu importieren.');
+    expect(text).toContain('0 new notes, 0 new attachments, 4 skipped');
+    expect(text).toContain('Nothing new to import.');
     expect(ctx.files.listByOwner(anna.id).length).toBe(2);
   });
 
@@ -155,11 +155,11 @@ describe('import CLI', () => {
     const before = ownNotes().length;
     const wrong = io({ env: { KLADDE_IMPORT_TOKEN: 'kli_falsch' } });
     expect(await runImportCli([vault, '--url', base, '--allow-insecure', '--yes'], wrong.io)).toBe(1);
-    expect(wrong.err.join('\n')).toContain('Import-Token ungültig oder widerrufen');
+    expect(wrong.err.join('\n')).toContain('Import token invalid, revoked or expired');
 
     const down = io();
     expect(await runImportCli([vault, '--url', 'http://127.0.0.1:1', '--allow-insecure', '--yes'], down.io)).toBe(1);
-    expect(down.err.join('\n')).toContain('nicht erreichbar');
+    expect(down.err.join('\n')).toContain('not reachable');
 
     const badUrl = io();
     expect(await runImportCli([vault, '--url', 'ftp://example.org'], badUrl.io)).toBe(1);
@@ -168,10 +168,10 @@ describe('import CLI', () => {
 
     const missing = io();
     expect(await runImportCli([path.join(vault, 'gibtsnicht'), '--url', base, '--allow-insecure'], missing.io)).toBe(1);
-    expect(missing.err.join('\n')).toContain('Ordner nicht gefunden');
+    expect(missing.err.join('\n')).toContain('Folder not found');
     const notDir = io();
     expect(await runImportCli([path.join(vault, 'Reise.md'), '--url', base, '--allow-insecure'], notDir.io)).toBe(1);
-    expect(notDir.err.join('\n')).toContain('Kein Ordner');
+    expect(notDir.err.join('\n')).toContain('Not a folder');
 
     const system = io();
     expect(await runImportCli([vault, '.kladde', '--url', base, '--allow-insecure'], system.io)).toBe(1);
@@ -197,11 +197,11 @@ describe('import CLI', () => {
     expect(calls).toBe(2);
   });
 
-  it('prints German usage', async () => {
+  it('prints the usage', async () => {
     const { io: cli, out } = io();
     expect(await runImportCli(['--help'], cli)).toBe(0);
     const text = out.join('\n');
-    for (const word of ['--url', '--dry-run', '--yes', '--allow-insecure', 'KLADDE_IMPORT_TOKEN', 'Verwendung']) expect(text).toContain(word);
+    for (const word of ['--url', '--dry-run', '--yes', '--allow-insecure', 'KLADDE_IMPORT_TOKEN', 'Usage']) expect(text).toContain(word);
   });
 
   it('refuses http without --allow-insecure and warns with it', async () => {
@@ -214,6 +214,6 @@ describe('import CLI', () => {
 
     const allowed = io();
     expect(await runImportCli([vault, 'Import', '--url', base, '--allow-insecure', '--dry-run'], allowed.io)).toBe(0);
-    expect(allowed.err.join('\n')).toContain('Warnung: unverschlüsselte Verbindung');
+    expect(allowed.err.join('\n')).toContain('Warning: unencrypted connection');
   });
 });

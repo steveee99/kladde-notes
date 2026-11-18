@@ -64,6 +64,22 @@ export function useLang(): Lang {
   return useSyncExternalStore(subscribe, () => current);
 }
 
+const collators = new Map<Lang, Intl.Collator>();
+
+/**
+ * Compares texts for sorting in the language's order, numbers by value ("Note 2" before "Note 10"). Use it instead
+ * of `localeCompare(b, locale(lang), …)`, which builds a new collator for every comparison: sorting thousands of
+ * notes or folders took seconds (#64).
+ */
+export function compareText(a: string, b: string, lang: Lang = current): number {
+  let c = collators.get(lang);
+  if (!c) {
+    c = new Intl.Collator(locale(lang), { numeric: true });
+    collators.set(lang, c);
+  }
+  return c.compare(a, b);
+}
+
 export function locale(lang: Lang = current): string {
   return lang === 'en' ? 'en-US' : 'de-DE';
 }
@@ -155,6 +171,10 @@ const de = {
   'nav.newNote': 'Neue Notiz',
   'nav.newNoteShort': 'Notiz',
   'nav.capture': 'Schnell festhalten',
+  'nav.badgeTasks': '{n} überfällig oder heute fällig',
+  'nav.badgeInbox': '{n} Notizen in der Inbox',
+  'nav.badgeShared': '{n} geteilte Notizen',
+  'nav.badgeReviewDue': 'fällig',
   'nav.zettel': 'Neuer Zettel',
   'nav.recipe': 'Rezept aus URL',
   'nav.newNoteMore': 'Weitere Notizarten',
@@ -400,6 +420,7 @@ const de = {
   'home.viewCompactTitle': 'Kompakte Ansicht',
   'nav.tasks': 'Aufgaben',
   'tasks.title': 'Aufgaben',
+  'tasks.showMore': '{n} weitere anzeigen',
   'tasks.allBtn': 'Alle Aufgaben',
   'tasks.allTitle': 'Alle Aufgaben öffnen, auch die ohne Datum',
   'tasks.undatedLink': '{n} ohne Datum auf der Aufgabenseite',
@@ -807,6 +828,7 @@ const de = {
 
   // Editor & Widgets
   'editor.placeholder': 'Schreib los …',
+  'editor.ariaLabel': 'Notiztext',
   'editor.codeCopy': 'Kopieren',
   'editor.codeCopied': 'Kopiert ✓',
   'editor.codeLabel': 'Code',
@@ -1366,6 +1388,39 @@ const de = {
   'admin.deleteInviteTitle': 'Einladung löschen',
   'admin.deleteInviteConfirm': 'Einladung {code} löschen?',
   'admin.auditEmpty': 'Noch keine Einträge.',
+  'admin.tabBackups': 'Sicherungen',
+  'admin.backupNow': 'Jetzt sichern',
+  'admin.backupRunning': 'Sichere …',
+  'admin.backupKeyHint': 'Eine Sicherung enthält die Datenbank und die Anhänge und Profilbilder – weiterhin verschlüsselt. Den Schlüssel (DATA_KEY oder data/secret.key) enthält sie nicht: Bewahre ihn getrennt auf, ohne ihn ist eine Sicherung nicht lesbar.',
+  'admin.backupDir': 'Ablage auf dem Server: {dir}',
+  'admin.backupDaily': 'Täglich sichern',
+  'admin.backupKeep': 'Aufbewahren',
+  'admin.backupKeepUnit': 'tägliche Sicherungen',
+  'admin.backupKeepHint': 'Ältere tägliche Sicherungen werden gelöscht; manuelle bleiben, bis du sie löschst.',
+  'admin.backupSave': 'Speichern',
+  'admin.backupSaved': 'Gespeichert.',
+  'admin.backupsEmpty': 'Noch keine Sicherungen.',
+  'admin.backupFull': 'Vollständig',
+  'admin.backupDbOnly': 'Nur Datenbank',
+  'admin.backupTrigger.manual': 'Manuell',
+  'admin.backupTrigger.scheduled': 'Täglich',
+  'admin.backupTrigger.pre-restore': 'Vor Wiederherstellung',
+  'admin.backupTrigger.pre-migration': 'Vor Update',
+  'admin.backupTrigger.unknown': 'Automatisch',
+  'admin.backupFiles': '{n} Dateien',
+  'admin.backupNewer': 'aus einer neueren Version',
+  'admin.backupDownload': 'Herunterladen',
+  'admin.backupRestore': 'Wiederherstellen',
+  'admin.backupDelete': 'Sicherung löschen',
+  'admin.backupDeleteConfirm': 'Sicherung vom {date} endgültig löschen?',
+  'admin.restoreTitle': 'Stand vom {date} wiederherstellen?',
+  'admin.restoreText': 'Datenbank, Anhänge und Profilbilder werden durch diese Sicherung ersetzt. Alles, was seitdem geändert wurde, geht auf dem Server verloren (Geräte behalten offline Geändertes und synchronisieren es danach erneut). Vorher wird der aktuelle Stand gesichert, sodass du die Wiederherstellung rückgängig machen kannst. Der Server startet dafür neu; Sitzungen von nach der Sicherung angemeldeten Geräten enden.',
+  'admin.restoreCheck': 'Ich habe verstanden, dass Änderungen seit dieser Sicherung verloren gehen.',
+  'admin.restoreConfirm': 'Wiederherstellen und neu starten',
+  'admin.restoreRestarting': 'Kladde wird wiederhergestellt und startet neu. Die Seite lädt neu, sobald der Server wieder da ist.',
+  'admin.restoreNoReturn': 'Der Server ist noch nicht zurück. Läuft Kladde ohne automatischen Neustart (z. B. ohne Docker), starte ihn von Hand.',
+  'admin.event.backup_restore_requested': 'Wiederherstellung angefordert',
+  'admin.event.backup_restored': 'Sicherung wiederhergestellt',
   'admin.daySingle': '1 Tag',
   'admin.days': '{n} Tagen',
   'admin.event.login': 'Anmeldung',
@@ -1585,6 +1640,10 @@ const en: Record<I18nKey, string> = {
   'nav.newNote': 'New note',
   'nav.newNoteShort': 'Note',
   'nav.capture': 'Quick capture',
+  'nav.badgeTasks': '{n} overdue or due today',
+  'nav.badgeInbox': '{n} notes in the inbox',
+  'nav.badgeShared': '{n} shared notes',
+  'nav.badgeReviewDue': 'due',
   'nav.zettel': 'New Zettel',
   'nav.recipe': 'Recipe from URL',
   'nav.newNoteMore': 'More ways to start a note',
@@ -1830,6 +1889,7 @@ const en: Record<I18nKey, string> = {
   'home.viewCompactTitle': 'Compact view',
   'nav.tasks': 'Tasks',
   'tasks.title': 'Tasks',
+  'tasks.showMore': 'Show {n} more',
   'tasks.allBtn': 'All tasks',
   'tasks.allTitle': 'Open all tasks, including the ones without a date',
   'tasks.undatedLink': '{n} without a date on the task page',
@@ -2237,6 +2297,7 @@ const en: Record<I18nKey, string> = {
 
   // Editor & Widgets
   'editor.placeholder': 'Start writing …',
+  'editor.ariaLabel': 'Note text',
   'editor.codeCopy': 'Copy',
   'editor.codeCopied': 'Copied ✓',
   'editor.codeLabel': 'Code',
@@ -2796,6 +2857,39 @@ const en: Record<I18nKey, string> = {
   'admin.deleteInviteTitle': 'Delete invite',
   'admin.deleteInviteConfirm': 'Delete invite {code}?',
   'admin.auditEmpty': 'No entries yet.',
+  'admin.tabBackups': 'Backups',
+  'admin.backupNow': 'Back up now',
+  'admin.backupRunning': 'Backing up …',
+  'admin.backupKeyHint': 'A backup contains the database, the attachments and the profile pictures – still encrypted. It does not contain the key (DATA_KEY or data/secret.key): keep the key separately, without it a backup cannot be read.',
+  'admin.backupDir': 'Stored on the server in: {dir}',
+  'admin.backupDaily': 'Daily backup',
+  'admin.backupKeep': 'Keep',
+  'admin.backupKeepUnit': 'daily backups',
+  'admin.backupKeepHint': 'Older daily backups are deleted; manual ones stay until you delete them.',
+  'admin.backupSave': 'Save',
+  'admin.backupSaved': 'Saved.',
+  'admin.backupsEmpty': 'No backups yet.',
+  'admin.backupFull': 'Full',
+  'admin.backupDbOnly': 'Database only',
+  'admin.backupTrigger.manual': 'Manual',
+  'admin.backupTrigger.scheduled': 'Daily',
+  'admin.backupTrigger.pre-restore': 'Before restore',
+  'admin.backupTrigger.pre-migration': 'Before update',
+  'admin.backupTrigger.unknown': 'Automatic',
+  'admin.backupFiles': '{n} files',
+  'admin.backupNewer': 'from a newer version',
+  'admin.backupDownload': 'Download',
+  'admin.backupRestore': 'Restore',
+  'admin.backupDelete': 'Delete backup',
+  'admin.backupDeleteConfirm': 'Delete the backup from {date} for good?',
+  'admin.restoreTitle': 'Restore the state from {date}?',
+  'admin.restoreText': 'The database, attachments and profile pictures are replaced by this backup. Everything changed since then is lost on the server (devices keep what they changed offline and sync it again afterwards). The current state is backed up first, so you can undo the restore. The server restarts for this; sessions of devices that signed in after the backup end.',
+  'admin.restoreCheck': 'I understand that changes since this backup are lost.',
+  'admin.restoreConfirm': 'Restore and restart',
+  'admin.restoreRestarting': 'Kladde is being restored and restarts. The page reloads as soon as the server is back.',
+  'admin.restoreNoReturn': 'The server is not back yet. If Kladde runs without an automatic restart (e.g. without Docker), start it by hand.',
+  'admin.event.backup_restore_requested': 'Restore requested',
+  'admin.event.backup_restored': 'Backup restored',
   'admin.daySingle': '1 day',
   'admin.days': '{n} days',
   'admin.event.login': 'Sign in',

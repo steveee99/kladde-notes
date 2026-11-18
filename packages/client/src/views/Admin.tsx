@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Ban, Check, Copy, KeyRound, Mail, RotateCcw, ScrollText, ShieldCheck, ShieldOff, Smartphone, Trash2, UserCheck, Users } from '../lib/icons';
+import { Backup, Ban, Check, Copy, KeyRound, Mail, RotateCcw, ScrollText, ShieldCheck, ShieldOff, Smartphone, Trash2, UserCheck, Users } from '../lib/icons';
 import type { AdminAuditEntry, AdminInvite, AdminStatus, AdminUser, Me } from '@kladde/shared';
 import { api } from '../lib/api';
 import { I18nKey, Lang, locale, tl, useLang } from '../lib/i18n';
 import { Avatar } from './Avatar';
+import { BackupsTab } from './AdminBackups';
 
-type Tab = 'users' | 'invites' | 'audit';
+type Tab = 'users' | 'invites' | 'backups' | 'audit';
 
 function since(ms: number, lang: Lang): string {
   const min = Math.round((Date.now() - ms) / 60_000);
@@ -291,6 +292,8 @@ const EVENT_KEYS: Record<string, I18nKey> = {
   password_changed: 'admin.event.password_changed',
   account_deleted: 'admin.event.account_deleted',
   admin_command: 'admin.event.admin_command',
+  backup_restore_requested: 'admin.event.backup_restore_requested',
+  backup_restored: 'admin.event.backup_restored',
 };
 
 function AuditTab({ onError }: { onError: (msg: string) => void }) {
@@ -308,7 +311,7 @@ function AuditTab({ onError }: { onError: (msg: string) => void }) {
       {entries.map((e, i) => (
         <li key={i} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-3 py-2">
           <span className="w-28 shrink-0 text-xs text-on-surface-variant">{dateTime(e.at)}</span>
-          <span className={`font-medium ${e.event === 'login_failed' || e.event === 'login_blocked' ? 'text-error' : e.event === 'admin_command' ? 'text-primary' : ''}`}>
+          <span className={`font-medium ${e.event === 'login_failed' || e.event === 'login_blocked' ? 'text-error' : e.event === 'admin_command' || e.event.startsWith('backup_') ? 'text-primary' : ''}`}>
             {EVENT_KEYS[e.event] ? tl(lang, EVENT_KEYS[e.event]) : e.event}
           </span>
           {e.username && <span>{e.username}</span>}
@@ -320,7 +323,7 @@ function AuditTab({ onError }: { onError: (msg: string) => void }) {
   );
 }
 
-/** Admin area: accounts (reset, ban, roles), invites and the audit log */
+/** Admin area: accounts (reset, ban, roles), invites, backups and the audit log */
 export function AdminView({ me }: { me: Me }) {
   const lang = useLang();
   const [tab, setTab] = useState<Tab>('users');
@@ -335,6 +338,7 @@ export function AdminView({ me }: { me: Me }) {
   const tabs: { id: Tab; label: string; Icon: typeof Users }[] = [
     { id: 'users', label: tl(lang, 'admin.tabUsers'), Icon: Users },
     { id: 'invites', label: tl(lang, 'admin.tabInvites'), Icon: Mail },
+    { id: 'backups', label: tl(lang, 'admin.tabBackups'), Icon: Backup },
     { id: 'audit', label: tl(lang, 'admin.tabAudit'), Icon: ScrollText },
   ];
 
@@ -354,7 +358,7 @@ export function AdminView({ me }: { me: Me }) {
           </p>
         )}
       </header>
-      <div className="mb-5 grid grid-cols-3 gap-1 rounded-full border border-outline-variant bg-surface-container-low p-1 anim-fade-up">
+      <div className="mb-5 grid grid-cols-4 gap-1 rounded-full border border-outline-variant bg-surface-container-low p-1 anim-fade-up">
         {tabs.map(({ id, label, Icon }) => (
           <button
             key={id}
@@ -362,6 +366,7 @@ export function AdminView({ me }: { me: Me }) {
               setTab(id);
               setError('');
             }}
+            aria-pressed={tab === id}
             className={`flex min-w-0 items-center justify-center gap-1.5 rounded-full px-1.5 py-2 text-xs font-medium transition-colors sm:px-2 sm:text-sm ${
               tab === id ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:text-on-surface'
             }`}
@@ -373,6 +378,7 @@ export function AdminView({ me }: { me: Me }) {
       {error && <p className="mb-4 text-sm text-error anim-fade-in">{error}</p>}
       {tab === 'users' && <UsersTab me={me} onError={setError} />}
       {tab === 'invites' && <InvitesTab onError={setError} />}
+      {tab === 'backups' && <BackupsTab onError={setError} />}
       {tab === 'audit' && <AuditTab onError={setError} />}
     </div>
   );

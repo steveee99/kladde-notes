@@ -22,7 +22,9 @@ export type AuditEvent =
   | 'shortcut_token_created'
   | 'shortcut_token_revoked'
   | 'confluence_connected'
-  | 'confluence_disconnected';
+  | 'confluence_disconnected'
+  | 'backup_restore_requested'
+  | 'backup_restored';
 
 export interface AuditEntry {
   at: number;

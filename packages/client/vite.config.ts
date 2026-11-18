@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Plugin } from 'vite';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 const require = createRequire(import.meta.url);
 
@@ -52,6 +53,8 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     excalidrawFonts(),
+    // `ANALYZE=1 npm run build --workspace=packages/client` writes dist/stats.html: what each chunk contains (#64)
+    process.env.ANALYZE ? visualizer({ filename: 'dist/stats.html', template: 'treemap', gzipSize: true }) : null,
     VitePWA({
       // The demo is a plain web page without service worker (no install, no share target)
       disable: mode === 'demo',

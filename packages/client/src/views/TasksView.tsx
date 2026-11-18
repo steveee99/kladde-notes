@@ -7,7 +7,7 @@ import { useMemo, useState } from 'react';
 import { AlignJustify, Check, Kanban, List, ListChecks, Plus } from '../lib/icons';
 import { bucketOf, toDateString, type TaskStatus } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
-import { BUCKETS, TaskItem, TaskKanban, collectTasks, type TaskRow } from './TaskParts';
+import { BUCKETS, TaskKanban, TaskRows, collectTasks, type TaskRow } from './TaskParts';
 import { Dropdown } from './Dropdown';
 import { Switch } from './Switch';
 import { folderDisplayName, t, useLang } from '../lib/i18n';
@@ -195,11 +195,7 @@ export function TasksView() {
                 <h2 className={`mb-2 px-4 text-title-s ${b.tone}`}>
                   {t(b.labelKey)} <span className="text-on-surface-variant">· {list.length}</span>
                 </h2>
-                <ul className="stagger flex flex-col gap-0.5">
-                  {list.map((tk) => (
-                    <TaskItem key={`${tk.noteId}:${tk.line}:${tk.text}`} task={tk} compact={prefs.compact} />
-                  ))}
-                </ul>
+                <TaskRows tasks={list} compact={prefs.compact} />
               </div>
             );
           })}
@@ -208,11 +204,7 @@ export function TasksView() {
               <h2 className="mb-2 px-4 text-title-s text-ok">
                 {t('task.status.done')} <span className="text-on-surface-variant">· {done.length}</span>
               </h2>
-              <ul className="flex flex-col gap-0.5">
-                {done.map((tk) => (
-                  <TaskItem key={`${tk.noteId}:${tk.line}:${tk.text}`} task={tk} compact={prefs.compact} />
-                ))}
-              </ul>
+              <TaskRows tasks={done} compact={prefs.compact} className="flex flex-col gap-0.5" />
             </div>
           )}
         </div>

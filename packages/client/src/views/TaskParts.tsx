@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarClock, Repeat, X } from '../lib/icons';
-import { TASK_STATUSES, Task, TaskBucket, TaskStatus, bucketOf, parseTasks, projectTitleOf, roleOfPath, shortcutDate, splitPath } from '@kladde/shared';
+import { NoteMemo, TASK_STATUSES, Task, TaskBucket, TaskStatus, bucketOf, parseTasks, projectTitleOf, roleOfPath, shortcutDate, splitPath } from '@kladde/shared';
 import { vault } from '../data/vault';
 import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
@@ -225,6 +225,8 @@ export function TaskItem({ task, compact }: { task: TaskRow; compact: boolean })
         className={`cm-checkbox shrink-0 ${top ? 'mt-0.5' : ''}`}
         data-status={leaving ? (task.done ? 'open' : 'done') : task.status}
         title={t(`task.status.${task.status}`)}
+        // The task is the checkbox's name; the status is in the title and the checked state
+        aria-label={task.text || t('home.taskEmpty')}
         checked={task.done !== leaving}
         disabled={locked}
         onContextMenu={(e) => {
@@ -282,6 +284,34 @@ export function TaskItem({ task, compact }: { task: TaskRow; compact: boolean })
 
 const DRAG_MIME = 'application/x-kladde-task';
 
+/** How many rows a task list or Kanban column shows before "Show more": long lists would build thousands of rows (#64) */
+export const TASK_PAGE = 100;
+
+/** "Show n more" below a list that shows only its first rows */
+export function ShowMore({ hidden, onMore }: { hidden: number; onMore: () => void }) {
+  if (hidden <= 0) return null;
+  return (
+    <button type="button" className="btn-text mt-1 self-start" onClick={onMore}>
+      {t('tasks.showMore', { n: Math.min(hidden, TASK_PAGE * 5) })}
+    </button>
+  );
+}
+
+/** A list of task rows that renders the first `TASK_PAGE` and more on request */
+export function TaskRows({ tasks, compact, className = 'stagger flex flex-col gap-0.5' }: { tasks: TaskRow[]; compact: boolean; className?: string }) {
+  const [shown, setShown] = useState(TASK_PAGE);
+  return (
+    <>
+      <ul className={className}>
+        {tasks.slice(0, shown).map((tk) => (
+          <TaskItem key={`${tk.noteId}:${tk.line}:${tk.text}`} task={tk} compact={compact} />
+        ))}
+      </ul>
+      <ShowMore hidden={tasks.length - shown} onMore={() => setShown((n) => n + TASK_PAGE * 5)} />
+    </>
+  );
+}
+
 /**
  * Tasks as a board with one column per status. Dragging a card into another column (or picking a
  * status with the button on the card, which also works on touch screens) rewrites its checkbox.
@@ -290,6 +320,7 @@ export function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
   const lang = useLang();
   const locked = useReadOnly();
   const [over, setOver] = useState<TaskStatus | null>(null);
+  const [shown, setShown] = useState<Partial<Record<TaskStatus, number>>>({});
   const dragged = useRef<TaskRow | null>(null);
   const move = (task: TaskRow, status: TaskStatus) => {
     if (task.status !== status) void vault.setTaskStatus(task.noteId, task.line, status);
@@ -330,7 +361,7 @@ export function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
               <span className="cm-checkbox !m-0" data-status={status} />
               {t(`task.status.${status}`)} <span className="text-on-surface-variant">· {list.length}</span>
             </h3>
-            {list.map((tk) => {
+            {list.slice(0, shown[status] ?? TASK_PAGE).map((tk) => {
               const bucket = bucketOf(tk);
               const hasMeta = (!!tk.due && tk.status !== 'done') || !!tk.repeat || !!tk.noteTitle;
               return (
@@ -358,7 +389,8 @@ export function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
                     type="button"
                     className={`flex shrink-0 rounded-md disabled:cursor-default ${hasMeta ? 'mt-0.5' : ''}`}
                     disabled={locked}
-                    aria-label={t('home.taskStatusAria')}
+                    aria-label={`${t('home.taskStatusAria')} (${t(`task.status.${tk.status}`)}): ${tk.text || t('home.taskEmpty')}`}
+                    aria-haspopup="menu"
                     title={t('home.taskStatusAria')}
                     onClick={(e) => pickStatus(e.currentTarget, tk, lang)}
                   >
@@ -384,6 +416,7 @@ export function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
                 </div>
               );
             })}
+            <ShowMore hidden={list.length - (shown[status] ?? TASK_PAGE)} onMore={() => setShown((m) => ({ ...m, [status]: (m[status] ?? TASK_PAGE) + TASK_PAGE * 5 }))} />
             {!list.length && <p className="rounded-xl border border-dashed border-outline-variant/70 px-2 py-5 text-center text-xs text-on-surface-variant">{t('home.kanbanEmpty')}</p>}
           </div>
         );
@@ -394,6 +427,7 @@ export function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
 
 
 let cache: { version: number; day: string; tasks: TaskRow[] } | null = null;
+const rowMemo = new NoteMemo<TaskRow[]>();
 
 /**
  * Every task of the vault (open and done) with its note, sorted by due date. Notes in the PARA archive
@@ -407,13 +441,19 @@ export function collectTasks(version: number): TaskRow[] {
   const roleConfig = vault.roleConfig();
   const free = vault.freeTasksNote();
   if (free) for (const tk of parseTasks(free.content)) out.push({ ...tk, noteId: free.id, noteTitle: '', folder: '' });
+  // Rows per note are kept until the note, the day, its default due date or the folder roles change (#64)
+  const roles = JSON.stringify(roleConfig);
   for (const n of vault.list()) {
-    if (roleOfPath(n.path, roleConfig) === 'archive') continue;
-    const tasks = parseTasks(n.content, undefined, n.access === 'owner' ? dueOf(n.path) : null);
-    if (!tasks.length) continue;
-    const noteTitle = projectTitleOf(n.path, n.content, roleConfig);
-    const folder = splitPath(n.path).folder;
-    for (const tk of tasks) out.push({ ...tk, noteId: n.id, noteTitle, folder });
+    const defaultDue = n.access === 'owner' ? dueOf(n.path) : null;
+    const rows = rowMemo.get(n, `${day}|${defaultDue ?? ''}|${roles}`, () => {
+      if (roleOfPath(n.path, roleConfig) === 'archive') return [];
+      const tasks = parseTasks(n.content, undefined, defaultDue);
+      if (!tasks.length) return [];
+      const noteTitle = projectTitleOf(n.path, n.content, roleConfig);
+      const folder = splitPath(n.path).folder;
+      return tasks.map((tk) => ({ ...tk, noteId: n.id, noteTitle, folder }));
+    });
+    for (const row of rows) out.push(row);
   }
   out.sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999'));
   cache = { version, day, tasks: out };

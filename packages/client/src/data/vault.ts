@@ -86,7 +86,7 @@ import {
   type ReleaseBump,
 } from '@kladde/shared';
 import { api, ApiError } from '../lib/api';
-import { getLang, locale, t } from '../lib/i18n';
+import { compareText, getLang, locale, t } from '../lib/i18n';
 import { isReadOnly } from '../lib/readOnly';
 import { clientId, presence } from '../lib/presence';
 import { LocalDb, LocalNote, openLocalDb } from './db';
@@ -306,7 +306,19 @@ class Vault {
     return `sysfolders-${this.userId}`;
   }
 
+  private foldersCache: { version: number; lang: string; folders: string[] } | null = null;
+
+  /** All folders of the own space, sorted; kept until the next change, since every view with a folder list asks (#64) */
   folders(): string[] {
+    const lang = getLang();
+    if (this.foldersCache?.version === this.version && this.foldersCache.lang === lang) return this.foldersCache.folders;
+    // Shared between callers: frozen, so nobody changes it by accident
+    const folders = Object.freeze(this.computeFolders()) as string[];
+    this.foldersCache = { version: this.version, lang, folders };
+    return folders;
+  }
+
+  private computeFolders(): string[] {
     const set = new Set<string>();
     const addWithParents = (folder: string) => {
       const parts = folder.split('/').filter(Boolean);
@@ -324,15 +336,18 @@ class Vault {
       if (n.access !== 'owner') continue;
       addWithParents(splitPath(n.path).folder);
     }
-    return [...set].sort((a, b) => a.localeCompare(b, locale(getLang()), { numeric: true }));
+    return [...set].sort((a, b) => compareText(a, b));
   }
 
   private indexCache: { version: number; index: LinkIndex } | null = null;
 
-  /** Link index over all visible notes, rebuilt lazily after changes */
+  /**
+   * Link index over all visible notes, rebuilt lazily after changes. Built from the previous index, so only changed
+   * notes are parsed again, and a change that touches no title or link keeps the lookup tables (#64).
+   */
   links(): LinkIndex {
     if (!this.indexCache || this.indexCache.version !== this.version) {
-      this.indexCache = { version: this.version, index: new LinkIndex(this.list(), this.roleConfig()) };
+      this.indexCache = { version: this.version, index: new LinkIndex(this.list(), this.roleConfig(), this.indexCache?.index) };
     }
     return this.indexCache.index;
   }
@@ -420,7 +435,7 @@ class Vault {
       const parts = splitPath(n.path).folder.split('/').filter(Boolean);
       for (let i = 1; i <= parts.length; i++) set.add(parts.slice(0, i).join('/'));
     }
-    return [...set].sort((a, b) => a.localeCompare(b, locale(getLang()), { numeric: true }));
+    return [...set].sort((a, b) => compareText(a, b));
   }
 
   /** Groups the user may create notes in (and move notes into) */
@@ -1409,6 +1424,10 @@ class Vault {
   private async pull() {
     const since = ((await this.db!.get('meta', 'cursor')) as number | undefined) ?? 0;
     const res = await api<PullResponse>(`/sync?since=${since}`);
+    // Notes taken as they are go into memory right away and to IndexedDB in one transaction with one update of the
+    // UI at the end: a first sync of thousands of notes would otherwise write and re-render once per note (#64)
+    const stored: LocalNote[] = [];
+    const removed: string[] = [];
     for (const server of res.notes) {
       const local = this.notes.get(server.id);
       if (local?.dirty && local.version < server.version) await this.resolveConflict(local, server);
@@ -1416,12 +1435,22 @@ class Vault {
         // Same version, only the release state changed (#53): keep the local edits, take the new state
         if (local.version === server.version) await this.put(withReleaseState(local, server));
         continue;
+      } else if (server.deleted) {
+        this.notes.delete(server.id);
+        removed.push(server.id);
+      } else {
+        const note: LocalNote = { ...server, dirty: false };
+        this.notes.set(note.id, note);
+        stored.push(note);
       }
-      else await this.accept(server);
     }
     for (const id of res.revoked) {
       this.notes.delete(id);
-      await this.db!.delete('notes', id);
+      removed.push(id);
+    }
+    if (stored.length || removed.length) {
+      const tx = this.db!.transaction('notes', 'readwrite');
+      await Promise.all([...stored.map((n) => tx.store.put(n)), ...removed.map((id) => tx.store.delete(id)), tx.done]);
     }
     if (res.sharedFolders) {
       this.sharedFolders = res.sharedFolders;

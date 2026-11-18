@@ -13,6 +13,8 @@
  * Status lives in the checkbox: [ ] open, [O] in progress, [H] blocked (on hold), [x] done.
  */
 
+import { NoteMemo, type MemoNote } from './noteMemo.js';
+
 export type TaskStatus = 'open' | 'doing' | 'blocked' | 'done';
 
 export const TASK_STATUSES: TaskStatus[] = ['open', 'doing', 'blocked', 'done'];
@@ -138,6 +140,19 @@ const WEEKDAYS: Record<string, number> = { so: 0, su: 0, mo: 1, di: 2, tu: 2, mi
  * "2 wochen" → { n: 2, unit: "wochen" }, "weekly" → { n: 1, unit: "weekly" }; null without a unit.
  * Parsed by hand: a regex like `^(\d+)?\s*(\S.*)$` can split long digit runs in many ways (ReDoS).
  */
+/**
+ * The tasks of each note, parsed again only when the note, the day or its default due date changes (#64): collecting
+ * the tasks of a large vault after every keystroke then parses one note instead of all. The arrays are shared between
+ * calls, so callers must not change them.
+ */
+export class TaskCache {
+  private memo = new NoteMemo<readonly Task[]>();
+
+  tasksOf(note: MemoNote, today = new Date(), defaultDue: string | null = null): readonly Task[] {
+    return this.memo.get(note, `${toDateString(today)}|${defaultDue ?? ''}`, (n) => parseTasks(n.content, today, defaultDue));
+  }
+}
+
 export function splitRepeatRule(rule: string): { n: number; unit: string } | null {
   let i = 0;
   while (i < rule.length && rule[i] >= '0' && rule[i] <= '9') i++;

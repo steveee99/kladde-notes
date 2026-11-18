@@ -12,7 +12,7 @@ import { describePermissions } from './ShareDialog';
 import { Avatar } from './Avatar';
 import { MoveToGroupSheet } from './Groups';
 import { DEMO } from '../demo/demoApi';
-import { folderDisplayName, folderLeafDisplayName, locale, t, useLang, type I18nKey, type Lang } from '../lib/i18n';
+import { compareText, folderDisplayName, folderLeafDisplayName, locale, t, useLang, type I18nKey, type Lang } from '../lib/i18n';
 
 export type NoteViewMode = 'cards' | 'list' | 'table';
 const VIEW_KEY = 'kladde.noteView';
@@ -320,8 +320,8 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
   notes.sort((a, b) =>
     sort === 'updated'
       ? b.updatedAt - a.updatedAt
-      : projectTitleOf(a.path, a.content, rc).localeCompare(projectTitleOf(b.path, b.content, rc), locale(lang), { numeric: true }) ||
-        a.path.localeCompare(b.path, locale(lang), { numeric: true })
+      : compareText(projectTitleOf(a.path, a.content, rc), projectTitleOf(b.path, b.content, rc), lang) ||
+        compareText(a.path, b.path, lang)
   );
   const subfolders = mode === 'folder' ? vault.folders().filter((f) => f.startsWith(`${folder}/`) && !f.slice(folder!.length + 1).includes('/')) : [];
   // Notes in a folder and all its subfolders (owned ones, like the list itself)

@@ -429,7 +429,22 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 20,
+    description: 'Server settings set in the admin area, e.g. the backup schedule (#65)',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE server_settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        );
+      `);
+    },
+  },
 ];
+
+/** The schema version this build migrates to */
+export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 
 export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS): number[] {
   const current = Number((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version);

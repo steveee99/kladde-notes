@@ -41,6 +41,58 @@ function markdownPathLinks(content: string): string[] {
 
 const WIKI = /\[\[([^\]|#\n]+)((?:#[^\]|\n]*)?)((?:\|[^\]\n]*)?)\]\]/g;
 
+/** What the index reads from one note; kept between rebuilds while the note does not change (#64) */
+interface ParsedNote {
+  path: string;
+  content: string;
+  title: string;
+  folder: string;
+  links: string[];
+  zid: string | null;
+  name: string;
+  isProjectHome: boolean;
+  folderLeaf: string;
+  frontmatterTitle: string | undefined;
+  pathLinks: string[];
+}
+
+function parseNote(n: LinkNote, config: RoleFolderMap): ParsedNote {
+  const meta = extractMeta(n.path, n.content);
+  const name = splitPath(n.path).name;
+  const isProjectHome = isFolderProjectHome(n.path, config);
+  const folderLeaf = meta.folder ? meta.folder.split('/').pop()! : '';
+  const title = isProjectHome ? meta.frontmatter.title || folderLeaf : name;
+  const zid = meta.frontmatter.id ?? ZETTEL_ID_PATTERN.exec(name)?.[1] ?? null;
+  return {
+    path: n.path,
+    content: n.content,
+    title,
+    folder: meta.folder,
+    links: meta.links,
+    zid,
+    name,
+    isProjectHome,
+    folderLeaf,
+    frontmatterTitle: meta.frontmatter.title,
+    pathLinks: markdownPathLinks(n.content),
+  };
+}
+
+const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+/** Everything about a note that decides what links resolve to and where its own links go */
+function sameLinkShape(a: ParsedNote, b: ParsedNote): boolean {
+  return (
+    a.title === b.title &&
+    a.folder === b.folder &&
+    a.zid === b.zid &&
+    a.isProjectHome === b.isProjectHome &&
+    a.frontmatterTitle === b.frontmatterTitle &&
+    sameList(a.links, b.links) &&
+    sameList(a.pathLinks, b.pathLinks)
+  );
+}
+
 export class LinkIndex {
   private byTitle = new Map<string, string>();
   private byId = new Map<string, string>();
@@ -49,24 +101,31 @@ export class LinkIndex {
   readonly notes = new Map<string, LinkNote & { title: string; folder: string; links: string[]; zid: string | null }>();
   private outgoingCache = new Map<string, string[]>();
   private incoming = new Map<string, Set<string>>();
+  private parsed = new Map<string, ParsedNote>();
+  private readonly configKey: string;
 
-  constructor(notes: LinkNote[], config: RoleFolderMap = PARA) {
+  /**
+   * With `previous` (the index before a change) notes whose path and text are unchanged are not parsed again;
+   * only resolving the links runs over all notes, which is cheap.
+   */
+  constructor(notes: LinkNote[], config: RoleFolderMap = PARA, previous?: LinkIndex | null) {
+    this.configKey = config === PARA ? 'PARA' : JSON.stringify(config);
+    const reuse = previous && previous.configKey === this.configKey ? previous.parsed : null;
+    if (reuse && previous && this.adoptUnchangedLinks(notes, config, previous)) return;
     for (const n of notes) {
-      const meta = extractMeta(n.path, n.content);
-      const name = splitPath(n.path).name;
-      const isProjectHome = isFolderProjectHome(n.path, config);
-      const folderLeaf = meta.folder ? meta.folder.split('/').pop()! : '';
-      const displayTitle = isProjectHome ? meta.frontmatter.title || folderLeaf : name;
-      const zid = meta.frontmatter.id ?? ZETTEL_ID_PATTERN.exec(name)?.[1] ?? null;
-      this.notes.set(n.id, { ...n, title: displayTitle, folder: meta.folder, links: meta.links, zid });
-      if (isProjectHome) {
+      const old = reuse?.get(n.id);
+      const p = old && old.content === n.content && old.path === n.path ? old : parseNote(n, config);
+      this.parsed.set(n.id, p);
+      const { title: displayTitle, name, folderLeaf, zid } = p;
+      this.notes.set(n.id, { ...n, title: displayTitle, folder: p.folder, links: p.links, zid });
+      if (p.isProjectHome) {
         if (displayTitle && !this.byTitle.has(displayTitle.toLowerCase())) this.byTitle.set(displayTitle.toLowerCase(), n.id);
         if (folderLeaf && !this.byTitle.has(folderLeaf.toLowerCase())) this.byTitle.set(folderLeaf.toLowerCase(), n.id);
         if (folderLeaf && !this.byTitle.has(`${folderLeaf}/${name}`.toLowerCase())) this.byTitle.set(`${folderLeaf}/${name}`.toLowerCase(), n.id);
       } else {
         if (!this.byTitle.has(name.toLowerCase())) this.byTitle.set(name.toLowerCase(), n.id);
       }
-      if (meta.frontmatter.title && !this.byTitle.has(meta.frontmatter.title.toLowerCase())) this.byTitle.set(meta.frontmatter.title.toLowerCase(), n.id);
+      if (p.frontmatterTitle && !this.byTitle.has(p.frontmatterTitle.toLowerCase())) this.byTitle.set(p.frontmatterTitle.toLowerCase(), n.id);
       if (zid && !this.byId.has(zid)) this.byId.set(zid, n.id);
       const segments = n.path.replace(/\.md$/i, '').split('/');
       // The full path wins over a shorter suffix of another note
@@ -80,7 +139,7 @@ export class LinkIndex {
       }
     }
     for (const [id, n] of this.notes) {
-      const pathLinks = markdownPathLinks(n.content).map((url) => okfLinkTarget(url, n.folder));
+      const pathLinks = this.parsed.get(id)!.pathLinks.map((url) => okfLinkTarget(url, n.folder));
       const targets = [
         ...new Set([...n.links.map((l) => this.resolve(l)), ...pathLinks.map((p) => (p ? this.resolvePath(p) : null))].filter((t): t is string => !!t && t !== id)),
       ];
@@ -90,6 +149,38 @@ export class LinkIndex {
         this.incoming.get(t)!.add(id);
       }
     }
+  }
+
+  /**
+   * Typing usually changes text but no title, path or link: then the lookup tables and link lists of `previous` stay
+   * valid and only the changed notes are parsed again. Returns false (and changes nothing) when anything that links
+   * depend on changed.
+   */
+  private adoptUnchangedLinks(notes: LinkNote[], config: RoleFolderMap, previous: LinkIndex): boolean {
+    if (notes.length !== previous.parsed.size) return false;
+    const parsed = new Map<string, ParsedNote>();
+    for (const n of notes) {
+      const old = previous.parsed.get(n.id);
+      if (!old || old.path !== n.path) return false;
+      if (old.content === n.content) {
+        parsed.set(n.id, old);
+        continue;
+      }
+      const p = parseNote(n, config);
+      if (!sameLinkShape(old, p)) return false;
+      parsed.set(n.id, p);
+    }
+    this.parsed = parsed;
+    this.byTitle = previous.byTitle;
+    this.byId = previous.byId;
+    this.byPath = previous.byPath;
+    this.outgoingCache = previous.outgoingCache;
+    this.incoming = previous.incoming;
+    for (const n of notes) {
+      const p = parsed.get(n.id)!;
+      this.notes.set(n.id, { ...n, title: p.title, folder: p.folder, links: p.links, zid: p.zid });
+    }
+    return true;
   }
 
   /** Note id for a link target, or null */
@@ -133,9 +224,12 @@ export class LinkIndex {
     const names = this.mentionNames(id);
     if (!names.length) return [];
     const linked = new Set(this.backlinks(id));
+    // Most notes do not contain the name at all: a plain test on the raw text skips them before the exact check (#64)
+    const quick = names.map(mentionPattern);
     const out: string[] = [];
     for (const [other, n] of this.notes) {
       if (other === id || linked.has(other)) continue;
+      if (!quick.some((re) => re.test(n.content))) continue;
       if (names.some((name) => hasPlainMention(n.content, name))) out.push(other);
     }
     return out;

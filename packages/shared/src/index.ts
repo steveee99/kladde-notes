@@ -33,3 +33,4 @@ export * from './icons.js';
 export * from './yaml.js';
 export * from './memory.js';
 export * from './zip.js';
+export * from './noteMemo.js';

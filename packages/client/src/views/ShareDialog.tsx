@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { useModal } from '../lib/modal';
 import { createPortal } from 'react-dom';
 import { Copy, Folder, Globe, Trash2, UserPlus, X } from '../lib/icons';
 import type { FolderPermissions, FolderShares, NoteShare, NoteShares } from '@kladde/shared';
@@ -125,15 +126,19 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose:
   const link = shares?.publicToken ? `${location.origin}/s/${shares.publicToken}` : null;
   const vp = useVisualViewport();
 
+  const panel = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useModal(panel, onClose);
+
   return createPortal(
     <div
       className="fixed inset-x-0 z-50 flex items-end justify-center sm:items-center"
       style={vp ? { top: `${vp.top}px`, height: `${vp.height}px` } : { top: 0, bottom: 0 }}
     >
       <div className="fixed inset-0 bg-scrim/[0.32] anim-fade-in" onClick={onClose} />
-      <div className="relative max-h-[min(90vh,100%)] w-full max-w-md overflow-y-auto rounded-t-3xl bg-surface-container-high px-6 pt-6 shadow-elevation-3 anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-3xl">
+      <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="relative max-h-[min(90vh,100%)] w-full max-w-md overflow-y-auto rounded-t-3xl bg-surface-container-high px-6 pt-6 shadow-elevation-3 outline-none anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-3xl">
         <div className="mb-4 flex items-center gap-2">
-          <h2 className="min-w-0 flex-1 truncate text-headline-s">
+          <h2 id={titleId} className="min-w-0 flex-1 truncate text-headline-s">
             {isNote ? tl(lang, 'share.noteTitle') : tl(lang, 'share.folderTitle', { name: folderLeafDisplayName(target.folder, lang) })}
           </h2>
           <button className="btn-icon ml-auto shrink-0" onClick={onClose} aria-label={tl(lang, 'common.close')}>

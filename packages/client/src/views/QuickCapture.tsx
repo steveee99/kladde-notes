@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useModal } from '../lib/modal';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, ChefHat, CheckSquare, FileText, Image, Loader2, Mic, Send, X } from '../lib/icons';
 import { VoiceRecorderPanel, canRecord } from './VoiceRecorder';
@@ -77,13 +78,16 @@ export function QuickCapture({
       setBusy(false);
     }
   };
+  const panel = useRef<HTMLDivElement>(null);
+  useModal(panel, onClose);
+
   return createPortal(
     <div
       className="fixed inset-x-0 z-50 flex items-end justify-center sm:items-center"
       style={vp ? { top: `${vp.top}px`, height: `${vp.height}px` } : { top: 0, bottom: 0 }}
     >
       <div className="fixed inset-0 bg-scrim/[0.32] anim-fade-in" onClick={onClose} />
-      <div className="relative max-h-[min(90vh,100%)] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface-container-high px-4 pt-4 shadow-elevation-3 anim-sheet [--pad-bottom:1rem] safe-bottom sm:rounded-3xl">
+      <div ref={panel} role="dialog" aria-modal="true" aria-label={tl(lang, 'nav.capture')} tabIndex={-1} className="relative max-h-[min(90vh,100%)] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface-container-high px-4 pt-4 shadow-elevation-3 outline-none anim-sheet [--pad-bottom:1rem] safe-bottom sm:rounded-3xl">
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-outline-variant sm:hidden" />
         {notice && (
           <p role="status" className="mb-3 flex items-start gap-2 text-sm text-warn">

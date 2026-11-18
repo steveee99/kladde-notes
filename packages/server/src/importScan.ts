@@ -24,7 +24,7 @@ export function cleanSpaceFolder(raw: string): string {
   if (!trimmed || trimmed === '/' || trimmed === '.') return '';
   const cleaned = cleanPath(trimmed);
   if (cleaned === SYSTEM_PREFIX.slice(0, -1) || cleaned.startsWith(SYSTEM_PREFIX)) {
-    throw new CliError('Der Ordner ".kladde" ist für interne Einstellungen reserviert.');
+    throw new CliError('The folder ".kladde" is reserved for internal settings.');
   }
   return cleaned;
 }
@@ -32,7 +32,7 @@ export function cleanSpaceFolder(raw: string): string {
 export function cleanSpaceNotePath(raw: string): string {
   const cleaned = cleanPath(raw.trim().replace(/\\/g, '/'));
   if (cleaned.startsWith(SYSTEM_PREFIX)) {
-    throw new CliError('Der Ordner ".kladde" ist für interne Einstellungen reserviert.');
+    throw new CliError('The folder ".kladde" is reserved for internal settings.');
   }
   return cleaned.toLowerCase().endsWith('.md') ? cleaned : `${cleaned}.md`;
 }

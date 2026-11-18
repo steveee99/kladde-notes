@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { INBOX_FOLDER, Me, projectTitleOf, runQuery } from '@kladde/shared';
 import { api, ApiError, uploadFile } from './lib/api';
 import { match, navigate, usePath } from './lib/router';
@@ -15,28 +15,31 @@ import { HomeView } from './views/Home';
 import { NoteList } from './views/NoteList';
 import { GroupManageView, GroupView, GroupsView } from './views/Groups';
 import { NoteView } from './views/NoteView';
-import { SearchView } from './views/Search';
-import { SettingsView } from './views/Settings';
 import { InboxView } from './views/Inbox';
-import { ShareCaptureView } from './views/ShareCapture';
 import { GraphView } from './views/Graph';
-import { TagsView } from './views/Tags';
 import { ReviewView } from './views/Review';
-import { AdminView } from './views/Admin';
-import { TemplatesView } from './views/Templates';
 import { McpSettingsView } from './views/McpSettings';
-import { ImportSettingsView } from './views/ImportSettings';
-import { CalendarSettingsView } from './views/CalendarSettings';
-import { NotificationSettingsView } from './views/NotificationSettings';
-import { OAuthConsent } from './views/OAuthConsent';
-import { FilesView } from './views/Files';
-import { TrashView } from './views/Trash';
 import { DailyNoteEmptyView } from './views/DailyNoteBar';
 import { CalendarView } from './views/ActivityHeatmap';
 import { TasksView } from './views/TasksView';
-import { ShortcutsSettingsView } from './views/ShortcutsSettings';
-import { ClipRoute } from './views/ClipRoute';
-import { ConfluenceSettingsView } from './views/ConfluenceSettings';
+
+// Pages that are opened now and then load on first use, so the app starts with a smaller bundle (#64).
+// The service worker caches them with everything else, so they work offline too.
+const SearchView = lazy(() => import('./views/Search').then((m) => ({ default: m.SearchView })));
+const SettingsView = lazy(() => import('./views/Settings').then((m) => ({ default: m.SettingsView })));
+const ShareCaptureView = lazy(() => import('./views/ShareCapture').then((m) => ({ default: m.ShareCaptureView })));
+const TagsView = lazy(() => import('./views/Tags').then((m) => ({ default: m.TagsView })));
+const AdminView = lazy(() => import('./views/Admin').then((m) => ({ default: m.AdminView })));
+const TemplatesView = lazy(() => import('./views/Templates').then((m) => ({ default: m.TemplatesView })));
+const ImportSettingsView = lazy(() => import('./views/ImportSettings').then((m) => ({ default: m.ImportSettingsView })));
+const CalendarSettingsView = lazy(() => import('./views/CalendarSettings').then((m) => ({ default: m.CalendarSettingsView })));
+const NotificationSettingsView = lazy(() => import('./views/NotificationSettings').then((m) => ({ default: m.NotificationSettingsView })));
+const OAuthConsent = lazy(() => import('./views/OAuthConsent').then((m) => ({ default: m.OAuthConsent })));
+const FilesView = lazy(() => import('./views/Files').then((m) => ({ default: m.FilesView })));
+const TrashView = lazy(() => import('./views/Trash').then((m) => ({ default: m.TrashView })));
+const ShortcutsSettingsView = lazy(() => import('./views/ShortcutsSettings').then((m) => ({ default: m.ShortcutsSettingsView })));
+const ClipRoute = lazy(() => import('./views/ClipRoute').then((m) => ({ default: m.ClipRoute })));
+const ConfluenceSettingsView = lazy(() => import('./views/ConfluenceSettings').then((m) => ({ default: m.ConfluenceSettingsView })));
 
 const ME_KEY = 'kladde_me';
 
@@ -169,7 +172,12 @@ export function App() {
   if (me === undefined) return <div className="flex h-full items-center justify-center text-on-surface-variant">…</div>;
   if (me === null) return <Login onDone={signedIn} />;
   // An AI assistant asks for access (OAuth): after the login above, without the app around it
-  if (path === '/oauth/authorize') return <OAuthConsent me={me} />;
+  if (path === '/oauth/authorize')
+    return (
+      <Suspense fallback={<PageLoading />}>
+        <OAuthConsent me={me} />
+      </Suspense>
+    );
 
   let page: React.ReactNode;
   const note = match(path, '/n/:id');
@@ -222,5 +230,14 @@ export function App() {
     );
   else page = <HomeView />;
 
-  return <Shell me={me} isAdmin={!me.standalone && me.isAdmin}>{page}</Shell>;
+  return (
+    <Shell me={me} isAdmin={!me.standalone && me.isAdmin}>
+      <Suspense fallback={<PageLoading />}>{page}</Suspense>
+    </Shell>
+  );
+}
+
+/** Shown for a moment while a page loads on first use */
+function PageLoading() {
+  return <div className="py-16 text-center text-on-surface-variant" role="status" aria-label="…" />;
 }

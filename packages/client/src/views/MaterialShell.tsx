@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { useModal } from '../lib/modal';
 import { CalendarCheck, CalendarDays, FileText, Home, Inbox as InboxIcon, ListChecks, Menu, Network, Pencil, Search as SearchIcon, Share2, Tags, Users, X } from '../lib/icons';
 import { openSearch, SearchDialogHost } from './SearchDialog';
 import { INBOX_FOLDER, Me, splitPath } from '@kladde/shared';
@@ -26,6 +27,25 @@ import { setFocusMode, useFocusMode } from '../lib/focus';
  * detached right inspector surface for open notes, and a navigation bar + modal drawer on mobile (< nav).
  */
 
+/** The modal navigation drawer on phones: Escape closes it, Tab stays inside, focus returns to the menu button */
+function DrawerPanel({ label, onClose, children }: { label: string; onClose: () => void; children: React.ReactNode }) {
+  const panel = useRef<HTMLElement>(null);
+  useModal(panel, onClose);
+  return (
+    <aside
+      ref={panel}
+      role="dialog"
+      aria-modal="true"
+      aria-label={label}
+      tabIndex={-1}
+      className="m3-status absolute inset-y-0 left-0 w-[85%] max-w-[360px] rounded-r-2xl bg-surface-container-low shadow-elevation-1 outline-none safe-top safe-bottom"
+      style={{ animation: 'slide-in 300ms var(--ease) both' }}
+    >
+      {children}
+    </aside>
+  );
+}
+
 const RightPaneHostContext = createContext<HTMLDivElement | null>(null);
 
 export function useRightPaneHost(): HTMLDivElement | null {
@@ -45,6 +65,7 @@ function Destination({
   icon,
   label,
   badge,
+  badgeLabel,
   bar,
   title,
   ariaLabel,
@@ -56,6 +77,8 @@ function Destination({
   icon?: React.ReactNode;
   label: string;
   badge?: React.ReactNode;
+  /** What the (visually only) badge says, read out after the label */
+  badgeLabel?: string;
   bar?: boolean;
   title?: string;
   ariaLabel?: string;
@@ -81,6 +104,7 @@ function Destination({
         {badge && <span className="absolute -top-1.5 left-[calc(50%+4px)] flex rounded-full ring-2 ring-surface-container">{badge}</span>}
       </span>
       <span className={`max-w-full truncate px-1 ${active ? 'font-bold' : ''}`}>{label}</span>
+      {badge && badgeLabel && <span className="sr-only">, {badgeLabel}</span>}
     </button>
   );
 }
@@ -90,10 +114,26 @@ function RailDivider() {
   return <hr aria-hidden className="w-10 shrink-0 border-0 border-t border-outline-variant" />;
 }
 
-function NavItem({ to, Icon, label, badge, bar, className }: { to: string; Icon: Icon; label: string; badge?: React.ReactNode; bar?: boolean; className?: string }) {
+function NavItem({
+  to,
+  Icon,
+  label,
+  badge,
+  badgeLabel,
+  bar,
+  className,
+}: {
+  to: string;
+  Icon: Icon;
+  label: string;
+  badge?: React.ReactNode;
+  badgeLabel?: string;
+  bar?: boolean;
+  className?: string;
+}) {
   const path = usePath();
   // A destination stays active on its sub pages (`/tags/<tag>`)
-  return <Destination active={path === to || (to !== '/' && path.startsWith(`${to}/`))} onClick={() => navigate(to)} Icon={Icon} label={label} badge={badge} bar={bar} className={className} />;
+  return <Destination active={path === to || (to !== '/' && path.startsWith(`${to}/`))} onClick={() => navigate(to)} Icon={Icon} label={label} badge={badge} badgeLabel={badgeLabel} bar={bar} className={className} />;
 }
 
 export function MaterialShell({ me, children, isAdmin }: { me: Me; children: React.ReactNode; isAdmin?: boolean }) {
@@ -180,16 +220,16 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
             {showDailyRail && (
               <Destination active={dailyActive} onClick={() => void openTodayDailyNote()} Icon={CalendarDays} label={t('daily.navShort')} title={t('daily.todayBtn')} />
             )}
-            <NavItem to="/tasks" Icon={ListChecks} label={t('nav.tasks')} badge={taskBadge} />
-            <NavItem to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} />
+            <NavItem to="/tasks" Icon={ListChecks} label={t('nav.tasks')} badge={taskBadge} badgeLabel={t('nav.badgeTasks', { n: urgentTasks })} />
+            <NavItem to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} badgeLabel={t('nav.badgeInbox', { n: inboxCount })} />
             <NavItem to="/notes" Icon={FileText} label={t('nav.notes')} />
             <RailDivider />
             <NavItem to="/graph" Icon={Network} label={t('nav.graphShort')} />
             <NavItem to="/tags" Icon={Tags} label={t('nav.tags')} />
             {features.review.enabled && (
-              <NavItem to="/review" Icon={CalendarCheck} label={t('nav.review')} badge={reviewDue() ? <NavBadge dot className="m-1" /> : undefined} />
+              <NavItem to="/review" Icon={CalendarCheck} label={t('nav.review')} badge={reviewDue() ? <NavBadge dot className="m-1" /> : undefined} badgeLabel={t('nav.badgeReviewDue')} />
             )}
-            {showShared && <NavItem to="/shared" Icon={Share2} label={t('nav.shared')} badge={sharedCount ? <NavBadge count={sharedCount} /> : undefined} />}
+            {showShared && <NavItem to="/shared" Icon={Share2} label={t('nav.shared')} badge={sharedCount ? <NavBadge count={sharedCount} /> : undefined} badgeLabel={t('nav.badgeShared', { n: sharedCount })} />}
             {!vault.standalone && !DEMO && <Destination active={path === '/groups' || path.startsWith('/groups/') || path.startsWith('/g/')} onClick={() => navigate('/groups')} Icon={Users} label={t('nav.groups')} />}
             <div className="m3-status mt-auto flex flex-col items-center gap-2 pt-2">
               <RailDivider />
@@ -200,7 +240,6 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
                 onClick={() => navigate('/settings')}
                 icon={<Avatar name={me.username} avatarUrl={me.avatarUrl} size="sm" active={settingsActive} />}
                 label={t('nav.options')}
-                ariaLabel={t('nav.settings')}
                 title={me.username}
               />
             </div>
@@ -211,11 +250,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
         {drawer && (
           <div className="fixed inset-0 z-40 nav:hidden">
             <div className="absolute inset-0 bg-scrim/[0.32] anim-fade-in" onClick={() => setDrawer(false)} />
-            <aside
-              className="m3-status absolute inset-y-0 left-0 w-[85%] max-w-[360px] rounded-r-2xl bg-surface-container-low shadow-elevation-1 safe-top safe-bottom"
-              style={{ animation: 'slide-in 300ms var(--ease) both' }}
-              onKeyDown={(e) => e.key === 'Escape' && setDrawer(false)}
-            >
+            <DrawerPanel label={t('nav.navigationLabel')} onClose={() => setDrawer(false)}>
               <Sidebar
                 me={me}
                 isAdmin={isAdmin}
@@ -231,7 +266,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
                   </button>
                 }
               />
-            </aside>
+            </DrawerPanel>
           </div>
         )}
 
@@ -266,8 +301,8 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
             {showDailyRail && (
               <Destination bar className="hidden tablet:flex" active={dailyActive} onClick={() => void openTodayDailyNote()} Icon={CalendarDays} label={t('daily.navShort')} title={t('daily.todayBtn')} />
             )}
-            <NavItem bar to="/tasks" Icon={ListChecks} label={t('nav.tasks')} badge={taskBadge} />
-            <NavItem bar to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} />
+            <NavItem bar to="/tasks" Icon={ListChecks} label={t('nav.tasks')} badge={taskBadge} badgeLabel={t('nav.badgeTasks', { n: urgentTasks })} />
+            <NavItem bar to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} badgeLabel={t('nav.badgeInbox', { n: inboxCount })} />
             <NavItem bar to="/notes" Icon={FileText} label={t('nav.notes')} />
             <Destination bar className="hidden tablet:flex" active={false} onClick={openSearch} Icon={SearchIcon} label={t('common.search')} title={t('common.search')} />
             <NavItem bar className="hidden tablet:flex" to="/tags" Icon={Tags} label={t('nav.tags')} />
@@ -278,7 +313,6 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
               onClick={() => navigate('/settings')}
               icon={<Avatar name={me.username} avatarUrl={me.avatarUrl} size="sm" active={settingsActive} />}
               label={t('nav.options')}
-              ariaLabel={t('nav.settings')}
               title={me.username}
             />
           </nav>
