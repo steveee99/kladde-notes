@@ -84,6 +84,10 @@ import {
   canWriteInGroup,
   type NoteReleaseInfo,
   type ReleaseBump,
+  findDatabaseNote,
+  isDatabasePath,
+  newDatabaseNoteContent,
+  parseDatabase,
 } from '@kladde/shared';
 import { api, ApiError } from '../lib/api';
 import { compareText, getLang, locale, t } from '../lib/i18n';
@@ -391,6 +395,12 @@ class Vault {
   /** A note the user creates; blocked in read-only mode */
   async create(folder: string, title: string, content = ''): Promise<LocalNote> {
     if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    // A new empty note in a database folder (#76) starts with the properties prefilled
+    if (content === '' && folder) {
+      const dbNote = findDatabaseNote(folder, this.list().filter((n) => n.access === 'owner'));
+      const db = dbNote && parseDatabase(dbNote.content);
+      if (db && !isDatabasePath(`${folder}/${title}.md`)) content = newDatabaseNoteContent(db, title);
+    }
     return this.insert(folder, title, content);
   }
 

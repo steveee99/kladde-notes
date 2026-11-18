@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Search as SearchIcon } from '../lib/icons';
-import { projectTitleOf } from '@kladde/shared';
+import { isDatabasePath, projectTitleOf } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { tl, useLang } from '../lib/i18n';
 import { navigate } from '../lib/router';
@@ -18,6 +18,7 @@ export function SearchView() {
     ? vault
         .list()
         .filter((n) => {
+          if (isDatabasePath(n.path)) return false;
           const hay = `${projectTitleOf(n.path, n.content, rc)}\n${n.path}\n${n.content}`.toLowerCase();
           return terms.every((t) => hay.includes(t));
         })
