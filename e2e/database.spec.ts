@@ -163,3 +163,43 @@ test('turns a folder into a database, adds a view property and prefilled entries
     .poll(async () => (await serverNotes(page.request)).find((n) => n.path.startsWith(`${folder}/New entry`))?.content ?? '', { timeout: 15_000 })
     .toMatch(/Stage: lead/);
 });
+
+test('includes subfolders on request and shows their relative path', async ({ page }) => {
+  const folder = `Deep ${uid()}`;
+  await seed(page.request, [
+    { path: `${folder}/${DB_FILE}`, content: SCHEMA.replace('type: database\n', 'type: database\nsubfolders: true\n') },
+    { path: `${folder}/Top.md`, content: '---\nStatus: todo\n---\nT' },
+    { path: `${folder}/Inner/Level/Low.md`, content: '---\nStatus: todo\n---\nL' },
+  ]);
+  await openFolder(page, folder);
+  const db = page.locator('[data-database]');
+  await expect(db.getByRole('columnheader', { name: 'Path' })).toBeVisible();
+  await expect(db.getByText('Low', { exact: true })).toBeVisible();
+  await expect(db.getByRole('cell', { name: 'Inner/Level', exact: true })).toBeVisible();
+
+  // Switched off in the schema editor, the subfolder notes and the column go away
+  await db.locator('[data-database-edit]').click();
+  const sheet = page.getByRole('dialog');
+  await sheet.getByLabel('Include notes from subfolders').uncheck();
+  await sheet.getByRole('button', { name: 'Save' }).click();
+  await expect(sheet).toBeHidden();
+  await expect(db.getByText('Low', { exact: true })).toHaveCount(0);
+  await expect(db.getByRole('columnheader', { name: 'Path' })).toHaveCount(0);
+  await expect(db.getByText('Top', { exact: true })).toBeVisible();
+});
+
+test('in read-only mode the cells are plain values, not editors', async ({ page }) => {
+  const folder = `Locked ${uid()}`;
+  await seed(page.request, [
+    { path: `${folder}/${DB_FILE}`, content: SCHEMA },
+    { path: `${folder}/Alpha.md`, content: '---\nStatus: todo\nPages: 7\n---\nA' },
+  ]);
+  await page.addInitScript(() => localStorage.setItem('kladde_readonly', '1'));
+  await openFolder(page, folder);
+  const db = page.locator('[data-database]');
+  await expect(db.getByText('Alpha', { exact: true })).toBeVisible();
+  await expect(db.getByText('todo', { exact: true })).toBeVisible();
+  await expect(db.getByRole('combobox', { name: 'Status: Alpha' })).toHaveCount(0);
+  await expect(db.getByLabel('Pages: Alpha')).toHaveCount(0);
+  await expect(db.locator('[data-database-edit], [data-database-add]')).toHaveCount(0);
+});

@@ -23,7 +23,7 @@ import {
 } from '@kladde/shared';
 import { vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
-import { isReadOnly } from '../lib/readOnly';
+import { useReadOnly } from '../lib/readOnly';
 import { navigate } from '../lib/router';
 import { Plus, Settings, Trash2 } from '../lib/icons';
 import { t, useLang, type I18nKey } from '../lib/i18n';
@@ -110,6 +110,7 @@ function TableView({ db, view, rows, canEdit }: { db: Database; view: DbView; ro
         <thead>
           <tr className="border-b border-outline-variant/60 text-left text-label-m text-on-surface-variant">
             <th className="px-3 py-2 font-medium">{t('list.colTitle')}</th>
+            {db.subfolders && <th className="px-3 py-2 font-medium">{t('db.colPath')}</th>}
             {cols.map((p) => (
               <th key={p.name} className="px-3 py-2 font-medium">
                 {p.name}
@@ -125,6 +126,7 @@ function TableView({ db, view, rows, canEdit }: { db: Database; view: DbView; ro
                   {r.title}
                 </a>
               </td>
+              {db.subfolders && <td className="px-3 py-1.5 text-on-surface-variant">{r.folder}</td>}
               {cols.map((p) => (
                 <td key={p.name} className="px-3 py-1.5">
                   <Cell row={r} prop={p} canEdit={canEdit} />
@@ -143,6 +145,7 @@ function Card({ row, shownProps, children }: { row: DbRow; shownProps: DbPropert
     <div className="card cursor-pointer p-3" onClick={() => navigate(`/n/${row.noteId}`)}>
       {children}
       <div className="font-medium">{row.title}</div>
+      {row.folder && <div className="truncate text-xs text-on-surface-variant">{row.folder}</div>}
       {shownProps.map((p) => {
         const text = formatDbValue(p.type, row.values[p.name]);
         return text ? (
@@ -213,7 +216,10 @@ function SchemaSheet({ db, dbNote, folder, onClose }: { db: Database; dbNote: Lo
   const [views, setViews] = useState<DbView[]>(db.views.map((v) => ({ ...v, filter: v.filter.map((f) => ({ ...f })) })));
   const patchProp = (i: number, p: Partial<DraftProp>) => setProps((l) => l.map((x, j) => (j === i ? { ...x, ...p } : x)));
   const patchView = (i: number, p: Partial<DbView>) => setViews((l) => l.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  const [subfolders, setSubfolders] = useState(db.subfolders);
   const names = props.map((p) => p.name.trim()).filter(Boolean);
+  /** Fields besides the properties that views can sort and filter by */
+  const builtin: DropdownOption[] = [{ value: 'title', label: t('list.colTitle') }, ...(subfolders ? [{ value: 'path', label: t('db.colPath') }] : [])];
 
   const save = async () => {
     const clean = props.filter((p) => p.name.trim());
@@ -238,6 +244,7 @@ function SchemaSheet({ db, dbNote, folder, onClose }: { db: Database; dbNote: Lo
       }
     }
     const next: Database = {
+      subfolders,
       properties: clean.map(({ orig: _orig, ...p }) => ({
         ...p,
         name: p.name.trim(),
@@ -259,6 +266,9 @@ function SchemaSheet({ db, dbNote, folder, onClose }: { db: Database; dbNote: Lo
 
   return (
     <Sheet title={t('db.editTitle')} onClose={onClose}>
+      <label className="mb-4 flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={subfolders} onChange={(e) => setSubfolders(e.target.checked)} /> {t('db.subfolders')}
+      </label>
       <h3 className="mb-2 text-title-s">{t('db.properties')}</h3>
       <ul className="mb-2 space-y-3">
         {props.map((p, i) => (
@@ -308,14 +318,14 @@ function SchemaSheet({ db, dbNote, folder, onClose }: { db: Database; dbNote: Lo
             )}
             <label className="mt-2 flex items-center gap-2 text-sm">
               {t('db.sortBy')}
-              <Dropdown className="w-auto" aria-label={t('db.sortBy')} value={v.sort} options={[NONE, { value: 'title', label: t('list.colTitle') }, ...asOptions(names)]} onChange={(x) => patchView(i, { sort: x })} />
+              <Dropdown className="w-auto" aria-label={t('db.sortBy')} value={v.sort} options={[NONE, ...builtin, ...asOptions(names)]} onChange={(x) => patchView(i, { sort: x })} />
               <label className="flex items-center gap-1">
                 <input type="checkbox" checked={v.desc} onChange={(e) => patchView(i, { desc: e.target.checked })} /> {t('db.descending')}
               </label>
             </label>
             {v.filter.map((f, fi) => (
               <div key={fi} className="mt-2 flex flex-wrap items-center gap-2">
-                <Dropdown className="w-auto" aria-label={t('db.filterProperty')} value={f.property} options={[{ value: 'title', label: t('list.colTitle') }, ...asOptions(names)]} onChange={(x) => patchView(i, { filter: v.filter.map((y, j) => (j === fi ? { ...y, property: x } : y)) })} />
+                <Dropdown className="w-auto" aria-label={t('db.filterProperty')} value={f.property} options={[...builtin, ...asOptions(names)]} onChange={(x) => patchView(i, { filter: v.filter.map((y, j) => (j === fi ? { ...y, property: x } : y)) })} />
                 <Dropdown className="w-auto" aria-label={t('db.filterOp')} value={f.op} options={FILTER_OPS.map((op) => ({ value: op, label: t(opKey(op)) }))} onChange={(x) => patchView(i, { filter: v.filter.map((y, j) => (j === fi ? { ...y, op: x as typeof f.op } : y)) })} />
                 {f.op !== 'empty' && f.op !== 'notempty' && (
                   <input className="input min-w-0 flex-1" aria-label={t('db.filterValue')} value={f.value} onChange={(e) => patchView(i, { filter: v.filter.map((x, j) => (j === fi ? { ...x, value: e.target.value } : x)) })} />
@@ -353,8 +363,9 @@ export function DatabaseView({ folder, dbNote }: { folder: string; dbNote: Local
   const db = parseDatabase(dbNote.content);
   const [active, setActive] = useState(0);
   const [editing, setEditing] = useState(false);
+  const readOnly = useReadOnly();
   if (!db) return null;
-  const canEdit = dbNote.access !== 'read' && !isReadOnly();
+  const canEdit = dbNote.access !== 'read' && !readOnly;
   const view = db.views[Math.min(active, db.views.length - 1)];
   const all = vault.list().filter((n) => n.access === 'owner' || n.id === dbNote.id || n.path.startsWith(`${folder}/`));
   const rows = applyView(db, view, databaseRows(db, folder, all));

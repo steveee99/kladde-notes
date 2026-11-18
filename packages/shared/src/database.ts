@@ -73,6 +73,8 @@ export interface DbView {
 export interface Database {
   properties: DbProperty[];
   views: DbView[];
+  /** Notes in subfolders are rows too (`subfolders: true`) */
+  subfolders: boolean;
 }
 
 /** A cell value in its typed form */
@@ -87,6 +89,8 @@ export interface DbNote {
 export interface DbRow {
   noteId: string;
   path: string;
+  /** Folder relative to the database folder (empty for notes directly in it) */
+  folder: string;
   title: string;
   values: Record<string, DbValue>;
   /** First image of the note, already safe for `src` (gallery) */
@@ -136,7 +140,7 @@ export function parseDatabase(content: string): Database | null {
     });
   }
   if (!views.length) views.push(defaultView());
-  return { properties, views };
+  return { properties, views, subfolders: str(fm.data.subfolders).toLowerCase() === 'true' };
 }
 
 export const defaultView = (name = 'Table'): DbView => ({ name, type: 'table', columns: [], group: '', filter: [], sort: '', desc: false });
@@ -160,13 +164,13 @@ export function writeDatabase(content: string, db: Database): string {
     }
     return o;
   });
-  return setFrontmatterValues(content, { type: 'database', properties, views });
+  return setFrontmatterValues(content, { type: 'database', subfolders: db.subfolders ? 'true' : undefined, properties, views });
 }
 
 /** Content of a new database note; `keys` are frontmatter keys found in the folder's notes, made text properties */
 export function newDatabaseContent(keys: string[] = []): string {
   const properties: DbProperty[] = keys.map((name) => ({ name, type: 'text', options: [], default: '' }));
-  return writeDatabase('', { properties, views: [defaultView()] });
+  return writeDatabase('', { properties, views: [defaultView()], subfolders: false });
 }
 
 /** Frontmatter keys used by the notes of a folder (without the usual `title`, `tags`, `id`, `type`), to seed a schema */
@@ -253,12 +257,13 @@ function findKey(data: YamlMap, name: string): string | undefined {
 
 const IMAGE = /!\[[^\]]*\]\(\s*<?([^)\s>]+)>?[^)]*\)/;
 
-/** The rows of a database: the notes directly in its folder, without the database note itself */
+/** The rows of a database: the notes in its folder (and its subfolders if the database includes them), without database notes */
 export function databaseRows(db: Database, folder: string, notes: Iterable<DbNote>): DbRow[] {
   const rows: DbRow[] = [];
   for (const n of notes) {
     const { folder: f, name } = splitPath(n.path);
-    if (f !== folder || isDatabasePath(n.path)) continue;
+    const inside = f === folder || (db.subfolders && (folder === '' || f.startsWith(`${folder}/`)));
+    if (!inside || isDatabasePath(n.path)) continue;
     const fm = readFrontmatterYaml(n.content);
     const data = fm?.data ?? {};
     const values: Record<string, DbValue> = {};
@@ -268,7 +273,7 @@ export function databaseRows(db: Database, folder: string, notes: Iterable<DbNot
     }
     const body = fm ? fm.body : n.content;
     const img = IMAGE.exec(body.replace(/```[\s\S]*?(```|$)/g, ''));
-    rows.push({ noteId: n.id, path: n.path, title: str(data.title).trim() || name, values, cover: img ? safeUrl(img[1], 'media') : null });
+    rows.push({ noteId: n.id, path: n.path, folder: f === folder ? '' : f.slice(folder ? folder.length + 1 : 0), title: str(data.title).trim() || name, values, cover: img ? safeUrl(img[1], 'media') : null });
   }
   return rows;
 }
@@ -281,7 +286,8 @@ function isEmpty(v: DbValue | undefined): boolean {
 
 function matchesFilter(db: Database, row: DbRow, f: DbFilter): boolean {
   const prop = db.properties.find((p) => p.name.toLowerCase() === f.property.toLowerCase());
-  const v = f.property.toLowerCase() === 'title' ? row.title : prop ? row.values[prop.name] : null;
+  const special = f.property.toLowerCase();
+  const v = special === 'title' ? row.title : special === 'path' && !prop ? row.folder : prop ? row.values[prop.name] : null;
   const type = prop?.type ?? 'text';
   if (f.op === 'empty') return isEmpty(v);
   if (f.op === 'notempty') return !isEmpty(v);
@@ -319,8 +325,8 @@ export function applyView(db: Database, view: DbView, rows: DbRow[]): DbRow[] {
   const prop = db.properties.find((p) => p.name.toLowerCase() === sortName);
   out.sort((a, b) => {
     if (sortName) {
-      const av = prop ? a.values[prop.name] : sortName === 'title' ? a.title : null;
-      const bv = prop ? b.values[prop.name] : sortName === 'title' ? b.title : null;
+      const av = prop ? a.values[prop.name] : sortName === 'title' ? a.title : sortName === 'path' ? a.folder : null;
+      const bv = prop ? b.values[prop.name] : sortName === 'title' ? b.title : sortName === 'path' ? b.folder : null;
       const ae = isEmpty(av);
       const be = isEmpty(bv);
       if (ae !== be) return ae ? 1 : -1;

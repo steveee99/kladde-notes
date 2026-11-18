@@ -24,6 +24,7 @@ const db: Database = {
     { name: 'Due', type: 'date', options: [], default: '' },
     { name: 'Author', type: 'link', options: [], default: '' },
   ],
+  subfolders: false,
   views: [
     { name: 'Open', type: 'table', columns: ['Status', 'Pages'], group: '', filter: [{ property: 'Status', op: 'ne', value: 'done' }], sort: 'Pages', desc: true },
     { name: 'Board', type: 'board', columns: [], group: 'Status', filter: [], sort: '', desc: false },
@@ -106,6 +107,19 @@ describe('rows and views', () => {
     expect(applyView(db, db.views[0], rows).map((r) => r.title)).toEqual(['One', 'Three', 'Zed']);
     const asc = applyView(db, { ...db.views[0], filter: [], desc: false }, rows);
     expect(asc.map((r) => r.title)).toEqual(['Two', 'One', 'Three', 'Zed']);
+  });
+
+  it('includes notes of subfolders with their relative folder when the database asks for it', () => {
+    expect(databaseRows(db, 'B', notes).some((r) => r.noteId === 's')).toBe(false);
+    const deep = databaseRows({ ...db, subfolders: true }, 'B', notes);
+    expect(deep.find((r) => r.noteId === 's')?.folder).toBe('sub');
+    expect(deep.find((r) => r.noteId === 'One')?.folder).toBe('');
+    expect(deep.some((r) => r.noteId === 'db')).toBe(false);
+    const view = { ...db.views[0], filter: [], sort: 'path', desc: false };
+    expect(applyView({ ...db, subfolders: true }, view, deep)[0].folder).toBe('sub');
+    const byPath = { ...view, filter: [{ property: 'path', op: 'contains' as const, value: 'su' }] };
+    expect(applyView({ ...db, subfolders: true }, byPath, deep).map((r) => r.noteId)).toEqual(['s']);
+    expect(parseDatabase(writeDatabase('', { ...db, subfolders: true }))?.subfolders).toBe(true);
   });
 
   it('groups a board by the select options, then none', () => {
