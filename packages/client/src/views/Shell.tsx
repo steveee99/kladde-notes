@@ -65,7 +65,7 @@ import { ConfluenceDialog } from './ConfluenceDialog';
 import { confluenceAvailable } from '../lib/confluence';
 import { getFocusMode, setFocusMode, toggleFocusMode } from '../lib/focus';
 import { editorHost } from '../editor/host';
-import { folderDisplayName, locale, t, useLang } from '../lib/i18n';
+import { compareText, folderDisplayName, locale, t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
 import { createDrawingNote, createPdfNote } from '../lib/newNote';
 import { DEMO } from '../demo/demoApi';
@@ -627,13 +627,15 @@ function GroupTreeItem({ groupId, current, activeNoteId, onNavigate }: { groupId
   const group = vault.group(groupId)!;
   const notes = vault.groupNotes(groupId);
   const activeNote = activeNoteId ? notes.find((n) => n.id === activeNoteId) : undefined;
-  const loc = locale(useLang());
+  const lang = useLang();
   const byFolder = new Map<string, LocalNote[]>();
   for (const n of notes) {
     const f = splitPath(n.path).folder;
-    byFolder.set(f, [...(byFolder.get(f) ?? []), n]);
+    const list = byFolder.get(f);
+    if (list) list.push(n);
+    else byFolder.set(f, [n]);
   }
-  for (const list of byFolder.values()) list.sort((a, b) => splitPath(a.path).name.localeCompare(splitPath(b.path).name, loc, { numeric: true }));
+  for (const list of byFolder.values()) list.sort((a, b) => compareText(splitPath(a.path).name, splitPath(b.path).name, lang));
   const rootPath = groupPath(groupId);
   const inGroup = current === rootPath || current.startsWith(`${rootPath}/`) || !!activeNote;
   const [open, setOpen] = useState(inGroup);
@@ -950,7 +952,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
       else map.set(f, [n]);
     }
     for (const list of map.values()) {
-      list.sort((a, b) => splitPath(a.path).name.localeCompare(splitPath(b.path).name, loc, { numeric: true }));
+      list.sort((a, b) => compareText(splitPath(a.path).name, splitPath(b.path).name, lang));
     }
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps

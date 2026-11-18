@@ -64,6 +64,22 @@ export function useLang(): Lang {
   return useSyncExternalStore(subscribe, () => current);
 }
 
+const collators = new Map<Lang, Intl.Collator>();
+
+/**
+ * Compares texts for sorting in the language's order, numbers by value ("Note 2" before "Note 10"). Use it instead
+ * of `localeCompare(b, locale(lang), …)`, which builds a new collator for every comparison: sorting thousands of
+ * notes or folders took seconds (#64).
+ */
+export function compareText(a: string, b: string, lang: Lang = current): number {
+  let c = collators.get(lang);
+  if (!c) {
+    c = new Intl.Collator(locale(lang), { numeric: true });
+    collators.set(lang, c);
+  }
+  return c.compare(a, b);
+}
+
 export function locale(lang: Lang = current): string {
   return lang === 'en' ? 'en-US' : 'de-DE';
 }
@@ -404,6 +420,7 @@ const de = {
   'home.viewCompactTitle': 'Kompakte Ansicht',
   'nav.tasks': 'Aufgaben',
   'tasks.title': 'Aufgaben',
+  'tasks.showMore': '{n} weitere anzeigen',
   'tasks.allBtn': 'Alle Aufgaben',
   'tasks.allTitle': 'Alle Aufgaben öffnen, auch die ohne Datum',
   'tasks.undatedLink': '{n} ohne Datum auf der Aufgabenseite',
@@ -1872,6 +1889,7 @@ const en: Record<I18nKey, string> = {
   'home.viewCompactTitle': 'Compact view',
   'nav.tasks': 'Tasks',
   'tasks.title': 'Tasks',
+  'tasks.showMore': 'Show {n} more',
   'tasks.allBtn': 'All tasks',
   'tasks.allTitle': 'Open all tasks, including the ones without a date',
   'tasks.undatedLink': '{n} without a date on the task page',

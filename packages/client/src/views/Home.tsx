@@ -9,7 +9,7 @@ import { useReadOnly } from '../lib/readOnly';
 import { formatDue } from '../editor/widgets';
 import { NoteCollection, ViewSwitch } from './NoteList';
 import { ActivityHeatmap } from './ActivityHeatmap';
-import { BUCKETS, TaskItem, TaskKanban, collectTasks } from './TaskParts';
+import { BUCKETS, TaskKanban, TaskRows, collectTasks } from './TaskParts';
 import { locale, t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
 
@@ -192,11 +192,7 @@ export function HomeView() {
                   <h3 className={`mb-2 px-4 text-title-s ${b.tone}`}>
                     {t(b.labelKey)} <span className="text-on-surface-variant">· {list.length}</span>
                   </h3>
-                  <ul className="stagger flex flex-col gap-0.5">
-                    {list.map((tk) => (
-                      <TaskItem key={`${tk.noteId}:${tk.line}:${tk.text}`} task={tk} compact={compact} />
-                    ))}
-                  </ul>
+                  <TaskRows tasks={list} compact={compact} />
                 </div>
               );
             })}

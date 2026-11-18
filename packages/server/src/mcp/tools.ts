@@ -410,7 +410,7 @@ export const TOOLS: ToolDef[] = [
       const pages = deps ? attachmentPages(deps, notes).pages.filter((p) => !folder || p.notes.some((n) => n.path.startsWith(`${folder}/`))) : [];
       const pageDocs = new Map(pages.map((p, i) => [`attachment:${i}`, p]));
       const docs = [...notes, ...[...pageDocs].map(([id, p]) => ({ id, path: `${p.name} (S. ${p.page})`, content: p.text }))];
-      const all = semanticSearch(query, docs, { limit: Math.min(100, limit * 2), minScore });
+      const all = semanticSearch(query, docs, { limit: Math.min(100, limit * 2), minScore, corpusKey: ctx.userId });
       const hits = all.filter((h) => !pageDocs.has(h.note.id) && (!folder || h.note.path.startsWith(`${folder}/`))).slice(0, limit);
       const fileHits = all.filter((h) => pageDocs.has(h.note.id)).slice(0, limit);
       return {

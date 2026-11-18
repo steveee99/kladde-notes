@@ -6,7 +6,7 @@ import { Check, Filter, LocateFixed, X } from '../lib/icons';
 import { Dropdown } from './Dropdown';
 import { useVault, vault } from '../data/vault';
 import { navigate } from '../lib/router';
-import { folderDisplayName, locale, t, useLang, type I18nKey } from '../lib/i18n';
+import { compareText, folderDisplayName, locale, t, useLang, type I18nKey } from '../lib/i18n';
 
 /** A graph node; `orphan` (no link in or out on the whole graph) draws it as a ring */
 type ViewNode = GraphNode & { orphan?: boolean };
@@ -84,7 +84,10 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: ViewNo
       draw();
     };
 
+    // Thousands of notes (#64): the layout settles in fewer steps and only the notes in focus get labels
+    const big = simNodes.length > 1500;
     const sim = forceSimulation(simNodes)
+      .alphaDecay(big ? 0.06 : 0.0228)
       .force('link', forceLink<SimNode, SimLink>(simLinks).id((d) => d.id).distance(80).strength(0.5))
       .force('charge', forceManyBody().strength(-260))
       .force('center', forceCenter(0, 0))
@@ -157,7 +160,7 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: ViewNo
           ctx.stroke();
           ctx.lineWidth = 1 / view.k;
         }
-        const label = n.id === active?.id || near?.has(n.id) || view.k > 1.4 || n.links >= 4 || simNodes.length < 25;
+        const label = n.id === active?.id || near?.has(n.id) || view.k > 1.4 || (!big && n.links >= 4) || simNodes.length < 25;
         if (label && !dim) {
           ctx.font = `${12 / view.k}px ${fontFamily}`;
           ctx.textAlign = 'center';
@@ -401,7 +404,7 @@ export function GraphView() {
     setFocusId('');
   };
   const tags = useMemo(
-    () => [...new Set(notes.flatMap((n) => extractMeta(n.path, n.content).tags))].sort((a, b) => a.localeCompare(b, locale(lang))),
+    () => [...new Set(notes.flatMap((n) => extractMeta(n.path, n.content).tags))].sort((a, b) => compareText(a, b, lang)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [version, lang]
   );
@@ -413,7 +416,7 @@ export function GraphView() {
     () =>
       notes
         .map((n) => ({ value: n.id, label: projectTitleOf(n.path, n.content, roleConfig) || splitPath(n.path).name }))
-        .sort((a, b) => a.label.localeCompare(b.label, locale(lang), { numeric: true })),
+        .sort((a, b) => compareText(a.label, b.label, lang)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [version, lang]
   );

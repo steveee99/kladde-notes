@@ -251,7 +251,7 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<CliResult> 
       const folder = folderArg ? cleanSpaceFolder(folderArg) : undefined;
       const limit = Math.max(1, Math.min(50, Number(getFlagString(flags, 'limit', 'n') ?? 10) || 10));
       const all = deps.notes.ownedNotes(user.id).filter((n) => !n.path.startsWith(SYSTEM_PREFIX));
-      const hits = semanticSearch(query, all, { folder, limit });
+      const hits = semanticSearch(query, all, { folder, limit, corpusKey: user.id });
       const lines = hits.length
         ? hits.map((h) => `[${h.score.toFixed(2)}] ${h.note.path} (${h.reasons.join(', ')}) — ${h.snippet}`)
         : ['No matching notes found.'];

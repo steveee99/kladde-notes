@@ -1,10 +1,17 @@
 import { LinkIndex, type LinkNote } from './links.js';
 import { extractMeta, parseFrontmatter } from './markdown.js';
+import { NoteMemo } from './noteMemo.js';
+import { PARA } from './para.js';
 
 export interface SemanticSearchOptions {
   folder?: string;
   limit?: number;
   minScore?: number;
+  /**
+   * Whose notes these are (e.g. the user id). The corpus statistics are kept per key between searches and only
+   * updated for changed notes (#64); without a key one shared corpus is used.
+   */
+  corpusKey?: string;
 }
 
 export interface SemanticSearchHit {
@@ -75,7 +82,19 @@ export function normalizeText(text: string): string {
 const GER_MULTI = ['lichkeiten', 'igkeiten', 'schaften', 'ungen', 'heiten', 'keiten', 'schaft', 'ischen', 'lichen', 'ende', 'endes', 'enden', 'ung', 'heit', 'keit', 'lich', 'isch', 'ern', 'end', 'est', 'ten', 'tet', 'ens', 'en', 'er', 'es', 'em', 'st', 'te', 'et'];
 const ENG_MULTI = ['ations', 'ments', 'nesses', 'ation', 'ment', 'ness', 'ities', 'ings', 'ing', 'ers', 'ies', 'ied', 'ity', 'ed', 'er', 'ly', 'es'];
 
+/** Stems of tokens seen before: the vocabulary is small compared to how often its words are stemmed (#64) */
+const stemCache = new Map<string, string>();
+
 export function stemToken(raw: string): string {
+  const hit = stemCache.get(raw);
+  if (hit !== undefined) return hit;
+  const stem = computeStem(raw);
+  if (stemCache.size >= 200_000) stemCache.clear();
+  stemCache.set(raw, stem);
+  return stem;
+}
+
+function computeStem(raw: string): string {
   let w = normalizeText(raw).replace(/[^a-z0-9]/g, '');
   if (w.length <= 3) return w;
   for (let pass = 0; pass < 2; pass++) {
@@ -253,7 +272,13 @@ function indexNote(note: LinkNote): IndexedDoc {
   };
 }
 
-function cosineSimilarity(a: Map<string, number>, b: Map<string, number>, idf?: Map<string, number>): number {
+function cosineSimilarity(
+  a: Map<string, number>,
+  b: Map<string, number>,
+  idf?: { get(key: string): number | undefined },
+  /** The squared norm of `b`, when the caller keeps it */
+  normOfB?: () => number
+): number {
   let dot = 0;
   let normA = 0;
   let normB = 0;
@@ -264,9 +289,12 @@ function cosineSimilarity(a: Map<string, number>, b: Map<string, number>, idf?: 
     if (vb) dot += w * (vb * (idf ? (idf.get(k) ?? 1) : 1));
   }
   if (dot === 0 || normA === 0) return 0;
-  for (const [k, vb] of b) {
-    const w = vb * (idf ? (idf.get(k) ?? 1) : 1);
-    normB += w * w;
+  if (normOfB) normB = normOfB();
+  else {
+    for (const [k, vb] of b) {
+      const w = vb * (idf ? (idf.get(k) ?? 1) : 1);
+      normB += w * w;
+    }
   }
   return normB === 0 ? 0 : dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
@@ -310,6 +338,69 @@ function bestSnippet(plainBody: string, title: string, queryStems: Map<string, n
   return bestLineIdx > 0 ? `… ${acc}` : acc;
 }
 
+/** Indexed notes of earlier searches (bounded), and the last link index, so a search only indexes changed notes */
+const docMemo = new NoteMemo<IndexedDoc, LinkNote>(indexNote, 10_000);
+let lastIndex: LinkIndex | null = null;
+
+/** Document frequencies over a set of notes, updated note by note instead of recounted for every search */
+interface Corpus {
+  docs: Map<string, IndexedDoc>;
+  dfStem: Map<string, number>;
+  dfGram: Map<string, number>;
+  /** How many notes contain each raw token (for compound splitting) */
+  rawTokens: Map<string, number>;
+  totalLen: number;
+  /** Changes whenever a note is added, changed or removed: the idf weights (and the norms below) depend on it */
+  generation: number;
+  /** idf-weighted n-gram norm per doc, valid for one generation */
+  gramNorms: WeakMap<IndexedDoc, { generation: number; norm: number }>;
+}
+
+const corpora = new Map<string, Corpus>();
+const MAX_CORPORA = 8;
+
+const bump = (map: Map<string, number>, key: string, by: number) => {
+  const n = (map.get(key) ?? 0) + by;
+  if (n > 0) map.set(key, n);
+  else map.delete(key);
+};
+
+function countDoc(c: Corpus, d: IndexedDoc, by: 1 | -1) {
+  for (const s of d.stemWeights.keys()) bump(c.dfStem, s, by);
+  for (const g of d.grams.keys()) bump(c.dfGram, g, by);
+  for (const r of d.rawTokens) bump(c.rawTokens, r, by);
+  c.totalLen += by * d.docLen;
+}
+
+/** The corpus for `key` brought up to date with `docs` (the same doc object means an unchanged note) */
+function corpusFor(key: string, docs: IndexedDoc[]): Corpus {
+  let c = corpora.get(key);
+  if (c) corpora.delete(key);
+  else c = { docs: new Map(), dfStem: new Map(), dfGram: new Map(), rawTokens: new Map(), totalLen: 0, generation: 0, gramNorms: new WeakMap() };
+  corpora.set(key, c);
+  if (corpora.size > MAX_CORPORA) corpora.delete(corpora.keys().next().value!);
+  const seen = new Set<string>();
+  for (const d of docs) {
+    const id = d.note.id;
+    seen.add(id);
+    const old = c.docs.get(id);
+    if (old === d) continue;
+    if (old) countDoc(c, old, -1);
+    countDoc(c, d, 1);
+    c.docs.set(id, d);
+    c.generation++;
+  }
+  if (c.docs.size !== seen.size) {
+    for (const [id, d] of c.docs) {
+      if (seen.has(id)) continue;
+      countDoc(c, d, -1);
+      c.docs.delete(id);
+    }
+    c.generation++;
+  }
+  return c;
+}
+
 /**
  * Local conceptual + lexical + graph-aware semantic search over notes.
  * Combines BM25 over stemmed fields, German compound/subword matching,
@@ -326,22 +417,19 @@ export function semanticSearch(query: string, notes: LinkNote[], options: Semant
   const rawQueryTokens = tokenize(trimmed);
   if (!rawQueryTokens.length) return [];
 
-  const docs = notes.map(indexNote);
+  // Indexing is the expensive part: kept per note between searches and redone only for changed notes (#64).
+  // The indexed doc may hold an older object of the same note; results use the note passed in.
+  const current = new Map(notes.map((n) => [n.id, n]));
+  const docs = notes.map((n) => docMemo.get(n));
   const N = docs.length;
-  const avgLen = docs.reduce((s, d) => s + d.docLen, 0) / N;
 
-  // Document frequencies for stems & n-grams across the entire space
-  const dfStem = new Map<string, number>();
-  const dfGram = new Map<string, number>();
-  const corpusRawTokens = new Set<string>();
-  for (const d of docs) {
-    for (const s of d.stemWeights.keys()) dfStem.set(s, (dfStem.get(s) ?? 0) + 1);
-    for (const g of d.grams.keys()) dfGram.set(g, (dfGram.get(g) ?? 0) + 1);
-    for (const r of d.rawTokens) corpusRawTokens.add(r);
-  }
+  // Document frequencies for stems & n-grams across the entire space, kept up to date per note
+  const corpus = corpusFor(options.corpusKey ?? '', docs);
+  const { dfStem, dfGram } = corpus;
+  const avgLen = corpus.totalLen / N;
+  const corpusRawTokens = corpus.rawTokens.keys();
   const idfStem = (s: string) => Math.max(0.35, Math.log(1 + (N - (dfStem.get(s) ?? 0) + 0.5) / ((dfStem.get(s) ?? 0) + 0.5)));
-  const idfGram = new Map<string, number>();
-  for (const [g, df] of dfGram) idfGram.set(g, Math.log(1 + N / (df + 0.5)));
+  const idfGram = new IdfMap(dfGram, N);
 
   // Build weighted query stems: direct stems (1.0), compound parts from corpus (0.7), concept siblings (0.38)
   const directStems = new Set<string>();
@@ -431,7 +519,17 @@ export function semanticSearch(query: string, notes: LinkNote[], options: Semant
     if (compoundHits > 0 && !reasons.has('Wortteil')) reasons.add('Kompositum');
 
     // Cosine similarity on character n-grams & stemmed terms
-    const gramCos = cosineSimilarity(queryGrams, d.grams, idfGram);
+    const gramCos = cosineSimilarity(queryGrams, d.grams, idfGram, () => {
+      const cached = corpus.gramNorms.get(d);
+      if (cached?.generation === corpus.generation) return cached.norm;
+      let sum = 0;
+      for (const [k, vb] of d.grams) {
+        const w = vb * (idfGram.get(k) ?? 1);
+        sum += w * w;
+      }
+      corpus.gramNorms.set(d, { generation: corpus.generation, norm: sum });
+      return sum;
+    });
     const stemCos = cosineSimilarity(queryStemWeights, d.stemWeights);
     if (gramCos >= 0.14 && directHits === 0 && conceptHits === 0) reasons.add('Ähnliche Begriffe');
 
@@ -449,10 +547,11 @@ export function semanticSearch(query: string, notes: LinkNote[], options: Semant
   }
 
   // Link-graph semantic context propagation (1 hop along outgoing/backlinks)
-  const index = new LinkIndex(notes);
+  const index = new LinkIndex(notes, PARA, lastIndex);
+  lastIndex = index;
   const titleOf = (id: string) => index.notes.get(id)?.title ?? id;
 
-  const finalHits: SemanticSearchHit[] = [];
+  const finalHits: (SemanticSearchHit & { doc: IndexedDoc })[] = [];
   for (const d of docs) {
     if (folder && !d.note.path.startsWith(`${folder}/`)) continue;
     const entry = baseScores.get(d.note.id)!;
@@ -477,15 +576,38 @@ export function semanticSearch(query: string, notes: LinkNote[], options: Semant
     if (score < minScore || reasons.size === 0) continue;
 
     finalHits.push({
-      note: d.note,
+      note: current.get(d.note.id) ?? d.note,
       score: Math.round(score * 1000) / 1000,
       reasons: [...reasons],
-      snippet: bestSnippet(d.plainBody, d.title, queryStemWeights, rawQueryTokens),
+      snippet: '',
       links: outIds.map(titleOf),
       backlinks: backIds.map(titleOf),
+      doc: d,
     });
   }
 
   finalHits.sort((a, b) => b.score - a.score || (b.note.updatedAt ?? 0) - (a.note.updatedAt ?? 0));
-  return finalHits.slice(0, limit);
+  // Snippets only for the hits that are returned
+  return finalHits.slice(0, limit).map(({ doc, ...hit }) => ({ ...hit, snippet: bestSnippet(doc.plainBody, doc.title, queryStemWeights, rawQueryTokens) }));
+}
+
+/** idf of character n-grams, computed when asked instead of for every n-gram of the corpus */
+class IdfMap {
+  private cache = new Map<string, number>();
+  constructor(
+    private readonly df: Map<string, number>,
+    private readonly n: number
+  ) {}
+
+  /** undefined for n-grams no note contains (the caller weighs them with 1) */
+  get(gram: string): number | undefined {
+    let v = this.cache.get(gram);
+    if (v === undefined) {
+      const df = this.df.get(gram);
+      if (df === undefined) return undefined;
+      v = Math.log(1 + this.n / (df + 0.5));
+      this.cache.set(gram, v);
+    }
+    return v;
+  }
 }

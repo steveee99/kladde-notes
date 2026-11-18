@@ -15,9 +15,10 @@
  * Values: "text", numbers, YYYY-MM-DD, today, tomorrow, true/false.
  */
 
-import { extractMeta } from './markdown.js';
+import { extractMeta, type NoteMeta } from './markdown.js';
+import { NoteMemo } from './noteMemo.js';
 import { memoryMeta } from './memory.js';
-import { parseTasks, toDateString } from './tasks.js';
+import { TaskCache, toDateString } from './tasks.js';
 import { tagMatches } from './tags.js';
 
 export type QueryMode = 'table' | 'list' | 'tasks' | 'kanban';
@@ -173,8 +174,11 @@ function compare(a: unknown, b: unknown): number {
   const na = Number(a);
   const nb = Number(b);
   if (a !== '' && b !== '' && !Number.isNaN(na) && !Number.isNaN(nb) && typeof a !== 'boolean') return na - nb;
-  return String(a ?? '').localeCompare(String(b ?? ''), 'de', { numeric: true, sensitivity: 'base' });
+  return collator.compare(String(a ?? ''), String(b ?? ''));
 }
+
+/** One collator for all comparisons: localeCompare with options builds a new one per call (#64) */
+const collator = new Intl.Collator('de', { numeric: true, sensitivity: 'base' });
 
 function matches(values: Record<string, unknown>, c: Condition, today: Date): boolean {
   let actual = values[c.field];
@@ -227,12 +231,16 @@ export interface QueryOptions {
   defaultDue?: (path: string) => string | null;
 }
 
+/** Parsed notes and tasks of earlier queries: query blocks run again after every change, mostly over unchanged notes (#64) */
+const metaMemo = new NoteMemo<NoteMeta>((n) => extractMeta(n.path, n.content));
+const taskCache = new TaskCache();
+
 export function runQuery(src: string | Query, notes: QueryNote[], today = new Date(), opts: QueryOptions = {}): QueryResult {
   const query = typeof src === 'string' ? parseQuery(src) : src;
   let rows: QueryRow[] = [];
   for (const note of notes) {
     if (query.from !== null && !(note.path.startsWith(`${query.from}/`) || query.from === '')) continue;
-    const meta = extractMeta(note.path, note.content);
+    const meta = metaMemo.get(note);
     if (query.fromTag !== null && !meta.tags.some((tag) => tagMatches(tag, query.fromTag!))) continue;
     const base: Record<string, unknown> = {
       ...meta.frontmatter,
@@ -246,7 +254,7 @@ export function runQuery(src: string | Query, notes: QueryNote[], today = new Da
       ...memoryFields(note.content, meta.frontmatter, today),
     };
     if (query.mode === 'tasks') {
-      for (const t of parseTasks(note.content, today, opts.defaultDue?.(note.path) ?? null)) {
+      for (const t of taskCache.tasksOf(note, today, opts.defaultDue?.(note.path) ?? null)) {
         rows.push({
           noteId: note.id,
           path: note.path,

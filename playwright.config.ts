@@ -9,6 +9,10 @@ const CI = !!process.env.CI;
 /** Touch devices: no hover, coarse pointer, so the `nav:` layout switch sees them like real phones and tablets */
 const touch = { hasTouch: true, isMobile: true };
 
+/** The large-vault benchmark (#64) runs only when asked for: `npm run bench:e2e`. Workers see it through the environment */
+const PERF = process.argv.includes('--project=perf') || process.env.KLADDE_PERF === '1';
+if (PERF) process.env.KLADDE_PERF = '1';
+
 export default defineConfig({
   testDir: './e2e',
   timeout: 45_000,
@@ -52,5 +56,15 @@ export default defineConfig({
       testMatch: /(layout|notes|a11y)\.spec\.ts/,
       use: { viewport: { width: 390, height: 844 }, ...touch },
     },
+    ...(PERF
+      ? [
+          {
+            name: 'perf',
+            dependencies: ['setup'],
+            testMatch: /\.perf\.ts$/,
+            use: { viewport: { width: 1280, height: 800 } },
+          },
+        ]
+      : []),
   ],
 });
