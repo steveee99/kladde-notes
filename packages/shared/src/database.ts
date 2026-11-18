@@ -1,5 +1,5 @@
 /**
- * Folders as databases (#76): a folder with a `_database.md` note is a database. The note's frontmatter holds the
+ * Folders as databases (#76): a folder with a `_database-<uuid>.md` note is a database. The note's frontmatter holds the
  * schema (typed properties) and the saved views, so both sync, export and work offline like any note:
  *
  *   ---
@@ -29,7 +29,12 @@ import { splitPath } from './markdown.js';
 import { readFrontmatterYaml, setFrontmatterValues, type YamlMap, type YamlValue } from './yaml.js';
 import { safeUrl } from './util.js';
 
-export const DATABASE_FILE = '_database.md';
+/** The schema note is `_database-<uuid>.md` (a name a person is unlikely to type); the plain `_database.md` of the first version still works */
+export const DATABASE_PREFIX = '_database';
+const DATABASE_NAME = /^_database(?:-[0-9a-f][0-9a-f-]{7,})?\.md$/i;
+
+/** File name for a new database note; `id` is a random UUID */
+export const databaseFileName = (id: string): string => `${DATABASE_PREFIX}-${id}.md`;
 
 export const PROPERTY_TYPES = ['text', 'number', 'date', 'select', 'multiselect', 'checkbox', 'link'] as const;
 export type PropertyType = (typeof PROPERTY_TYPES)[number];
@@ -88,12 +93,11 @@ export interface DbRow {
   cover: string | null;
 }
 
-export const isDatabasePath = (path: string): boolean => path === DATABASE_FILE || path.endsWith(`/${DATABASE_FILE}`);
+export const isDatabasePath = (path: string): boolean => DATABASE_NAME.test(path.slice(path.lastIndexOf('/') + 1));
 
 /** The database note of a folder, if there is one */
 export function findDatabaseNote<T extends { path: string; content: string }>(folder: string, notes: Iterable<T>): T | null {
-  const path = folder ? `${folder}/${DATABASE_FILE}` : DATABASE_FILE;
-  for (const n of notes) if (n.path === path) return parseDatabase(n.content) ? n : null;
+  for (const n of notes) if (isDatabasePath(n.path) && splitPath(n.path).folder === folder && parseDatabase(n.content)) return n;
   return null;
 }
 

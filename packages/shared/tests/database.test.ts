@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyView,
   boardLanes,
+  databaseFileName,
   databaseRows,
   findDatabaseNote,
   inferPropertyKeys,
@@ -63,6 +64,11 @@ describe('database schema', () => {
     expect(findDatabaseNote('Other', notes)).toBeNull();
     expect(isDatabasePath('Books/_database.md')).toBe(true);
     expect(isDatabasePath('Books/my_database.md')).toBe(false);
+    expect(isDatabasePath('Books/_database-0b9f6c1e-3d52-4c0e-9a7e-5f1d2c3b4a69.md')).toBe(true);
+    expect(isDatabasePath('Books/_database-notes.md')).toBe(false);
+    expect(isDatabasePath('Books/_database.md.md')).toBe(false);
+    expect(databaseFileName('0b9f6c1e-3d52')).toBe('_database-0b9f6c1e-3d52.md');
+    expect(isDatabasePath(databaseFileName('0b9f6c1e-3d52-4c0e'))).toBe(true);
   });
 
   it('infers property keys from the notes of the folder', () => {

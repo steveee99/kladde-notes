@@ -1,6 +1,9 @@
 import { test, expect, expectOnServer, serverNotes, uid } from './helpers';
 import type { APIRequestContext, Page } from '@playwright/test';
 
+/** The schema note's name carries a UUID so it cannot clash with a title someone types */
+const DB_FILE = `_database-${crypto.randomUUID()}.md`;
+
 const hexId = () => [...Array(16)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
 
 const SCHEMA = `---
@@ -49,7 +52,7 @@ async function openFolder(page: Page, folder: string) {
 test('a database folder shows editable table cells that write the frontmatter', async ({ page }) => {
   const folder = `Books ${uid()}`;
   const ids = await seed(page.request, [
-    { path: `${folder}/_database.md`, content: SCHEMA },
+    { path: `${folder}/${DB_FILE}`, content: SCHEMA },
     { path: `${folder}/Alpha.md`, content: '---\nStatus: todo\nPages: 300\n---\nAlpha' },
     { path: `${folder}/Beta.md`, content: '---\nStatus: done\nPages: 120\n---\nBeta' },
   ]);
@@ -57,9 +60,11 @@ test('a database folder shows editable table cells that write the frontmatter', 
   const db = page.locator('[data-database]');
   await expect(db.getByText('Alpha', { exact: true })).toBeVisible();
   await expect(db.getByText('Beta', { exact: true })).toBeVisible();
-  await expect(db.getByText('_database', { exact: true })).toHaveCount(0);
+  // Neither the table nor the folder tree shows the schema note
+  await expect(page.getByText('_database')).toHaveCount(0);
 
-  await db.getByLabel('Status: Alpha').selectOption('doing');
+  await db.getByRole('combobox', { name: 'Status: Alpha' }).click();
+  await page.getByRole('option', { name: 'doing', exact: true }).click();
   await expectOnServer(page.request, ids[`${folder}/Alpha.md`], /Status: doing/);
   await db.getByLabel('Pages: Alpha').fill('42');
   await db.getByLabel('Pages: Alpha').press('Enter');
@@ -72,18 +77,22 @@ test('a database folder shows editable table cells that write the frontmatter', 
 test('views filter, and the board groups by the select property', async ({ page }) => {
   const folder = `Tasks ${uid()}`;
   await seed(page.request, [
-    { path: `${folder}/_database.md`, content: SCHEMA },
+    { path: `${folder}/${DB_FILE}`, content: SCHEMA },
     { path: `${folder}/Alpha.md`, content: '---\nStatus: todo\n---\nA' },
     { path: `${folder}/Beta.md`, content: '---\nStatus: done\n---\nB' },
   ]);
   await openFolder(page, folder);
   const db = page.locator('[data-database]');
 
-  await db.getByRole('tab', { name: 'Open' }).click();
+  const pickView = async (name: string) => {
+    await db.getByRole('combobox', { name: 'Views' }).click();
+    await page.getByRole('option', { name }).click();
+  };
+  await pickView('Open');
   await expect(db.getByText('Alpha', { exact: true })).toBeVisible();
   await expect(db.getByText('Beta', { exact: true })).toHaveCount(0);
 
-  await db.getByRole('tab', { name: 'Board' }).click();
+  await pickView('Board');
   const lane = (name: string) => db.locator('.wz-lane').filter({ has: page.locator('.wz-lane-head', { hasText: name }) });
   await expect(lane('todo').getByText('Alpha')).toBeVisible();
   await expect(lane('done').getByText('Beta')).toBeVisible();
@@ -94,7 +103,7 @@ test('the schema note stays out of the note list and the search', async ({ page 
   const id = uid();
   const folder = `Hidden ${id}`;
   await seed(page.request, [
-    { path: `${folder}/_database.md`, content: `${SCHEMA}Schema marker ${id}\n` },
+    { path: `${folder}/${DB_FILE}`, content: `${SCHEMA}Schema marker ${id}\n` },
     { path: `${folder}/Alpha ${id}.md`, content: `---\nStatus: todo\n---\nmarker ${id}` },
   ]);
   await page.goto('/notes');
@@ -129,7 +138,7 @@ test('turns a folder into a database, adds a view property and prefilled entries
   // The keys found in the notes became properties
   await expect(db.getByLabel('company: Ada')).toHaveValue('Analytical');
   await expect
-    .poll(async () => (await serverNotes(page.request)).find((n) => n.path === `${folder}/_database.md`)?.content ?? '', { timeout: 15_000 })
+    .poll(async () => (await serverNotes(page.request)).find((n) => n.path.startsWith(`${folder}/_database-`))?.content ?? '', { timeout: 15_000 })
     .toMatch(/type: database/);
 
   // Add a select property with a default through the schema editor
@@ -137,13 +146,14 @@ test('turns a folder into a database, adds a view property and prefilled entries
   const sheet = page.getByRole('dialog');
   await sheet.getByRole('button', { name: 'Add property' }).click();
   await sheet.getByLabel('Name', { exact: true }).last().fill('Stage');
-  await sheet.getByLabel('Type', { exact: true }).last().selectOption('select');
+  await sheet.getByRole('combobox', { name: 'Type', exact: true }).last().click();
+  await page.getByRole('option', { name: 'Select', exact: true }).click();
   await sheet.getByLabel('Options, separated by commas').fill('lead, client');
   await sheet.getByLabel('Default for new notes').last().fill('lead');
   await sheet.getByRole('button', { name: 'Save' }).click();
   await expect(sheet).toBeHidden();
   await expect
-    .poll(async () => (await serverNotes(page.request)).find((n) => n.path === `${folder}/_database.md`)?.content ?? '')
+    .poll(async () => (await serverNotes(page.request)).find((n) => n.path.startsWith(`${folder}/_database-`))?.content ?? '')
     .toMatch(/name: Stage/);
 
   // A new entry starts with the properties prefilled
