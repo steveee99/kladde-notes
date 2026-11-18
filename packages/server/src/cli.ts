@@ -1,7 +1,7 @@
-// Kladde CLI: Import, Export, Notiz-/Anhangsverwaltung und Server-Administration
-// Beispiel: `docker exec kladde node packages/server/dist/cli.js export / ./backup-md`
+// Kladde CLI: import, export, note/attachment management and server administration
+// Example: `docker exec kladde node packages/server/dist/cli.js export / ./backup-md`
 import path from 'path';
-import { cliHelpText, CliError, runCli } from './cliActions.js';
+import { canonicalCommand, cliHelpText, CliError, runCli } from './cliActions.js';
 import { DataCipher } from './crypto.js';
 import { openDatabase } from './db.js';
 import { ExportMirror } from './ExportMirror.js';
@@ -13,9 +13,9 @@ import { UserStore } from './UserStore.js';
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  const first = argv[0]?.toLowerCase();
+  const first = argv[0] ? canonicalCommand(argv[0]) : 'help';
 
-  if (!first || first === 'hilfe' || first === 'help' || first === '--help' || first === '-h') {
+  if (first === 'help' || first === '--help' || first === '-h') {
     console.log(cliHelpText());
     process.exit(0);
   }
@@ -53,7 +53,7 @@ async function main(): Promise<void> {
     }
   } catch (err) {
     if (err instanceof CliError) {
-      console.error(`Fehler: ${err.message}`);
+      console.error(`Error: ${err.message}`);
       process.exitCode = 1;
     } else {
       console.error(err);

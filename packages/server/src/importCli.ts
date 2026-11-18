@@ -1,5 +1,5 @@
-// Kladde Import-CLI: importiert einen lokalen Ordner (z. B. einen Obsidian-Vault) über die Import-API eines Servers
-// Beispiel: `KLADDE_IMPORT_TOKEN=kli_… npm run import -- ~/Vault Import --url https://kladde.example.org`
+// Kladde import CLI: imports a local folder (e.g. an Obsidian vault) through a server's import API
+// Example: `KLADDE_IMPORT_TOKEN=kli_… npm run import -- ~/Vault Import --url https://kladde.example.org`
 import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
@@ -25,7 +25,7 @@ const BATCH_MAX_BYTES = 20 * 1024 * 1024;
 const MAX_RETRIES = 3;
 
 export const TOKEN_ENV = 'KLADDE_IMPORT_TOKEN';
-const MSG_UNAUTHORIZED = 'Import-Token ungültig oder widerrufen (oder abgelaufen)';
+const MSG_UNAUTHORIZED = 'Import token invalid, revoked or expired';
 
 export interface ScannedFile {
   /** Absolute path */
@@ -94,46 +94,46 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 export function helpText(): string {
   return [
-    'Kladde Import – lokalen Ordner (z. B. Obsidian-Vault) in deinen Space importieren',
+    'Kladde import – import a local folder (e.g. an Obsidian vault) into your space',
     '',
-    'Verwendung:',
-    '  npm run import -- <ordner> [<zielordner>] --url <Kladde-URL> [--dry-run] [--yes] [--allow-insecure]',
+    'Usage:',
+    '  npm run import -- <folder> [<target folder>] --url <Kladde URL> [--dry-run] [--yes] [--allow-insecure]',
     '',
-    'Argumente:',
-    '  <ordner>          Lokaler Ordner, wird rekursiv gelesen (versteckte Ordner wie .obsidian werden ignoriert)',
-    '  <zielordner>      Ordner im Space, Standard: oberste Ebene',
+    'Arguments:',
+    '  <folder>          Local folder, read recursively (hidden folders such as .obsidian are ignored)',
+    '  <target folder>   Folder in the space, default: top level',
     '',
-    'Optionen:',
-    '  --url <url>       Adresse deiner Kladde, z. B. https://kladde.example.org',
-    '  --dry-run         Nur die Vorschau zeigen, nichts importieren',
-    '  --yes, -y         Ohne Rückfrage importieren',
-    '  --allow-insecure  http-Adressen erlauben (das Token wird dann unverschlüsselt übertragen)',
-    '  --help, -h        Diese Hilfe anzeigen',
+    'Options:',
+    '  --url <url>       Address of your Kladde, e.g. https://kladde.example.org',
+    '  --dry-run         Only show the preview, import nothing',
+    '  --yes, -y         Import without asking',
+    '  --allow-insecure  Allow http addresses (the token then travels unencrypted)',
+    '  --help, -h        Show this help',
     '',
     'Token:',
-    `  Das Import-Token (Einstellungen → Import) wird aus der Umgebungsvariable ${TOKEN_ENV} gelesen.`,
-    '  Fehlt sie, fragt die CLI im Terminal verdeckt danach. Es wird nie gespeichert oder ausgegeben.',
+    `  The import token (Settings → Import) is read from the environment variable ${TOKEN_ENV}.`,
+    '  If it is missing, the CLI asks for it in the terminal without echoing. It is never stored or printed.',
     '',
-    'Importiert werden .md, .markdown und .txt als Notizen sowie Bilder und PDFs, die eine neue Notiz verlinkt.',
-    'Vorhandene Pfade werden übersprungen, nie überschrieben.',
+    'Imported are .md, .markdown and .txt files as notes, plus images and PDFs that a new note links to.',
+    'Existing paths are skipped, never overwritten.',
   ].join('\n');
 }
 
 /** http(s) URL without trailing slash; http only with allowInsecure, because the token would travel in cleartext */
 export function parseBaseUrl(raw: string | undefined, allowInsecure = false): string {
-  if (!raw) throw new CliError('Bitte die Adresse deiner Kladde mit --url angeben, z. B. --url https://kladde.example.org');
+  if (!raw) throw new CliError('Please give the address of your Kladde with --url, e.g. --url https://kladde.example.org');
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
-    throw new CliError(`Ungültige --url "${raw}": erwartet wird eine http- oder https-Adresse.`);
+    throw new CliError(`Invalid --url "${raw}": expected an http or https address.`);
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new CliError(`Ungültige --url "${raw}": erwartet wird eine http- oder https-Adresse.`);
+    throw new CliError(`Invalid --url "${raw}": expected an http or https address.`);
   }
   if (url.protocol === 'http:' && !allowInsecure) {
     throw new CliError(
-      `Unverschlüsselte Verbindung (${url.origin}): das Import-Token würde im Klartext übertragen. Nutze https oder bestätige mit --allow-insecure.`
+      `Unencrypted connection (${url.origin}): the import token would travel in cleartext. Use https or confirm with --allow-insecure.`
     );
   }
   return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
@@ -142,8 +142,8 @@ export function parseBaseUrl(raw: string | undefined, allowInsecure = false): st
 /** Reads the source folder: notes, attachment candidates and everything else */
 export function scanFolder(srcDir: string, targetRoot: string): Scan {
   const resolved = path.resolve(srcDir);
-  if (!fs.existsSync(resolved)) throw new CliError(`Ordner nicht gefunden: ${srcDir}`);
-  if (!fs.statSync(resolved).isDirectory()) throw new CliError(`Kein Ordner: ${srcDir}`);
+  if (!fs.existsSync(resolved)) throw new CliError(`Folder not found: ${srcDir}`);
+  if (!fs.statSync(resolved).isDirectory()) throw new CliError(`Not a folder: ${srcDir}`);
   const root = fs.realpathSync(resolved);
   const scan: Scan = { root, targetRoot, notes: [], attachments: [], others: [] };
   for (const file of walkDirectory(root)) {
@@ -177,7 +177,7 @@ export function buildPlan(scan: Scan, existingPaths: string[]): Plan {
       continue;
     }
     taken.add(key);
-    if (note.size > MAX_NOTE_BYTES) plan.errors.push({ rel: note.rel, targetPath: note.targetPath, reason: 'Notiz größer als 2 MB' });
+    if (note.size > MAX_NOTE_BYTES) plan.errors.push({ rel: note.rel, targetPath: note.targetPath, reason: 'note larger than 2 MB' });
     else plan.newNotes.push(note);
   }
 
@@ -203,17 +203,17 @@ export function buildPlan(scan: Scan, existingPaths: string[]): Plan {
   }
 
   for (const a of scan.attachments) {
-    if (!linked.has(a)) plan.ignored.push({ rel: a.rel, reason: 'nicht verlinkt' });
-    else if (a.size > MAX_FILE_BYTES) plan.errors.push({ rel: a.rel, reason: 'Datei größer als 25 MB' });
+    if (!linked.has(a)) plan.ignored.push({ rel: a.rel, reason: 'not linked' });
+    else if (a.size > MAX_FILE_BYTES) plan.errors.push({ rel: a.rel, reason: 'file larger than 25 MB' });
     else plan.newAttachments.push(a);
   }
-  for (const o of scan.others) plan.ignored.push({ rel: o.rel, reason: 'Dateityp nicht unterstützt' });
+  for (const o of scan.others) plan.ignored.push({ rel: o.rel, reason: 'file type not supported' });
   return plan;
 }
 
 /** The preview in the style of `git status` */
 export function renderPreview(plan: Plan, baseUrl: string): string[] {
-  const lines = [`Import nach ${baseUrl}`, `Zielordner: ${plan.scan.targetRoot ? `${plan.scan.targetRoot}/` : '(oberste Ebene)'}`, ''];
+  const lines = [`Import to ${baseUrl}`, `Target folder: ${plan.scan.targetRoot ? `${plan.scan.targetRoot}/` : '(top level)'}`, ''];
   const group = (title: string, word: string, entries: string[]) => {
     if (!entries.length) return;
     lines.push(`${title} (${entries.length}):`);
@@ -221,14 +221,14 @@ export function renderPreview(plan: Plan, baseUrl: string): string[] {
     lines.push('');
   };
   const notePair = (n: { rel: string; targetPath?: string }) => (n.targetPath && n.targetPath !== n.rel ? `${n.rel} → ${n.targetPath}` : n.rel);
-  group('Neue Notizen', 'neu', plan.newNotes.map(notePair));
-  group('Neue Anhänge', 'neu', plan.newAttachments.map((a) => a.rel));
-  group('Übersprungen (Pfad vorhanden)', 'übersprungen', plan.skippedNotes.map(notePair));
-  group('Ignoriert', 'ignoriert', plan.ignored.map((e) => `${e.rel} (${e.reason})`));
-  group('Fehler (wird nicht gesendet)', 'fehler', plan.errors.map((e) => `${e.rel} (${e.reason})`));
+  group('New notes', 'new', plan.newNotes.map(notePair));
+  group('New attachments', 'new', plan.newAttachments.map((a) => a.rel));
+  group('Skipped (path exists)', 'skipped', plan.skippedNotes.map(notePair));
+  group('Ignored', 'ignored', plan.ignored.map((e) => `${e.rel} (${e.reason})`));
+  group('Errors (not sent)', 'error', plan.errors.map((e) => `${e.rel} (${e.reason})`));
   lines.push(
-    `${plural(plan.newNotes.length, 'neue Notiz', 'neue Notizen')}, ${plural(plan.newAttachments.length, 'neuer Anhang', 'neue Anhänge')}, ` +
-      `${plan.skippedNotes.length} übersprungen, ${plan.ignored.length} ignoriert, ${plural(plan.errors.length, 'Fehler', 'Fehler')}`
+    `${plural(plan.newNotes.length, 'new note', 'new notes')}, ${plural(plan.newAttachments.length, 'new attachment', 'new attachments')}, ` +
+      `${plan.skippedNotes.length} skipped, ${plan.ignored.length} ignored, ${plural(plan.errors.length, 'error', 'errors')}`
   );
   return lines;
 }
@@ -242,11 +242,11 @@ async function request(ctx: ImportContext, pathname: string, init: RequestInit =
       res = await ctx.fetch(`${ctx.baseUrl}${pathname}`, { ...init, headers: { ...(init.headers as Record<string, string>), Authorization: `Bearer ${ctx.token}` } });
     } catch (err) {
       const cause = (err as { cause?: { code?: string; message?: string } }).cause;
-      throw new CliError(`Kladde unter ${ctx.baseUrl} nicht erreichbar (${cause?.code ?? cause?.message ?? (err as Error).message}).`);
+      throw new CliError(`Kladde at ${ctx.baseUrl} is not reachable (${cause?.code ?? cause?.message ?? (err as Error).message}).`);
     }
     if (res.status !== 429 || attempt >= MAX_RETRIES) return res;
     const wait = (ctx.retryDelayMs ?? 15_000) * (attempt + 1);
-    ctx.out(`Zu viele Anfragen – warte ${Math.round(wait / 1000)} s …`);
+    ctx.out(`Too many requests – waiting ${Math.round(wait / 1000)} s …`);
     await sleep(wait);
   }
 }
@@ -263,7 +263,7 @@ export async function fetchExistingPaths(ctx: ImportContext): Promise<string[]> 
   if (res.status === 401) throw new CliError(MSG_UNAUTHORIZED);
   const body = (await res.json().catch(() => null)) as { paths?: unknown } | null;
   if (!res.ok || !Array.isArray(body?.paths)) {
-    throw new CliError(`Kladde unter ${ctx.baseUrl} nicht erreichbar: keine gültige Antwort der Import-API (HTTP ${res.status}).`);
+    throw new CliError(`Kladde at ${ctx.baseUrl} is not reachable: no valid answer from the import API (HTTP ${res.status}).`);
   }
   return body.paths.filter((p): p is string => typeof p === 'string');
 }
@@ -343,7 +343,7 @@ export async function runImport(plan: Plan, ctx: ImportContext): Promise<ImportS
       results.forEach((r, i) => {
         if (r.status === 'created') summary.created++;
         else if (r.status === 'skipped') summary.skipped++;
-        else summary.errors.push(`${items[i]?.note.rel ?? r.path}: ${r.error ?? 'ungültig'}`);
+        else summary.errors.push(`${items[i]?.note.rel ?? r.path}: ${r.error ?? 'invalid'}`);
       });
     } catch (err) {
       for (const i of items) fail(i.note.rel, err);
@@ -354,10 +354,10 @@ export async function runImport(plan: Plan, ctx: ImportContext): Promise<ImportS
 
 export function renderSummary(summary: ImportSummary): string[] {
   const lines = [
-    `Fertig: ${plural(summary.created, 'Notiz', 'Notizen')} angelegt, ${summary.skipped} übersprungen, ` +
-      `${plural(summary.uploaded, 'Anhang', 'Anhänge')} hochgeladen, ${summary.ignored} ignoriert, ${plural(summary.errors.length, 'Fehler', 'Fehler')}.`,
+    `Done: ${plural(summary.created, 'note', 'notes')} created, ${summary.skipped} skipped, ` +
+      `${plural(summary.uploaded, 'attachment', 'attachments')} uploaded, ${summary.ignored} ignored, ${plural(summary.errors.length, 'error', 'errors')}.`,
   ];
-  for (const e of summary.errors) lines.push(`  Fehler: ${e}`);
+  for (const e of summary.errors) lines.push(`  Error: ${e}`);
   return lines;
 }
 
@@ -400,20 +400,20 @@ export async function runImportCli(argv: string[], io: CliIo): Promise<number> {
       return 0;
     }
     const [srcArg, targetArg, ...extra] = positionals;
-    if (!srcArg || extra.length) throw new CliError(`Bitte genau einen Quellordner und höchstens einen Zielordner angeben.\n\n${helpText()}`);
+    if (!srcArg || extra.length) throw new CliError(`Please give exactly one source folder and at most one target folder.\n\n${helpText()}`);
     const baseUrl = parseBaseUrl(values.url, values['allow-insecure']);
-    if (baseUrl.startsWith('http:')) io.err('Warnung: unverschlüsselte Verbindung (http) – das Import-Token wird im Klartext übertragen.');
+    if (baseUrl.startsWith('http:')) io.err('Warning: unencrypted connection (http) – the import token travels in cleartext.');
     // npm run starts in the repo root; INIT_CWD is where the user called it
     const resolved = path.resolve(io.env.INIT_CWD ?? process.cwd(), srcArg);
-    if (!fs.existsSync(resolved)) throw new CliError(`Ordner nicht gefunden: ${srcArg}`);
-    if (!fs.statSync(resolved).isDirectory()) throw new CliError(`Kein Ordner: ${srcArg}`);
+    if (!fs.existsSync(resolved)) throw new CliError(`Folder not found: ${srcArg}`);
+    if (!fs.statSync(resolved).isDirectory()) throw new CliError(`Not a folder: ${srcArg}`);
     const targetRoot = cleanSpaceFolder(targetArg ?? '');
 
     let token = io.env[TOKEN_ENV]?.trim();
     if (!token) {
-      if (!io.isTTY) throw new CliError(`Kein Import-Token: setze ${TOKEN_ENV} (Einstellungen → Import in deiner Kladde).`);
-      token = (await io.askHidden('Import-Token (Eingabe bleibt unsichtbar): ')).trim();
-      if (!token) throw new CliError('Kein Import-Token eingegeben.');
+      if (!io.isTTY) throw new CliError(`No import token: set ${TOKEN_ENV} (Settings → Import in your Kladde).`);
+      token = (await io.askHidden('Import token (input stays hidden): ')).trim();
+      if (!token) throw new CliError('No import token entered.');
     }
 
     const ctx: ImportContext = { baseUrl, token, fetch: io.fetch, out: io.out, sleep: io.sleep, retryDelayMs: io.retryDelayMs };
@@ -423,19 +423,19 @@ export async function runImportCli(argv: string[], io: CliIo): Promise<number> {
 
     if (values['dry-run']) {
       io.out('');
-      io.out('Vorschau (--dry-run): nichts wurde importiert.');
+      io.out('Preview (--dry-run): nothing was imported.');
       return 0;
     }
     if (!plan.newNotes.length) {
       io.out('');
-      io.out('Nichts Neues zu importieren.');
+      io.out('Nothing new to import.');
       return 0;
     }
     if (!values.yes) {
-      if (!io.isTTY) throw new CliError('Keine Rückfrage möglich (kein Terminal): mit --yes ohne Rückfrage importieren.');
-      const answer = (await io.ask('Importieren? [j/N] ')).trim().toLowerCase();
+      if (!io.isTTY) throw new CliError('Cannot ask for confirmation (no terminal): use --yes to import without asking.');
+      const answer = (await io.ask('Import? [y/N] ')).trim().toLowerCase();
       if (!['j', 'ja', 'y', 'yes'].includes(answer)) {
-        io.out('Abgebrochen, nichts importiert.');
+        io.out('Cancelled, nothing imported.');
         return 0;
       }
     }
@@ -446,7 +446,7 @@ export async function runImportCli(argv: string[], io: CliIo): Promise<number> {
     return summary.errors.length ? 1 : 0;
   } catch (err) {
     if (err instanceof CliError) {
-      io.err(`Fehler: ${err.message}`);
+      io.err(`Error: ${err.message}`);
       return 1;
     }
     throw err;
@@ -483,7 +483,7 @@ function askHidden(question: string): Promise<string> {
         }
         if (ch === '\u0003') {
           done();
-          reject(new CliError('Abgebrochen.'));
+          reject(new CliError('Cancelled.'));
           return;
         }
         if (ch === '\u007f' || ch === '\b') value = value.slice(0, -1);

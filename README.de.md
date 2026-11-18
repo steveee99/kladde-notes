@@ -115,13 +115,13 @@ Die App läuft dann auf Port `13002`. **Passkeys brauchen HTTPS** (außer auf lo
 CLI-Werkzeug (Import/Export, Suche, Anhänge, Sicherung & Verwaltung):
 
 ```bash
-docker exec kladde node packages/server/dist/cli.js hilfe
+docker exec kladde node packages/server/dist/cli.js help
 docker exec kladde node packages/server/dist/cli.js import /import/ordner Projekte --overwrite
 docker exec kladde node packages/server/dist/cli.js export / /export/space --with-files
-docker exec kladde node packages/server/dist/cli.js einladen Anna
+docker exec kladde node packages/server/dist/cli.js invite Anna
 ```
 
-Ohne Zugriff auf den Server importierst du einen lokalen Ordner (z. B. einen Obsidian-Vault) mit der Import-CLI und einem Import-Token aus den Einstellungen: `npm run import -- <ordner> --url <Kladde-URL>`. Anleitung: [`docs/IMPORT.md`](docs/IMPORT.md).
+Ohne Zugriff auf den Server importierst du einen lokalen Ordner (z. B. einen Obsidian-Vault) mit der Import-CLI und einem Import-Token aus den Einstellungen: `npm run import -- <ordner> --url <Kladde-URL>`. Anleitung: [`docs/IMPORT.de.md`](docs/IMPORT.de.md).
 
 | Variable | Bedeutung |
 | --- | --- |
@@ -142,7 +142,7 @@ Ohne Zugriff auf den Server importierst du einen lokalen Ordner (z. B. einen Obs
 | `CONFLUENCE_ALLOW_PRIVATE` | `true` erlaubt Confluence unter einer privaten Adresse (z. B. ein Data Center im Intranet). Standardmäßig erreicht die Confluence-Synchronisierung nur öffentliche https-Adressen, mit denselben Schutzmaßnahmen wie der Web-Clipper |
 | `EXPORT_DIR` | Klartext-Spiegel der Notizen (z. B. NAS), leer = aus |
 
-**Anmelden mit GitLab** (ausführliche Anleitung für selbst gehostete Instanzen, Netzwerk, eigene Zertifikate und Fehlersuche: [`docs/GITLAB.md`](docs/GITLAB.md)):
+**Anmelden mit GitLab** (ausführliche Anleitung für selbst gehostete Instanzen, Netzwerk, eigene Zertifikate und Fehlersuche: [`docs/GITLAB.de.md`](docs/GITLAB.de.md)):
 
 1. In GitLab eine OAuth-Anwendung anlegen: *Benutzereinstellungen → Anwendungen* (nur für dich) bzw. *Gruppe → Einstellungen → Anwendungen* oder *Admin → Anwendungen* (eigene Instanz).
    - **Redirect-URI:** `https://notes.example.org/api/auth/gitlab/callback` (also `PUBLIC_URL` + `/api/auth/gitlab/callback`)

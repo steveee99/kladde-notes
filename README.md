@@ -19,7 +19,7 @@
 
 > A *Kladde* (German) is the notebook where everything goes first, before it is written up properly.
 
-The app and its UI are available in **English and German**. Some of the guides in `docs/` and a few CLI command names are still German.
+The app and its UI are available in **English and German**; the guides in `docs/` exist in both languages.
 
 ---
 
@@ -119,16 +119,16 @@ docker logs kladde   # contains the first invitation
 
 The app then runs on port `13002`. **Passkeys need HTTPS** (except on localhost) and are bound to the domain from `PUBLIC_URL`. Run the app behind a reverse proxy (Caddy, nginx, Traefik) and set `TRUST_PROXY=1`. Without HTTPS (e.g. directly via `http://192.168.1.10:13002` in your home network) you sign in with username and password.
 
-CLI tool (import/export, search, attachments, backup and administration). The command names are German:
+CLI tool (import/export, search, attachments, backup and administration). The German command names of earlier versions (`hilfe`, `einladen`, …) still work:
 
 ```bash
-docker exec kladde node packages/server/dist/cli.js hilfe       # help
+docker exec kladde node packages/server/dist/cli.js help
 docker exec kladde node packages/server/dist/cli.js import /import/folder Projects --overwrite
 docker exec kladde node packages/server/dist/cli.js export / /export/space --with-files
-docker exec kladde node packages/server/dist/cli.js einladen Anna   # create an invitation
+docker exec kladde node packages/server/dist/cli.js invite Anna   # create an invitation
 ```
 
-Without access to the server you can import a local folder (e.g. an Obsidian vault) with the import CLI and an import token from the settings: `npm run import -- <folder> --url <Kladde URL>`. Guide: [`docs/IMPORT.md`](docs/IMPORT.md) (German).
+Without access to the server you can import a local folder (e.g. an Obsidian vault) with the import CLI and an import token from the settings: `npm run import -- <folder> --url <Kladde URL>`. Guide: [`docs/IMPORT.md`](docs/IMPORT.md).
 
 | Variable | Meaning |
 | --- | --- |
@@ -151,7 +151,7 @@ Without access to the server you can import a local folder (e.g. an Obsidian vau
 | `VAPID_SUBJECT` | Contact for Web Push services (`mailto:…` or `https://…`), sent with every reminder. Default: `PUBLIC_URL` if it is https |
 | `PUSH_ALLOWED_HOSTS` | Extra push service hosts (comma-separated) besides Google, Mozilla, Apple and Microsoft; other endpoints are refused |
 
-**Sign in with GitLab** (detailed guide for self-hosted instances, networking, custom certificates and troubleshooting: [`docs/GITLAB.md`](docs/GITLAB.md), German):
+**Sign in with GitLab** (detailed guide for self-hosted instances, networking, custom certificates and troubleshooting: [`docs/GITLAB.md`](docs/GITLAB.md)):
 
 1. Create an OAuth application in GitLab: *User settings → Applications* (just for you), or *Group → Settings → Applications*, or *Admin → Applications* (own instance).
    - **Redirect URI:** `https://notes.example.org/api/auth/gitlab/callback` (that is `PUBLIC_URL` + `/api/auth/gitlab/callback`)

@@ -4,7 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { SYSTEM_PREFIX } from '@kladde/shared';
-import { CliError, runCli } from '../src/cliActions';
+import { CliError, canonicalCommand, runCli } from '../src/cliActions';
 import { DataCipher } from '../src/crypto';
 import { openDatabase } from '../src/db';
 import { FileStore } from '../src/FileStore';
@@ -187,7 +187,7 @@ describe('CLI import & export & utilities', () => {
     const { deps, users, notes, files, anna, db } = setup();
     const ben = users.createUser('ben');
 
-    await expect(runCli(['notizen'], deps)).rejects.toThrow(CliError);
+    await expect(runCli(['notes'], deps)).rejects.toThrow(CliError);
 
     const used = files.save(anna.id, 'used.png', 'image/png', Buffer.from([1]));
     const unused = files.save(anna.id, 'unused.pdf', 'application/pdf', Buffer.from('%PDF'));
@@ -205,14 +205,14 @@ describe('CLI import & export & utilities', () => {
     expect(pushHouse[0].status).toBe('ok');
 
     // Semantic search finds Wohnung -> Wohnen/Checkliste.md
-    const searchRes = await runCli(['suche', 'Wohnungssuche', '--user', 'anna'], deps);
+    const searchRes = await runCli(['search', 'Wohnungssuche', '--user', 'anna'], deps);
     expect((searchRes.data as { note: { path: string } }[])[0].note.path).toBe('Wohnen/Checkliste.md');
 
     // Attachments inspection & safe cleanup (must preserve `used` and delete `unused`)
-    const attachList = await runCli(['anhaenge', '--user', 'anna', '--unused'], deps);
+    const attachList = await runCli(['attachments', '--user', 'anna', '--unused'], deps);
     expect((attachList.data as { id: string }[]).map((f) => f.id)).toEqual([unused.id]);
 
-    const cleanRes = await runCli(['anhaenge-bereinigen', '--user', 'anna'], deps);
+    const cleanRes = await runCli(['clean-attachments', '--user', 'anna'], deps);
     expect(cleanRes.data).toMatchObject({ protectedCount: 1 });
     expect(files.listByOwner(anna.id).map((f) => f.id)).toEqual([used.id]);
 
@@ -228,24 +228,50 @@ describe('CLI import & export & utilities', () => {
     const statusRes = await runCli(['status'], deps);
     expect(statusRes.data).toMatchObject({ users: 2, notes: 1, files: 1 });
 
-    const inviteRes = await runCli(['einladen', 'Für Gast'], deps);
+    const inviteRes = await runCli(['invite', 'Für Gast'], deps);
     expect(inviteRes.lines[0]).toMatch(/^https:\/\/notes\.example\.org\/invite\//);
     const code = (inviteRes.data as { code: string }).code;
-    await runCli(['einladung-loeschen', code], deps);
+    await runCli(['delete-invite', code], deps);
+
+    await runCli(['suspend', 'ben'], deps);
+    expect(users.getUser(ben.id)?.bannedAt).not.toBeNull();
+    await runCli(['unsuspend', 'ben'], deps);
+    expect(users.getUser(ben.id)?.bannedAt).toBeNull();
+
+    await runCli(['admin', 'ben', 'on'], deps);
+    expect(users.getUser(ben.id)?.isAdmin).toBe(true);
+
+    const pwRes = await runCli(['reset-password', 'ben'], deps);
+    expect((pwRes.data as { password: string }).password.length).toBeGreaterThan(8);
+
+    const helpRes = await runCli(['help'], deps);
+    expect(helpRes.lines[0]).toContain('Kladde CLI');
+    db.close();
+  });
+
+  it('still accepts the German command names from earlier versions', async () => {
+    const { deps, users, db } = setup();
+    const ben = users.createUser('ben');
+    expect(canonicalCommand('Einladen')).toBe('invite');
+    expect(canonicalCommand('notes')).toBe('notes');
+
+    const inviteRes = await runCli(['einladen', 'Gast'], deps);
+    const code = (inviteRes.data as { code: string }).code;
+    expect((await runCli(['einladungen'], deps)).lines.join('\n')).toContain(code);
+    await runCli(['einladung_loeschen', code], deps);
+    expect(users.listInvites().some((i) => i.code === code)).toBe(false);
 
     await runCli(['sperren', 'ben'], deps);
     expect(users.getUser(ben.id)?.bannedAt).not.toBeNull();
     await runCli(['entsperren', 'ben'], deps);
-    expect(users.getUser(ben.id)?.bannedAt).toBeNull();
-
     await runCli(['admin', 'ben', 'an'], deps);
     expect(users.getUser(ben.id)?.isAdmin).toBe(true);
+    await runCli(['admin', 'ben', 'aus'], deps);
+    expect(users.getUser(ben.id)?.isAdmin).toBe(false);
 
-    const pwRes = await runCli(['passwort', 'ben'], deps);
-    expect((pwRes.data as { password: string }).password.length).toBeGreaterThan(8);
-
-    const helpRes = await runCli(['hilfe'], deps);
-    expect(helpRes.lines[0]).toContain('Kladde CLI');
+    expect((await runCli(['konten'], deps)).lines.join('\n')).toContain('ben');
+    expect((await runCli(['hilfe'], deps)).lines[0]).toContain('Kladde CLI');
+    await expect(runCli(['gibtsnicht'], deps)).rejects.toThrow('"help" lists all commands');
     db.close();
   });
 });

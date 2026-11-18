@@ -1,76 +1,78 @@
-# Import mit der CLI (Obsidian, Markdown, Bilder, PDF)
+# Importing with the CLI (Obsidian, Markdown, images, PDF)
 
-Mit der Import-CLI bringst du einen lokalen Ordner – zum Beispiel einen Obsidian-Vault – in deinen Kladde-Space, ohne Zugriff auf den Server zu brauchen. Die CLI läuft auf deinem Rechner und spricht über eine eigene, eng begrenzte Import-API mit deiner Kladde. Sie zeigt vor dem Import eine Vorschau und fragt nach.
+[Deutsch](IMPORT.de.md)
 
-## 1. Import-Token erstellen
+With the import CLI you bring a local folder – for example an Obsidian vault – into your Kladde space without needing access to the server. The CLI runs on your computer and talks to your Kladde through a separate, narrowly scoped import API. It shows a preview before the import and asks for confirmation.
 
-1. In Kladde **Einstellungen → Import** öffnen.
-2. Einen Namen eingeben (z. B. „Laptop“), die Gültigkeit wählen (7, 30, 90 oder 365 Tage, Standard 30) und **Token erstellen** wählen.
-3. Das Token (beginnt mit `kli_`) sofort kopieren – es wird **nur dieses eine Mal** angezeigt. Kladde speichert nur einen Hash davon.
+## 1. Create an import token
 
-Ein Token läuft nach der gewählten Zeit ab und funktioniert danach nicht mehr. Pro Konto gibt es höchstens 5 gültige Import-Tokens; abgelaufene zählen nicht mit.
+1. In Kladde open **Settings → Import**.
+2. Enter a name (e.g. "Laptop"), choose how long the token stays valid (7, 30, 90 or 365 days, default 30) and choose **Create token**.
+3. Copy the token (it starts with `kli_`) right away – it is shown **only this once**. Kladde stores only a hash of it.
 
-Ein Import-Token darf nur drei Dinge: die Pfade deiner eigenen Notizen auflisten, Anhänge hochladen und neue Notizen anlegen. Es kann keine Notizen lesen, ändern oder löschen und funktioniert an keiner anderen Stelle der API (auch nicht für MCP).
+A token expires after the chosen time and stops working. Each account has at most 5 valid import tokens; expired ones do not count.
 
-## 2. Projekt bauen
+An import token can do only three things: list the paths of your own notes, upload attachments and create new notes. It cannot read, change or delete notes and works nowhere else in the API (not for MCP either).
 
-Die CLI ist Teil des Kladde-Repositorys und braucht Node.js 22 oder neuer:
+## 2. Build the project
+
+The CLI is part of the Kladde repository and needs Node.js 22 or newer:
 
 ```bash
-git clone <Kladde-Repository>
+git clone <Kladde repository>
 cd kladde
 npm ci
 npm run build
 ```
 
-## 3. CLI aufrufen
+## 3. Run the CLI
 
 ```bash
 export KLADDE_IMPORT_TOKEN=kli_…
-npm run import -- <ordner> [<zielordner>] --url <Kladde-URL> [--dry-run] [--yes] [--allow-insecure]
+npm run import -- <folder> [<target folder>] --url <Kladde URL> [--dry-run] [--yes] [--allow-insecure]
 ```
 
-- `<ordner>`: der lokale Ordner, der rekursiv gelesen wird.
-- `<zielordner>`: der Ordner im Space, unter dem die Notizen landen (Standard: oberste Ebene). `.kladde` ist reserviert.
-- `--url`: die Adresse deiner Kladde, z. B. `https://kladde.example.org` (http oder https).
-- `--dry-run`: zeigt nur die Vorschau und schreibt nichts.
-- `--yes`: importiert ohne Rückfrage (nötig, wenn die CLI nicht in einem Terminal läuft, z. B. in einem Skript).
-- `--allow-insecure`: erlaubt eine `http://`-Adresse. Ohne https würde das Token im Klartext übertragen; deshalb bricht die CLI bei `http://` ohne diese Option ab und warnt mit ihr bei jedem Lauf. Für eine lokale Entwicklungsinstanz (z. B. `http://localhost:3002`) ist sie nötig, für eine Kladde im Netz solltest du https verwenden.
-- `--help`: zeigt die Hilfe.
+- `<folder>`: the local folder, read recursively.
+- `<target folder>`: the folder in the space that the notes go into (default: top level). `.kladde` is reserved.
+- `--url`: the address of your Kladde, e.g. `https://kladde.example.org` (http or https).
+- `--dry-run`: only shows the preview and writes nothing.
+- `--yes`: imports without asking (needed when the CLI does not run in a terminal, e.g. in a script).
+- `--allow-insecure`: allows an `http://` address. Without https the token would travel in cleartext, so the CLI stops on `http://` without this option and warns on every run with it. You need it for a local development instance (e.g. `http://localhost:3002`); for a Kladde on the network use https.
+- `--help`: shows the help.
 
-Ist `KLADDE_IMPORT_TOKEN` nicht gesetzt, fragt die CLI im Terminal verdeckt nach dem Token. Das Token wird nie auf die Festplatte geschrieben und nie ausgegeben.
+If `KLADDE_IMPORT_TOKEN` is not set, the CLI asks for the token in the terminal without echoing it. The token is never written to disk and never printed.
 
-Beispiel:
+Example:
 
 ```bash
 KLADDE_IMPORT_TOKEN=kli_… npm run import -- ~/Obsidian/Vault Import --url https://kladde.example.org --dry-run
 ```
 
-Die Vorschau ist wie `git status` aufgebaut: Gruppen für neue Notizen, neue Anhänge, übersprungene Notizen (Pfad vorhanden) und ignorierte Dateien, darunter die Zahlen. Ohne `--dry-run` folgt die Frage `Importieren? [j/N]`; nur `j`, `ja`, `y` oder `yes` startet den Import. Am Ende fasst die CLI zusammen, wie viele Notizen angelegt und übersprungen, wie viele Anhänge hochgeladen und wie viele Dateien ignoriert wurden, und listet Fehler einzeln auf. Gab es Fehler, endet sie mit Exit-Code 1.
+The preview looks like `git status`: groups for new notes, new attachments, skipped notes (path exists) and ignored files, followed by the totals. Without `--dry-run` the question `Import? [y/N]` follows; only `y`, `yes` (or the German `j`, `ja`) starts the import. At the end the CLI sums up how many notes were created and skipped, how many attachments were uploaded and how many files were ignored, and lists errors one by one. If there were errors, it exits with code 1.
 
-## Was importiert wird
+## What gets imported
 
-- **Notizen**: Dateien mit `.md`, `.markdown` oder `.txt`. Unterordner bleiben erhalten; jede Notiz wird als `.md` gespeichert, z. B. `Vault/Reisen/Rom.markdown` → `<zielordner>/Reisen/Rom.md`. Das Änderungsdatum der Datei wird zum Datum der Notiz.
-- **Anhänge**: Bilder (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.avif`) und PDFs – aber **nur, wenn eine neu angelegte Notiz sie verlinkt**, per Markdown-Link oder -Bild (`![alt](bilder/foto.png)`) oder Obsidian-Einbettung (`![[foto.png]]`, `![[foto.png|Beschreibung]]`). Die Links in der Notiz zeigen danach auf den hochgeladenen Anhang. Ist der Pfad nicht eindeutig, sucht die CLI eine eindeutige Datei mit demselben Namen im Ordner.
-- **Ignoriert**: versteckte Dateien und Ordner (z. B. `.obsidian`, `.git`), symbolische Links, `node_modules`, alle anderen Dateitypen (z. B. `.docx`) und Bilder oder PDFs, die keine neue Notiz verlinkt.
-- **Grenzen**: Notizen über 2 MB und Anhänge über 25 MB werden als Fehler gemeldet und nicht gesendet.
+- **Notes**: files ending in `.md`, `.markdown` or `.txt`. Subfolders are kept; every note is saved as `.md`, e.g. `Vault/Travel/Rome.markdown` → `<target folder>/Travel/Rome.md`. The file's modification time becomes the note's date.
+- **Attachments**: images (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.avif`) and PDFs – but **only if a newly created note links to them**, by Markdown link or image (`![alt](images/photo.png)`) or Obsidian embed (`![[photo.png]]`, `![[photo.png|Caption]]`). Afterwards the links in the note point to the uploaded attachment. If the path is ambiguous, the CLI looks for a unique file with the same name in the folder.
+- **Ignored**: hidden files and folders (e.g. `.obsidian`, `.git`), symbolic links, `node_modules`, all other file types (e.g. `.docx`) and images or PDFs that no new note links to.
+- **Limits**: notes over 2 MB and attachments over 25 MB are reported as errors and not sent.
 
-## Vorhandene Pfade werden nie überschrieben
+## Existing paths are never overwritten
 
-Gibt es im Space schon eine Notiz mit demselben Pfad (Groß-/Kleinschreibung egal), wird die Datei übersprungen. Der Server prüft das beim Schreiben noch einmal: Eine Notiz, die zwischen Vorschau und Import entstanden ist, wird ebenfalls übersprungen. Die CLI ändert, verschiebt oder löscht nie eine bestehende Notiz. Ein zweiter Lauf über denselben Ordner meldet daher alles als übersprungen und lädt keine Anhänge erneut hoch.
+If the space already has a note with the same path (case-insensitive), the file is skipped. The server checks again when writing: a note created between the preview and the import is skipped as well. The CLI never changes, moves or deletes an existing note. A second run over the same folder therefore reports everything as skipped and uploads no attachment again.
 
-Die importierten Notizen synchronisieren wie jede andere Änderung und erscheinen in geöffneten Kladde-Fenstern ohne Neuladen.
+The imported notes sync like any other change and appear in open Kladde windows without reloading.
 
-## Token widerrufen
+## Revoke a token
 
-Unter **Einstellungen → Import** steht jedes Token mit Erstell-, Ablauf- und letztem Nutzungsdatum. Über das Papierkorb-Symbol (mit Rückfrage) widerrufst du es; die CLI bekommt danach `Import-Token ungültig oder widerrufen`. Ein gesperrtes Konto kann seine Tokens ebenfalls nicht mehr benutzen.
+**Settings → Import** lists every token with its creation, expiry and last-used date. The trash icon (with confirmation) revokes it; the CLI then gets `Import token invalid, revoked or expired`. A suspended account cannot use its tokens either.
 
-## Fehlermeldungen
+## Error messages
 
-| Meldung | Bedeutung |
+| Message | Meaning |
 | --- | --- |
-| `Import-Token ungültig oder widerrufen (oder abgelaufen)` | Token falsch abgeschrieben, widerrufen, abgelaufen oder Konto gesperrt |
-| `Unverschlüsselte Verbindung …` | `--url` beginnt mit `http://`: auf https wechseln oder bewusst `--allow-insecure` angeben |
-| `Kladde unter … nicht erreichbar` | Adresse falsch, Server aus oder unter der Adresse antwortet keine Kladde |
-| `Bitte die Adresse … mit --url angeben` / `Ungültige --url …` | `--url` fehlt oder ist keine http-/https-Adresse |
-| `Ordner nicht gefunden` / `Kein Ordner` | Der Quellpfad existiert nicht oder ist eine Datei |
+| `Import token invalid, revoked or expired` | Token mistyped, revoked, expired or account suspended |
+| `Unencrypted connection …` | `--url` starts with `http://`: switch to https or pass `--allow-insecure` on purpose |
+| `Kladde at … is not reachable` | Wrong address, server down or no Kladde answers at that address |
+| `Please give the address … with --url` / `Invalid --url …` | `--url` is missing or not an http/https address |
+| `Folder not found` / `Not a folder` | The source path does not exist or is a file |
