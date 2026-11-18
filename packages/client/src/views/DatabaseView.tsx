@@ -25,14 +25,17 @@ import { vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { isReadOnly } from '../lib/readOnly';
 import { navigate } from '../lib/router';
-import { Images, Kanban, LayoutGrid, Plus, Settings, Table2, Trash2 } from '../lib/icons';
+import { Plus, Settings, Trash2 } from '../lib/icons';
 import { t, useLang, type I18nKey } from '../lib/i18n';
 import { Sheet } from './Dialogs';
+import { ChipSelect } from './ChipSelect';
+import { Dropdown, type DropdownOption } from './Dropdown';
 
 const typeKey = (type: string) => `db.type.${type}` as I18nKey;
 const viewKey = (type: string) => `db.view.${type}` as I18nKey;
 const opKey = (op: string) => `db.op.${op}` as I18nKey;
-const VIEW_ICON = { table: Table2, board: Kanban, gallery: Images } as const;
+const NONE: DropdownOption = { value: '', label: '—' };
+const asOptions = (values: string[]): DropdownOption[] => values.map((v) => ({ value: v, label: v }));
 
 /** One typed, editable cell; changes go straight into the note's frontmatter */
 function Cell({ row, prop, canEdit }: { row: DbRow; prop: DbProperty; canEdit: boolean }) {
@@ -50,14 +53,7 @@ function Cell({ row, prop, canEdit }: { row: DbRow; prop: DbProperty; canEdit: b
     const current = typeof value === 'string' ? value : '';
     const opts = current && !prop.options.includes(current) ? [...prop.options, current] : prop.options;
     return (
-      <select className="input !min-h-0 !py-1" aria-label={label} value={current} onChange={(e) => save(e.target.value || null)}>
-        <option value="" />
-        {opts.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
+<Dropdown className="!min-h-0 !py-1" aria-label={label} value={current} options={[NONE, ...asOptions(opts)]} onChange={(v) => save(v || null)} />
     );
   }
   if (prop.type === 'multiselect') {
@@ -71,14 +67,7 @@ function Cell({ row, prop, canEdit }: { row: DbRow; prop: DbProperty; canEdit: b
           </button>
         ))}
         {canEdit && free.length > 0 && (
-          <select className="input !min-h-0 !w-auto !py-0.5 text-xs" aria-label={label} value="" onChange={(e) => e.target.value && save([...chosen, e.target.value])}>
-            <option value="">+</option>
-            {free.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
-            ))}
-          </select>
+          <Dropdown variant="chip" placeholder="+" aria-label={label} value="" options={asOptions(free)} onChange={(v) => save([...chosen, v])} />
         )}
       </span>
     );
@@ -276,13 +265,7 @@ function SchemaSheet({ db, dbNote, folder, onClose }: { db: Database; dbNote: Lo
           <li key={i} className="rounded-xl border border-outline-variant/60 p-2">
             <div className="flex gap-2">
               <input className="input min-w-0 flex-1" aria-label={t('db.propName')} placeholder={t('db.propName')} value={p.name} onChange={(e) => patchProp(i, { name: e.target.value })} />
-              <select className="input w-auto" aria-label={t('db.propType')} value={p.type} onChange={(e) => patchProp(i, { type: e.target.value as DbProperty['type'] })}>
-                {PROPERTY_TYPES.map((ty) => (
-                  <option key={ty} value={ty}>
-                    {t(typeKey(ty))}
-                  </option>
-                ))}
-              </select>
+              <Dropdown className="w-auto" aria-label={t('db.propType')} value={p.type} options={PROPERTY_TYPES.map((ty) => ({ value: ty, label: t(typeKey(ty)) }))} onChange={(v) => patchProp(i, { type: v as DbProperty['type'] })} />
               <button className="btn-icon" aria-label={t('common.delete')} title={t('common.delete')} onClick={() => setProps((l) => l.filter((_, j) => j !== i))}>
                 <Trash2 size={16} />
               </button>
@@ -312,13 +295,7 @@ function SchemaSheet({ db, dbNote, folder, onClose }: { db: Database; dbNote: Lo
           <li key={i} className="rounded-xl border border-outline-variant/60 p-2">
             <div className="flex gap-2">
               <input className="input min-w-0 flex-1" aria-label={t('db.viewName')} value={v.name} onChange={(e) => patchView(i, { name: e.target.value })} />
-              <select className="input w-auto" aria-label={t('db.viewType')} value={v.type} onChange={(e) => patchView(i, { type: e.target.value as DbView['type'] })}>
-                {VIEW_TYPES.map((ty) => (
-                  <option key={ty} value={ty}>
-                    {t(viewKey(ty))}
-                  </option>
-                ))}
-              </select>
+              <Dropdown className="w-auto" aria-label={t('db.viewType')} value={v.type} options={VIEW_TYPES.map((ty) => ({ value: ty, label: t(viewKey(ty)) }))} onChange={(x) => patchView(i, { type: x as DbView['type'] })} />
               <button className="btn-icon" aria-label={t('common.delete')} title={t('common.delete')} onClick={() => setViews((l) => l.filter((_, j) => j !== i))}>
                 <Trash2 size={16} />
               </button>
@@ -326,48 +303,20 @@ function SchemaSheet({ db, dbNote, folder, onClose }: { db: Database; dbNote: Lo
             {v.type === 'board' && (
               <label className="mt-2 flex items-center gap-2 text-sm">
                 {t('db.groupBy')}
-                <select className="input w-auto" value={v.group} onChange={(e) => patchView(i, { group: e.target.value })}>
-                  <option value="" />
-                  {props.filter((p) => p.type === 'select' && p.name.trim()).map((p) => (
-                    <option key={p.orig + p.name} value={p.name.trim()}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <Dropdown className="w-auto" aria-label={t('db.groupBy')} value={v.group} options={[NONE, ...asOptions(props.filter((p) => p.type === 'select' && p.name.trim()).map((p) => p.name.trim()))]} onChange={(x) => patchView(i, { group: x })} />
               </label>
             )}
             <label className="mt-2 flex items-center gap-2 text-sm">
               {t('db.sortBy')}
-              <select className="input w-auto" value={v.sort} onChange={(e) => patchView(i, { sort: e.target.value })}>
-                <option value="" />
-                <option value="title">{t('list.colTitle')}</option>
-                {names.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
+              <Dropdown className="w-auto" aria-label={t('db.sortBy')} value={v.sort} options={[NONE, { value: 'title', label: t('list.colTitle') }, ...asOptions(names)]} onChange={(x) => patchView(i, { sort: x })} />
               <label className="flex items-center gap-1">
                 <input type="checkbox" checked={v.desc} onChange={(e) => patchView(i, { desc: e.target.checked })} /> {t('db.descending')}
               </label>
             </label>
             {v.filter.map((f, fi) => (
               <div key={fi} className="mt-2 flex flex-wrap items-center gap-2">
-                <select className="input w-auto" aria-label={t('db.filterProperty')} value={f.property} onChange={(e) => patchView(i, { filter: v.filter.map((x, j) => (j === fi ? { ...x, property: e.target.value } : x)) })}>
-                  <option value="title">{t('list.colTitle')}</option>
-                  {names.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-                <select className="input w-auto" aria-label={t('db.filterOp')} value={f.op} onChange={(e) => patchView(i, { filter: v.filter.map((x, j) => (j === fi ? { ...x, op: e.target.value as typeof f.op } : x)) })}>
-                  {FILTER_OPS.map((op) => (
-                    <option key={op} value={op}>
-                      {t(opKey(op))}
-                    </option>
-                  ))}
-                </select>
+                <Dropdown className="w-auto" aria-label={t('db.filterProperty')} value={f.property} options={[{ value: 'title', label: t('list.colTitle') }, ...asOptions(names)]} onChange={(x) => patchView(i, { filter: v.filter.map((y, j) => (j === fi ? { ...y, property: x } : y)) })} />
+                <Dropdown className="w-auto" aria-label={t('db.filterOp')} value={f.op} options={FILTER_OPS.map((op) => ({ value: op, label: t(opKey(op)) }))} onChange={(x) => patchView(i, { filter: v.filter.map((y, j) => (j === fi ? { ...y, op: x as typeof f.op } : y)) })} />
                 {f.op !== 'empty' && f.op !== 'notempty' && (
                   <input className="input min-w-0 flex-1" aria-label={t('db.filterValue')} value={f.value} onChange={(e) => patchView(i, { filter: v.filter.map((x, j) => (j === fi ? { ...x, value: e.target.value } : x)) })} />
                 )}
@@ -398,7 +347,7 @@ function SchemaSheet({ db, dbNote, folder, onClose }: { db: Database; dbNote: Lo
   );
 }
 
-/** A folder with a `_database.md` as a database (#76): views over its notes without writing a query */
+/** A folder with a `_database-<uuid>.md` as a database (#76): views over its notes without writing a query */
 export function DatabaseView({ folder, dbNote }: { folder: string; dbNote: LocalNote }) {
   useLang();
   const db = parseDatabase(dbNote.content);
@@ -424,16 +373,13 @@ export function DatabaseView({ folder, dbNote }: { folder: string; dbNote: Local
   return (
     <section className="mb-6" aria-label={t('db.title')} data-database>
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="segmented" role="tablist" aria-label={t('db.views')}>
-          {db.views.map((v, i) => {
-            const Icon = VIEW_ICON[v.type] ?? LayoutGrid;
-            return (
-              <button key={i} role="tab" aria-selected={view === v} className={view === v ? 'is-selected' : ''} onClick={() => setActive(i)}>
-                <Icon size={15} /> {v.name}
-              </button>
-            );
-          })}
-        </div>
+        <ChipSelect
+          aria-label={t('db.views')}
+          value={String(Math.min(active, db.views.length - 1))}
+          options={db.views.map((v, i) => ({ value: String(i), label: v.name }))}
+          onChange={(x) => setActive(Number(x))}
+          className="!h-10 !px-4"
+        />
         <span className="flex-1" />
         {canEdit && (
           <>

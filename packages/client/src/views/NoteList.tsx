@@ -1,6 +1,6 @@
 import { useState, useSyncExternalStore } from 'react';
 import { Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, LayoutGrid, List, Plus, Table2, Trash2, Users } from '../lib/icons';
-import { INBOX_FOLDER, archiveTarget, excerpt, extractMeta, findDatabaseNote, inferPropertyKeys, isDatabasePath, newDatabaseContent, projectTitleOf, restoreTarget, splitPath } from '@kladde/shared';
+import { INBOX_FOLDER, archiveTarget, excerpt, extractMeta, findDatabaseNote, databaseFileName, inferPropertyKeys, isDatabasePath, newDatabaseContent, projectTitleOf, restoreTarget, splitPath } from '@kladde/shared';
 import type { SharedFolder } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
@@ -329,7 +329,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
   const dbNote = mode === 'folder' && folder ? findDatabaseNote(folder, vault.list().filter((n) => n.access === 'owner')) : null;
   const makeDatabase = () => {
     const keys = inferPropertyKeys(folder!, vault.list());
-    void vault.create(folder!, '_database', newDatabaseContent(keys)).catch((err: Error) => alert(err.message));
+    void vault.create(folder!, databaseFileName(crypto.randomUUID()).replace(/\.md$/, ''), newDatabaseContent(keys)).catch((err: Error) => alert(err.message));
   };
   const subfolders = mode === 'folder' ? vault.folders().filter((f) => f.startsWith(`${folder}/`) && !f.slice(folder!.length + 1).includes('/')) : [];
   // Notes in a folder and all its subfolders (owned ones, like the list itself)

@@ -38,6 +38,7 @@ import {
 import {
   isExcalidrawNote,
   INBOX_FOLDER,
+  isDatabasePath,
   Me,
   pdfNoteOf,
   projectTitleOf,
@@ -945,7 +946,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
   const notesByFolder = useMemo(() => {
     const map = new Map<string, LocalNote[]>();
     for (const n of notes) {
-      if (n.access !== 'owner') continue;
+      if (n.access !== 'owner' || isDatabasePath(n.path)) continue;
       const f = splitPath(n.path).folder;
       const list = map.get(f);
       if (list) list.push(n);
