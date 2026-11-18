@@ -1116,6 +1116,11 @@ const de = {
   'templates.placeholder.title': 'Titel der neuen Notiz',
   'templates.placeholder.date': 'heutiges Datum (YYYY-MM-DD)',
   'templates.placeholder.zid': 'Zettel-ID; die Notiz bekommt sie auch vor den Titel',
+  'templates.dailyLabel': 'Tagesnotiz',
+  'templates.dailyHint': 'Inhalt neuer Tagesnotizen; Ordner und Namensschema stehen in den Einstellungen unter Tagesnotizen.',
+  'templates.dailyContentPlaceholder': '## Aufgaben\n- [ ] \n\n## Notizen\n',
+  'templates.placeholder.dailyTitle': 'Name der Tagesnotiz',
+  'templates.placeholder.dailyDate': 'Datum des Tages (YYYY-MM-DD)',
 
   // Git Settings
 
@@ -2508,6 +2513,11 @@ const en: Record<I18nKey, string> = {
   'templates.placeholder.title': 'Title of the new note',
   'templates.placeholder.date': 'today’s date (YYYY-MM-DD)',
   'templates.placeholder.zid': 'Zettel ID; also prepended to the note title',
+  'templates.dailyLabel': 'Daily note',
+  'templates.dailyHint': 'Content of new daily notes; folder and naming pattern are set under Daily Notes in the settings.',
+  'templates.dailyContentPlaceholder': '## Tasks\n- [ ] \n\n## Notes\n',
+  'templates.placeholder.dailyTitle': 'Name of the daily note',
+  'templates.placeholder.dailyDate': 'Date of the day (YYYY-MM-DD)',
 
   // Git Settings
 

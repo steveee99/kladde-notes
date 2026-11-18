@@ -133,7 +133,7 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
               <Star size={20} filled={vault.isFavoriteGroupFolder(groupId, folder)} />
             </button>
           )}
-          <button className="btn-ghost shrink-0 max-sm:!px-2.5" onClick={() => navigate(groupManagePath(groupId))} title={t('groups.manage')}>
+          <button className="btn-ghost shrink-0 phone:!px-2.5" onClick={() => navigate(groupManagePath(groupId))} title={t('groups.manage')}>
             <Settings size={16} /> <span className="hidden sm:inline">{t('groups.manage')}</span>
           </button>
           {writer && (

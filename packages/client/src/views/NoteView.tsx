@@ -1411,6 +1411,12 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             }}
           />
           <h1 className="mb-3 hidden break-words text-headline-l print:block">{title || displayName}</h1>
+          {/* Word count sits under the title instead of a bar over the content */}
+          {!showPdf && features.writingStats.enabled && (
+            <div className="no-print -mt-1 mb-2">
+              <NoteStats content={note.content} view={view} tick={statsTick} lang={lang} />
+            </div>
+          )}
           {!locked && !focus && (
             <div className="no-print">
               <ParaBar note={note} />
@@ -1508,20 +1514,9 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             </div>
           )}
         </div>
-        {!showPdf && (features.writingStats.enabled || !readOnly) && (
-          <div className="no-print sticky bottom-0 z-20">
-            {features.writingStats.enabled && (
-              <div className="bg-surface/95 backdrop-blur">
-                <div className={`content-container mx-auto ${focus ? 'focus-container' : ''}`}>
-                  <NoteStats content={note.content} view={view} tick={statsTick} lang={lang} />
-                </div>
-              </div>
-            )}
-            {!readOnly && (
-              <div className={focus ? 'nav:hidden' : ''}>
-                <Toolbar view={view} lang={lang} />
-              </div>
-            )}
+        {!showPdf && !readOnly && (
+          <div className={`no-print sticky bottom-0 z-20 ${focus ? 'nav:hidden' : ''}`}>
+            <Toolbar view={view} lang={lang} />
           </div>
         )}
       </div>

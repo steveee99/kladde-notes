@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fillTemplate, normalizeTemplates, templateUsesZettelId } from '../src/templates';
+import { DEFAULT_DAILY_TEMPLATE, fillTemplate, normalizeDailyTemplate, normalizeTemplates, templateUsesZettelId } from '../src/templates';
 
 describe('normalizeTemplates', () => {
   it('starts empty and ignores anything that is not a list', () => {
@@ -29,5 +29,14 @@ describe('fillTemplate', () => {
     );
     expect(templateUsesZettelId('id: {{zid}}')).toBe(true);
     expect(templateUsesZettelId('# {{title}}')).toBe(false);
+  });
+});
+
+describe('normalizeDailyTemplate', () => {
+  it('starts without a heading and keeps stored text', () => {
+    expect(normalizeDailyTemplate(undefined)).toBe(DEFAULT_DAILY_TEMPLATE);
+    expect(DEFAULT_DAILY_TEMPLATE).not.toMatch(/^#/);
+    expect(normalizeDailyTemplate(42)).toBe(DEFAULT_DAILY_TEMPLATE);
+    expect(normalizeDailyTemplate('## Aufgaben\n- [ ] ')).toBe('## Aufgaben\n- [ ] ');
   });
 });

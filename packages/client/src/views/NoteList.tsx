@@ -265,7 +265,7 @@ function SharedFolderSection({ shared, notes }: { shared: SharedFolder; notes: L
           </span>
         </span>
         {shared.canCreate && (
-          <button className="edit-only btn-ghost ml-auto shrink-0 max-sm:!px-2.5" onClick={() => openDialog({ kind: 'note', shared })}>
+          <button className="edit-only btn-ghost ml-auto shrink-0 phone:!px-2.5" onClick={() => openDialog({ kind: 'note', shared })}>
             <Plus size={16} /> <span className="hidden sm:inline">{t('nav.newNote')}</span>
           </button>
         )}
@@ -359,7 +359,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
           {mode === 'folder' && folder && features.para.enabled && folder !== archiveRoot && (
             restoreDest !== null ? (
               <button
-                className="edit-only btn-ghost shrink-0 max-sm:!px-2.5"
+                className="edit-only btn-ghost shrink-0 phone:!px-2.5"
                 title={t('para.restoreTitle', { folder: restoreDest ? folderDisplayName(restoreDest, lang) : t('common.topLevelPlain') })}
                 onClick={() => void vault.restoreFolder(folder).then(() => navigate(restoreDest ? `/f/${encodeURIComponent(restoreDest)}` : '/notes', true))}
               >
@@ -368,7 +368,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
             ) : (
               !protectedFolders.has(folder) && (
                 <button
-                  className="edit-only btn-ghost shrink-0 max-sm:!px-2.5"
+                  className="edit-only btn-ghost shrink-0 phone:!px-2.5"
                   title={t('list.archiveFolderTitle')}
                   onClick={() =>
                     confirm(t('list.archiveFolderConfirm', { folder: folderDisplayName(folder, lang) })) &&
@@ -381,13 +381,13 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
             )
           )}
           {mode === 'folder' && folder && !protectedFolders.has(folder) && folder !== features.daily.folder && !vault.standalone && !DEMO && vault.notesInFolder(folder) > 0 && (
-            <button className="edit-only btn-ghost shrink-0 max-sm:!px-2.5" title={t('groups.moveTitle')} onClick={() => setMovingToGroup(true)} data-move-folder-to-group>
+            <button className="edit-only btn-ghost shrink-0 phone:!px-2.5" title={t('groups.moveTitle')} onClick={() => setMovingToGroup(true)} data-move-folder-to-group>
               <Users size={16} /> <span className="hidden sm:inline">{t('groups.moveFolderBtn')}</span>
             </button>
           )}
           {mode === 'folder' && folder && !protectedFolders.has(folder) && folder !== features.daily.folder && (
             <button
-              className="edit-only btn-ghost shrink-0 hover:text-error max-sm:!px-2.5"
+              className="edit-only btn-ghost shrink-0 hover:text-error phone:!px-2.5"
               title={t('list.deleteFolderTitle')}
               onClick={() => {
                 const n = vault.notesInFolder(folder);
@@ -401,7 +401,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
             </button>
           )}
           {mode !== 'shared' && (
-            <button className="edit-only btn-tonal max-md:hidden" onClick={() => newNote(folder)}>
+            <button className="edit-only btn-tonal hidden md:inline-flex" onClick={() => newNote(folder)}>
               <Plus size={18} /> {t('list.newBtn')}
             </button>
           )}

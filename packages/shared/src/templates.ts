@@ -12,6 +12,17 @@ export interface Template {
 /** Settings key the templates are stored under */
 export const TEMPLATES_SETTING = 'templates';
 
+/** Settings key of the daily note template; it has no name or folder (the daily note settings decide those) */
+export const DAILY_TEMPLATE_SETTING = 'dailyTemplate';
+
+/** Content of new daily notes until the user edits it: empty, the note title already shows the date */
+export const DEFAULT_DAILY_TEMPLATE = '';
+
+/** Reads the stored daily note template; anything but a string falls back to the default */
+export function normalizeDailyTemplate(value: unknown): string {
+  return typeof value === 'string' ? value : DEFAULT_DAILY_TEMPLATE;
+}
+
 export const TEMPLATE_PLACEHOLDERS: { token: string; label: string }[] = [
   { token: '{{title}}', label: 'Titel der neuen Notiz' },
   { token: '{{date}}', label: 'heutiges Datum (YYYY-MM-DD)' },
