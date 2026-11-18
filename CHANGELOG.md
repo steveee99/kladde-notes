@@ -4,8 +4,9 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
-- Fixed: Phones show the five main destinations in the bottom navigation bar again; daily note, search, tags and graph appear there only on tablets. Since 2.9.0 the extra destinations, some button labels and the compact button spacing meant for phones were shown on phones as well.
+## [2.10.0] – 2026-11-18
 
+- Fixed: Phones show the five main destinations in the bottom navigation bar again; daily note, search, tags and graph appear there only on tablets. Since 2.9.0 the extra destinations, some button labels and the compact button spacing meant for phones were shown on phones as well.
 - Changed: The word count (words, characters, reading time) appears directly below the note title instead of as a bar over the bottom of the note.
 - Changed: New daily notes no longer start with a heading repeating the date that the title already shows. Their content comes from the new "Daily note" entry under Settings → Templates (shown while daily notes are on), which can be edited like any template; `{{title}}` is the daily note's name and `{{date}}` its day.
 
