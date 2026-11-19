@@ -1168,6 +1168,41 @@ export class NoteStore {
     });
   }
 
+  /** Everything the user shares, for the account export (#93): direct note shares, shared folders and public links */
+  shareOverview(userId: string): {
+    notes: { noteId: string; path: string; username: string; canWrite: boolean }[];
+    folders: { folder: string; username: string; canWrite: boolean; canCreate: boolean; canDelete: boolean }[];
+    publicLinks: { noteId: string; path: string }[];
+  } {
+    const paths = new Map(this.ownedNotes(userId).map((n) => [n.id, n.path]));
+    const direct = this.db
+      .prepare(
+        'SELECT shares.note_id, users.username, shares.can_write FROM shares JOIN notes ON notes.id = shares.note_id JOIN users ON users.id = shares.user_id WHERE notes.owner_id = ? AND notes.deleted = 0 AND shares.folder_share_id IS NULL ORDER BY users.username_lower'
+      )
+      .all(userId) as { note_id: string; username: string; can_write: number }[];
+    const names = new Map<string, string>();
+    const nameOf = (id: string) => {
+      if (!names.has(id)) names.set(id, (this.db.prepare('SELECT username FROM users WHERE id = ?').get(id) as { username: string } | undefined)?.username ?? '');
+      return names.get(id)!;
+    };
+    const links = this.db.prepare('SELECT public_links.note_id FROM public_links JOIN notes ON notes.id = public_links.note_id WHERE notes.owner_id = ? AND notes.deleted = 0').all(userId) as { note_id: string }[];
+    return {
+      notes: direct.filter((r) => paths.has(r.note_id)).map((r) => ({ noteId: r.note_id, path: paths.get(r.note_id)!, username: r.username, canWrite: !!r.can_write })),
+      folders: this.folderSharesOf(userId).map((f) => ({ folder: f.folder, username: nameOf(f.userId), canWrite: f.canWrite, canCreate: f.canCreate, canDelete: f.canDelete })),
+      publicLinks: links.filter((l) => paths.has(l.note_id)).map((l) => ({ noteId: l.note_id, path: paths.get(l.note_id)! })),
+    };
+  }
+
+  /** All saved states of an own note with their content, newest first (account export with history) */
+  historyOf(userId: string, noteId: string): { savedAt: number; path: string; content: string }[] {
+    this.ownedRow(userId, noteId);
+    const rows = this.db.prepare('SELECT * FROM note_versions WHERE note_id = ? ORDER BY saved_at DESC, rowid DESC').all(noteId) as unknown as VersionRow[];
+    return rows.map((r) => {
+      const v = this.versionOf(r);
+      return { savedAt: r.saved_at, path: v.path, content: v.content };
+    });
+  }
+
   counts(): { notes: number; shares: number } {
     const n = this.db.prepare('SELECT COUNT(*) AS n FROM notes WHERE deleted = 0').get() as { n: number };
     const s = this.db.prepare('SELECT COUNT(*) AS n FROM shares').get() as { n: number };

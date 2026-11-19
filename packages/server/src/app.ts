@@ -44,6 +44,9 @@ import { httpsTransport, type HttpTransport } from './confluence/ConfluenceClien
 import { confluenceRouter } from './confluence/router.js';
 import { BackupService } from './backup/BackupService.js';
 import { ServerSettings } from './ServerSettings.js';
+import { AccountExportService } from './export/AccountExport.js';
+import { accountExportRouter } from './export/router.js';
+import { Metrics, metricsHandler, metricsTokenFromEnv, type MetricsSources } from './metrics.js';
 
 export interface KladdeAppOptions {
   db: DatabaseSync;
@@ -63,6 +66,8 @@ export interface KladdeAppOptions {
   backup?: { dir: string; defaultKeep: number };
   /** Restarts the server (a restore is applied at start); without it the admin area cannot restore */
   onRestart?: () => void;
+  /** Path of the database file, for its size in the metrics (#92) */
+  dbPath?: string;
 }
 
 export interface KladdeAppContext {
@@ -82,6 +87,8 @@ export interface KladdeAppContext {
   sendReminders?: (now?: Date) => Promise<number>;
   /** Backups of database and attachments (#65), when the app has a backup directory */
   backups?: BackupService;
+  /** What the Prometheus metrics (#92) read; served on `/metrics` with `METRICS_TOKEN` or on `METRICS_PORT` */
+  metrics: MetricsSources;
 }
 
 /** Builds the Express app and stores for either multi-user server mode or single-user desktop standalone mode */
@@ -117,7 +124,24 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   // Quotas (#91): STORAGE_QUOTA_MB is the default for every account and group, admins set own limits
   const storage = new StorageStore(opts.db, defaultQuotaBytes(env));
   files.guard = (ownerId, size) => storage.assertRoom(ownerId, size);
-  const transcriber = transcriberFromEnv(env);
+  const metrics = new Metrics();
+  const plainTranscriber = transcriberFromEnv(env);
+  // Counted for the metrics (#92): how many run and how they end
+  const transcriber: typeof plainTranscriber = plainTranscriber
+    ? async (audio, lang) => {
+        metrics.transcriptionsRunning++;
+        try {
+          const text = await plainTranscriber(audio, lang);
+          metrics.transcriptions.ok++;
+          return text;
+        } catch (err) {
+          metrics.transcriptions.failed++;
+          throw err;
+        } finally {
+          metrics.transcriptionsRunning--;
+        }
+      }
+    : null;
   // Full-text search in attachments (#37): every new PDF (and image, with OCR) is indexed in the background
   const attachmentTexts = new AttachmentTextStore(opts.db, cipher);
   const attachmentIndexer = new AttachmentIndexer(files, attachmentTexts, ocrFromEnv(env, opts.dataDir));
@@ -173,9 +197,22 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     connections: live.connections,
   });
 
+  const metricsSources: MetricsSources = {
+    metrics,
+    db: opts.db,
+    dbPath: opts.dbPath && opts.dbPath !== ':memory:' ? opts.dbPath : null,
+    startedAt,
+    sseConnections: () => live.connections,
+    attachmentQueue: () => attachmentIndexer.pending,
+    ocr: !!attachmentIndexer.ocr,
+    transcription: !!transcriber,
+    lastBackupAt: () => (backups ? (backups.list()[0]?.createdAt ?? null) : null),
+  };
+
   const app = express();
   app.disable('x-powered-by');
   if (opts.trustProxy) app.set('trust proxy', 1);
+  app.use(metrics.middleware());
   const allowedOrigins = configuredOrigins(env);
 
   // The served index.html decides which inline scripts the CSP allows (hashes, no 'unsafe-inline')
@@ -192,6 +229,10 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), geolocation=()');
     next();
   });
+
+  // Prometheus metrics (#92): only with METRICS_TOKEN, as a bearer token; never in the desktop app
+  const metricsToken = opts.standalone ? null : metricsTokenFromEnv(env);
+  if (metricsToken) app.get('/metrics', metricsHandler(metricsSources, metricsToken));
 
   app.get('/health', (_req, res) => res.json({ ok: true, version: APP_VERSION, standalone: opts.standalone, ...(maintenance ? { maintenance } : {}) }));
   app.use(['/api', '/mcp'], (_req, res, next) => {
@@ -297,6 +338,9 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     req.path === '/sync' || req.path === '/files' || req.path === '/me/avatar' ? next() : express.json({ limit: '256kb' })(req, res, next)
   );
   app.use('/api/mcp', mcp.accountRouter);
+  // Account export as ZIP (#93): built in the background, the settings poll until it is ready
+  const accountExports = new AccountExportService({ notes, files, dataDir: opts.dataDir });
+  app.use('/api/account-export', accountExportRouter({ users, exports: accountExports, audit, standaloneUser }));
   app.use('/api/confluence', confluenceRouter({ users, sync: confluence, audit, allowPrivate: confluenceAllowPrivate, standaloneUser }));
   if (!opts.standalone) {
     app.use(
@@ -368,5 +412,5 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
 
   const sendReminders = push ? (now?: Date) => runReminders(push, notes, pushSubject, now) : undefined;
-  return { app, users, notes, files, avatars, attachmentIndexer, confluence, audit, live, standaloneUser, sendReminders, backups };
+  return { app, users, notes, files, avatars, attachmentIndexer, confluence, audit, live, standaloneUser, sendReminders, backups, metrics: metricsSources };
 }

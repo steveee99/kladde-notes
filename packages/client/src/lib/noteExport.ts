@@ -14,6 +14,7 @@ import {
   TextRun,
   WidthType,
   type IParagraphOptions,
+  type ParagraphChild,
 } from 'docx';
 import { jsPDF } from 'jspdf';
 import {
@@ -36,6 +37,7 @@ import {
 import { CALLOUT_ICON_PATHS } from '../editor/calloutIcons';
 import { renderDiagram, type DiagramKind } from '../editor/diagram';
 import { t } from './i18n';
+import { MATH_RENDER_PX, mathKey, mathToDocx, prepareMath, rasterizeMath, type MathImage } from './mathExport';
 
 type Rgb = [number, number, number];
 /** Callout colors (#86) on paper: the light Material 3 scheme (color role, its container, text on the container) */
@@ -209,6 +211,30 @@ async function renderDiagramImage(kind: DiagramKind, src: string): Promise<Loade
   }
 }
 
+/** Every formula (#85) of the blocks: display blocks and the ones inside text */
+function collectMath(blocks: ExportBlock[]): { tex: string; display: boolean }[] {
+  const out: { tex: string; display: boolean }[] = [];
+  const scan = (inlines: ExportInline[]) => {
+    for (const i of inlines) if (i.type === 'math') out.push({ tex: i.tex, display: i.display });
+  };
+  for (const b of blocks) {
+    if (b.type === 'math') out.push({ tex: b.tex, display: true });
+    else if (b.type === 'heading' || b.type === 'paragraph' || b.type === 'footnote') scan(b.inlines);
+    else if (b.type === 'list') b.items.forEach((it) => scan(it.inlines));
+    else if (b.type === 'blockquote') {
+      b.lines.forEach(scan);
+      if (b.callout) scan(b.callout.titleInlines);
+    } else if (b.type === 'table') {
+      b.headers.forEach(scan);
+      b.rows.forEach((r) => r.forEach(scan));
+    }
+  }
+  return out;
+}
+
+/** Rasterized formulas of the PDF being drawn (set while one is exported) */
+let pdfMath = new Map<string, MathImage | null>();
+
 async function preloadMedia(blocks: ExportBlock[]) {
   const images = new Map<string, LoadedImage | null>();
   const diagrams = new Map<string, LoadedImage | null>();
@@ -253,8 +279,8 @@ function fitSize(w: number, h: number, maxW: number, maxH: number) {
 function docxRuns(
   inlines: ExportInline[],
   opts: { muted?: boolean; strike?: boolean; bold?: boolean; color?: string; font?: string; italics?: boolean; size?: number } = {}
-): (TextRun | ExternalHyperlink)[] {
-  const runs: (TextRun | ExternalHyperlink)[] = [];
+): ParagraphChild[] {
+  const runs: ParagraphChild[] = [];
   for (const span of inlines) {
     const base = {
       font: opts.font,
@@ -309,6 +335,9 @@ function docxRuns(
       case 'footnoteRef':
         runs.push(new TextRun({ ...base, text: `[${span.id}]`, superScript: true, color: '4F46E5' }));
         break;
+      case 'math':
+        runs.push(mathToDocx(span.tex, span.display));
+        break;
     }
   }
   return runs;
@@ -330,6 +359,7 @@ const docxAlign = (a: TableAlign) =>
 export async function exportNoteAsWord(title: string, content: string): Promise<void> {
   const parsed = parseMarkdownForExport(title, content);
   const { images, diagrams, icons } = await preloadMedia(parsed.blocks);
+  if (collectMath(parsed.blocks).length) await prepareMath();
 
   const children: (Paragraph | Table)[] = [];
 
@@ -539,6 +569,10 @@ export async function exportNoteAsWord(title: string, content: string): Promise<
         break;
       }
 
+      case 'math':
+        children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 80, after: 140 }, children: [mathToDocx(block.tex, true)] }));
+        break;
+
       case 'hr':
         children.push(
           new Paragraph({
@@ -656,7 +690,12 @@ interface PdfSeg {
   url?: string;
   codeBg?: boolean;
   strike?: boolean;
+  /** A formula (#85) drawn as an image in the text line */
+  math?: MathImage;
 }
+
+/** Width and height of a formula image at a font size, in points */
+const mathSize = (m: MathImage, fontSize: number) => ({ w: (m.width * fontSize) / MATH_RENDER_PX, h: (m.height * fontSize) / MATH_RENDER_PX, base: (m.baseline * fontSize) / MATH_RENDER_PX });
 
 function inlinesToPdfSegs(inlines: ExportInline[], baseStyle: 'normal' | 'italic' = 'normal', baseColor: [number, number, number] = [28, 27, 34], strikeAll = false): PdfSeg[] {
   const segs: PdfSeg[] = [];
@@ -694,6 +733,12 @@ function inlinesToPdfSegs(inlines: ExportInline[], baseStyle: 'normal' | 'italic
       case 'footnoteRef':
         push(`[${span.id}]`, { color: [79, 70, 229] });
         break;
+      case 'math': {
+        const img = pdfMath.get(mathKey(span.tex, span.display));
+        if (img) segs.push({ text: '', font: 'helvetica', style: baseStyle, color: baseColor, math: img });
+        else push(span.tex, { font: 'courier', style: 'normal' });
+        break;
+      }
     }
   }
   return segs;
@@ -703,6 +748,7 @@ function inlinesToPdfSegs(inlines: ExportInline[], baseStyle: 'normal' | 'italic
 function wrapPdfSegs(pdf: jsPDF, segs: PdfSeg[], fontSize: number, maxWidth: number): PdfSeg[][] {
   pdf.setFontSize(fontSize);
   const measure = (s: PdfSeg) => {
+    if (s.math) return mathSize(s.math, fontSize).w;
     pdf.setFont(s.font, s.style);
     return pdf.getTextWidth(s.text);
   };
@@ -710,6 +756,10 @@ function wrapPdfSegs(pdf: jsPDF, segs: PdfSeg[], fontSize: number, maxWidth: num
   // Split segments into whitespace-preserving tokens for clean wrapping
   const tokens: PdfSeg[] = [];
   for (const seg of segs) {
+    if (seg.math) {
+      tokens.push(seg);
+      continue;
+    }
     const parts = seg.text.split(/(\s+)/);
     for (const part of parts) {
       if (!part) continue;
@@ -816,6 +866,7 @@ function drawWrappedLines(f: PdfFrame, lines: PdfSeg[][], x: number, fontSize: n
     }
     pdf.setFontSize(fontSize);
     const totalLineW = line.reduce((sum, seg) => {
+      if (seg.math) return sum + mathSize(seg.math, fontSize).w;
       pdf.setFont(seg.font, seg.style);
       return sum + pdf.getTextWidth(seg.text) + (seg.codeBg ? 4 : 0);
     }, 0);
@@ -824,6 +875,13 @@ function drawWrappedLines(f: PdfFrame, lines: PdfSeg[][], x: number, fontSize: n
     else if (opts?.maxW && opts.align === 'right') cx = x + Math.max(0, opts.maxW - totalLineW);
 
     for (const seg of line) {
+      if (seg.math) {
+        // Baseline of the formula on the text baseline
+        const m = mathSize(seg.math, fontSize);
+        pdf.addImage(seg.math.dataUrl, 'PNG', cx, f.y - m.base, m.w, m.h);
+        cx += m.w;
+        continue;
+      }
       pdf.setFont(seg.font, seg.style);
       const w = pdf.getTextWidth(seg.text);
       if (seg.codeBg) {
@@ -1110,6 +1168,24 @@ function drawPdfBlocks(f: PdfFrame, blocks: ExportBlock[]) {
         break;
       }
 
+      case 'math': {
+        const img = pdfMath.get(mathKey(block.tex, true));
+        if (img) {
+          const m = mathSize(img, bodySize);
+          const k = Math.min(1, contentW / m.w);
+          const w = m.w * k;
+          const h = m.h * k;
+          ensureSpace(f, h + 10 * s);
+          pdf.addImage(img.dataUrl, 'PNG', marginX + (contentW - w) / 2, f.y - bodySize * 0.8, w, h);
+          f.y += h + 6 * s;
+        } else {
+          const lines = wrapPdfSegs(pdf, [{ text: pdfSafeText(block.tex), font: 'courier', style: 'normal', color: [28, 27, 34] }], bodySize, contentW);
+          drawWrappedLines(f, lines, marginX, bodySize, bodySize * 1.4);
+          f.y += 4 * s;
+        }
+        break;
+      }
+
       case 'hr':
         ensureSpace(f, 16 * s);
         pdf.setDrawColor(216, 213, 206);
@@ -1169,6 +1245,7 @@ function drawPdfBlocks(f: PdfFrame, blocks: ExportBlock[]) {
 export async function exportNoteAsPdf(title: string, content: string): Promise<void> {
   const parsed = parseMarkdownForExport(title, content);
   const media = await preloadMedia(parsed.blocks);
+  pdfMath = await rasterizeMath(collectMath(parsed.blocks));
 
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const pageW = pdf.internal.pageSize.getWidth();
@@ -1237,6 +1314,7 @@ export async function exportNoteAsSlides(title: string, content: string): Promis
     title: isTitleSlide(slide.markdown),
   }));
   const media = await preloadMedia(slides.flatMap((sl) => sl.blocks));
+  pdfMath = await rasterizeMath(collectMath(slides.flatMap((sl) => sl.blocks)));
 
   const pdf = new jsPDF({ orientation: slideW >= SLIDE_H ? 'landscape' : 'portrait', unit: 'pt', format: [slideW, SLIDE_H] });
   const marginX = Math.round(Math.min(slideW, SLIDE_H) * 0.09);

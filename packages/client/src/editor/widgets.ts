@@ -67,6 +67,19 @@ abstract class BlockWidget extends WidgetType {
   }
 }
 
+/**
+ * Keeps a click inside a widget from moving the editor's cursor next to it, which would turn the block back
+ * into its source: links and buttons in it act, editing only happens through the edit button. Fields
+ * and draggable cards keep their default (focus, drag).
+ */
+function keepSelection(el: HTMLElement): void {
+  el.addEventListener('mousedown', (e) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('input, textarea, select, [contenteditable="true"], [draggable="true"]')) return;
+    e.preventDefault();
+  });
+}
+
 export class TableWidget extends BlockWidget {
   constructor(
     src: string,
@@ -203,6 +216,17 @@ export class QueryWidget extends BlockWidget {
   }
   eq(other: QueryWidget) {
     return other.src === this.src && other.stamp === this.stamp && other.locked === this.locked && other.lang === this.lang;
+  }
+  protected frame(view: EditorView, inner: HTMLElement): HTMLElement {
+    const wrap = super.frame(view, inner);
+    wrap.classList.add('wz-query-block');
+    const edit = wrap.querySelector<HTMLElement>('.wz-edit');
+    if (edit) {
+      edit.title = tl(this.lang, 'editor.queryEdit');
+      edit.setAttribute('aria-label', tl(this.lang, 'editor.queryEdit'));
+    }
+    keepSelection(wrap);
+    return wrap;
   }
   toDOM(view: EditorView) {
     const result = editorHost.runQuery(this.src);

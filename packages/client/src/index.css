@@ -2664,3 +2664,51 @@ span.cm-checkbox {
 @media (prefers-reduced-motion: reduce) {
   .slide-progress { transition: none; }
 }
+
+/* Query blocks: a click opens links and acts on the result; the source only opens through the always visible edit button */
+.wz-query-block .wz-edit {
+  opacity: 0.85;
+  background: rgb(var(--surface-container-high));
+}
+.wz-query-block .wz-edit:hover,
+.wz-query-block .wz-edit:focus-visible {
+  opacity: 1;
+  color: rgb(var(--primary));
+}
+
+/* Formulas (#85): KaTeX in the live preview */
+.cm-math-inline {
+  padding: 0 1px;
+}
+.cm-math-display {
+  display: inline-block;
+}
+.cm-math-display .katex-display {
+  margin: 0;
+}
+.cm-math-block {
+  padding: 0.35em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-align: center;
+  cursor: text;
+}
+.cm-math-block .katex-display {
+  margin: 0.25em 0;
+}
+.cm-math-src {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+  color: rgb(var(--tertiary));
+}
+.cm-math-loading {
+  color: rgb(var(--on-surface-variant));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+.cm-math-error,
+.cm-math .katex-error {
+  color: rgb(var(--error)) !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}

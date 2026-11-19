@@ -3,6 +3,7 @@ import path from 'path';
 import type express from 'express';
 import { APP_VERSION } from '@kladde/shared';
 import { createKladdeApp } from './app.js';
+import { metricsApp, metricsListenFromEnv } from './metrics.js';
 import { openDatabase } from './db.js';
 import { applyPendingRestore, type RestoreRequest } from './backup/BackupService.js';
 import { purgeExpiredTrash, trashRetentionDays } from './trash.js';
@@ -129,7 +130,7 @@ async function main(): Promise<void> {
 
   // Set below: ends the process so the container's restart policy starts it again (a restore applies at start)
   let restart = () => {};
-  const { app, users, audit, live, notes, files, attachmentIndexer, confluence, sendReminders, backups } = createKladdeApp({
+  const { app, users, audit, live, notes, files, attachmentIndexer, confluence, sendReminders, backups, metrics } = createKladdeApp({
     db,
     dataDir: DATA_DIR,
     env,
@@ -141,8 +142,17 @@ async function main(): Promise<void> {
     seaAssets: loadSeaClientAssets(),
     backup: DB_PATH !== ':memory:' ? { dir: BACKUP_DIR, defaultKeep: BACKUP_KEEP } : undefined,
     onRestart: () => restart(),
+    dbPath: DB_PATH,
   });
   handler = app;
+
+  // Prometheus metrics on an internal port (#92), without a token: do not publish this port
+  const metricsListen = standalone ? null : metricsListenFromEnv(env);
+  if (metricsListen) {
+    const metricsServer = http.createServer(metricsApp(metrics));
+    metricsServer.on('error', (err) => console.error('Metrics port failed:', err));
+    metricsServer.listen(metricsListen.port, metricsListen.host, () => console.log(`📈 Metriken auf http://${metricsListen.host}:${metricsListen.port}/metrics`));
+  }
   if (restored) audit.record('backup_restored', { username: restored.username, detail: restored.id });
 
   if (!standalone) {

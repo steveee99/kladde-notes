@@ -105,8 +105,17 @@ export function encryptPayload(payload: Buffer, target: Pick<PushTarget, 'p256dh
 
 export type PushOutcome = 'sent' | 'gone' | 'failed';
 
+/** Outcomes of all push messages of this process (Prometheus metrics, #92) */
+export const pushOutcomes: Record<PushOutcome, number> = { sent: 0, gone: 0, failed: 0 };
+
 /** Sends one push message. 'gone' = the subscription no longer exists and should be deleted. */
 export async function sendPush(target: PushTarget, payload: object, keys: VapidKeys, subject: string, opts: { ttl?: number; urgency?: 'normal' | 'high'; topic?: string } = {}): Promise<PushOutcome> {
+  const outcome = await deliver(target, payload, keys, subject, opts);
+  pushOutcomes[outcome]++;
+  return outcome;
+}
+
+async function deliver(target: PushTarget, payload: object, keys: VapidKeys, subject: string, opts: { ttl?: number; urgency?: 'normal' | 'high'; topic?: string }): Promise<PushOutcome> {
   const body = encryptPayload(Buffer.from(JSON.stringify(payload)), target);
   try {
     const res = await fetch(target.endpoint, {

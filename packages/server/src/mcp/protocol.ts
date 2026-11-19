@@ -7,7 +7,7 @@ export const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const INSTRUCTIONS = [
   'Kladde is the user\'s personal Markdown notes app (PARA folders, Zettelkasten, tasks).',
   'You see the notes the user owns and the notes of their groups (paths start with the group name, `group` names the group; readers of a group may not change its notes). Find notes with semantic_search (conceptual, stemmed, link-aware), search_notes (exact words), or list_notes, then read_note.',
-  'Before update_note, read the note and pass its version. Prefer append_to_note for small additions.',
+  'Before update_note, read the note and pass its version. Prefer append_to_note for small additions. Organize with move_note, rename_note (links are rewritten), rename_tag and create_from_template; delete_note moves a note into the trash.',
   'Write in the language of the user\'s notes (usually German).',
 ].join(' ');
 
@@ -62,7 +62,7 @@ export function handleMessage(msg: unknown, ctx: ToolContext): RpcResponse | nul
           title: t.title,
           description: t.description,
           inputSchema: t.inputSchema,
-          annotations: { title: t.title, readOnlyHint: !t.write, destructiveHint: t.name === 'update_note', idempotentHint: !t.write, openWorldHint: false },
+          annotations: { title: t.title, readOnlyHint: !t.write, destructiveHint: t.name === 'update_note' || t.name === 'delete_note' || t.name === 'rename_tag', idempotentHint: !t.write, openWorldHint: false },
         })),
       });
     case 'tools/call': {

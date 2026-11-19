@@ -10,6 +10,17 @@ const MIME = 'application/x-kladde';
 /** dataTransfer can only be read on drop, so the item is kept here for the dragover checks */
 let current: DragItem | null = null;
 
+/** The item being dragged right now (for drop targets outside the folder tree) */
+export const draggedItem = (): DragItem | null => current;
+
+/** A dragged note is a [[link]] when dropped into an editor (also into the other pane, #88) */
+function dragText(item: DragItem): string {
+  if (item.kind === 'folder') return item.path;
+  const note = vault.get(item.id);
+  if (!note) return '';
+  return `[[${vault.links().notes.get(item.id)?.title ?? splitPath(note.path).name}]]`;
+}
+
 export function dragSource(item: DragItem) {
   return {
     draggable: true,
@@ -22,9 +33,9 @@ export function dragSource(item: DragItem) {
       current = item;
       const el = e.currentTarget as HTMLElement;
       el.dataset.dragging = 'true';
-      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.effectAllowed = 'copyMove';
       e.dataTransfer.setData(MIME, JSON.stringify(item));
-      e.dataTransfer.setData('text/plain', item.kind === 'note' ? (vault.get(item.id)?.path ?? '') : item.path);
+      e.dataTransfer.setData('text/plain', dragText(item));
       // Next frame: the browser has taken its drag image, now the source may fade
       requestAnimationFrame(() => document.documentElement.classList.add('is-dragging'));
     },

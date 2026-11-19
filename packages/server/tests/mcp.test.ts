@@ -303,3 +303,94 @@ describe('MCP tools in groups (#58)', () => {
     expect((await call(token, 'read_note', { id: 'group-mcp-01' })).isError).toBe(true);
   });
 });
+
+describe('MCP organizing tools (#90)', () => {
+  const groups = new GroupStore(db);
+  const cara = users.createUser('cara');
+  const { token } = tokens.createPersonalToken(cara.id, 'Ordnen', true);
+  const own = (id: string) => notes.ownedNotes(cara.id).find((n) => n.id === id);
+
+  beforeAll(() => {
+    const now = Date.now();
+    notes.push(cara.id, [
+      { id: 'cara-0001', baseVersion: 0, path: '0 Inbox/Idee.md', content: '# Idee #projekt/neu', deleted: false, createdAt: now, updatedAt: now },
+      { id: 'cara-0002', baseVersion: 0, path: '2 Bereiche/Index.md', content: 'Siehe [[Idee]] und [[Idee#Teil|hier]]\n\n#projekt/neu #projekt', deleted: false, createdAt: now, updatedAt: now },
+      { id: 'cara-0003', baseVersion: 0, path: '1 Projekte/Belegt.md', content: '', deleted: false, createdAt: now, updatedAt: now },
+      {
+        id: `syssettings-${cara.id}`,
+        baseVersion: 0,
+        path: '.kladde/settings.json',
+        content: JSON.stringify({ templates: [{ id: 'tpl-meeting', label: 'Meeting', folder: '3 Ressourcen/Meetings', content: '# {{title}}\n\nDatum: {{date}}' }] }),
+        deleted: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+  });
+
+  it('moves and renames notes and rewrites links to them', async () => {
+    const moved = (await call(token, 'move_note', { id: 'cara-0001', folder: '1 Projekte' })).structuredContent;
+    expect(moved).toMatchObject({ path: '1 Projekte/Idee.md', relinked: 0 });
+    expect((await call(token, 'move_note', { id: 'cara-0001', folder: '1 Projekte', new_title: 'Belegt' })).isError).toBe(true);
+    expect((await call(token, 'move_note', { id: 'cara-0001', folder: '.kladde' })).isError).toBe(true);
+
+    const renamed = (await call(token, 'rename_note', { path: '1 Projekte/Idee.md', new_title: 'Plan' })).structuredContent;
+    expect(renamed).toMatchObject({ path: '1 Projekte/Plan.md', relinked: 1 });
+    expect(own('cara-0002')!.content).toContain('Siehe [[Plan]] und [[Plan#Teil|hier]]');
+  });
+
+  it('lists and renames tags in the own notes', async () => {
+    const tags = (await call(token, 'list_tags', { prefix: '#projekt' })).structuredContent.tags;
+    expect(tags).toEqual([
+      { tag: 'projekt/neu', count: 2 },
+      { tag: 'projekt', count: 1 },
+    ]);
+    const renamed = (await call(token, 'rename_tag', { from: 'projekt', to: 'vorhaben' })).structuredContent;
+    expect(renamed.changed).toBe(2);
+    expect(own('cara-0002')!.content).toContain('#vorhaben/neu #vorhaben');
+    expect((await call(token, 'rename_tag', { from: 'x', to: '123' })).isError).toBe(true);
+  });
+
+  it('creates notes from templates', async () => {
+    const list = (await call(token, 'list_templates')).structuredContent.templates;
+    expect(list).toEqual([expect.objectContaining({ id: 'tpl-meeting', name: 'Meeting', folder: '3 Ressourcen/Meetings' })]);
+    const created = (await call(token, 'create_from_template', { template: 'meeting', title: 'Kickoff', content: '- [ ] Agenda' })).structuredContent;
+    expect(created).toMatchObject({ template: 'Meeting', path: '3 Ressourcen/Meetings/Kickoff.md' });
+    expect(own(created.id)!.content).toMatch(/^# Kickoff\n\nDatum: \d{4}-\d{2}-\d{2}\n\n- \[ \] Agenda\n$/);
+    expect((await call(token, 'create_from_template', { template: 'nope', title: 'x' })).isError).toBe(true);
+  });
+
+  it('deletes notes into the trash', async () => {
+    const res = (await call(token, 'delete_note', { id: 'cara-0003' })).structuredContent;
+    expect(res).toMatchObject({ trashed: true });
+    expect(own('cara-0003')).toBeUndefined();
+    expect(notes.trash(cara.id).map((t) => t.id)).toContain('cara-0003');
+  });
+
+  it('refuses moving, renaming and deleting for group readers, allows it for editors', async () => {
+    const owner = users.createUser('dora');
+    const g = groups.create(owner.id, 'Chor');
+    groups.setMember(owner.id, g.id, cara.id, 'reader');
+    const now = Date.now();
+    notes.push(owner.id, [
+      { id: 'chor-00001', baseVersion: 0, path: 'Noten.md', content: '# Noten', deleted: false, createdAt: now, updatedAt: now, group: g.id },
+      { id: 'chor-00002', baseVersion: 0, path: 'Probe.md', content: 'Siehe [[Noten]]', deleted: false, createdAt: now, updatedAt: now, group: g.id },
+    ]);
+    for (const [tool, args] of [
+      ['move_note', { id: 'chor-00001', folder: 'Archiv' }],
+      ['rename_note', { id: 'chor-00001', new_title: 'X' }],
+      ['delete_note', { id: 'chor-00001' }],
+    ] as const) {
+      const res = await call(token, tool, args);
+      expect(res.isError).toBe(true);
+      expect(res.content[0].text).toContain('nur lesen');
+    }
+    expect(notes.groupNotes(owner.id).find((n) => n.id === 'chor-00001')).toMatchObject({ path: 'Noten.md', deleted: false });
+
+    groups.setMember(owner.id, g.id, cara.id, 'editor');
+    const moved = (await call(token, 'move_note', { id: 'chor-00001', folder: 'Chor/Archiv', new_title: 'Partitur' })).structuredContent;
+    expect(moved).toMatchObject({ path: 'Chor/Archiv/Partitur.md', relinked: 1 });
+    expect(notes.groupNotes(owner.id).find((n) => n.id === 'chor-00001')!.path).toBe('Archiv/Partitur.md');
+    expect(notes.groupNotes(owner.id).find((n) => n.id === 'chor-00002')!.content).toBe('Siehe [[Partitur]]');
+  });
+});

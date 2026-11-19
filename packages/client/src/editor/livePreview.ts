@@ -2,7 +2,7 @@ import { EditorState, Extension, Facet, Range, StateEffect, StateField } from '@
 import { Decoration, DecorationSet, EditorView } from '@codemirror/view';
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
-import { MENTION_RE, mentionName, CALLOUT_TONES, calloutTypeTitle, escapeRegExp, isKnownCalloutType, parseCalloutLine, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, type NoteHeading, type ReleaseField } from '@kladde/shared';
+import { findMath, type MathSpan, MENTION_RE, mentionName, CALLOUT_TONES, calloutTypeTitle, escapeRegExp, isKnownCalloutType, parseCalloutLine, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, type NoteHeading, type ReleaseField } from '@kladde/shared';
 import { getLang, tl } from '../lib/i18n';
 import {
   AutoLinkWidget,
@@ -34,6 +34,7 @@ import { embedWidgetFor } from './embed';
 import { markerStatus } from './taskStatus';
 import { getLigatures } from '../lib/prefs';
 import { releaseFacet, ReleaseFieldWidget, releaseRenderOptions } from './releases';
+import { MathWidget } from './math';
 
 /**
  * Obsidian-style live preview: Markdown syntax is hidden and rendered everywhere except in the
@@ -114,6 +115,17 @@ const stampField = StateField.define<number>({
 
 const hide = Decoration.replace({});
 
+/** Formulas (#85) per document: the decorations are rebuilt on every cursor move, the text stays the same */
+const mathCache = new WeakMap<EditorState['doc'], MathSpan[]>();
+function mathOf(doc: EditorState['doc']): MathSpan[] {
+  let spans = mathCache.get(doc);
+  if (!spans) {
+    spans = findMath(doc.toString());
+    mathCache.set(doc, spans);
+  }
+  return spans;
+}
+
 /** Character pairs shown as one sign. Longer ones first; neighbors like "-->" or "<==" stay as they are. */
 const LIGATURES: Record<string, string> = { '<->': '↔', '<=>': '⇔', '->': '→', '<-': '←', '=>': '⇒', '<=': '≤', '>=': '≥', '!=': '≠', '...': '…' };
 const LIGATURE_RE = /(?<![<>=!-])(?:<->|<=>|->|<-|=>|<=|>=|!=)(?![<>=-])|(?<!\.)\.\.\.(?!\.)/g;
@@ -185,6 +197,17 @@ function build(state: EditorState): DecorationSet {
         break;
       }
     }
+  }
+
+  // Formulas (#85) before the Markdown nodes: `*` and `_` inside TeX are no emphasis. On the cursor's line the source shows
+  for (const m of mathOf(doc)) {
+    if (m.from < fmEnd) continue;
+    protectedRanges.push([m.from, m.to]);
+    if (isActive(m.from, m.to)) {
+      decos.push(mark('cm-math-src').range(m.from, m.to));
+      continue;
+    }
+    replace(m.from, m.to, Decoration.replace({ widget: new MathWidget(m.tex, m.display, m.block), block: m.block }));
   }
 
   tree.iterate({

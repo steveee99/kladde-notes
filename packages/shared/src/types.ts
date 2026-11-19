@@ -133,6 +133,23 @@ export interface PushChange {
 }
 
 /** A deleted note in its owner's trash (`GET /api/trash`); restorable until it is purged */
+/** An export of the whole account as a ZIP archive (#93), made in the background and downloadable once */
+export interface AccountExportStatus {
+  id: string;
+  state: 'running' | 'ready' | 'failed';
+  createdAt: number;
+  finishedAt: number | null;
+  /** After this the archive is deleted, downloaded or not */
+  expiresAt: number | null;
+  /** Bytes of the archive */
+  size: number;
+  notes: number;
+  files: number;
+  /** The note history is included */
+  history: boolean;
+  error: string | null;
+}
+
 export interface TrashEntry {
   id: string;
   path: string;

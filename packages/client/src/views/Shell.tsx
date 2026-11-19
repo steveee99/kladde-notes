@@ -19,6 +19,7 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  VerticalSplit,
   Home,
   Inbox as InboxIcon,
   Lightbulb,
@@ -75,6 +76,8 @@ import { useInboxZero } from '../lib/prefs';
 import { createDrawingNote, createPdfNote } from '../lib/newNote';
 import { DEMO } from '../demo/demoApi';
 import { groupPath } from './Groups';
+import { useItemMenu, type MenuAction } from './ContextMenu';
+import { openInSide, useSplitAvailable } from '../lib/panes';
 
 export function newNote(folder?: string) {
   openDialog({ kind: 'note', folder });
@@ -370,8 +373,23 @@ function SidebarNoteRow({
     navigate(`/n/${note.id}`);
     onNavigate?.();
   };
+  // Two notes side by side (#88): "Open to the side" in the menu, or Ctrl/⌘+click
+  const split = useSplitAvailable();
+  const openSide = () => {
+    openInSide(note.id);
+    onNavigate?.();
+  };
+  const menu = useItemMenu(
+    split
+      ? [
+          { icon: FileText, label: t('split.open'), onSelect: openNote },
+          { icon: VerticalSplit, label: t('split.openSide'), onSelect: openSide },
+        ]
+      : [],
+    t('nav.noteActions', { name })
+  );
   return (
-    <li style={{ paddingLeft: depth * 14 }}>
+    <li style={{ paddingLeft: depth * 14 }} className="group/note relative">
       {/* Not a <button>: browsers do not start a drag on buttons */}
       <div
         role="button"
@@ -380,11 +398,14 @@ function SidebarNoteRow({
         aria-current={active ? 'page' : undefined}
         title={name}
         {...dragSource({ kind: 'note', id: note.id })}
-        onClick={openNote}
+        onContextMenu={menu.rowProps.onContextMenu}
+        onClick={(e) => (split && (e.ctrlKey || e.metaKey) ? openSide() : openNote())}
         onKeyDown={(e) => {
+          menu.rowProps.onKeyDown?.(e);
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            openNote();
+            if (split && (e.ctrlKey || e.metaKey)) openSide();
+            else openNote();
           }
         }}
         className={`group flex min-w-0 cursor-pointer items-center gap-2 rounded-full py-1.5 pl-[26px] pr-3 text-left text-sm transition-colors ${
@@ -406,6 +427,10 @@ function SidebarNoteRow({
         <span className="min-w-0 flex-1 truncate">{name}</span>
         <NewMark noteId={note.id} />
       </div>
+      {menu.button && (
+        <span className={`absolute right-1.5 top-1/2 -translate-y-1/2 ${menu.open ? 'flex' : 'hidden group-hover/note:flex group-focus-within/note:flex'}`}>{menu.button}</span>
+      )}
+      {menu.menu}
     </li>
   );
 }
@@ -467,6 +492,19 @@ function FolderItem({
     onNavigate?.();
   };
 
+  const actions: MenuAction[] = locked
+    ? []
+    : [
+        { icon: Plus, label: t('nav.newNoteHere'), onSelect: () => newNote(node.path) },
+        { icon: FolderPlus, label: t('list.subfolderAdd'), onSelect: () => (setOpen(true), setMode('new')) },
+        { icon: Pencil, label: t('nav.renameFolder'), onSelect: () => setMode('rename') },
+        ...(iconsEnabled ? [{ icon: Mood, label: t('icons.setFolder'), onSelect: () => setPickingIcon(true) }] : []),
+        ...(!vault.standalone ? [{ icon: Share2, label: t('nav.shareFolder'), onSelect: () => setSharing(true) }] : []),
+        ...(confluenceConnected && !empty ? [{ icon: Cloud, label: t('confluence.menu'), onSelect: () => setConfluenceOpen(true) }] : []),
+        ...(empty ? [{ icon: Trash2, label: t('nav.deleteEmptyFolder'), danger: true, onSelect: () => void vault.deleteFolder(node.path) }] : []),
+      ];
+  const folderMenu = useItemMenu(actions, t('nav.folderActions', { name: displayName }));
+
   return (
     <li>
       {mode === 'rename' ? (
@@ -487,6 +525,7 @@ function FolderItem({
         <div
           {...dragSource({ kind: 'folder', path: node.path })}
           {...drop.props}
+          {...folderMenu.rowProps}
           className={`drop-target group flex min-w-0 items-center rounded-full pr-1.5 text-sm transition-colors ${drop.over ? 'drop-over' : active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'}`}
           style={indent}
         >
@@ -519,37 +558,11 @@ function FolderItem({
             {icon ? <ItemIcon icon={icon} /> : open && hasChildren ? <FolderOpen size={15} className="shrink-0" /> : <Folder size={15} className="shrink-0" />}
             <span className="truncate">{displayName}</span>
           </div>
-          <span className="edit-only flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100">
-            {iconsEnabled && (
-              <button className="rounded-full p-1 hover:bg-surface-container-low hover:text-on-surface" title={t('icons.setFolder')} aria-label={t('icons.setFolder')} onClick={() => setPickingIcon(true)}>
-                <Mood size={13} />
-              </button>
-            )}
-            <button className="rounded-full p-1 hover:bg-surface-container-low hover:text-on-surface" title={t('list.subfolderAdd')} onClick={() => (setOpen(true), setMode('new'))}>
-              <FolderPlus size={13} />
-            </button>
-            <button className="rounded-full p-1 hover:bg-surface-container-low hover:text-on-surface" title={t('nav.renameFolder')} onClick={() => setMode('rename')}>
-              <Pencil size={13} />
-            </button>
-            {!vault.standalone && (
-              <button className="rounded-full p-1 hover:bg-surface-container-low hover:text-on-surface" title={t('nav.shareFolder')} onClick={() => setSharing(true)}>
-                <Share2 size={13} />
-              </button>
-            )}
-            {confluenceConnected && !empty && (
-              <button className="rounded-full p-1 hover:bg-surface-container-low hover:text-on-surface" title={t('confluence.menu')} onClick={() => setConfluenceOpen(true)}>
-                <Cloud size={13} />
-              </button>
-            )}
-            {empty && (
-              <button className="rounded-full p-1 hover:bg-surface-container-low hover:text-error" title={t('nav.deleteEmptyFolder')} onClick={() => void vault.deleteFolder(node.path)}>
-                <Trash2 size={13} />
-              </button>
-            )}
-          </span>
-          <span className={`flex shrink-0 ${locked ? '' : 'group-hover:hidden [@media(hover:none)]:hidden'}`}>
+          <span className={`flex shrink-0 ${folderMenu.button && !folderMenu.open ? 'group-hover:hidden group-focus-within:hidden [@media(hover:none)]:hidden' : ''} ${folderMenu.open ? 'hidden' : ''}`}>
             <NavBadge tone="plain" count={folderNotes.length} />
           </span>
+          {folderMenu.button && <span className={`flex shrink-0 ${folderMenu.open ? '' : 'hidden group-hover:flex group-focus-within:flex [@media(hover:none)]:flex'}`}>{folderMenu.button}</span>}
+          {folderMenu.menu}
         </div>
       )}
       {/* Portal: the sidebar may be transformed (mobile drawer), which would trap a fixed overlay */}
@@ -737,9 +750,16 @@ function GroupFolderNode({
   const iconsEnabled = vault.features().icons.enabled;
   const icon = vault.folderIcon(node.path, groupId);
   const [pickingIcon, setPickingIcon] = useState(false);
+  const locked = useReadOnly();
+  const actions: MenuAction[] = [
+    ...(favorites ? [{ icon: Star, label: fav ? t('groups.unfavorite') : t('groups.favorite'), onSelect: () => void vault.toggleFavoriteGroupFolder(groupId, node.path).catch(() => undefined) }] : []),
+    ...(iconsEnabled && !locked ? [{ icon: Mood, label: t('icons.setFolder'), onSelect: () => setPickingIcon(true) }] : []),
+  ];
+  const menu = useItemMenu(actions, t('nav.folderActions', { name: node.name }));
   return (
     <li>
       <div
+        {...menu.rowProps}
         className={`group flex min-w-0 items-center rounded-full pr-1.5 text-sm transition-colors ${active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'}`}
         style={{ paddingLeft: depth * 14 }}
       >
@@ -764,17 +784,6 @@ function GroupFolderNode({
           {icon ? <ItemIcon icon={icon} /> : open && hasChildren ? <FolderOpen size={15} className="shrink-0" /> : <Folder size={15} className="shrink-0" />}
           <span className="truncate">{node.name}</span>
         </button>
-        {iconsEnabled && (
-          <button
-            type="button"
-            className="edit-only shrink-0 rounded-full p-1 opacity-0 transition-opacity hover:bg-surface-container-low hover:text-on-surface group-hover:opacity-100 [@media(hover:none)]:opacity-100"
-            title={t('icons.setFolder')}
-            aria-label={t('icons.setFolder')}
-            onClick={() => setPickingIcon(true)}
-          >
-            <Mood size={13} />
-          </button>
-        )}
         {pickingIcon && (
           <IconPickerDialog
             title={t('icons.folderTitle', { name: node.name })}
@@ -783,12 +792,16 @@ function GroupFolderNode({
             onClose={() => setPickingIcon(false)}
           />
         )}
-        {favorites && (
-          <span className={`shrink-0 ${fav ? '' : 'opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100'}`}>
+        {favorites && fav && (
+          <span className="shrink-0">
             <GroupFolderStar groupId={groupId} folder={node.path} />
           </span>
         )}
-        <NavBadge tone="plain" count={notes.length} />
+        <span className={`flex shrink-0 ${menu.button && !menu.open ? 'group-hover:hidden group-focus-within:hidden [@media(hover:none)]:hidden' : ''} ${menu.open ? 'hidden' : ''}`}>
+          <NavBadge tone="plain" count={notes.length} />
+        </span>
+        {menu.button && <span className={`flex shrink-0 ${menu.open ? '' : 'hidden group-hover:flex group-focus-within:flex [@media(hover:none)]:flex'}`}>{menu.button}</span>}
+        {menu.menu}
       </div>
       {open && hasChildren && (
         <ul className="anim-fade-in">

@@ -55,6 +55,8 @@ function commands(insertFiles: FileInserter, lang: Lang): SlashCommand[] {
       callout: true,
     },
     { label: tl(lang, 'editor.slash.code'), detail: '```', keywords: 'code snippet pre codeblock', template: '```|\n\n```', block: true },
+    { label: tl(lang, 'editor.slash.math'), detail: '$$', keywords: 'math formel formula latex katex tex gleichung equation mathe', template: '$$\n|\n$$', block: true },
+    { label: tl(lang, 'editor.slash.mathInline'), detail: '$ $', keywords: 'math inline formel formula latex katex tex', template: '$|$' },
     { label: tl(lang, 'editor.slash.hr'), detail: '---', keywords: 'divider hr linie separator trennlinie', template: '---\n|', block: true },
     { label: tl(lang, 'editor.slash.query'), detail: 'query', keywords: 'query table dataview tabelle abfrage', template: '```query\nTABLE title, updated\nFROM "|"\nSORT updated DESC\n```', block: true },
     {
