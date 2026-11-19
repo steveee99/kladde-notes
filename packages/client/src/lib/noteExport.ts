@@ -17,8 +17,12 @@ import {
 } from 'docx';
 import { jsPDF } from 'jspdf';
 import {
+  isTitleSlide,
   parseMarkdownForExport,
   safeExportFilename,
+  slideFormatOf,
+  slideRatio,
+  splitSlides,
   stripFrontmatter,
   type ExportBlock,
   type ExportInline,
@@ -75,27 +79,27 @@ async function loadHtmlImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-async function rasterizeToPng(src: string, maxDim = 1600, background?: string): Promise<LoadedImage> {
+/**
+ * Draws an image into a PNG. `oversample` renders vector images (diagrams) with that many pixels per unit so they stay
+ * sharp when a slide shows them larger; the reported size stays the drawing's own.
+ */
+async function rasterizeToPng(src: string, maxDim = 1600, background?: string, oversample = 1): Promise<LoadedImage> {
   const img = await loadHtmlImage(src);
   const w0 = Math.max(1, img.naturalWidth || img.width || 800);
   const h0 = Math.max(1, img.naturalHeight || img.height || 400);
   const scale = Math.min(1, maxDim / Math.max(w0, h0));
+  const pixels = Math.min(oversample, Math.max(1, (maxDim * oversample) / Math.max(w0 * scale, h0 * scale)));
   const width = Math.max(1, Math.round(w0 * scale));
   const height = Math.max(1, Math.round(h0 * scale));
 
   const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = Math.round(width * pixels);
+  canvas.height = Math.round(height * pixels);
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Kein Canvas-Kontext');
-  if (background) {
-    ctx.fillStyle = background;
-    ctx.fillRect(0, 0, width, height);
-  } else {
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, width, height);
-  }
-  ctx.drawImage(img, 0, 0, width, height);
+  ctx.fillStyle = background ?? '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
   const dataUrl = canvas.toDataURL('image/png');
   const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'));
@@ -155,7 +159,7 @@ async function renderDiagramImage(kind: DiagramKind, src: string): Promise<Loade
 
     const serialized = new XMLSerializer().serializeToString(svgEl);
     const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}`;
-    return await rasterizeToPng(svgUrl, 1600, bg);
+    return await rasterizeToPng(svgUrl, 1600, bg, 3);
   } catch {
     return null;
   }
@@ -677,111 +681,130 @@ function wrapPdfSegs(pdf: jsPDF, segs: PdfSeg[], fontSize: number, maxWidth: num
   return lines.length ? lines : [[]];
 }
 
-/** Exports a note directly as a clean downloadable PDF without frontmatter */
-export async function exportNoteAsPdf(title: string, content: string): Promise<void> {
-  const parsed = parseMarkdownForExport(title, content);
-  const { images, diagrams } = await preloadMedia(parsed.blocks);
+type Media = Awaited<ReturnType<typeof preloadMedia>>;
 
-  const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-  const pageW = pdf.internal.pageSize.getWidth();
-  const pageH = pdf.internal.pageSize.getHeight();
-  const marginX = 50;
-  const marginTop = 52;
-  const marginBottom = 52;
-  const contentW = pageW - marginX * 2;
-  let y = marginTop;
+/** Where and how big blocks are drawn: the A4 document or one slide (#87) */
+interface PdfFrame {
+  pdf: jsPDF;
+  media: Media;
+  /** Left edge and width of the text column */
+  x: number;
+  width: number;
+  /** Top margin and the lowest y text may reach on a page */
+  top: number;
+  limit: number;
+  /** Factor for every font size and spacing (1 = the A4 document) */
+  s: number;
+  /** 'page': a full page continues on a new one (document); 'flag': `overflow` is set instead (a slide that must shrink) */
+  mode: 'page' | 'flag';
+  /** Colors of headings, bullets and quote bars */
+  accent: [number, number, number];
+  heading: [number, number, number];
+  /** Images may grow beyond their size up to this factor (slides fill their space) */
+  grow: number;
+  /** Headings and paragraphs centered (title slides) */
+  center?: boolean;
+  y: number;
+  overflow: boolean;
+}
 
-  const ensureSpace = (needed: number) => {
-    if (y + needed > pageH - marginBottom) {
-      pdf.addPage();
-      y = marginTop;
+function ensureSpace(f: PdfFrame, needed: number) {
+  if (f.y + needed <= f.limit) return;
+  if (f.mode === 'page') {
+    f.pdf.addPage();
+    f.y = f.top;
+  } else f.overflow = true;
+}
+
+function drawWrappedLines(f: PdfFrame, lines: PdfSeg[][], x: number, fontSize: number, lineHeight: number, opts?: { quoteBar?: boolean; align?: TableAlign; maxW?: number }) {
+  const { pdf } = f;
+  for (const line of lines) {
+    ensureSpace(f, lineHeight);
+    if (opts?.quoteBar) {
+      pdf.setFillColor(f.accent[0], f.accent[1], f.accent[2]);
+      pdf.rect(x - 10 * f.s, f.y - fontSize * 0.85, 2.5 * f.s, lineHeight, 'F');
     }
-  };
+    pdf.setFontSize(fontSize);
+    const totalLineW = line.reduce((sum, seg) => {
+      pdf.setFont(seg.font, seg.style);
+      return sum + pdf.getTextWidth(seg.text) + (seg.codeBg ? 4 : 0);
+    }, 0);
+    let cx = x;
+    if (opts?.maxW && opts.align === 'center') cx = x + Math.max(0, (opts.maxW - totalLineW) / 2);
+    else if (opts?.maxW && opts.align === 'right') cx = x + Math.max(0, opts.maxW - totalLineW);
 
-  const drawWrappedLines = (
-    lines: PdfSeg[][],
-    x: number,
-    fontSize: number,
-    lineHeight: number,
-    opts?: { quoteBar?: boolean; align?: TableAlign; maxW?: number }
-  ) => {
-    for (const line of lines) {
-      ensureSpace(lineHeight);
-      if (opts?.quoteBar) {
-        pdf.setFillColor(109, 93, 252);
-        pdf.rect(x - 10, y - fontSize * 0.85, 2.5, lineHeight, 'F');
+    for (const seg of line) {
+      pdf.setFont(seg.font, seg.style);
+      const w = pdf.getTextWidth(seg.text);
+      if (seg.codeBg) {
+        pdf.setFillColor(240, 238, 234);
+        pdf.roundedRect(cx, f.y - fontSize * 0.82, w + 4, fontSize * 1.1, 2, 2, 'F');
+        cx += 2;
       }
-      pdf.setFontSize(fontSize);
-      const totalLineW = line.reduce((sum, s) => {
-        pdf.setFont(s.font, s.style);
-        return sum + pdf.getTextWidth(s.text) + (s.codeBg ? 4 : 0);
-      }, 0);
-      let cx = x;
-      if (opts?.maxW && opts.align === 'center') cx = x + Math.max(0, (opts.maxW - totalLineW) / 2);
-      else if (opts?.maxW && opts.align === 'right') cx = x + Math.max(0, opts.maxW - totalLineW);
-
-      for (const s of line) {
-        pdf.setFont(s.font, s.style);
-        const w = pdf.getTextWidth(s.text);
-        if (s.codeBg) {
-          pdf.setFillColor(240, 238, 234);
-          pdf.roundedRect(cx, y - fontSize * 0.82, w + 4, fontSize * 1.1, 2, 2, 'F');
-          cx += 2;
-        }
-        pdf.setTextColor(s.color[0], s.color[1], s.color[2]);
-        pdf.text(s.text, cx, y);
-        if (s.url) {
-          pdf.setDrawColor(s.color[0], s.color[1], s.color[2]);
-          pdf.setLineWidth(0.5);
-          pdf.line(cx, y + 1.5, cx + w, y + 1.5);
-          pdf.link(cx, y - fontSize, w, fontSize * 1.2, { url: s.url });
-        }
-        if (s.strike) {
-          pdf.setDrawColor(120, 118, 130);
-          pdf.setLineWidth(0.7);
-          pdf.line(cx, y - fontSize * 0.3, cx + w, y - fontSize * 0.3);
-        }
-        cx += w + (s.codeBg ? 2 : 0);
+      pdf.setTextColor(seg.color[0], seg.color[1], seg.color[2]);
+      pdf.text(seg.text, cx, f.y);
+      if (seg.url) {
+        pdf.setDrawColor(seg.color[0], seg.color[1], seg.color[2]);
+        pdf.setLineWidth(0.5 * f.s);
+        pdf.line(cx, f.y + 1.5 * f.s, cx + w, f.y + 1.5 * f.s);
+        pdf.link(cx, f.y - fontSize, w, fontSize * 1.2, { url: seg.url });
       }
-      y += lineHeight;
+      if (seg.strike) {
+        pdf.setDrawColor(120, 118, 130);
+        pdf.setLineWidth(0.7 * f.s);
+        pdf.line(cx, f.y - fontSize * 0.3, cx + w, f.y - fontSize * 0.3);
+      }
+      cx += w + (seg.codeBg ? 2 : 0);
     }
-  };
-
-  if (!parsed.hasLeadingH1 && title.trim()) {
-    const titleSegs: PdfSeg[] = [{ text: pdfSafeText(title.trim()), font: 'helvetica', style: 'bold', color: [28, 27, 34] }];
-    drawWrappedLines(wrapPdfSegs(pdf, titleSegs, 22, contentW), marginX, 22, 28);
-    pdf.setDrawColor(226, 223, 217);
-    pdf.setLineWidth(1);
-    pdf.line(marginX, y - 4, marginX + contentW, y - 4);
-    y += 12;
+    f.y += lineHeight;
   }
+}
 
-  for (const block of parsed.blocks) {
+/** Draws Markdown blocks into the frame, starting at `f.y` */
+function drawPdfBlocks(f: PdfFrame, blocks: ExportBlock[]) {
+  const { pdf, s, media } = f;
+  const { images, diagrams } = media;
+  const marginX = f.x;
+  const contentW = f.width;
+  const bodySize = 10.5 * s;
+  const bodyLh = 15.5 * s;
+  /** Room for an image or diagram: on a slide what is left of it (at least half), in the document a page */
+  const mediaRoom = (extra: number) => (f.mode === 'flag' ? Math.max(f.limit - f.y - extra, (f.limit - f.top) * 0.5) : f.limit - f.top - extra);
+  const fitMedia = (w: number, h: number, maxW: number, maxH: number) => {
+    const ratio = Math.min(f.grow, maxW / w, maxH / h);
+    return { width: Math.max(1, Math.round(w * ratio)), height: Math.max(1, Math.round(h * ratio)) };
+  };
+
+  for (const block of blocks) {
     switch (block.type) {
       case 'heading': {
         const sizes = [21, 16, 13.5, 11.5, 11, 10.5];
-        const sz = sizes[block.level - 1] ?? 10.5;
-        const lh = sz * 1.35;
-        y += block.level <= 2 ? 8 : 5;
-        ensureSpace(lh + 18); // Keep headings with following content
+        const sz = (sizes[block.level - 1] ?? 10.5) * s;
+        const slide = f.mode === 'flag';
+        const lh = sz * (slide ? 1.2 : 1.35);
+        // On a slide the first heading starts at the top edge; there `y` is the baseline of body text, so a larger
+        // heading moves down by its extra height
+        if (!slide || f.y > f.top + bodySize) f.y += (block.level <= 2 ? 8 : 5) * s;
+        ensureSpace(f, lh + 18 * s); // Keep headings with following content
         const lines = wrapPdfSegs(
           pdf,
-          inlinesToPdfSegs(block.inlines, 'normal', [28, 27, 34]).map((s) => ({
-            ...s,
-            style: s.style === 'italic' ? 'bolditalic' : 'bold',
+          inlinesToPdfSegs(block.inlines, 'normal', f.heading).map((seg) => ({
+            ...seg,
+            style: seg.style === 'italic' ? 'bolditalic' : 'bold',
           })),
           sz,
           contentW
         );
-        drawWrappedLines(lines, marginX, sz, lh);
-        y += 4;
+        if (slide) f.y += (sz - bodySize) * 0.8;
+        drawWrappedLines(f, lines, marginX, sz, lh, f.center ? { align: 'center', maxW: contentW } : undefined);
+        f.y += 4 * s;
         break;
       }
 
       case 'paragraph': {
-        const lines = wrapPdfSegs(pdf, inlinesToPdfSegs(block.inlines), 10.5, contentW);
-        drawWrappedLines(lines, marginX, 10.5, 15.5);
-        y += 6;
+        const lines = wrapPdfSegs(pdf, inlinesToPdfSegs(block.inlines, 'normal', f.center ? [68, 71, 78] : undefined), bodySize, contentW);
+        drawWrappedLines(f, lines, marginX, bodySize, bodyLh, f.center ? { align: 'center', maxW: contentW } : undefined);
+        f.y += 6 * s;
         break;
       }
 
@@ -789,53 +812,54 @@ export async function exportNoteAsPdf(title: string, content: string): Promise<v
         let counter = 0;
         for (const item of block.items) {
           if (item.indent === 0) counter++;
-          const indentX = marginX + Math.min(4, item.indent) * 16;
-          const textX = indentX + 16;
-          const availW = pageW - marginX - textX;
+          const indentX = marginX + Math.min(4, item.indent) * 16 * s;
+          const textX = indentX + 16 * s;
+          const availW = marginX + contentW - textX;
           const lines = wrapPdfSegs(
             pdf,
             inlinesToPdfSegs(item.inlines, 'normal', item.checked ? [130, 128, 140] : [28, 27, 34], item.checked === true),
-            10.5,
+            bodySize,
             availW
           );
-          ensureSpace(15.5);
+          ensureSpace(f, bodyLh);
 
           if (item.checked !== undefined) {
-            const boxY = y - 8.5;
+            const box = 9 * s;
+            const boxY = f.y - 8.5 * s;
             if (item.checked) {
-              pdf.setFillColor(109, 93, 252);
-              pdf.roundedRect(indentX + 2, boxY, 9, 9, 1.5, 1.5, 'F');
+              pdf.setFillColor(f.accent[0], f.accent[1], f.accent[2]);
+              pdf.roundedRect(indentX + 2 * s, boxY, box, box, 1.5 * s, 1.5 * s, 'F');
               pdf.setDrawColor(255, 255, 255);
-              pdf.setLineWidth(1.3);
-              pdf.line(indentX + 4, boxY + 4.8, indentX + 6, boxY + 6.8);
-              pdf.line(indentX + 6, boxY + 6.8, indentX + 9.2, boxY + 2.5);
+              pdf.setLineWidth(1.3 * s);
+              pdf.line(indentX + 4 * s, boxY + 4.8 * s, indentX + 6 * s, boxY + 6.8 * s);
+              pdf.line(indentX + 6 * s, boxY + 6.8 * s, indentX + 9.2 * s, boxY + 2.5 * s);
             } else {
               pdf.setDrawColor(130, 128, 140);
-              pdf.setLineWidth(1);
-              pdf.roundedRect(indentX + 2, boxY, 9, 9, 1.5, 1.5, 'S');
+              pdf.setLineWidth(1 * s);
+              pdf.roundedRect(indentX + 2 * s, boxY, box, box, 1.5 * s, 1.5 * s, 'S');
             }
           } else if (block.ordered) {
             pdf.setFont('helvetica', 'normal');
-            pdf.setFontSize(10.5);
+            pdf.setFontSize(bodySize);
             pdf.setTextColor(104, 102, 116);
-            pdf.text(`${item.indent === 0 ? counter : '-'}.`, indentX + 1, y);
+            pdf.text(`${item.indent === 0 ? counter : '-'}.`, indentX + 1 * s, f.y);
           } else {
-            pdf.setFillColor(109, 93, 252);
-            pdf.circle(indentX + 6, y - 3.2, 2.1, 'F');
+            pdf.setFillColor(f.accent[0], f.accent[1], f.accent[2]);
+            pdf.circle(indentX + 6 * s, f.y - 3.2 * s, 2.1 * s, 'F');
           }
 
-          drawWrappedLines(lines, textX, 10.5, 15.5);
+          drawWrappedLines(f, lines, textX, bodySize, bodyLh);
         }
-        y += 6;
+        f.y += 6 * s;
         break;
       }
 
       case 'blockquote': {
         for (const qLine of block.lines) {
-          const lines = wrapPdfSegs(pdf, inlinesToPdfSegs(qLine, 'italic', [96, 94, 108]), 10.5, contentW - 18);
-          drawWrappedLines(lines, marginX + 14, 10.5, 15.5, { quoteBar: true });
+          const lines = wrapPdfSegs(pdf, inlinesToPdfSegs(qLine, 'italic', [96, 94, 108]), bodySize, contentW - 18 * s);
+          drawWrappedLines(f, lines, marginX + 14 * s, bodySize, bodyLh, { quoteBar: true });
         }
-        y += 6;
+        f.y += 6 * s;
         break;
       }
 
@@ -843,143 +867,148 @@ export async function exportNoteAsPdf(title: string, content: string): Promise<v
         if (block.lang === 'mermaid' || block.lang === 'mindmap') {
           const img = diagrams.get(`${block.lang}\n${block.code}`);
           if (img) {
-            const size = fitSize(img.width * 0.72, img.height * 0.72, contentW, pageH - marginTop - marginBottom - 20);
-            ensureSpace(size.height + 10);
-            pdf.addImage(img.dataUrl, img.pdfFormat, marginX, y, size.width, size.height);
-            y += size.height + 10;
+            const size = fitMedia(img.width * 0.72 * s, img.height * 0.72 * s, contentW, mediaRoom(20 * s));
+            ensureSpace(f, size.height + 10 * s);
+            pdf.addImage(img.dataUrl, img.pdfFormat, marginX + (f.mode === 'flag' ? (contentW - size.width) / 2 : 0), f.y, size.width, size.height);
+            f.y += size.height + 10 * s;
             break;
           }
         }
+        const codeSize = 9 * s;
         pdf.setFont('courier', 'normal');
-        pdf.setFontSize(9);
+        pdf.setFontSize(codeSize);
         const codeLines: string[] = [];
         for (const rawLine of block.code.split('\n')) {
-          const wrapped = pdf.splitTextToSize(pdfSafeText(rawLine) || ' ', contentW - 18) as string[];
+          const wrapped = pdf.splitTextToSize(pdfSafeText(rawLine) || ' ', contentW - 18 * s) as string[];
           codeLines.push(...wrapped);
         }
-        const lh = 13;
+        const lh = 13 * s;
         let idx = 0;
         while (idx < codeLines.length) {
-          const avail = Math.max(1, Math.floor((pageH - marginBottom - y - 12) / lh));
-          if (avail < 2 && y > marginTop) {
-            pdf.addPage();
-            y = marginTop;
-            continue;
-          }
-          const chunk = codeLines.slice(idx, idx + Math.max(1, Math.floor((pageH - marginBottom - y - 12) / lh)));
-          const boxH = chunk.length * lh + 10;
+          let take = codeLines.length - idx;
+          if (f.mode === 'page') {
+            const avail = Math.floor((f.limit - f.y - 12) / lh);
+            if (avail < 2 && f.y > f.top) {
+              pdf.addPage();
+              f.y = f.top;
+              continue;
+            }
+            take = Math.min(take, Math.max(1, avail));
+          } else if (f.y + take * lh + 10 * s > f.limit) f.overflow = true;
+          const chunk = codeLines.slice(idx, idx + take);
+          const boxH = chunk.length * lh + 10 * s;
           pdf.setFillColor(242, 240, 236);
-          pdf.roundedRect(marginX, y, contentW, boxH, 4, 4, 'F');
+          pdf.roundedRect(marginX, f.y, contentW, boxH, 4 * s, 4 * s, 'F');
           pdf.setTextColor(40, 39, 48);
           pdf.setFont('courier', 'normal');
-          pdf.setFontSize(9);
-          let ty = y + 13;
+          pdf.setFontSize(codeSize);
+          let ty = f.y + 13 * s;
           for (const cl of chunk) {
-            pdf.text(cl, marginX + 9, ty);
+            pdf.text(cl, marginX + 9 * s, ty);
             ty += lh;
           }
-          y += boxH + 4;
+          f.y += boxH + 4 * s;
           idx += chunk.length;
         }
-        y += 4;
+        f.y += 4 * s;
         break;
       }
 
       case 'table': {
         const colCount = Math.max(1, block.headers.length);
         const colW = contentW / colCount;
-        const padX = 6;
-        const padY = 5;
-        const rowLh = 13;
+        const padX = 6 * s;
+        const padY = 5 * s;
+        const cellSize = 9.5 * s;
+        const rowLh = 13 * s;
 
         const renderRow = (cells: ExportInline[][], isHeader: boolean) => {
           const wrappedCells = cells.map((cell) => {
-            const segs = inlinesToPdfSegs(cell).map((s) => (isHeader ? { ...s, style: 'bold' as const } : s));
-            return wrapPdfSegs(pdf, segs, 9.5, colW - padX * 2);
+            const segs = inlinesToPdfSegs(cell).map((seg) => (isHeader ? { ...seg, style: 'bold' as const } : seg));
+            return wrapPdfSegs(pdf, segs, cellSize, colW - padX * 2);
           });
           const maxLines = Math.max(1, ...wrappedCells.map((l) => l.length));
           const rowH = maxLines * rowLh + padY * 2;
-          ensureSpace(rowH);
+          ensureSpace(f, rowH);
 
           if (isHeader) {
             pdf.setFillColor(238, 236, 230);
-            pdf.rect(marginX, y, contentW, rowH, 'F');
+            pdf.rect(marginX, f.y, contentW, rowH, 'F');
           }
           pdf.setDrawColor(216, 213, 206);
-          pdf.setLineWidth(0.6);
+          pdf.setLineWidth(0.6 * s);
 
-          const startY = y;
+          const startY = f.y;
           for (let c = 0; c < colCount; c++) {
             const cellX = marginX + c * colW;
             pdf.rect(cellX, startY, colW, rowH, 'S');
-            y = startY + padY + 9.5;
-            drawWrappedLines(wrappedCells[c] ?? [[]], cellX + padX, 9.5, rowLh, {
+            f.y = startY + padY + cellSize;
+            drawWrappedLines(f, wrappedCells[c] ?? [[]], cellX + padX, cellSize, rowLh, {
               align: block.align[c] ?? null,
               maxW: colW - padX * 2,
             });
           }
-          y = startY + rowH;
+          f.y = startY + rowH;
         };
 
         renderRow(block.headers, true);
         for (const r of block.rows) renderRow(r, false);
-        y += 10;
+        f.y += 10 * s;
         break;
       }
 
       case 'image': {
         const img = images.get(block.url);
         if (img) {
-          const size = fitSize(img.width * 0.72, img.height * 0.72, contentW, pageH - marginTop - marginBottom - 28);
-          ensureSpace(size.height + (block.alt ? 18 : 8));
-          pdf.addImage(img.dataUrl, img.pdfFormat, marginX, y, size.width, size.height);
-          y += size.height + 6;
+          const caption = block.alt ? 18 * s : 8 * s;
+          const size = fitMedia(img.width * 0.72, img.height * 0.72, contentW, mediaRoom(28 * s));
+          ensureSpace(f, size.height + caption);
+          pdf.addImage(img.dataUrl, img.pdfFormat, marginX + (f.mode === 'flag' ? (contentW - size.width) / 2 : 0), f.y, size.width, size.height);
+          f.y += size.height + 6 * s;
           if (block.alt) {
             pdf.setFont('helvetica', 'italic');
-            pdf.setFontSize(9);
+            pdf.setFontSize(9 * s);
             pdf.setTextColor(104, 102, 116);
-            pdf.text(pdfSafeText(block.alt), marginX, y + 6);
-            y += 16;
+            pdf.text(pdfSafeText(block.alt), marginX, f.y + 6 * s);
+            f.y += 16 * s;
           }
         } else {
-          const label = pdfSafeText(
-            block.alt ? `[${t('export.docAttachment')}: ${block.alt}]` : `[${t('export.docAttachment')}: ${block.url}]`
-          );
-          ensureSpace(16);
+          const label = pdfSafeText(block.alt ? `[${t('export.docAttachment')}: ${block.alt}]` : `[${t('export.docAttachment')}: ${block.url}]`);
+          ensureSpace(f, 16 * s);
           pdf.setFont('helvetica', 'italic');
-          pdf.setFontSize(9.5);
+          pdf.setFontSize(9.5 * s);
           pdf.setTextColor(104, 102, 116);
-          pdf.text(label, marginX, y);
-          y += 16;
+          pdf.text(label, marginX, f.y);
+          f.y += 16 * s;
         }
         break;
       }
 
       case 'hr':
-        ensureSpace(16);
+        ensureSpace(f, 16 * s);
         pdf.setDrawColor(216, 213, 206);
-        pdf.setLineWidth(0.8);
-        pdf.line(marginX, y + 4, marginX + contentW, y + 4);
-        y += 14;
+        pdf.setLineWidth(0.8 * s);
+        pdf.line(marginX, f.y + 4 * s, marginX + contentW, f.y + 4 * s);
+        f.y += 14 * s;
         break;
 
       case 'toc': {
-        ensureSpace(34);
+        ensureSpace(f, 34 * s);
         pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(10.5);
-        pdf.setTextColor(79, 70, 229);
-        pdf.text(pdfSafeText(t('export.docTocTitle')), marginX, y);
-        y += 16;
+        pdf.setFontSize(bodySize);
+        pdf.setTextColor(f.heading[0], f.heading[1], f.heading[2]);
+        pdf.text(pdfSafeText(t('export.docTocTitle')), marginX, f.y);
+        f.y += 16 * s;
         if (!block.items.length) {
-          ensureSpace(15);
+          ensureSpace(f, 15 * s);
           pdf.setFont('helvetica', 'italic');
-          pdf.setFontSize(9.5);
+          pdf.setFontSize(9.5 * s);
           pdf.setTextColor(104, 102, 116);
-          pdf.text(pdfSafeText(t('export.docTocEmpty')), marginX, y);
-          y += 16;
+          pdf.text(pdfSafeText(t('export.docTocEmpty')), marginX, f.y);
+          f.y += 16 * s;
         } else {
           for (const item of block.items) {
-            const indent = marginX + Math.min(4, Math.max(0, item.level - 1)) * 12;
+            const indent = marginX + Math.min(4, Math.max(0, item.level - 1)) * 12 * s;
             const segs: PdfSeg[] = [
               {
                 text: pdfSafeText(item.text),
@@ -988,26 +1017,64 @@ export async function exportNoteAsPdf(title: string, content: string): Promise<v
                 color: item.level <= 2 ? [28, 27, 34] : [85, 84, 98],
               },
             ];
-            const lines = wrapPdfSegs(pdf, segs, 10, pageW - marginX - indent);
-            drawWrappedLines(lines, indent, 10, 14);
+            const lines = wrapPdfSegs(pdf, segs, 10 * s, marginX + contentW - indent);
+            drawWrappedLines(f, lines, indent, 10 * s, 14 * s);
           }
-          y += 6;
+          f.y += 6 * s;
         }
         break;
       }
 
       case 'footnote': {
         const segs: PdfSeg[] = [
-          { text: `[${pdfSafeText(block.id)}] `, font: 'helvetica', style: 'bold', color: [79, 70, 229] },
+          { text: `[${pdfSafeText(block.id)}] `, font: 'helvetica', style: 'bold', color: f.heading },
           ...inlinesToPdfSegs(block.inlines, 'normal', [104, 102, 116]),
         ];
-        const lines = wrapPdfSegs(pdf, segs, 9, contentW);
-        drawWrappedLines(lines, marginX, 9, 13);
-        y += 2;
+        const lines = wrapPdfSegs(pdf, segs, 9 * s, contentW);
+        drawWrappedLines(f, lines, marginX, 9 * s, 13 * s);
+        f.y += 2 * s;
         break;
       }
     }
   }
+}
+
+/** Exports a note directly as a clean downloadable PDF without frontmatter */
+export async function exportNoteAsPdf(title: string, content: string): Promise<void> {
+  const parsed = parseMarkdownForExport(title, content);
+  const media = await preloadMedia(parsed.blocks);
+
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const marginX = 50;
+  const marginTop = 52;
+  const f: PdfFrame = {
+    pdf,
+    media,
+    x: marginX,
+    width: pageW - marginX * 2,
+    top: marginTop,
+    limit: pageH - 52,
+    s: 1,
+    mode: 'page',
+    accent: [109, 93, 252],
+    heading: [28, 27, 34],
+    grow: 1,
+    y: marginTop,
+    overflow: false,
+  };
+
+  if (!parsed.hasLeadingH1 && title.trim()) {
+    const titleSegs: PdfSeg[] = [{ text: pdfSafeText(title.trim()), font: 'helvetica', style: 'bold', color: [28, 27, 34] }];
+    drawWrappedLines(f, wrapPdfSegs(pdf, titleSegs, 22, f.width), marginX, 22, 28);
+    pdf.setDrawColor(226, 223, 217);
+    pdf.setLineWidth(1);
+    pdf.line(marginX, f.y - 4, marginX + f.width, f.y - 4);
+    f.y += 12;
+  }
+
+  drawPdfBlocks(f, parsed.blocks);
 
   // Page footer on every page
   const totalPages = pdf.getNumberOfPages();
@@ -1018,6 +1085,99 @@ export async function exportNoteAsPdf(title: string, content: string): Promise<v
     pdf.setTextColor(150, 148, 158);
     const label = pdfSafeText(`${title || t('export.fallbackName')} - ${t('export.docPages', { current: p, total: totalPages })}`);
     pdf.text(label, pageW - marginX - pdf.getTextWidth(label), pageH - 24);
+  }
+
+  pdf.save(safeExportFilename(title, 'pdf', t('export.fallbackName')));
+}
+
+// ------------------------------------------------------------------ Presentation PDF (#87)
+
+/** Slide height in pt; the width follows the note's format (16:9: 960 × 540, like a widescreen slide deck) */
+const SLIDE_H = 540;
+/** Text size factor of a slide against the A4 document: body text 24pt, `#` 48pt */
+const SLIDE_SCALE = 2.3;
+/** Smallest factor a full slide shrinks to before it continues on a second page */
+const SLIDE_MIN_SCALE = 1;
+
+/**
+ * Exports a note as slides: one landscape (or square/portrait) page per slide in the format chosen on the note,
+ * large text that shrinks only as far as a full slide needs, title slides centered, speaker notes left out.
+ */
+export async function exportNoteAsSlides(title: string, content: string): Promise<void> {
+  const format = slideFormatOf(content);
+  const slideW = Math.round(SLIDE_H * slideRatio(format));
+  const slides = splitSlides(content, title).map((slide) => ({
+    blocks: parseMarkdownForExport('', slide.markdown).blocks,
+    title: isTitleSlide(slide.markdown),
+  }));
+  const media = await preloadMedia(slides.flatMap((sl) => sl.blocks));
+
+  const pdf = new jsPDF({ orientation: slideW >= SLIDE_H ? 'landscape' : 'portrait', unit: 'pt', format: [slideW, SLIDE_H] });
+  const marginX = Math.round(Math.min(slideW, SLIDE_H) * 0.09);
+  const marginY = Math.round(SLIDE_H * 0.08);
+  const footer = 22;
+  const frame = (s: number): PdfFrame => ({
+    pdf,
+    media,
+    x: marginX,
+    width: slideW - marginX * 2,
+    top: marginY,
+    limit: SLIDE_H - marginY - footer,
+    s,
+    mode: 'flag',
+    // Material primary (#0B57D0) for headings, bullets and quote bars
+    accent: [11, 87, 208],
+    heading: [11, 87, 208],
+    grow: 2.5,
+    // `y` is a baseline: the first line of body text sits just under the top margin
+    y: marginY + 10.5 * s * 0.8,
+    overflow: false,
+  });
+  // A narrow (portrait) slide gets smaller text so lines do not break after every word
+  const base = SLIDE_SCALE * Math.min(1, slideW / SLIDE_H);
+
+  slides.forEach((slide, i) => {
+    if (i > 0) pdf.addPage([slideW, SLIDE_H], slideW >= SLIDE_H ? 'landscape' : 'portrait');
+    const page = pdf.getNumberOfPages();
+    // Largest size at which the slide fits: draw, and on overflow wipe the page and draw again smaller
+    let s = base;
+    let f = frame(s);
+    for (;;) {
+      f = { ...frame(s), center: slide.title };
+      drawPdfBlocks(f, slide.blocks);
+      if (!f.overflow || s <= SLIDE_MIN_SCALE) break;
+      pdf.deletePage(page);
+      pdf.insertPage(page);
+      s = Math.max(SLIDE_MIN_SCALE, s * 0.94);
+    }
+    if (f.overflow) {
+      // Still too much at the smallest size: draw it once more letting it continue on further pages
+      pdf.deletePage(page);
+      pdf.insertPage(page);
+      f = { ...frame(s), mode: 'page' };
+      drawPdfBlocks(f, slide.blocks);
+    } else if (slide.title) {
+      // Cover and section slides sit in the middle
+      const start = frame(s).y;
+      const shift = Math.max(0, (f.limit - f.y) / 2);
+      if (shift > 1) {
+        pdf.deletePage(page);
+        pdf.insertPage(page);
+        f = { ...frame(s), center: true, y: start + shift };
+        drawPdfBlocks(f, slide.blocks);
+      }
+    }
+  });
+
+  // Slide numbers bottom right
+  const total = pdf.getNumberOfPages();
+  for (let p = 1; p <= total; p++) {
+    pdf.setPage(p);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(10);
+    pdf.setTextColor(150, 148, 158);
+    const label = `${p} / ${total}`;
+    pdf.text(label, slideW - marginX - pdf.getTextWidth(label), SLIDE_H - marginY / 2 - 4);
   }
 
   pdf.save(safeExportFilename(title, 'pdf', t('export.fallbackName')));

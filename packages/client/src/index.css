@@ -920,6 +920,28 @@ span.cm-checkbox {
   background: rgb(var(--outline-variant));
   margin: 0.8em 0;
 }
+/* Presentation mode (#87): a rule is the start of a new slide */
+.cm-hr.cm-slide-break {
+  position: relative;
+  height: 0;
+  background: none;
+  border-top: 2px dashed rgb(var(--primary) / 0.55);
+  margin: 1.2em 0;
+}
+.cm-slide-break-label {
+  position: absolute;
+  top: 0;
+  right: 0;
+  transform: translateY(-50%);
+  padding: 0 0.6em;
+  border-radius: 999px;
+  background: rgb(var(--primary-container));
+  color: rgb(var(--on-primary-container));
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+}
 .cm-img {
   max-width: 100%;
   max-height: 480px;
@@ -2378,3 +2400,106 @@ span.cm-checkbox {
   background: rgb(var(--ok));
 }
 
+
+/* ------------------------------------------------------------------ Presentation mode (#87)
+ * A slide is a fixed canvas (short side 720px) scaled to the screen. Body text starts at 34px on it (set inline and
+ * shrunk by Presentation.tsx while a slide overflows); everything else is sized in em so it shrinks along. */
+.slide-canvas {
+  display: flex;
+  flex-direction: column;
+}
+.slide-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 1.6em 2.2em 0.6em;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.4;
+}
+.slide-inner {
+  flex: none;
+}
+.slide-title {
+  justify-content: center;
+  text-align: center;
+}
+.slide-title .cm-line {
+  text-align: center;
+}
+.slide-body .wz-editor,
+.slide-body .cm-editor,
+.slide-body .cm-scroller {
+  font-size: inherit;
+  line-height: inherit;
+  overflow: visible !important;
+  background: transparent;
+}
+.slide-body .cm-content {
+  padding: 0 !important;
+  font-size: inherit;
+}
+.slide-body .cm-line {
+  padding: 0.12em 0 !important;
+}
+/* Headings: strong, in the primary color, with room above only between blocks */
+.slide-body .cm-h1 { font-size: 1.9em; line-height: 1.15; color: rgb(var(--primary)); padding-top: 0 !important; padding-bottom: 0.25em !important; }
+.slide-body .cm-h2 { font-size: 1.5em; line-height: 1.2; color: rgb(var(--primary)); padding-top: 0 !important; padding-bottom: 0.3em !important; }
+.slide-body .cm-h3 { font-size: 1.2em; line-height: 1.25; padding-top: 0.3em !important; }
+.slide-title .cm-h1 { font-size: 2.3em; }
+.slide-title .cm-h2 { font-size: 1.8em; }
+.slide-title .cm-line:not(.cm-h1):not(.cm-h2):not(.cm-h3) { color: rgb(var(--on-surface-variant)); }
+.slide-body .cm-bullet { color: rgb(var(--primary)); }
+.slide-body .cm-checkbox { width: 0.8em; height: 0.8em; }
+.slide-body .cm-codeblock { font-size: 0.72em; line-height: 1.5; }
+.slide-body .cm-inline-code { font-size: 0.85em; }
+/* Images and diagrams take the room of the slide, centered */
+.slide-body .cm-img {
+  max-height: 13em;
+  max-width: 100%;
+  margin: 0.3em auto;
+  object-fit: contain;
+  border-radius: 0.35em;
+}
+/* Diagrams fill the width of the slide up to a height that leaves room for a heading */
+.slide-body .wz-diagram {
+  margin: 0.4em 0;
+  padding: 0.3em;
+  border: none;
+  background: transparent;
+  cursor: default;
+  /* The height comes from the slide's text size here: Mermaid sets its own font size on the SVG */
+  height: 11em;
+}
+.slide-body .wz-diagram svg {
+  width: 100%;
+  max-width: 100% !important;
+  height: 100%;
+}
+.slide-body .wz-sort::after { display: none; }
+.slide-body .wz-table { font-size: 0.75em; }
+.slide-body .wz-table td { max-width: none; padding: 0.4em 0.7em; }
+.slide-body .wz-table th { padding: 0.4em 0.7em; font-size: 1em; color: rgb(var(--on-surface)); }
+.slide-body .wz-table-bar { display: none; }
+.slide-body .cm-hr { margin: 0.5em 0; }
+.slide-body .wz-embed { font-size: 0.8em; }
+.slide-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 0 40px 18px;
+  font-size: 15px;
+  color: rgb(var(--on-surface-variant));
+}
+.slide-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 5px;
+  background: rgb(var(--primary));
+  transition: width 250ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .slide-progress { transition: none; }
+}

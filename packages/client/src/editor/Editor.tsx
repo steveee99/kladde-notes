@@ -8,7 +8,7 @@ import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/lang
 import type { SyntaxNode } from '@lezer/common';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 import { tags as t } from '@lezer/highlight';
-import { livePreview, noteIdFacet, previewAll, refreshEffect } from './livePreview';
+import { livePreview, noteIdFacet, previewAll, refreshEffect, slideBreakLabel } from './livePreview';
 import { configureEmbeds } from './embed';
 import { embedResolverFacet, type EmbedResolver } from './embedContext';
 import { statusTaskList } from './taskStatus';
@@ -250,9 +250,11 @@ export interface EditorProps {
   onActivity?: (view: EditorView) => void;
   /** Release versioning (#53) is on: the releases fill the placeholders ({{version}}, ```versions, …); null/undefined: off */
   releases?: NoteReleaseInfo[] | null;
+  /** Presentation mode (#87) is on: rules show as slide breaks with this label (`{n}`: slide number) */
+  slideBreaks?: string;
 }
 
-export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote, dim = false, onActivity, resolveEmbed, releases = null }: EditorProps) {
+export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote, dim = false, onActivity, resolveEmbed, releases = null, slideBreaks = '' }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const changeRef = useRef(onChange);
@@ -268,6 +270,9 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   const previewConf = useRef(new Compartment());
   const dimConf = useRef(new Compartment());
   const releaseConf = useRef(new Compartment());
+  const slideConf = useRef(new Compartment());
+  const slideRef = useRef(slideBreaks);
+  slideRef.current = slideBreaks;
   const releasesRef = useRef(releases);
   releasesRef.current = releases;
   const releaseKey = releases ? JSON.stringify(releases) : '';
@@ -313,6 +318,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           dimConf.current.of(dimRef.current ? focusDim : []),
           releaseConf.current.of(releaseFacet.of(releasesRef.current ? { releases: releasesRef.current } : null)),
           outlineSupport,
+          slideConf.current.of(slideBreakLabel.of(slideRef.current)),
           EditorView.updateListener.of((u) => {
             if (u.docChanged || u.selectionSet) activityRef.current?.(u.view);
             if (!u.docChanged) return;
@@ -355,6 +361,16 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   useEffect(() => {
     view.current?.dispatch({ effects: previewConf.current.reconfigure(previewExtensions(source)) });
   }, [source]);
+
+  // Slide breaks on/off (presentation feature) without rebuilding the editor
+  const firstSlides = useRef(true);
+  useEffect(() => {
+    if (firstSlides.current) {
+      firstSlides.current = false;
+      return;
+    }
+    view.current?.dispatch({ effects: [slideConf.current.reconfigure(slideBreakLabel.of(slideBreaks)), refreshEffect.of(Date.now())] });
+  }, [slideBreaks]);
 
   // Dimming on/off without rebuilding the editor
   useEffect(() => {

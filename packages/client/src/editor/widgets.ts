@@ -1056,6 +1056,26 @@ export class SimpleWidget extends WidgetType {
   }
 }
 
+/** A horizontal rule while presentation mode is on (#87): the start of the next slide, with its number */
+export class SlideBreakWidget extends WidgetType {
+  constructor(readonly label: string) {
+    super();
+  }
+  eq(o: SlideBreakWidget) {
+    return o.label === this.label;
+  }
+  toDOM() {
+    const s = document.createElement('span');
+    s.className = 'cm-hr cm-slide-break';
+    s.dataset.slideBreak = '';
+    const label = document.createElement('span');
+    label.className = 'cm-slide-break-label';
+    label.textContent = this.label;
+    s.append(label);
+    return s;
+  }
+}
+
 /** A ligature shown in place of its characters (-> as →); the text itself stays unchanged */
 export class LigatureWidget extends WidgetType {
   constructor(readonly char: string) {

@@ -53,6 +53,8 @@ import {
   Users,
   Mood,
   Psychology,
+  PictureAsPdf,
+  Slideshow,
 } from '../lib/icons';
 import { undo } from '@codemirror/commands';
 import {
@@ -359,6 +361,7 @@ function NoteOverflowMenu({
   exportContent,
   align,
   onAlign,
+  onPresent,
 }: {
   title: string;
   content: string;
@@ -398,11 +401,13 @@ function NoteOverflowMenu({
   align: NoteAlign;
   /** Only for editable notes */
   onAlign?: (align: NoteAlign) => void;
+  /** Presentation mode (#87) is on: "Start presentation" and the slide PDF among the exports */
+  onPresent?: () => void;
 }) {
   useLang();
   const [open, setOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [busy, setBusy] = useState<'word' | 'pdf' | null>(null);
+  const [busy, setBusy] = useState<'word' | 'pdf' | 'slides' | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -474,13 +479,14 @@ function NoteOverflowMenu({
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   };
 
-  const runAsync = async (kind: 'word' | 'pdf') => {
+  const runAsync = async (kind: 'word' | 'pdf' | 'slides') => {
     setBusy(kind);
     setOpen(false);
     try {
       const mod = await import('../lib/noteExport');
       const text = exportContent ? await exportContent() : content;
       if (kind === 'word') await mod.exportNoteAsWord(title, text);
+      else if (kind === 'slides') await mod.exportNoteAsSlides(title, text);
       else await mod.exportNoteAsPdf(title, text);
     } catch (err) {
       alert(t('export.failed', { error: (err as Error).message }));
@@ -561,6 +567,16 @@ function NoteOverflowMenu({
                 onClick={() => {
                   setOpen(false);
                   onToggleFocus();
+                }}
+              />
+            )}
+            {onPresent && (
+              <MenuItem
+                icon={Slideshow}
+                label={t('present.menu')}
+                onClick={() => {
+                  setOpen(false);
+                  onPresent();
                 }}
               />
             )}
@@ -728,6 +744,21 @@ function NoteOverflowMenu({
                     <div className="text-[11px] text-on-surface-variant">{t('export.pdfDesc')}</div>
                   </div>
                 </button>
+                {onPresent && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-export-slides
+                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-low"
+                    onClick={() => void runAsync('slides')}
+                  >
+                    <PictureAsPdf size={15} className="shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium leading-tight">{t('present.pdfTitle')}</div>
+                      <div className="text-[11px] text-on-surface-variant">{t('present.pdfDesc')}</div>
+                    </div>
+                  </button>
+                )}
                 <button
                   type="button"
                   role="menuitem"
@@ -1013,6 +1044,7 @@ function NoteInspectorPane({
 
 // Excalidraw is large: only drawing notes load it
 const ExcalidrawPanel = lazy(() => import('./ExcalidrawPanel'));
+const Presentation = lazy(() => import('./Presentation'));
 
 /** A PDF note (`type: pdf`) as a full-size viewer; a HEAD check replaces the frame with a message when the file can't load */
 function PdfPanel({ url, name, onEditText }: { url: string; name: string; onEditText: () => void }) {
@@ -1082,6 +1114,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
     if (confluence?.connection) void refreshConfluence();
   }, [id]);
   const [showHistory, setShowHistory] = useState(false);
+  const [presenting, setPresenting] = useState(false);
   const [releaseOpen, setReleaseOpen] = useState(false);
   const [moving, setMoving] = useState(false);
   const [movingToGroup, setMovingToGroup] = useState(false);
@@ -1407,6 +1440,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 onConvertProject={isSingleProject ? () => void vault.convertProjectToFolder(id) : undefined}
                 align={align}
                 onAlign={!readOnly && view && !showPdf ? (value) => applyFrontmatter(view, { align: value === 'left' ? null : value }) : undefined}
+                onPresent={features.presentation.enabled && !showPdf ? () => setPresenting(true) : undefined}
               />
             </div>
           </div>
@@ -1505,6 +1539,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               }}
               onView={setView}
               onActivity={features.writingStats.enabled ? onEditorActivity : undefined}
+              slideBreaks={features.presentation.enabled ? t('present.slideBreak') : ''}
             />
             </div>
           )}
@@ -1641,6 +1676,18 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
         />
       )}
       {movingToGroup && <MoveToGroupSheet noteIds={[id]} label={title || displayName} onClose={() => setMovingToGroup(false)} />}
+      {presenting && (
+        <Suspense fallback={null}>
+          <Presentation
+            docKey={id}
+            title={title || displayName}
+            content={note.content}
+            releases={note.versioning ? (note.releases ?? []) : null}
+            onFormat={!readOnly && view ? (format) => applyFrontmatter(view, { presentation: format }) : undefined}
+            onClose={() => setPresenting(false)}
+          />
+        </Suspense>
+      )}
       {releaseOpen && <ReleaseDialog note={note} locked={locked} onClose={() => setReleaseOpen(false)} />}
       {showHistory && <HistoryDialog noteId={id} current={note.content} canRestore={!readOnly} onClose={() => setShowHistory(false)} />}
       {pickingIcon && (

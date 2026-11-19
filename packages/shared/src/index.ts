@@ -35,3 +35,4 @@ export * from './memory.js';
 export * from './zip.js';
 export * from './noteMemo.js';
 export * from './database.js';
+export * from './presentation.js';

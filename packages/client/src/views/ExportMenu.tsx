@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Download, FileCode, FileSpreadsheet, FileText, Loader2, Printer } from '../lib/icons';
+import { Download, FileCode, FileSpreadsheet, FileText, Loader2, PictureAsPdf, Printer } from '../lib/icons';
 import { safeExportFilename, stripFrontmatter } from '@kladde/shared';
 import { t, tl, useLang } from '../lib/i18n';
 
 interface ExportMenuProps {
   title: string;
   content: string;
+  /** Offers the slide PDF (#87): the note is set up as a presentation */
+  slides?: boolean;
 }
 
-export function ExportMenu({ title, content }: ExportMenuProps) {
+export function ExportMenu({ title, content, slides = false }: ExportMenuProps) {
   const lang = useLang();
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState<'word' | 'pdf' | null>(null);
+  const [busy, setBusy] = useState<'word' | 'pdf' | 'slides' | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -81,12 +83,13 @@ export function ExportMenu({ title, content }: ExportMenuProps) {
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   };
 
-  const runAsync = async (kind: 'word' | 'pdf') => {
+  const runAsync = async (kind: 'word' | 'pdf' | 'slides') => {
     setBusy(kind);
     setOpen(false);
     try {
       const mod = await import('../lib/noteExport');
       if (kind === 'word') await mod.exportNoteAsWord(title, content);
+      else if (kind === 'slides') await mod.exportNoteAsSlides(title, content);
       else await mod.exportNoteAsPdf(title, content);
     } catch (err) {
       alert(t('export.failed', { error: (err as Error).message }));
@@ -154,6 +157,21 @@ export function ExportMenu({ title, content }: ExportMenuProps) {
                 <div className="text-xs text-on-surface-variant">{tl(lang, 'export.pdfDesc')}</div>
               </div>
             </button>
+            {slides && (
+              <button
+                type="button"
+                role="menuitem"
+                data-export-slides
+                className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-high"
+                onClick={() => void runAsync('slides')}
+              >
+                <PictureAsPdf size={16} className="shrink-0 text-primary" />
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium">{tl(lang, 'present.pdfTitle')}</div>
+                  <div className="text-xs text-on-surface-variant">{tl(lang, 'present.pdfDesc')}</div>
+                </div>
+              </button>
+            )}
             <div className="my-1 border-t border-outline-variant" />
             <button
               type="button"
