@@ -9,7 +9,7 @@ small HTTP API for them under `/api/shortcuts/…`.
 
 ## 1. Create a token
 
-1. In Kladde open **Settings → Apple Shortcuts**.
+1. In Kladde open **Settings → Features → Apple Shortcuts** (activate it if needed) and switch to its **Settings** tab.
 2. Enter a name (e.g. "iPhone"), pick how long it stays valid (default: one year) and tap **Create token**.
 3. Copy the value `Bearer kls_…` – it is shown only once. Save it in a note on the phone or paste it straight
    into the shortcut (see below).

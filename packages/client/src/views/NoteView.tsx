@@ -106,7 +106,7 @@ import { IconPickerDialog } from './IconPicker';
 import { DailyCarryOver, DailyNoteBar } from './DailyNoteBar';
 import { NoteStats } from './NoteStats';
 import { setFocusMode, useFocusMode } from '../lib/focus';
-import { confluenceAvailable, refreshConfluence, useConfluence } from '../lib/confluence';
+import { refreshConfluence, useConfluence } from '../lib/confluence';
 import { ConfluenceDialog } from './ConfluenceDialog';
 import { ReleaseDialog, releaseChipLabel } from './ReleaseDialog';
 import { releaseRenderOptions } from '../editor/releases';
@@ -1380,7 +1380,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 canShare={isOwner && !vault.standalone}
                 mayDelete={mayDelete}
                 onShare={() => setSharing(true)}
-                onConfluence={isOwner && confluenceAvailable() ? () => setConfluenceOpen(true) : undefined}
+                onConfluence={isOwner && confluence?.connection ? () => setConfluenceOpen(true) : undefined}
                 onHistory={() => setShowHistory(true)}
                 onVersioning={!DEMO && (note.access === 'owner' || groupManager || note.versioning) ? () => setReleaseOpen(true) : undefined}
                 exportContent={note.versioning ? exportContent : undefined}

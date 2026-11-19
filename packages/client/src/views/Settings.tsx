@@ -1,30 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
 import {
   ArrowRight,
-  Bot,
-  Cloud,
-  Bell,
-  CalendarDays,
-  CalendarCheck,
-  CalendarRange,
   Camera,
-  CenterFocus,
   Check,
-  ChefHat,
-  ChevronDown,
   ChevronRight,
-  AlignJustify,
-  FolderKanban,
   FolderInput,
-  FolderPlus,
   Globe,
   Images,
   Inbox,
   Info,
   KeyRound,
   LayoutTemplate,
-  Lightbulb,
   Loader2,
   Lock,
   LogOut,
@@ -33,31 +20,15 @@ import {
   Smartphone,
   SunMoon,
   Trash2,
-  Star,
-  Mood,
   Upload,
-  X,
   TextFields,
-  Psychology,
-  Download,
+  Extension,
 } from '../lib/icons';
-import {
-  APP_VERSION,
-  cleanDailyFormat,
-  DEFAULT_DAILY_FOLDER,
-  DEFAULT_DAILY_FORMAT,
-  DEFAULT_RECIPE_FOLDER,
-  FeatureSettings,
-  Me,
-  PASSWORD_MIN_LENGTH,
-  resolveDailyNote,
-  STANDALONE_RECIPE_FOLDER,
-} from '@kladde/shared';
+import { APP_VERSION, Me, PASSWORD_MIN_LENGTH } from '@kladde/shared';
 import { api, deleteAvatar, uploadAvatar } from '../lib/api';
-import { confluenceAvailable, useConfluence } from '../lib/confluence';
-import { folderDisplayName, Lang, locale, setLang, tl, useLang } from '../lib/i18n';
+import { useConfluence } from '../lib/confluence';
+import { Lang, locale, setLang, tl, useLang } from '../lib/i18n';
 import { EDITOR_FONT_SIZES, setEditorFontSize, setInboxZero, setLigatures, useEditorFontSize, useInboxZero, useLigatures } from '../lib/prefs';
-import { useReadOnly } from '../lib/readOnly';
 import { setColorSchemeChoice, useColorSchemeChoice } from '../lib/theme';
 import { DEFAULT_PERCENT, MAX_PERCENT, MIN_PERCENT, setWidescreen, useWidescreen, WIDESCREEN_PRESETS } from '../lib/widescreen';
 import { useVault, vault } from '../data/vault';
@@ -65,7 +36,7 @@ import { navigate } from '../lib/router';
 import { GitLabIcon, passkeysAvailable, useAuthProviders, useRedirectParam } from './Auth';
 import { Avatar } from './Avatar';
 import { Switch } from './Switch';
-import { Dropdown } from './Dropdown';
+import { FeaturesDialog, useFeatureCounts } from './FeaturesDialog';
 
 function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   const lang = useLang();
@@ -179,9 +150,6 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
   const ligatures = useLigatures();
   const editorFontSize = useEditorFontSize();
   const colorScheme = useColorSchemeChoice();
-  const locked = useReadOnly();
-  const features = vault.features();
-  const folders = vault.folders();
   const [link, setLink] = useState<{ code: string; expiresAt: number } | null>(null);
   const [error, setError] = useState('');
   const linkUrl = link ? `${location.origin}/link/${link.code}` : '';
@@ -198,22 +166,6 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
           },
         ]
       : []),
-    {
-      path: '/settings/mcp',
-      Icon: Bot,
-      title: tl(lang, 'settings.mcpTitle'),
-      desc: tl(lang, 'settings.mcpDesc'),
-    },
-    ...(confluenceAvailable()
-      ? [
-          {
-            path: '/settings/confluence',
-            Icon: Cloud,
-            title: tl(lang, 'settings.confluenceTitle'),
-            desc: tl(lang, 'settings.confluenceDesc'),
-          },
-        ]
-      : []),
     ...(!me.standalone
       ? [
           {
@@ -221,24 +173,6 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
             Icon: FolderInput,
             title: tl(lang, 'settings.importTitle'),
             desc: tl(lang, 'settings.importDesc'),
-          },
-          {
-            path: '/settings/shortcuts',
-            Icon: Smartphone,
-            title: tl(lang, 'settings.shortcutsTitle'),
-            desc: tl(lang, 'settings.shortcutsDesc'),
-          },
-          {
-            path: '/settings/calendar',
-            Icon: CalendarDays,
-            title: tl(lang, 'settings.calendarTitle'),
-            desc: tl(lang, 'settings.calendarDesc'),
-          },
-          {
-            path: '/settings/notifications',
-            Icon: Bell,
-            title: tl(lang, 'settings.notifyTitle'),
-            desc: tl(lang, 'settings.notifyDesc'),
           },
         ]
       : []),
@@ -541,7 +475,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
         </div>
       </section>
 
-      <FeaturesSection features={features} folders={folders} locked={locked} />
+      <FeaturesCard />
 
       <section className="card p-5 anim-fade-up">
         <h2 className="mb-1 font-medium">{me.standalone ? tl(lang, 'settings.standaloneTitle') : tl(lang, 'settings.syncTitle')}</h2>
@@ -578,573 +512,6 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
         )}
         <span className="text-xs text-on-surface-variant">Kladde {APP_VERSION}</span>
       </div>
-    </div>
-  );
-}
-
-function FolderPicker({
-  id,
-  label,
-  value,
-  folders,
-  allowRoot,
-  extraOptions = [],
-  disabled,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  folders: string[];
-  allowRoot?: boolean;
-  extraOptions?: string[];
-  disabled?: boolean;
-  onChange: (folder: string) => void;
-}) {
-  const lang = useLang();
-  const [creating, setCreating] = useState(false);
-  const [draft, setDraft] = useState('');
-  const merged = [...folders];
-  for (const extra of [...extraOptions, value]) {
-    if (extra && !merged.includes(extra)) merged.unshift(extra);
-  }
-  const options = merged.filter(Boolean);
-  const isCreating = creating && !disabled;
-
-  const createFolder = async () => {
-    const cleaned = draft
-      .split('/')
-      .map((p) => p.trim().replace(/[\\]/g, '-'))
-      .filter((p) => p && p !== '.' && p !== '..')
-      .join('/');
-    if (!cleaned) {
-      setCreating(false);
-      setDraft('');
-      return;
-    }
-    const created = await vault.addFolder(cleaned);
-    setCreating(false);
-    setDraft('');
-    if (created) onChange(created);
-  };
-
-  return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-xs font-medium text-on-surface-variant">
-        {label}
-      </label>
-      {isCreating ? (
-        <div className="flex items-center gap-1.5">
-          <input
-            id={id}
-            autoFocus
-            className="input h-9 min-w-0 flex-1 py-1 text-sm"
-            placeholder={tl(lang, 'settings.newFolderPlaceholder')}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                void createFolder();
-              } else if (e.key === 'Escape') {
-                e.preventDefault();
-                setCreating(false);
-                setDraft('');
-              }
-            }}
-          />
-          <button
-            type="button"
-            className="btn-icon h-9 w-9 shrink-0 rounded-xl border border-outline-variant text-primary hover:bg-primary/10"
-            title={tl(lang, 'common.create')}
-            aria-label={tl(lang, 'common.create')}
-            onClick={() => void createFolder()}
-          >
-            <Check size={16} />
-          </button>
-          <button
-            type="button"
-            className="btn-icon h-9 w-9 shrink-0 rounded-xl border border-outline-variant"
-            title={tl(lang, 'common.cancel')}
-            aria-label={tl(lang, 'common.cancel')}
-            onClick={() => {
-              setCreating(false);
-              setDraft('');
-            }}
-          >
-            <X size={16} />
-          </button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-1.5">
-          <Dropdown
-            id={id}
-            value={value}
-            disabled={disabled}
-            aria-label={label}
-            className="min-w-0 flex-1"
-            onChange={onChange}
-            options={[
-              ...(allowRoot ? [{ value: '', label: tl(lang, 'common.topLevel') }] : []),
-              ...options.map((f) => ({ value: f, label: folderDisplayName(f, lang) })),
-            ]}
-          />
-          {!disabled && (
-            <button
-              type="button"
-              className="btn-icon h-10 w-10 shrink-0 rounded-xl border border-outline-variant"
-              title={tl(lang, 'settings.newFolderBtnTitle')}
-              aria-label={tl(lang, 'settings.newFolderBtnTitle')}
-              onClick={() => setCreating(true)}
-            >
-              <FolderPlus size={16} />
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** Export of the AI memory as an OKF bundle (ZIP) and import of a bundle folder (#94) */
-function MemoryBundleActions({ disabled }: { disabled: boolean }) {
-  const lang = useLang();
-  const input = useRef<HTMLInputElement>(null);
-  const [status, setStatus] = useState('');
-  useEffect(() => {
-    // Folder pick: not in the React types
-    input.current?.setAttribute('webkitdirectory', '');
-  }, []);
-  const download = () => {
-    const zip = vault.memoryBundle();
-    if (!zip) return;
-    const url = URL.createObjectURL(new Blob([zip as BlobPart], { type: 'application/zip' }));
-    const a = Object.assign(document.createElement('a'), { href: url, download: `${vault.memoryFolder() ?? 'memory'}.zip` });
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
-  const upload = async (list: FileList | null) => {
-    if (!list?.length) return;
-    const files = await Promise.all(
-      [...list]
-        .filter((f) => /\.md$/i.test(f.name))
-        .map(async (f) => {
-          // The first path segment is the picked folder itself
-          const rel = (f.webkitRelativePath || f.name).split('/').slice(1).join('/') || f.name;
-          return { path: rel, content: await f.text() };
-        })
-    );
-    const result = await vault.importMemoryBundle(files);
-    setStatus(tl(lang, 'settings.memoryImportDone', { created: result.created, skipped: result.skipped }));
-    if (input.current) input.current.value = '';
-  };
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
-        <button type="button" className="btn-tonal" onClick={download}>
-          <Download size={16} /> {tl(lang, 'settings.memoryExport')}
-        </button>
-        <button type="button" className="btn-outlined" disabled={disabled} onClick={() => input.current?.click()}>
-          <Upload size={16} /> {tl(lang, 'settings.memoryImport')}
-        </button>
-        <input ref={input} type="file" multiple hidden onChange={(e) => void upload(e.target.files)} data-memory-import />
-      </div>
-      {status && (
-        <p role="status" className="text-body-s text-on-surface-variant">
-          {status}
-        </p>
-      )}
-    </div>
-  );
-}
-
-const DAILY_TOKENS = ['YYYY', 'YY', 'MMMM', 'MM', 'DD', 'WW', 'dddd'] as const;
-
-/** Synced per-account workflow settings (Daily Notes, PARA, Zettelkasten, Recipe import) with configurable target folders */
-function FeaturesSection({ features, folders, locked }: { features: FeatureSettings; folders: string[]; locked: boolean }) {
-  const lang = useLang();
-  const formatInputRef = useRef<HTMLInputElement>(null);
-  const [formatDraft, setFormatDraft] = useState(features.daily.format);
-
-  useEffect(() => {
-    setFormatDraft(features.daily.format);
-  }, [features.daily.format]);
-
-  const save = (next: FeatureSettings) => {
-    void vault.updateFeatures(next).catch(() => {});
-  };
-
-  const commitDailyFormat = (raw: string) => {
-    const cleaned = cleanDailyFormat(raw, DEFAULT_DAILY_FORMAT);
-    setFormatDraft(cleaned);
-    if (cleaned !== features.daily.format) {
-      save({ ...features, daily: { ...features.daily, format: cleaned } });
-    }
-  };
-
-  const insertDailyToken = (tok: string) => {
-    if (locked) return;
-    const input = formatInputRef.current;
-    if (input && document.activeElement === input && input.selectionStart !== null && input.selectionEnd !== null) {
-      const next = `${formatDraft.slice(0, input.selectionStart)}${tok}${formatDraft.slice(input.selectionEnd)}`;
-      commitDailyFormat(next);
-      return;
-    }
-    const trimmed = formatDraft.trim();
-    if (!trimmed) {
-      commitDailyFormat(`${tok}.md`);
-      return;
-    }
-    const hadMd = /\.md$/i.test(trimmed);
-    const stem = hadMd ? trimmed.slice(0, -3) : trimmed;
-    const sep = !stem || stem.endsWith('/') || stem.endsWith('-') || stem.endsWith('_') || stem.endsWith(' ') ? '' : '-';
-    commitDailyFormat(`${stem}${sep}${tok}${hadMd ? '.md' : ''}`);
-  };
-
-  const dailyPreview = resolveDailyNote(
-    {
-      folder: features.daily.folder,
-      format: formatDraft.trim() ? cleanDailyFormat(formatDraft, DEFAULT_DAILY_FORMAT) : DEFAULT_DAILY_FORMAT,
-    },
-    new Date(),
-    lang
-  ).path;
-
-  return (
-    <section className="card p-5 anim-fade-up">
-      <h2 className="text-base font-medium">{tl(lang, 'settings.featuresTitle')}</h2>
-      <p className="mb-3 mt-1 text-xs text-on-surface-variant">{tl(lang, 'settings.featuresDesc')}</p>
-
-      {locked && (
-        <div className="mb-4 flex items-start gap-2 rounded-xl bg-surface-container-high/60 px-3.5 py-2.5 text-xs text-on-surface-variant">
-          <Lock size={14} className="mt-0.5 shrink-0 text-primary" />
-          <span>{tl(lang, 'settings.featuresReadOnlyHint')}</span>
-        </div>
-      )}
-
-      <div className="divide-y divide-outline-variant">
-        <FeatureRow
-          id="feature-daily-switch"
-          Icon={CalendarDays}
-          title={tl(lang, 'settings.dailyTitle')}
-          desc={tl(lang, 'settings.dailyDesc')}
-          toggleLabel={tl(lang, 'settings.dailyToggleLabel')}
-          enabled={features.daily.enabled}
-          locked={locked}
-          onToggle={(enabled) => save({ ...features, daily: { ...features.daily, enabled } })}
-        >
-          <FolderPicker
-            id="daily-target-folder"
-            label={tl(lang, 'settings.targetFolderLabel')}
-            value={features.daily.folder}
-            folders={folders}
-            allowRoot
-            extraOptions={[DEFAULT_DAILY_FOLDER]}
-            disabled={locked}
-            onChange={(folder) => save({ ...features, daily: { ...features.daily, folder } })}
-          />
-          <div className="space-y-1.5">
-            <label htmlFor="daily-naming-format" className="block text-xs font-medium text-on-surface-variant">
-              {tl(lang, 'settings.dailyFormatLabel')}
-            </label>
-            <input
-              ref={formatInputRef}
-              id="daily-naming-format"
-              type="text"
-              disabled={locked}
-              placeholder={tl(lang, 'settings.dailyFormatPlaceholder')}
-              className="input h-9 w-full py-1 font-mono text-sm disabled:cursor-not-allowed disabled:opacity-60"
-              value={formatDraft}
-              onChange={(e) => setFormatDraft(e.target.value)}
-              onBlur={() => commitDailyFormat(formatDraft)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  commitDailyFormat(formatDraft);
-                  (e.target as HTMLInputElement).blur();
-                }
-              }}
-            />
-            <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
-              <span className="text-on-surface-variant">{tl(lang, 'settings.dailyTokensLabel')}</span>
-              {DAILY_TOKENS.map((tok) => (
-                <button
-                  key={tok}
-                  type="button"
-                  disabled={locked}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => insertDailyToken(tok)}
-                  className="chip font-mono text-[11px] hover:border-primary/60 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {tok}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap items-baseline gap-1.5 pt-0.5 text-xs">
-              <span className="text-on-surface-variant">{tl(lang, 'settings.dailyPreviewLabel')}</span>
-              <code className="break-all rounded bg-surface-container-low px-1.5 py-0.5 font-mono text-[11px] text-primary">{dailyPreview}</code>
-            </div>
-          </div>
-        </FeatureRow>
-
-        <FeatureRow
-          id="feature-heatmap-switch"
-          Icon={CalendarRange}
-          title={tl(lang, 'settings.heatmapTitle')}
-          desc={tl(lang, 'settings.heatmapDesc')}
-          toggleLabel={tl(lang, 'settings.heatmapToggleLabel')}
-          enabled={features.heatmap.enabled}
-          locked={locked}
-          onToggle={(enabled) => save({ ...features, heatmap: { enabled } })}
-        />
-
-        <FeatureRow
-          id="feature-review-switch"
-          Icon={CalendarCheck}
-          title={tl(lang, 'settings.reviewTitle')}
-          desc={tl(lang, 'settings.reviewDesc')}
-          toggleLabel={tl(lang, 'settings.reviewToggleLabel')}
-          enabled={features.review.enabled}
-          locked={locked}
-          onToggle={(enabled) => save({ ...features, review: { enabled } })}
-        />
-
-        <FeatureRow
-          id="feature-favorites-switch"
-          Icon={Star}
-          title={tl(lang, 'settings.favoritesTitle')}
-          desc={tl(lang, 'settings.favoritesDesc')}
-          toggleLabel={tl(lang, 'settings.favoritesToggleLabel')}
-          enabled={features.favorites.enabled}
-          locked={locked}
-          onToggle={(enabled) => save({ ...features, favorites: { enabled } })}
-        />
-
-        <FeatureRow
-          id="feature-icons-switch"
-          Icon={Mood}
-          title={tl(lang, 'settings.iconsTitle')}
-          desc={tl(lang, 'settings.iconsDesc')}
-          toggleLabel={tl(lang, 'settings.iconsToggleLabel')}
-          enabled={features.icons.enabled}
-          locked={locked}
-          onToggle={(enabled) => save({ ...features, icons: { enabled } })}
-        />
-
-        <FeatureRow
-          id="feature-stats-switch"
-          Icon={AlignJustify}
-          title={tl(lang, 'settings.statsTitle')}
-          desc={tl(lang, 'settings.statsDesc')}
-          toggleLabel={tl(lang, 'settings.statsToggleLabel')}
-          enabled={features.writingStats.enabled}
-          locked={locked}
-          onToggle={(enabled) => save({ ...features, writingStats: { enabled } })}
-        />
-
-        <FeatureRow
-          id="feature-focus-switch"
-          Icon={CenterFocus}
-          title={tl(lang, 'settings.focusTitle')}
-          desc={tl(lang, 'settings.focusDesc')}
-          toggleLabel={tl(lang, 'settings.focusToggleLabel')}
-          enabled={features.focus.enabled}
-          locked={locked}
-          onToggle={(enabled) => save({ ...features, focus: { ...features.focus, enabled } })}
-        >
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <label htmlFor="feature-focus-dim-switch" className={`text-sm font-medium ${locked ? '' : 'cursor-pointer'}`}>
-                {tl(lang, 'settings.focusDimTitle')}
-              </label>
-              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.focusDimDesc')}</p>
-            </div>
-            <Switch
-              id="feature-focus-dim-switch"
-              checked={features.focus.dim}
-              disabled={locked}
-              label={tl(lang, 'settings.focusDimTitle')}
-              onChange={(dim) => save({ ...features, focus: { ...features.focus, dim } })}
-            />
-          </div>
-        </FeatureRow>
-
-        <FeatureRow
-          id="feature-para-switch"
-          Icon={FolderKanban}
-          title={tl(lang, 'settings.paraTitle')}
-          desc={tl(lang, 'settings.paraDesc')}
-          toggleLabel={tl(lang, 'settings.paraToggleLabel')}
-          enabled={features.para.enabled}
-          locked={locked}
-          onToggle={(enabled) => save({ ...features, para: { ...features.para, enabled } })}
-        >
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FolderPicker
-              id="para-folder-projects"
-              label={tl(lang, 'settings.paraFolderProjects')}
-              value={features.para.folders.projects}
-              folders={folders}
-              disabled={locked}
-              onChange={(projects) => save({ ...features, para: { ...features.para, folders: { ...features.para.folders, projects } } })}
-            />
-            <FolderPicker
-              id="para-folder-areas"
-              label={tl(lang, 'settings.paraFolderAreas')}
-              value={features.para.folders.areas}
-              folders={folders}
-              disabled={locked}
-              onChange={(areas) => save({ ...features, para: { ...features.para, folders: { ...features.para.folders, areas } } })}
-            />
-            <FolderPicker
-              id="para-folder-resources"
-              label={tl(lang, 'settings.paraFolderResources')}
-              value={features.para.folders.resources}
-              folders={folders}
-              disabled={locked}
-              onChange={(resources) => save({ ...features, para: { ...features.para, folders: { ...features.para.folders, resources } } })}
-            />
-            <FolderPicker
-              id="para-folder-archive"
-              label={tl(lang, 'settings.paraFolderArchive')}
-              value={features.para.folders.archive}
-              folders={folders}
-              disabled={locked}
-              onChange={(archive) => save({ ...features, para: { ...features.para, folders: { ...features.para.folders, archive } } })}
-            />
-          </div>
-        </FeatureRow>
-
-        <FeatureRow
-          id="feature-zettel-switch"
-          Icon={Lightbulb}
-          title={tl(lang, 'settings.zettelTitle')}
-          desc={tl(lang, 'settings.zettelDesc')}
-          toggleLabel={tl(lang, 'settings.zettelToggleLabel')}
-          enabled={features.zettel.enabled}
-          locked={locked}
-          onToggle={(enabled) => save({ ...features, zettel: { ...features.zettel, enabled } })}
-        >
-          <FolderPicker
-            id="zettel-target-folder"
-            label={tl(lang, 'settings.targetFolderLabel')}
-            value={features.zettel.folder}
-            folders={folders}
-            disabled={locked}
-            onChange={(folder) => save({ ...features, zettel: { ...features.zettel, folder } })}
-          />
-        </FeatureRow>
-
-        <FeatureRow
-          id="feature-memory-switch"
-          Icon={Psychology}
-          title={tl(lang, 'settings.memoryTitle')}
-          desc={tl(lang, 'settings.memoryDesc')}
-          toggleLabel={tl(lang, 'settings.memoryToggleLabel')}
-          enabled={features.memory.enabled}
-          locked={locked}
-          onToggle={(enabled) => save({ ...features, memory: { ...features.memory, enabled } })}
-        >
-          <FolderPicker
-            id="memory-target-folder"
-            label={tl(lang, 'settings.targetFolderLabel')}
-            value={features.memory.folder}
-            folders={folders}
-            disabled={locked}
-            onChange={(folder) => save({ ...features, memory: { ...features.memory, folder } })}
-          />
-          <MemoryBundleActions disabled={locked} />
-        </FeatureRow>
-
-        <FeatureRow
-          id="feature-recipe-switch"
-          Icon={ChefHat}
-          title={tl(lang, 'settings.recipeTitle')}
-          desc={tl(lang, 'settings.recipeDesc')}
-          toggleLabel={tl(lang, 'settings.recipeToggleLabel')}
-          enabled={features.recipe.enabled}
-          locked={locked}
-          onToggle={(enabled) => {
-            let recipeFolder = features.recipe.folder;
-            if (enabled) {
-              if (features.para.enabled && recipeFolder === STANDALONE_RECIPE_FOLDER && !folders.includes(STANDALONE_RECIPE_FOLDER)) {
-                recipeFolder = `${features.para.folders.resources}/Rezepte`;
-              } else if (!features.para.enabled && recipeFolder === DEFAULT_RECIPE_FOLDER && !folders.includes(DEFAULT_RECIPE_FOLDER)) {
-                recipeFolder = STANDALONE_RECIPE_FOLDER;
-              }
-            }
-            save({ ...features, recipe: { ...features.recipe, enabled, folder: recipeFolder } });
-          }}
-        >
-          <FolderPicker
-            id="recipe-target-folder"
-            label={tl(lang, 'settings.targetFolderLabel')}
-            value={features.recipe.folder}
-            folders={folders}
-            disabled={locked}
-            onChange={(folder) => save({ ...features, recipe: { ...features.recipe, folder } })}
-          />
-        </FeatureRow>
-      </div>
-    </section>
-  );
-}
-
-/**
- * One feature in the settings: a compact row (icon, name, "On"/"Off") that expands on click to the
- * description, the switch and the feature's own options (shown while it is on).
- */
-function FeatureRow({
-  id,
-  Icon,
-  title,
-  desc,
-  toggleLabel,
-  enabled,
-  locked,
-  onToggle,
-  children,
-}: {
-  id: string;
-  Icon: typeof Star;
-  title: string;
-  desc: string;
-  toggleLabel: string;
-  enabled: boolean;
-  locked: boolean;
-  onToggle: (enabled: boolean) => void;
-  children?: React.ReactNode;
-}) {
-  const lang = useLang();
-  const [open, setOpen] = useState(false);
-  const panelId = `${id}-panel`;
-  return (
-    <div className="py-1">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={panelId}
-        onClick={() => setOpen(!open)}
-        className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-2xl px-2 py-2.5 text-left transition-colors hover:bg-surface-container-high/60"
-      >
-        <Icon size={18} className="shrink-0 text-primary" />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{title}</span>
-        <span className={`shrink-0 text-xs font-semibold ${enabled ? 'text-ok' : 'text-error'}`}>
-          {enabled ? tl(lang, 'settings.featureOn') : tl(lang, 'settings.featureOff')}
-        </span>
-        <ChevronDown size={18} className={`shrink-0 text-on-surface-variant transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div id={panelId} className="mb-2 ml-[30px] mt-1 space-y-3 rounded-2xl border border-outline-variant bg-surface-container-high/50 p-4 anim-fade-in">
-          <div className="flex items-center justify-between gap-4">
-            <label htmlFor={id} className={`min-w-0 flex-1 text-xs text-on-surface-variant ${locked ? '' : 'cursor-pointer'}`}>
-              {desc}
-            </label>
-            <Switch id={id} checked={enabled} disabled={locked} label={toggleLabel} onChange={onToggle} />
-          </div>
-          {enabled && children}
-        </div>
-      )}
     </div>
   );
 }
@@ -1371,5 +738,33 @@ function WidescreenSlider() {
         ))}
       </div>
     </div>
+  );
+}
+
+/** Entry to the features dialog: how many features are on and how many more there are */
+function FeaturesCard() {
+  const lang = useLang();
+  const { active, available } = useFeatureCounts();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        className="card flex w-full min-w-0 items-center gap-3.5 p-5 text-left transition-colors hover:bg-surface-container-high/40 anim-fade-up"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        data-open-features
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary-container text-on-secondary-container">
+          <Extension size={20} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="font-medium">{tl(lang, 'features.title')}</div>
+          <div className="text-sm text-on-surface-variant">{tl(lang, 'features.cardDesc', { active, available })}</div>
+        </div>
+        <ChevronRight size={18} className="shrink-0 text-on-surface-variant" />
+      </button>
+      {open && <FeaturesDialog onClose={() => setOpen(false)} />}
+    </>
   );
 }

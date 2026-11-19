@@ -1,4 +1,4 @@
-import { test, expect, expectOnServer, serverNotes, uid } from './helpers';
+import { test, expect, enableFeature, expectOnServer, serverNotes, uid } from './helpers';
 import type { APIRequestContext, Page } from '@playwright/test';
 
 /** The schema note's name carries a UUID so it cannot clash with a title someone types */
@@ -131,6 +131,8 @@ test('the schema note stays out of the note list and the search', async ({ page 
 test('turns a folder into a database, adds a view property and prefilled entries', async ({ page }) => {
   const folder = `Contacts ${uid()}`;
   await seed(page.request, [{ path: `${folder}/Ada.md`, content: '---\ncompany: Analytical\n---\nAda' }]);
+  // "Make database" is a feature (off in new spaces)
+  await enableFeature(page, 'database');
   await openFolder(page, folder);
   await page.locator('[data-make-database]').click();
   const db = page.locator('[data-database]');

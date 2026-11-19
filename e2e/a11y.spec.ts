@@ -65,6 +65,14 @@ for (const scheme of SCHEMES) {
     await scan('share dialog');
     await page.keyboard.press('Escape');
 
+    await page.goto('/settings');
+    await page.locator('[data-open-features]').click();
+    await scan('features dialog');
+    await page.locator('[data-features-dialog] [data-tab="active"]').click();
+    await page.locator('[data-features-dialog] [data-feature="para"] button').first().click();
+    await scan('feature detail');
+    await page.keyboard.press('Escape');
+
     if (isDesktop(testInfo.project.name)) {
       await page.getByRole('button', { name: 'New note', exact: true }).click();
       await scan('new note dialog');

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Bot, Check, Copy, KeyRound, Plus, Trash2 } from '../lib/icons';
+import { Bot, Check, Copy, KeyRound, Plus, Trash2 } from '../lib/icons';
 import type { McpConnection, McpTokenCreated } from '@kladde/shared';
 import { api } from '../lib/api';
 import { locale, tl, useLang } from '../lib/i18n';
-import { navigate } from '../lib/router';
+import { SettingsPage } from './SettingsPage';
 
 export function CopyField({ value, label }: { value: string; label?: string }) {
   const lang = useLang();
@@ -30,7 +30,7 @@ export function CopyField({ value, label }: { value: string; label?: string }) {
 }
 
 /** AI assistants (Claude, ChatGPT, Cursor …) talk to the user's own notes over MCP */
-export function McpSettingsView() {
+export function McpSettingsView({ embedded }: { embedded?: boolean } = {}) {
   const lang = useLang();
   const loc = locale(lang);
   const when = (ms: number | null) => (ms ? new Date(ms).toLocaleDateString(loc, { dateStyle: 'medium' }) : tl(lang, 'mcp.never'));
@@ -65,13 +65,7 @@ export function McpSettingsView() {
   };
 
   return (
-    <div className="content-container space-y-6 px-4 py-6 sm:px-8 sm:py-10">
-      <div className="flex items-center gap-2 anim-fade-up">
-        <button className="btn-icon -ml-2" onClick={() => navigate('/settings')} title={tl(lang, 'templates.backToSettings')}>
-          <ArrowLeft size={18} />
-        </button>
-        <h1 className="text-headline-m">{tl(lang, 'mcp.title')}</h1>
-      </div>
+    <SettingsPage title={tl(lang, 'mcp.title')} embedded={embedded}>
       <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'mcp.intro')}</p>
 
       <section className="card space-y-3 p-5 anim-fade-up">
@@ -137,6 +131,6 @@ export function McpSettingsView() {
           </div>
         ))}
       </section>
-    </div>
+    </SettingsPage>
   );
 }
