@@ -103,7 +103,7 @@ function useFeatures(lang: Lang): Feature[] {
   const server = !vault.standalone;
   const serverHint = L('features.serverHint');
 
-  const flag = (key: 'heatmap' | 'review' | 'favorites' | 'icons' | 'writingStats' | 'database' | 'presentation' | 'callouts' | 'mcp' | 'notifications' | 'calendar' | 'shortcuts') => ({
+  const flag = (key: 'calendarView' | 'heatmap' | 'review' | 'favorites' | 'icons' | 'writingStats' | 'database' | 'presentation' | 'callouts' | 'mcp' | 'notifications' | 'calendar' | 'shortcuts') => ({
     active: features[key].enabled,
     setActive: (on: boolean) => save((f) => ({ ...f, [key]: { ...f[key], enabled: on } })),
   });
@@ -187,6 +187,15 @@ function useFeatures(lang: Lang): Feature[] {
       active: features.monthly.enabled,
       setActive: (on) => save((f) => ({ ...f, monthly: { ...f.monthly, enabled: on } })),
       settings: () => <DailySettings kind="monthly" features={features} folders={folders} locked={locked} />,
+    },
+    {
+      id: 'calendarView',
+      Icon: CalendarMonth,
+      title: L('features.calendarViewTitle'),
+      summary: L('features.sum.calendarView'),
+      details: L('features.calendarViewDesc'),
+      standard: true,
+      ...flag('calendarView'),
     },
     {
       id: 'review',

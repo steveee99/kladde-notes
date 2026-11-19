@@ -10,6 +10,7 @@ export type FeatureArtId =
   | 'zettel'
   | 'daily'
   | 'weekly'
+  | 'calendarView'
   | 'monthly'
   | 'review'
   | 'heatmap'
@@ -101,6 +102,18 @@ const ART: Record<FeatureArtId, ReactNode> = {
           <Bar x={34 + i * 14.5} y={58} w={7} h={3} className={i === 3 ? 'fill-on-primary' : 'fill-on-secondary-container'} o={0.7} />
         </g>
       ))}
+    </>
+  ),
+  calendarView: (
+    <>
+      <Card x={24} y={10} w={112} h={70} />
+      {Array.from({ length: 21 }, (_, i) => (
+        <rect key={i} x={30 + (i % 7) * 15} y={18 + Math.floor(i / 7) * 20} width={13} height={18} rx={2} className="fill-surface-container-high" />
+      ))}
+      <rect x={45} y={24} width={26} height={5} rx={2} className="fill-primary" />
+      <rect x={90} y={44} width={28} height={5} rx={2} className="fill-tertiary" />
+      <rect x={30} y={64} width={13} height={5} rx={2} className="fill-secondary" />
+      <rect x={75} y={58} width={13} height={18} rx={2} className="fill-primary" fillOpacity={0.25} />
     </>
   ),
   monthly: (

@@ -124,6 +124,10 @@ export interface FeatureSettings {
   callouts: {
     enabled: boolean;
   };
+  /** Calendar view (#72): month, week and agenda of tasks, daily notes and dated notes under /calendar */
+  calendarView: {
+    enabled: boolean;
+  };
 }
 
 /** Configurable folder mapping per role; `null` disables matching for that role */
@@ -276,6 +280,7 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
     database: { enabled: optInFlag(obj.database) },
     presentation: { enabled: optInFlag(obj.presentation) },
     callouts: { enabled: optOutFlag(obj.callouts) },
+    calendarView: { enabled: optOutFlag(obj.calendarView) },
   };
 }
 

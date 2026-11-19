@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CalendarCheck,
+  CalendarMonth,
   Globe,
   ListChecks,
   CalendarDays,
@@ -1068,6 +1069,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
                   onClick: () => void openTodayDailyNote().then(() => onNavigate?.()),
                 })}
               {navRow('tasks', ListChecks, t('nav.tasks'), { to: '/tasks', badge: <NavBadge tone="warn" count={urgentTasks} /> })}
+              {features.calendarView.enabled && navRow('calendar', CalendarMonth, t('nav.calendar'), { to: '/calendar' })}
               {navRow('inbox', InboxIcon, t('nav.inbox'), {
                 to: '/inbox',
                 badge: inboxZero ? <NavBadge tone="warn" count={inboxCount} /> : null,

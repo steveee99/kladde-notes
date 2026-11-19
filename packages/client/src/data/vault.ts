@@ -1437,6 +1437,7 @@ class Vault {
       database: { enabled: false },
       presentation: { enabled: false },
       callouts: { enabled: true },
+      calendarView: { enabled: true },
       weekly: { enabled: false, folder: DEFAULT_WEEKLY_FOLDER, format: DEFAULT_WEEKLY_FORMAT },
       monthly: { enabled: false, folder: DEFAULT_MONTHLY_FOLDER, format: DEFAULT_MONTHLY_FORMAT },
     } satisfies FeatureSettings);

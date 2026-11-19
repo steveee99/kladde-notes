@@ -6,6 +6,7 @@ import { heatmapWeekdayLabels, locale, tl, useLang } from '../lib/i18n';
 import { useReadOnly } from '../lib/readOnly';
 import { navigate } from '../lib/router';
 import { Dropdown, DropdownOption } from './Dropdown';
+import { CalendarPlanner } from './CalendarPlanner';
 
 /** Cells grow to fill the card width; below MIN the grid scrolls horizontally. */
 const MIN_CELL_PX = 12;
@@ -245,6 +246,23 @@ export function CalendarView() {
   const locked = useReadOnly();
   const features = vault.features();
   const { heatmap, daily } = features;
+
+  // Calendar view (#72): month, week and agenda, with the activity heatmap below it while that is on
+  if (features.calendarView.enabled) {
+    return (
+      <div className="content-container mx-auto space-y-6 px-4 py-6 sm:px-8 sm:py-10">
+        <CalendarPlanner />
+        {heatmap.enabled && (
+          <section className="space-y-3" aria-labelledby="calendar-activity">
+            <h2 id="calendar-activity" className="text-title-m">
+              {tl(lang, 'heatmap.title')}
+            </h2>
+            <ActivityHeatmap />
+          </section>
+        )}
+      </div>
+    );
+  }
 
   if (!heatmap.enabled) {
     return (
