@@ -172,6 +172,7 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       mcp: { enabled: true },
       database: { enabled: false },
       presentation: { enabled: false },
+      callouts: { enabled: true },
     });
 
     const upgraded = normalizeFeatures(undefined, ['0 Inbox', '1 Projekte', 'Zettelkasten', '3 Ressourcen/Rezepte']);
@@ -194,6 +195,7 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       mcp: { enabled: true },
       database: { enabled: false },
       presentation: { enabled: false },
+      callouts: { enabled: true },
     });
 
     const explicitDisabled = normalizeFeatures(

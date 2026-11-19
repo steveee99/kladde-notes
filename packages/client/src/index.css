@@ -655,6 +655,68 @@ html[data-readonly] .edit-only {
   padding-left: 14px !important;
   color: rgb(var(--on-surface-variant));
 }
+/*
+ * Callouts (#86): `> [!type] Title` as a box in the color role of its type. Each line gets the classes (CodeMirror
+ * decorates lines), the first and last line round the corners and add the inner padding.
+ */
+.cm-callout {
+  --co: var(--primary);
+  --co-bg: var(--primary-container);
+  --co-on: var(--on-primary-container);
+  background: rgb(var(--co-bg));
+  color: rgb(var(--co-on));
+  border-left: 4px solid rgb(var(--co));
+  padding-left: 14px !important;
+  padding-right: 14px !important;
+}
+.cm-callout-secondary { --co: var(--secondary); --co-bg: var(--secondary-container); --co-on: var(--on-secondary-container); }
+.cm-callout-tertiary { --co: var(--tertiary); --co-bg: var(--tertiary-container); --co-on: var(--on-tertiary-container); }
+.cm-callout-ok { --co: var(--ok); --co-bg: var(--ok-container); --co-on: var(--on-ok-container); }
+.cm-callout-warn { --co: var(--warn); --co-bg: var(--warn-container); --co-on: var(--on-warn-container); }
+.cm-callout-error { --co: var(--error); --co-bg: var(--error-container); --co-on: var(--on-error-container); }
+.cm-callout-neutral { --co: var(--outline); --co-bg: var(--surface-container-high); --co-on: var(--on-surface); }
+.cm-callout-first {
+  padding-top: 8px !important;
+  border-top-right-radius: var(--shape-md);
+}
+.cm-callout-last {
+  padding-bottom: 8px !important;
+  border-bottom-right-radius: var(--shape-md);
+}
+.cm-callout .cm-link, .cm-callout .cm-wikilink, .cm-callout .cm-tag { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.cm-callout-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 1.6em;
+  vertical-align: middle;
+}
+.cm-callout-head-toggle { cursor: pointer; }
+.cm-callout-icon {
+  width: 1.25em;
+  height: 1.25em;
+  flex-shrink: 0;
+  fill: rgb(var(--co));
+}
+.cm-callout-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+.cm-callout-fold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: -4px -6px -4px 0;
+  border-radius: 999px;
+  color: rgb(var(--co-on));
+  flex-shrink: 0;
+}
+.cm-callout-fold:hover { background: rgb(var(--co-on) / 0.08); }
+.cm-callout-fold:focus-visible { outline: 2px solid rgb(var(--co)); outline-offset: 1px; }
 .cm-link, .cm-wikilink {
   color: rgb(var(--primary));
   cursor: pointer;
@@ -2443,6 +2505,9 @@ span.cm-checkbox {
 .slide-body .cm-line {
   padding: 0.12em 0 !important;
 }
+.slide-body .cm-line.cm-callout { padding: 0.12em 0.6em !important; }
+.slide-body .cm-line.cm-callout-first { padding-top: 0.4em !important; }
+.slide-body .cm-line.cm-callout-last { padding-bottom: 0.4em !important; }
 /* Headings: strong, in the primary color, with room above only between blocks */
 .slide-body .cm-h1 { font-size: 1.9em; line-height: 1.15; color: rgb(var(--primary)); padding-top: 0 !important; padding-bottom: 0.25em !important; }
 .slide-body .cm-h2 { font-size: 1.5em; line-height: 1.2; color: rgb(var(--primary)); padding-top: 0 !important; padding-bottom: 0.3em !important; }

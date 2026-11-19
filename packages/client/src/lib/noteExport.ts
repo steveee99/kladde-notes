@@ -17,6 +17,9 @@ import {
 } from 'docx';
 import { jsPDF } from 'jspdf';
 import {
+  CALLOUT_TONES,
+  calloutTypeTitle,
+  isKnownCalloutType,
   isTitleSlide,
   parseMarkdownForExport,
   safeExportFilename,
@@ -24,12 +27,53 @@ import {
   slideRatio,
   splitSlides,
   stripFrontmatter,
+  type CalloutKind,
+  type CalloutTone,
   type ExportBlock,
   type ExportInline,
   type TableAlign,
 } from '@kladde/shared';
+import { CALLOUT_ICON_PATHS } from '../editor/calloutIcons';
 import { renderDiagram, type DiagramKind } from '../editor/diagram';
 import { t } from './i18n';
+
+type Rgb = [number, number, number];
+/** Callout colors (#86) on paper: the light Material 3 scheme (color role, its container, text on the container) */
+const CALLOUT_PRINT: Record<CalloutTone, { bar: Rgb; bg: Rgb; on: Rgb }> = {
+  primary: { bar: [73, 93, 146], bg: [218, 226, 255], on: [48, 69, 120] },
+  secondary: { bar: [88, 94, 113], bg: [220, 226, 249], on: [64, 70, 89] },
+  tertiary: { bar: [115, 84, 113], bg: [254, 215, 249], on: [90, 61, 89] },
+  ok: { bar: [0, 109, 67], bg: [196, 250, 216], on: [0, 33, 17] },
+  warn: { bar: [145, 76, 0], bg: [255, 220, 195], on: [47, 21, 0] },
+  error: { bar: [186, 26, 26], bg: [255, 218, 214], on: [147, 0, 10] },
+  neutral: { bar: [117, 119, 128], bg: [232, 231, 239], on: [26, 27, 33] },
+};
+const hex = (c: Rgb) => c.map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+type CalloutBlock = Extract<ExportBlock, { type: 'blockquote' }> & { callout: NonNullable<Extract<ExportBlock, { type: 'blockquote' }>['callout']> };
+const calloutColors = (kind: CalloutKind) => CALLOUT_PRINT[CALLOUT_TONES[kind]];
+/** The callout's title; without one its type's name, in the app language for the known types */
+function calloutTitle(c: NonNullable<Extract<ExportBlock, { type: 'blockquote' }>['callout']>): ExportInline[] {
+  if (c.title.trim()) return c.titleInlines;
+  return [{ type: 'text', text: isKnownCalloutType(c.type) ? t(`callout.${c.kind}`) : calloutTypeTitle(c.type) }];
+}
+/** A list item in a callout's body (`- item`) starts with a bullet instead of the dash (in the PDF the middle dot of its Latin-1 font) */
+function calloutBullet(line: ExportInline[], bullet = '•'): ExportInline[] {
+  const [first, ...rest] = line;
+  if (first?.type !== 'text') return line;
+  const m = /^(\s*)[-*+]\s+(?:\[[ xX]\]\s+)?/.exec(first.text);
+  return m ? [{ type: 'text', text: `${m[1]}${bullet}  ${first.text.slice(m[0].length)}` }, ...rest] : line;
+}
+
+/** The callout's icon as a small PNG on its container color (PDF and Word cannot draw the Material Symbol paths) */
+async function calloutIcon(kind: CalloutKind): Promise<LoadedImage | null> {
+  const { bar, bg } = calloutColors(kind);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" width="96" height="96"><path fill="#${hex(bar)}" d="${CALLOUT_ICON_PATHS[kind]}"/></svg>`;
+  try {
+    return await rasterizeToPng(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, 96, `#${hex(bg)}`);
+  } catch {
+    return null;
+  }
+}
 
 interface LoadedImage {
   bytes: Uint8Array;
@@ -168,10 +212,15 @@ async function renderDiagramImage(kind: DiagramKind, src: string): Promise<Loade
 async function preloadMedia(blocks: ExportBlock[]) {
   const images = new Map<string, LoadedImage | null>();
   const diagrams = new Map<string, LoadedImage | null>();
+  const icons = new Map<CalloutKind, LoadedImage | null>();
   const jobs: Promise<void>[] = [];
 
   for (const b of blocks) {
-    if (b.type === 'image' && !images.has(b.url)) {
+    if (b.type === 'blockquote' && b.callout && !icons.has(b.callout.kind)) {
+      const kind = b.callout.kind;
+      icons.set(kind, null);
+      jobs.push(calloutIcon(kind).then((res) => void icons.set(kind, res)));
+    } else if (b.type === 'image' && !images.has(b.url)) {
       images.set(b.url, null);
       jobs.push(
         fetchNoteImage(b.url).then((res) => {
@@ -191,7 +240,7 @@ async function preloadMedia(blocks: ExportBlock[]) {
     }
   }
   await Promise.all(jobs);
-  return { images, diagrams };
+  return { images, diagrams, icons };
 }
 
 function fitSize(w: number, h: number, maxW: number, maxH: number) {
@@ -280,7 +329,7 @@ const docxAlign = (a: TableAlign) =>
 /** Exports a note as a Word (.docx) document without frontmatter */
 export async function exportNoteAsWord(title: string, content: string): Promise<void> {
   const parsed = parseMarkdownForExport(title, content);
-  const { images, diagrams } = await preloadMedia(parsed.blocks);
+  const { images, diagrams, icons } = await preloadMedia(parsed.blocks);
 
   const children: (Paragraph | Table)[] = [];
 
@@ -348,6 +397,30 @@ export async function exportNoteAsWord(title: string, content: string): Promise<
         break;
 
       case 'blockquote':
+        if (block.callout) {
+          // Callout (#86): shaded paragraphs with a bar in the type's color, the head with icon and bold title
+          const { bar, bg, on } = calloutColors(block.callout.kind);
+          const box = {
+            shading: { type: ShadingType.SOLID, color: hex(bg), fill: hex(bg) },
+            border: { left: { style: BorderStyle.SINGLE, size: 24, color: hex(bar), space: 8 } },
+            indent: { left: 240, right: 120 },
+          };
+          const icon = icons.get(block.callout.kind);
+          children.push(
+            new Paragraph({
+              ...box,
+              spacing: { before: 120, after: block.lines.length ? 40 : 160 },
+              children: [
+                ...(icon ? [new ImageRun({ type: icon.docxType, data: icon.bytes, transformation: { width: 14, height: 14 } }), new TextRun({ text: '  ' })] : []),
+                ...docxRuns(calloutTitle(block.callout), { bold: true, color: hex(on) }),
+              ],
+            })
+          );
+          block.lines.forEach((l, idx) =>
+            children.push(new Paragraph({ ...box, spacing: { after: idx === block.lines.length - 1 ? 160 : 40 }, children: docxRuns(calloutBullet(l), { color: hex(on) }) }))
+          );
+          break;
+        }
         for (let idx = 0; idx < block.lines.length; idx++) {
           children.push(
             new Paragraph({
@@ -716,10 +789,27 @@ function ensureSpace(f: PdfFrame, needed: number) {
   } else f.overflow = true;
 }
 
-function drawWrappedLines(f: PdfFrame, lines: PdfSeg[][], x: number, fontSize: number, lineHeight: number, opts?: { quoteBar?: boolean; align?: TableAlign; maxW?: number }) {
+/** A callout's box (#86): drawn line by line behind the text, so it continues on the next page */
+interface PdfBox {
+  x: number;
+  w: number;
+  bg: Rgb;
+  bar: Rgb;
+}
+
+function drawBoxBand(f: PdfFrame, box: PdfBox, top: number, h: number) {
+  f.pdf.setFillColor(box.bg[0], box.bg[1], box.bg[2]);
+  // A little taller than the band, so no hairline shows between neighbours (the next band paints over the rest)
+  f.pdf.rect(box.x, top, box.w, h + 0.75, 'F');
+  f.pdf.setFillColor(box.bar[0], box.bar[1], box.bar[2]);
+  f.pdf.rect(box.x, top, 3 * f.s, h + 0.75, 'F');
+}
+
+function drawWrappedLines(f: PdfFrame, lines: PdfSeg[][], x: number, fontSize: number, lineHeight: number, opts?: { quoteBar?: boolean; align?: TableAlign; maxW?: number; box?: PdfBox }) {
   const { pdf } = f;
   for (const line of lines) {
     ensureSpace(f, lineHeight);
+    if (opts?.box) drawBoxBand(f, opts.box, f.y - fontSize * 0.85, lineHeight);
     if (opts?.quoteBar) {
       pdf.setFillColor(f.accent[0], f.accent[1], f.accent[2]);
       pdf.rect(x - 10 * f.s, f.y - fontSize * 0.85, 2.5 * f.s, lineHeight, 'F');
@@ -758,6 +848,38 @@ function drawWrappedLines(f: PdfFrame, lines: PdfSeg[][], x: number, fontSize: n
     }
     f.y += lineHeight;
   }
+}
+
+/** A callout (#86): a box in its type's color, the head with icon and bold title, then the body lines */
+function drawPdfCallout(f: PdfFrame, block: CalloutBlock, bodySize: number, bodyLh: number) {
+  const { pdf, s } = f;
+  const { bar, bg, on } = calloutColors(block.callout.kind);
+  const box: PdfBox = { x: f.x, w: f.width, bg, bar };
+  const pad = 6 * s;
+  const textX = f.x + 14 * s;
+  const textW = f.width - 26 * s;
+  const icon = f.media.icons.get(block.callout.kind);
+  const iconSize = bodySize * 1.15;
+  const titleX = textX + (icon ? iconSize + 6 * s : 0);
+  const title = wrapPdfSegs(
+    pdf,
+    inlinesToPdfSegs(calloutTitle(block.callout), 'normal', on).map((seg) => ({ ...seg, style: seg.style === 'italic' ? 'bolditalic' : 'bold' })),
+    bodySize,
+    textW - (titleX - textX)
+  );
+  f.y += 4 * s;
+  // Keep the head with the padding above it and the first body line
+  ensureSpace(f, pad + bodyLh * Math.min(2, title.length + block.lines.length));
+  drawBoxBand(f, box, f.y - bodySize * 0.85, pad);
+  f.y += pad;
+  const headY = f.y;
+  drawWrappedLines(f, title, titleX, bodySize, bodyLh, { box });
+  if (icon) pdf.addImage(icon.dataUrl, icon.pdfFormat, textX, headY - bodySize * 0.92, iconSize, iconSize);
+  for (const qLine of block.lines) {
+    drawWrappedLines(f, wrapPdfSegs(pdf, inlinesToPdfSegs(calloutBullet(qLine, '\u00b7'), 'normal', on), bodySize, textW), textX, bodySize, bodyLh, { box });
+  }
+  drawBoxBand(f, box, f.y - bodySize * 0.85, pad);
+  f.y += pad + 8 * s;
 }
 
 /** Draws Markdown blocks into the frame, starting at `f.y` */
@@ -855,6 +977,10 @@ function drawPdfBlocks(f: PdfFrame, blocks: ExportBlock[]) {
       }
 
       case 'blockquote': {
+        if (block.callout) {
+          drawPdfCallout(f, block as CalloutBlock, bodySize, bodyLh);
+          break;
+        }
         for (const qLine of block.lines) {
           const lines = wrapPdfSegs(pdf, inlinesToPdfSegs(qLine, 'italic', [96, 94, 108]), bodySize, contentW - 18 * s);
           drawWrappedLines(f, lines, marginX + 14 * s, bodySize, bodyLh, { quoteBar: true });

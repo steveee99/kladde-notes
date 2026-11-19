@@ -112,6 +112,10 @@ export interface FeatureSettings {
   presentation: {
     enabled: boolean;
   };
+  /** Callouts (#86): `> [!type] Title` quotes shown as colored boxes with an icon, `-`/`+` collapsible; otherwise plain quotes */
+  callouts: {
+    enabled: boolean;
+  };
 }
 
 /** Configurable folder mapping per role; `null` disables matching for that role */
@@ -256,6 +260,7 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
     mcp: { enabled: optOutFlag(obj.mcp) },
     database: { enabled: optInFlag(obj.database) },
     presentation: { enabled: optInFlag(obj.presentation) },
+    callouts: { enabled: optOutFlag(obj.callouts) },
   };
 }
 

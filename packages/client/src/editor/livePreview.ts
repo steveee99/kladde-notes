@@ -2,10 +2,12 @@ import { EditorState, Extension, Facet, Range, StateEffect, StateField } from '@
 import { Decoration, DecorationSet, EditorView } from '@codemirror/view';
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
-import { escapeRegExp, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, type NoteHeading, type ReleaseField } from '@kladde/shared';
-import { getLang } from '../lib/i18n';
+import { CALLOUT_TONES, calloutTypeTitle, escapeRegExp, isKnownCalloutType, parseCalloutLine, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, type NoteHeading, type ReleaseField } from '@kladde/shared';
+import { getLang, tl } from '../lib/i18n';
 import {
   AutoLinkWidget,
+  CalloutHeadWidget,
+  toggleCalloutEffect,
   CarouselWidget,
   CheckboxWidget,
   CodeHeaderWidget,
@@ -42,11 +44,32 @@ import { releaseFacet, ReleaseFieldWidget, releaseRenderOptions } from './releas
 export const previewAll = Facet.define<boolean, boolean>({ combine: (v) => v.some(Boolean) });
 /** Presentation mode (#87) is on: horizontal rules are slide breaks, labelled with this text (`{n}`: the next slide's number) */
 export const slideBreakLabel = Facet.define<string, string>({ combine: (v) => v[0] ?? '' });
+/** Callouts (#86) are on: `> [!type] Title` quotes are drawn as callouts, otherwise as plain quotes */
+export const calloutsFacet = Facet.define<boolean, boolean>({ combine: (v) => (v.length ? v[0] : true) });
 /** Current note id so notes don't autolink to themselves */
 export const noteIdFacet = Facet.define<string, string>({ combine: (v) => v[0] ?? '' });
 /** Re-render widgets that depend on other notes (queries, link targets, language) */
 export const refreshEffect = StateEffect.define<number>();
 const focusEffect = StateEffect.define<boolean>();
+
+/**
+ * Collapsible callouts the reader opened or closed, by the start of their head line: they show the opposite of their
+ * default (`-` collapsed, `+` open). Only in the view, the note text stays as it is.
+ */
+const calloutFoldField = StateField.define<Set<number>>({
+  create: () => new Set(),
+  update(value, tr) {
+    let next = value;
+    if (tr.docChanged && value.size) next = new Set([...value].map((p) => tr.changes.mapPos(p, 1)));
+    for (const e of tr.effects) {
+      if (!e.is(toggleCalloutEffect)) continue;
+      if (next === value) next = new Set(value);
+      if (next.has(e.value)) next.delete(e.value);
+      else next.add(e.value);
+    }
+    return next;
+  },
+});
 
 interface AutoLinkMatcher {
   stamp: number;
@@ -110,6 +133,8 @@ function build(state: EditorState): DecorationSet {
   const release = state.facet(releaseFacet);
   const releaseOpts = release ? releaseRenderOptions(lang) : null;
   const slideLabel = state.facet(slideBreakLabel);
+  const callouts = state.facet(calloutsFacet);
+  const toggled = state.field(calloutFoldField);
   let slideNo = 1;
   const active = new Set<number>();
   if (!all) {
@@ -248,9 +273,30 @@ function build(state: EditorState): DecorationSet {
           else replace(node.from, node.to, Decoration.replace({ widget }));
           return false;
         }
-        case 'Blockquote':
-          lineClass(node.from, node.to, 'cm-quote');
+        case 'Blockquote': {
+          const head = callouts ? doc.lineAt(node.from) : null;
+          const callout = head ? parseCalloutLine(head.text) : null;
+          if (!head || !callout) {
+            lineClass(node.from, node.to, 'cm-quote');
+            return;
+          }
+          // Callout (#86): a box in the color role of its type, the head line becomes icon + title (+ fold button)
+          const last = doc.lineAt(node.to);
+          const foldable = callout.fold !== '';
+          const collapsed = foldable && (callout.fold === '-') !== toggled.has(head.from) && !isActive(node.from, node.to);
+          const tone = `cm-callout cm-callout-${CALLOUT_TONES[callout.kind]}`;
+          const end = collapsed ? head.number : last.number;
+          for (let l = head.number; l <= end; l++) {
+            decos.push(line(`${tone}${l === head.number ? ' cm-callout-first' : ''}${l === end ? ' cm-callout-last' : ''}`).range(doc.line(l).from));
+          }
+          if (!isActive(head.from, head.to)) {
+            // Without a title of its own: the type's name (in the app language for the known types)
+            const title = callout.title || (isKnownCalloutType(callout.type) ? tl(lang, `callout.${callout.kind}`) : calloutTypeTitle(callout.type));
+            const widget = new CalloutHeadWidget(callout.kind, title, foldable, collapsed, head.from, state.readOnly, lang);
+            replace(head.from, collapsed ? last.to : head.to, Decoration.replace({ widget }));
+          }
           return;
+        }
         case 'QuoteMark':
           if (!isActive(node.from, node.to)) replace(node.from, node.to + (doc.sliceString(node.to, node.to + 1) === ' ' ? 1 : 0));
           return;
@@ -467,7 +513,7 @@ function build(state: EditorState): DecorationSet {
 const previewField = StateField.define<DecorationSet>({
   create: (state) => build(state),
   update(value, tr) {
-    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(refreshEffect) || e.is(focusEffect)) || syntaxTree(tr.state) !== syntaxTree(tr.startState) || tr.state.readOnly !== tr.startState.readOnly) {
+    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(refreshEffect) || e.is(focusEffect) || e.is(toggleCalloutEffect)) || syntaxTree(tr.state) !== syntaxTree(tr.startState) || tr.state.readOnly !== tr.startState.readOnly) {
       return build(tr.state);
     }
     return value;
@@ -479,6 +525,7 @@ export function livePreview(): Extension {
   return [
     focusField,
     stampField,
+    calloutFoldField,
     previewField,
     EditorView.domEventHandlers({
       focus: (_e, view) => {

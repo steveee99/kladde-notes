@@ -1,3 +1,4 @@
+import { parseCalloutLine, type CalloutHeader } from './callout.js';
 import { extractHeadings, parseFrontmatter, TOC_ANCHOR_RE } from './markdown.js';
 
 export type TableAlign = 'left' | 'center' | 'right' | null;
@@ -23,7 +24,8 @@ export type ExportBlock =
   | { type: 'heading'; level: 1 | 2 | 3 | 4 | 5 | 6; inlines: ExportInline[] }
   | { type: 'paragraph'; inlines: ExportInline[] }
   | { type: 'list'; ordered: boolean; items: ExportListItem[] }
-  | { type: 'blockquote'; lines: ExportInline[][] }
+  /** `callout` (#86): the quote is a callout; its head line is not part of `lines` */
+  | { type: 'blockquote'; lines: ExportInline[][]; callout?: CalloutHeader & { titleInlines: ExportInline[] } }
   | { type: 'code'; lang: string; code: string }
   | { type: 'table'; headers: ExportInline[][]; align: TableAlign[]; rows: ExportInline[][][] }
   | { type: 'image'; alt: string; url: string }
@@ -260,12 +262,14 @@ export function parseMarkdownForExport(title: string, content: string): ExportDo
 
     // Blockquote
     if (/^\s{0,3}>\s?/.test(line)) {
+      const head = parseCalloutLine(line);
+      if (head) i++;
       const qLines: ExportInline[][] = [];
       while (i < lines.length && /^\s{0,3}>\s?/.test(lines[i])) {
         qLines.push(parseExportInlines(lines[i].replace(/^\s{0,3}>\s?/, '')));
         i++;
       }
-      blocks.push({ type: 'blockquote', lines: qLines });
+      blocks.push(head ? { type: 'blockquote', lines: qLines, callout: { ...head, titleInlines: parseExportInlines(head.title) } } : { type: 'blockquote', lines: qLines });
       continue;
     }
 
