@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { ArrowLeft, CalendarDays, FilePlus2, LayoutTemplate, Pencil, Trash2 } from '../lib/icons';
-import { INBOX_FOLDER, Template, TEMPLATE_PLACEHOLDERS } from '@kladde/shared';
+import { ArrowLeft, CalendarDays, CalendarRange, FilePlus2, LayoutTemplate, Pencil, Trash2 } from '../lib/icons';
+import { INBOX_FOLDER, PERIODIC_PLACEHOLDERS, Template, TEMPLATE_PLACEHOLDERS, type PeriodKind } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
-import { folderDisplayName, tl, useLang } from '../lib/i18n';
+import { folderDisplayName, tl, useLang, type I18nKey } from '../lib/i18n';
 import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
 import { Dropdown } from './Dropdown';
@@ -17,7 +17,9 @@ export function TemplatesView() {
   const templates = vault.templates();
   const [editing, setEditing] = useState<Template | null>(null);
   const [editingDaily, setEditingDaily] = useState(false);
-  const daily = vault.features().daily;
+  const [editingPeriod, setEditingPeriod] = useState<PeriodKind | null>(null);
+  const { daily, weekly, monthly } = vault.features();
+  const periods = ([['week', weekly.enabled], ['month', monthly.enabled]] as const).filter(([, on]) => on).map(([k]) => k);
 
   return (
     <div className="content-container space-y-6 px-4 py-6 sm:px-8 sm:py-10">
@@ -35,6 +37,13 @@ export function TemplatesView() {
           template={{ id: 'daily', label: tl(lang, 'templates.dailyLabel'), folder: daily.folder, content: vault.dailyTemplate() }}
           isNew={false}
           onDone={() => setEditingDaily(false)}
+        />
+      ) : editingPeriod ? (
+        <TemplateEditor
+          period={editingPeriod}
+          template={{ id: editingPeriod, label: tl(lang, editingPeriod === 'week' ? 'templates.weeklyLabel' : 'templates.monthlyLabel'), folder: '', content: vault.periodicTemplate(editingPeriod) }}
+          isNew={false}
+          onDone={() => setEditingPeriod(null)}
         />
       ) : editing ? (
         <TemplateEditor key={editing.id} template={editing} isNew={!templates.some((t) => t.id === editing.id)} onDone={() => setEditing(null)} />
@@ -56,6 +65,28 @@ export function TemplatesView() {
               </div>
             </section>
           )}
+          {periods.map((kind) => (
+            <section key={kind} className="card anim-fade-up" data-template-period={kind}>
+              <div className="flex items-center gap-3 p-4">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary-container text-on-secondary-container">
+                  {kind === 'week' ? <CalendarRange size={18} /> : <CalendarDays size={18} />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium">{tl(lang, kind === 'week' ? 'templates.weeklyLabel' : 'templates.monthlyLabel')}</div>
+                  <div className="truncate text-xs text-on-surface-variant">{tl(lang, 'templates.periodicHint')}</div>
+                </div>
+                <button
+                  className="btn-icon h-8 w-8 shrink-0"
+                  disabled={readOnly}
+                  title={tl(lang, 'common.edit')}
+                  aria-label={`${tl(lang, 'common.edit')}: ${tl(lang, kind === 'week' ? 'templates.weeklyLabel' : 'templates.monthlyLabel')}`}
+                  onClick={() => setEditingPeriod(kind)}
+                >
+                  <Pencil size={15} />
+                </button>
+              </div>
+            </section>
+          ))}
           <section className="card divide-y divide-outline-variant anim-fade-up">
             {!templates.length && (
               <div className="flex flex-col items-center gap-2 p-8 text-center text-sm text-on-surface-variant">
@@ -107,7 +138,9 @@ export function TemplatesView() {
 }
 
 /** Edits an own template; with `daily` the fixed daily note template (no name or folder, those come from the daily note settings) */
-function TemplateEditor({ template, isNew, daily, onDone }: { template: Template; isNew: boolean; daily?: boolean; onDone: () => void }) {
+function TemplateEditor({ template, isNew, daily: dailyOnly, period, onDone }: { template: Template; isNew: boolean; daily?: boolean; period?: PeriodKind; onDone: () => void }) {
+  /** Daily, weekly and monthly templates have no name or folder: their settings decide those */
+  const daily = dailyOnly || !!period;
   const lang = useLang();
   const [label, setLabel] = useState(template.label);
   const [folder, setFolder] = useState(template.folder);
@@ -122,6 +155,11 @@ function TemplateEditor({ template, isNew, daily, onDone }: { template: Template
   };
 
   const save = async () => {
+    if (period) {
+      await vault.savePeriodicTemplate(period, content);
+      onDone();
+      return;
+    }
     if (daily) {
       await vault.saveDailyTemplate(content);
       onDone();
@@ -144,9 +182,9 @@ function TemplateEditor({ template, isNew, daily, onDone }: { template: Template
         if (daily || label.trim()) void save();
       }}
     >
-      <h2 className="font-medium">{daily ? tl(lang, 'templates.dailyLabel') : isNew ? tl(lang, 'templates.createTitle') : tl(lang, 'templates.editTitle')}</h2>
+      <h2 className="font-medium">{period ? template.label : daily ? tl(lang, 'templates.dailyLabel') : isNew ? tl(lang, 'templates.createTitle') : tl(lang, 'templates.editTitle')}</h2>
       {daily ? (
-        <p className="text-sm text-on-surface-variant">{tl(lang, 'templates.dailyHint')}</p>
+        <p className="text-sm text-on-surface-variant">{tl(lang, period ? 'templates.periodicHint' : 'templates.dailyHint')}</p>
       ) : (
         <>
           <input autoFocus={isNew} className="input" placeholder={tl(lang, 'templates.namePlaceholder')} value={label} onChange={(e) => setLabel(e.target.value)} />
@@ -172,6 +210,20 @@ function TemplateEditor({ template, isNew, daily, onDone }: { template: Template
         onChange={(e) => setContent(e.target.value)}
         placeholder={tl(lang, daily ? 'templates.dailyContentPlaceholder' : 'templates.contentPlaceholder')}
       />
+      {period ? (
+        <div className="text-xs text-on-surface-variant">
+          {tl(lang, 'templates.placeholdersLabel')}{' '}
+          {PERIODIC_PLACEHOLDERS.filter((p) => p.kinds.includes(period)).map((p, i) => (
+            <span key={p.token}>
+              {i > 0 && ' · '}
+              <button type="button" className="font-mono text-on-surface-variant hover:text-primary" title={tl(lang, 'templates.insertEndTitle')} onClick={() => setContent((c) => c + p.token)}>
+                {p.token}
+              </button>{' '}
+              {tl(lang, `templates.periodic.${p.token.slice(2, -2)}` as I18nKey)}
+            </span>
+          ))}
+        </div>
+      ) : (
       <div className="text-xs text-on-surface-variant">
         {tl(lang, 'templates.placeholdersLabel')}{' '}
         {TEMPLATE_PLACEHOLDERS.filter((p) => !daily || p.token !== '{{zid}}').map((p, i) => (
@@ -184,6 +236,7 @@ function TemplateEditor({ template, isNew, daily, onDone }: { template: Template
           </span>
         ))}
       </div>
+      )}
       <div className="flex gap-2">
         <button className="btn-primary rounded-full px-5" disabled={!daily && !label.trim()}>
           {tl(lang, 'common.save')}

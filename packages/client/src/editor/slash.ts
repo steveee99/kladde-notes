@@ -64,6 +64,13 @@ function commands(insertFiles: FileInserter, lang: Lang): SlashCommand[] {
       template: lang === 'en' ? '```query\nKANBAN BY status VALUES "open", "in progress", "done"\nFROM "|"\n```' : '```query\nKANBAN BY status VALUES "offen", "läuft", "fertig"\nFROM "|"\n```',
       block: true,
     },
+    {
+      label: tl(lang, 'editor.slash.summary'),
+      detail: 'GROUP BY',
+      keywords: 'summary group count sum avg statistik zusammenfassung gruppieren summe anzahl aggregat',
+      template: '```query\nTABLE status, COUNT\nFROM "|"\nGROUP BY status\n```',
+      block: true,
+    },
     { label: tl(lang, 'editor.slash.openTasks'), detail: 'query', keywords: 'tasks todo query abfrage aufgaben', template: '```query\nTASKS\nWHERE done = false|\n```', block: true },
     {
       label: tl(lang, 'editor.slash.mindmap'),

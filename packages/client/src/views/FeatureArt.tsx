@@ -9,6 +9,12 @@ export type FeatureArtId =
   | 'para'
   | 'zettel'
   | 'daily'
+  | 'weekly'
+  | 'calendarView'
+  | 'activity'
+  | 'mentions'
+  | 'comments'
+  | 'monthly'
   | 'review'
   | 'heatmap'
   | 'favorites'
@@ -85,6 +91,88 @@ const ART: Record<FeatureArtId, ReactNode> = {
       </text>
       <Bar x={54} y={60} w={52} />
       <Bar x={54} y={68} w={38} />
+    </>
+  ),
+  weekly: (
+    <>
+      <Card x={22} y={14} w={116} h={62} />
+      <text x={32} y={30} fontSize={9} fontWeight={600} className="fill-primary">
+        W47
+      </text>
+      {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+        <g key={i}>
+          <rect x={32 + i * 14.5} y={38} width={11} height={28} rx={3} className={i === 3 ? 'fill-primary' : 'fill-secondary-container'} />
+          <Bar x={34 + i * 14.5} y={58} w={7} h={3} className={i === 3 ? 'fill-on-primary' : 'fill-on-secondary-container'} o={0.7} />
+        </g>
+      ))}
+    </>
+  ),
+  calendarView: (
+    <>
+      <Card x={24} y={10} w={112} h={70} />
+      {Array.from({ length: 21 }, (_, i) => (
+        <rect key={i} x={30 + (i % 7) * 15} y={18 + Math.floor(i / 7) * 20} width={13} height={18} rx={2} className="fill-surface-container-high" />
+      ))}
+      <rect x={45} y={24} width={26} height={5} rx={2} className="fill-primary" />
+      <rect x={90} y={44} width={28} height={5} rx={2} className="fill-tertiary" />
+      <rect x={30} y={64} width={13} height={5} rx={2} className="fill-secondary" />
+      <rect x={75} y={58} width={13} height={18} rx={2} className="fill-primary" fillOpacity={0.25} />
+    </>
+  ),
+  comments: (
+    <>
+      <Card x={14} y={14} w={78} h={62} />
+      <Bar x={22} y={26} w={56} />
+      <rect x={22} y={36} width={40} height={6} rx={2} className="fill-tertiary-container" />
+      <Bar x={22} y={48} w={60} />
+      <Bar x={22} y={60} w={36} />
+      <Card x={98} y={22} w={50} h={44} className="fill-surface-container-high" />
+      <circle cx={108} cy={33} r={5} className="fill-primary" />
+      <Bar x={116} y={31} w={24} h={3} />
+      <Bar x={104} y={44} w={38} h={3} />
+      <Bar x={104} y={52} w={28} h={3} />
+      <path d="M62 39 L98 30" className="stroke-tertiary" strokeWidth={1.5} strokeDasharray="3 2" />
+    </>
+  ),
+  mentions: (
+    <>
+      <Card x={24} y={14} w={112} h={62} />
+      <Bar x={34} y={28} w={30} />
+      <rect x={68} y={23} width={46} height={14} rx={7} className="fill-secondary-container" />
+      <circle cx={75} cy={30} r={5} className="fill-primary" />
+      <Bar x={84} y={28} w={24} className="fill-on-secondary-container" o={0.7} />
+      <Bar x={34} y={46} w={80} />
+      <Bar x={34} y={58} w={52} />
+      <circle cx={128} cy={16} r={10} className="fill-error" />
+      <text x={128} y={19.5} textAnchor="middle" fontSize={10} fontWeight={700} className="fill-on-error">
+        1
+      </text>
+    </>
+  ),
+  activity: (
+    <>
+      <Card x={26} y={10} w={108} h={70} />
+      {[0, 1, 2, 3].map((i) => (
+        <g key={i}>
+          <circle cx={40} cy={24 + i * 15} r={5} className={['fill-primary', 'fill-tertiary', 'fill-secondary', 'fill-primary'][i]} />
+          <Bar x={51} y={22 + i * 15} w={[58, 44, 66, 36][i]} />
+          {i === 0 && <circle cx={122} cy={24} r={3} className="fill-primary" />}
+        </g>
+      ))}
+      <path d="M40 29 V 64" className="stroke-outline-variant" strokeWidth={1.5} />
+    </>
+  ),
+  monthly: (
+    <>
+      <Card x={40} y={8} w={80} h={74} />
+      <rect x={40} y={8} width={80} height={16} rx={6} className="fill-tertiary" />
+      <rect x={40} y={18} width={80} height={6} className="fill-tertiary" />
+      <text x={80} y={20} textAnchor="middle" fontSize={8} fontWeight={600} className="fill-on-tertiary">
+        2026-11
+      </text>
+      {Array.from({ length: 20 }, (_, i) => (
+        <circle key={i} cx={50 + (i % 5) * 15} cy={34 + Math.floor(i / 5) * 12} r={3.5} className={i === 12 ? 'fill-tertiary' : 'fill-on-surface-variant'} fillOpacity={i === 12 ? 1 : 0.3} />
+      ))}
     </>
   ),
   review: (

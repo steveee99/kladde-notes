@@ -607,3 +607,84 @@ export interface PresenceAnnounce {
   clientId: string;
   noteId: string | null;
 }
+
+// ---------------------------------------------------------------- activity feed (#70)
+
+export type ActivityKind =
+  | 'created'
+  | 'edited'
+  | 'moved'
+  | 'deleted'
+  | 'restored'
+  | 'released'
+  | 'member_added'
+  | 'member_removed'
+  | 'member_role'
+  | 'folder_shared'
+  | 'folder_unshared';
+
+/** One entry of the activity of a group or a shared folder; edits of one person to one note are grouped per hour */
+export interface ActivityEntry {
+  id: string;
+  kind: ActivityKind;
+  /** When it happened (for grouped edits: the last one) */
+  at: number;
+  /** Grouped edits: how many saves */
+  count: number;
+  /** Who did it; null when the account is gone */
+  actor: string | null;
+  noteId: string | null;
+  /** Path of the note (in a group: inside the group) */
+  path?: string;
+  previousPath?: string;
+  /** `released`: the new version */
+  version?: string;
+  /** Membership and share changes: whom it concerns and their role */
+  member?: string;
+  role?: string;
+  folder?: string;
+}
+
+export interface ActivityList {
+  entries: ActivityEntry[];
+}
+
+/** Notes someone else changed since the user last opened them (marks in the folder tree) */
+export interface ActivityNews {
+  notes: { id: string; at: number; by: string | null }[];
+}
+
+// ---------------------------------------------------------------- notifications (#69, #68)
+
+export type NotificationKind = 'mention' | 'comment' | 'reply';
+
+/** Something that happened for the user: a mention in a note, a comment on their note or a reply in a thread */
+export interface NotificationItem {
+  id: string;
+  kind: NotificationKind;
+  at: number;
+  read: boolean;
+  /** Who did it; null when the account is gone */
+  actor: string | null;
+  actorAvatar?: string | null;
+  noteId: string;
+  /** Path of the note as the user sees it (in a group: inside the group) */
+  path: string;
+  /** 0-based line of the passage */
+  line?: number;
+  /** The line or comment text */
+  text: string;
+  /** Comment thread (#68) */
+  threadId?: string;
+}
+
+export interface NotificationList {
+  items: NotificationItem[];
+  unread: number;
+}
+
+/** Someone who can see a note: the people a mention can reach */
+export interface NotePerson {
+  username: string;
+  avatarUrl?: string | null;
+}

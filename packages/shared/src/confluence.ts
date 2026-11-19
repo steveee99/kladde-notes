@@ -370,11 +370,31 @@ export function markdownToConfluence(path: string, content: string, ctx: Conflue
         .join('')}</ac:task-list>`;
     }
     if (mode === 'table') {
-      const head = `<tr>${result.columns.map((c) => `<th>${xmlEscape(c)}</th>`).join('')}</tr>`;
-      const rows = result.rows
-        .map((r) => `<tr>${result!.columns.map((c) => `<td>${c === 'title' ? linked(r) : xmlEscape(formatValue(r.values[c]))}</td>`).join('')}</tr>`)
-        .join('');
-      return `<table><tbody>${head}${rows}</tbody></table>`;
+      const res = result;
+      const head = `<tr>${res.columns.map((c) => `<th>${xmlEscape(c)}</th>`).join('')}</tr>`;
+      const rowsOf = (rows: QueryResult['rows']) =>
+        rows.map((r) => `<tr>${res.columns.map((c) => `<td>${c === 'title' ? linked(r) : xmlEscape(formatValue(r.values[c]))}</td>`).join('')}</tr>`).join('');
+      // Aggregates (#77): a bold row; the first cell names it unless it holds an aggregate itself
+      const footer = (values: Record<string, unknown> | undefined, name: string) =>
+        values ? `<tr>${res.columns.map((c, i) => `<td><strong>${xmlEscape(c in values ? formatValue(values[c]) : i === 0 ? name : '')}</strong></td>`).join('')}</tr>` : '';
+      const groupBy = res.query.groupBy ?? '';
+      if (res.groups && res.summary) {
+        const rows = res.groups
+          .map((g) => `<tr>${res.columns.map((c) => `<td>${xmlEscape(c === groupBy ? g.key || '–' : formatValue(g.aggregates[c]))}</td>`).join('')}</tr>`)
+          .join('');
+        return `<table><tbody>${head}${rows}${footer(res.totals, 'Gesamt')}</tbody></table>`;
+      }
+      if (res.groups) {
+        return (
+          res.groups
+            .map((g) => `<h4>${xmlEscape(g.key || '–')} (${g.rows.length})</h4><table><tbody>${head}${rowsOf(g.rows)}${res.totals ? footer(g.aggregates, '') : ''}</tbody></table>`)
+            .join('') + (res.totals ? `<table><tbody>${head}${footer(res.totals, 'Gesamt')}</tbody></table>` : '')
+        );
+      }
+      return `<table><tbody>${head}${rowsOf(res.rows)}${footer(res.totals, 'Gesamt')}</tbody></table>`;
+    }
+    if (result.groups) {
+      return result.groups.map((g) => `<h4>${xmlEscape(g.key || '–')} (${g.rows.length})</h4><ul>${g.rows.map((r) => `<li>${linked(r)}</li>`).join('')}</ul>`).join('');
     }
     if (result.lanes?.length) {
       return result.lanes.map((lane) => `<h4>${xmlEscape(lane.value || '–')}</h4><ul>${lane.rows.map((r) => `<li>${linked(r)}</li>`).join('')}</ul>`).join('');

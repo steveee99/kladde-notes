@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import type { ActivityNews, NotePerson, NotificationItem, NotificationList } from '@kladde/shared';
 import {
   HUMAN_ACTOR,
   actorId,
@@ -50,6 +51,16 @@ import {
   parseFrontmatter,
   projectTitleOf,
   resolveDailyNote,
+  resolvePeriodicNote,
+  DEFAULT_WEEKLY_FOLDER,
+  DEFAULT_WEEKLY_FORMAT,
+  DEFAULT_MONTHLY_FOLDER,
+  DEFAULT_MONTHLY_FORMAT,
+  fillPeriodicTemplate,
+  defaultPeriodicTemplate,
+  WEEKLY_TEMPLATE_SETTING,
+  MONTHLY_TEMPLATE_SETTING,
+  type PeriodKind,
   templateUsesZettelId,
   TEMPLATES_SETTING,
   DAILY_TEMPLATE_SETTING,
@@ -272,6 +283,16 @@ class Vault {
     this.events = new EventSource(`/api/events?client=${clientId}`);
     this.events.addEventListener('changed', this.kick);
     this.events.addEventListener('hello', presence.reconnected);
+    this.events.addEventListener('hello', () => void this.loadNotifications());
+    this.events.addEventListener('notification', () => void this.loadNotifications());
+    this.events.addEventListener('comments', (e) => {
+      try {
+        const { noteId } = JSON.parse((e as MessageEvent<string>).data) as { noteId: string };
+        this.commentListeners.forEach((fn) => fn(noteId));
+      } catch {
+        // malformed event: ignore
+      }
+    });
     this.events.addEventListener('presence', (e) => {
       try {
         presence.receive(JSON.parse((e as MessageEvent<string>).data));
@@ -648,6 +669,49 @@ class Vault {
     if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
     // The title already shows the date, so the daily template starts without a heading
     return this.insert(resolved.folder, resolved.name, fillTemplate(this.dailyTemplate(), { title: resolved.name, date: toDateString(dateObj) }));
+  }
+
+  /** Settings of weekly or monthly notes (#73) */
+  periodSettings(kind: PeriodKind) {
+    const f = this.features();
+    return kind === 'week' ? f.weekly : f.monthly;
+  }
+
+  /** The weekly or monthly note of the period containing `date`, if it exists */
+  findPeriodicNote(kind: PeriodKind, date: Date | string = new Date()): LocalNote | undefined {
+    const settings = this.periodSettings(kind);
+    if (!settings.enabled) return undefined;
+    const target = resolvePeriodicNote(kind, settings, date, getLang()).path.toLowerCase();
+    return this.list().find((n) => n.access === 'owner' && n.path.toLowerCase() === target);
+  }
+
+  /** Opens the weekly or monthly note of the period containing `date`, creating it from its template */
+  async openPeriodicNote(kind: PeriodKind, date: Date | string = new Date()): Promise<LocalNote> {
+    const existing = this.findPeriodicNote(kind, date);
+    if (existing) return existing;
+    if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    const lang = getLang();
+    const settings = this.periodSettings(kind);
+    const resolved = resolvePeriodicNote(kind, settings, date, lang);
+    const { daily, weekly } = this.features();
+    const content = fillPeriodicTemplate(kind, this.periodicTemplate(kind), date, {
+      title: resolved.name,
+      lang,
+      // Links to the day's and week's notes, also those not written yet (they open as new notes)
+      dayName: daily.enabled ? (d) => resolveDailyNote(daily, parseDate(d), lang).name : undefined,
+      weekName: weekly.enabled ? (w) => resolvePeriodicNote('week', weekly, w, lang).name : undefined,
+    });
+    if (settings.folder && !this.storedFolders().includes(settings.folder)) await this.setFolders([...this.storedFolders(), settings.folder]);
+    return this.insert(resolved.folder, resolved.name, content);
+  }
+
+  periodicTemplate(kind: PeriodKind): string {
+    const stored = this.setting(kind === 'week' ? WEEKLY_TEMPLATE_SETTING : MONTHLY_TEMPLATE_SETTING);
+    return typeof stored === 'string' ? stored : defaultPeriodicTemplate(kind, getLang());
+  }
+
+  async savePeriodicTemplate(kind: PeriodKind, content: string): Promise<void> {
+    await this.setSetting(kind === 'week' ? WEEKLY_TEMPLATE_SETTING : MONTHLY_TEMPLATE_SETTING, content);
   }
 
   async updateFeatures(next: FeatureSettings): Promise<FeatureSettings> {
@@ -1384,6 +1448,12 @@ class Vault {
       database: { enabled: false },
       presentation: { enabled: false },
       callouts: { enabled: true },
+      calendarView: { enabled: true },
+      activity: { enabled: true },
+      mentions: { enabled: true },
+      comments: { enabled: true },
+      weekly: { enabled: false, folder: DEFAULT_WEEKLY_FOLDER, format: DEFAULT_WEEKLY_FORMAT },
+      monthly: { enabled: false, folder: DEFAULT_MONTHLY_FOLDER, format: DEFAULT_MONTHLY_FORMAT },
     } satisfies FeatureSettings);
     for (const w of welcomeNotes(getLang())) await this.insert(w.folder, w.title, w.content);
   }
@@ -1438,6 +1508,103 @@ class Vault {
     }
   }
 
+  // ------------------------------------------------------------------ mentions and notifications (#69)
+
+  /** People who can see a note (the ones a mention reaches), by note id */
+  private people = new Map<string, NotePerson[]>();
+  private peopleLoading = new Set<string>();
+
+  /** People who can see the note; loads them the first time (an empty list until then, or offline) */
+  peopleOf(noteId: string): NotePerson[] {
+    const known = this.people.get(noteId);
+    if (known) return known;
+    if (!this.standalone && !this.peopleLoading.has(noteId) && this.notes.get(noteId)?.version) {
+      this.peopleLoading.add(noteId);
+      void api<NotePerson[]>(`/notes/${encodeURIComponent(noteId)}/people`)
+        .then((list) => {
+          this.people.set(noteId, list);
+          this.emit();
+        })
+        .catch(() => {})
+        .finally(() => this.peopleLoading.delete(noteId));
+    }
+    return [];
+  }
+
+  /** Asks again who can see the note (after sharing it) */
+  refreshPeople(noteId: string) {
+    this.people.delete(noteId);
+    this.peopleOf(noteId);
+  }
+
+  notifications: NotificationItem[] = [];
+  unreadNotifications = 0;
+
+  async loadNotifications(): Promise<void> {
+    if (this.standalone) return;
+    try {
+      const list = await api<NotificationList>('/notifications');
+      this.notifications = list.items;
+      this.unreadNotifications = list.unread;
+      this.emit();
+    } catch {
+      // offline or an old server: keep what is there
+    }
+  }
+
+  /** Marks notifications read: some by id, those of a note, or all */
+  async readNotifications(opts: { ids?: string[]; noteId?: string } = {}): Promise<void> {
+    const affected = this.notifications.filter((n) => !n.read && (opts.ids ? opts.ids.includes(n.id) : opts.noteId ? n.noteId === opts.noteId : true));
+    if (!affected.length) return;
+    for (const n of affected) n.read = true;
+    this.unreadNotifications = Math.max(0, this.unreadNotifications - affected.length);
+    this.emit();
+    try {
+      const res = await api<{ unread: number }>('/notifications/read', { method: 'POST', json: opts.ids ? { ids: opts.ids } : opts.noteId ? { noteId: opts.noteId } : {} });
+      this.unreadNotifications = res.unread;
+      this.emit();
+    } catch {
+      // read again on the next load
+    }
+  }
+
+  /** Comment threads changed on a note (#68): listeners load them again */
+  readonly commentListeners = new Set<(noteId: string) => void>();
+
+  /** Notes someone else changed since the user last opened them (#70), by id */
+  private news = new Map<string, { at: number; by: string | null }>();
+  private newsTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The note open in the editor: changes to it are seen as they come in */
+  viewing: string | null = null;
+
+  /** Fetches the "new since your last visit" marks again, shortly after the last pull */
+  private refreshNews() {
+    if (this.standalone) return;
+    if (this.newsTimer) clearTimeout(this.newsTimer);
+    this.newsTimer = setTimeout(() => {
+      this.newsTimer = null;
+      void api<ActivityNews>('/activity/news')
+        .then((r) => {
+          const next = new Map(r.notes.filter((n) => n.id !== this.viewing).map((n) => [n.id, { at: n.at, by: n.by }]));
+          if (next.size === 0 && this.news.size === 0) return;
+          this.news = next;
+          this.emit();
+        })
+        .catch(() => {});
+    }, 400);
+  }
+
+  /** Who changed the note since the user last opened it, if somebody did */
+  newsOf(id: string): { at: number; by: string | null } | undefined {
+    return this.news.get(id);
+  }
+
+  /** The user opened (or left) the note: it is no longer new to them, on every device */
+  markSeen(id: string) {
+    if (this.news.delete(id)) this.emit();
+    if (!this.standalone) void api('/activity/seen', { method: 'POST', json: { noteId: id } }).catch(() => {});
+  }
+
   private async pull() {
     const since = ((await this.db!.get('meta', 'cursor')) as number | undefined) ?? 0;
     const res = await api<PullResponse>(`/sync?since=${since}`);
@@ -1479,7 +1646,12 @@ class Vault {
     }
     await this.db!.put('meta', res.cursor, 'cursor');
     this.emit();
+    if (res.notes.length || since === 0 || !this.newsLoaded) {
+      this.newsLoaded = true;
+      this.refreshNews();
+    }
   }
+  private newsLoaded = false;
 
   private async accept(server: SyncedNote) {
     if (server.deleted) {

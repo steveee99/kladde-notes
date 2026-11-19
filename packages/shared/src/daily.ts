@@ -35,7 +35,7 @@ const MONTH_NAME_MAP = new Map<string, number>();
 );
 
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const isNonTokenLetter = (ch: string) => !!ch && /\p{L}/u.test(ch) && !/[YMDdW]/.test(ch);
+const isNonTokenLetter = (ch: string) => !!ch && /\p{L}/u.test(ch) && !/[GYMDdW]/.test(ch);
 
 type CaptureKind = 'year4' | 'year2' | 'monthNum' | 'monthName' | 'day';
 
@@ -63,7 +63,7 @@ export function createDailyDateExtractor(daily: Pick<DailySettings, 'folder' | '
   let pattern = folderRoot ? `${escapeRegExp(folderRoot)}/` : '';
   let lastIndex = 0;
 
-  const tokenRe = /\[([^\]]*)\]|(YYYY|YY|MMMM|MMM|MM|M|DD|D|dddd|ddd|WW|W)/g;
+  const tokenRe = /\[([^[\]]*)\]|(GGGG|YYYY|YY|MMMM|MMM|MM|M|DD|D|dddd|ddd|WW|W)/g;
   let m: RegExpExecArray | null;
   while ((m = tokenRe.exec(rawStem)) !== null) {
     if (m.index > lastIndex) pattern += escapeRegExp(rawStem.slice(lastIndex, m.index));
@@ -87,6 +87,9 @@ export function createDailyDateExtractor(daily: Pick<DailySettings, 'folder' | '
     }
 
     switch (tok) {
+      case 'GGGG':
+        pattern += '\\d{4}';
+        break;
       case 'YYYY':
         captures.push('year4');
         pattern += '(\\d{4})';

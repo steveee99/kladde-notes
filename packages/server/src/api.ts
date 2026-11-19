@@ -1,9 +1,12 @@
 import express, { Response } from 'express';
-import { isReleaseBump } from '@kladde/shared';
-import type { MyStorage, AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
+import { extractMentions, isReleaseBump, trimSlashes, type CommentThreadList } from '@kladde/shared';
+import type { ActivityList, NotePerson, MyStorage, AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
 import { Presence } from './Presence.js';
 import { FILE_URL_RE, attachmentUsageMap } from './cliActions.js';
 import { GroupError, GroupStore } from './GroupStore.js';
+import type { ActivityStore } from './ActivityStore.js';
+import type { NotificationStore } from './NotificationStore.js';
+import { CommentError, type CommentStore } from './CommentStore.js';
 import { AvatarStore, MAX_AVATAR_BYTES } from './AvatarStore.js';
 import { NoteStore, ReleaseConflict, TrashPathTaken, VersioningOff } from './NoteStore.js';
 import { DEFAULT_TRASH_DAYS, dropUnusedAttachments } from './trash.js';
@@ -68,6 +71,12 @@ export interface ApiRouterOptions {
   attachmentSearch?: { files: FileStore; texts: AttachmentTextStore; ocr: boolean };
   /** Groups (#58); not in standalone mode */
   groups?: GroupStore;
+  /** Activity of groups and shared folders (#70) */
+  activity?: ActivityStore;
+  /** Mentions and comments (#69, #68) */
+  notifications?: NotificationStore;
+  /** Comment threads on passages (#68) */
+  comments?: CommentStore;
 }
 
 export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, live: LiveUpdates, opts: ApiRouterOptions = {}): express.Router {
@@ -384,7 +393,9 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
         return;
       }
       const { canWrite, canCreate, canDelete } = req.body;
+      const already = notes.folderShares(req.user!.id, folder).users.some((u) => u.username === target.username);
       live.notify(notes.shareFolder(req.user!.id, folder, target.id, { canWrite: !!canWrite, canCreate: !!canCreate, canDelete: !!canDelete }));
+      if (!already) opts.activity?.folderShare(req.user!.id, req.user!.id, 'folder_shared', folder, target.username);
       res.json(notes.folderShares(req.user!.id, folder));
     });
 
@@ -392,7 +403,11 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       const folder = folderOf(req.body?.folder);
       if (!folder) return void badFolder(res);
       const target = typeof req.body?.username === 'string' ? users.findByUsername(req.body.username) : null;
-      if (target) live.notify(notes.unshareFolder(req.user!.id, folder, target.id));
+      if (target) {
+        const had = notes.folderShares(req.user!.id, folder).users.some((u) => u.username === target.username);
+        live.notify(notes.unshareFolder(req.user!.id, folder, target.id));
+        if (had) opts.activity?.folderShare(req.user!.id, req.user!.id, 'folder_unshared', folder, target.username);
+      }
       res.json(notes.folderShares(req.user!.id, folder));
     });
 
@@ -482,7 +497,10 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     router.put('/groups/:id/members', (req, res) => {
       try {
         const target = memberTarget(req.body?.username);
+        const before = groups.roleOf(req.params.id, target.id);
         groups.setMember(req.user!.id, req.params.id, target.id, req.body?.role);
+        const after = groups.roleOf(req.params.id, target.id);
+        if (after && after !== before) opts.activity?.member(req.params.id, req.user!.id, before ? 'member_role' : 'member_added', target.username, after);
         live.notify(groups.memberIds(req.params.id));
         res.json(groups.details(req.user!.id, req.params.id));
       } catch (err) {
@@ -497,6 +515,7 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
         if (!target) throw new GroupError('Diese Person ist nicht in der Gruppe.', 404);
         const before = groups.memberIds(req.params.id);
         groups.removeMember(req.user!.id, req.params.id, target.id);
+        opts.activity?.member(req.params.id, req.user!.id, 'member_removed', target.username, null);
         live.notify(before);
         res.json(target.id === req.user!.id ? { left: true } : groups.details(req.user!.id, req.params.id));
       } catch (err) {
@@ -508,6 +527,7 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       try {
         const before = groups.memberIds(req.params.id);
         groups.removeMember(req.user!.id, req.params.id, req.user!.id);
+        opts.activity?.member(req.params.id, req.user!.id, 'member_removed', req.user!.username, null);
         live.notify(before);
         res.json({ left: true });
       } catch (err) {
@@ -545,6 +565,192 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
         res.json({ moved: result.moved });
       } catch (err) {
         groupError(res, err);
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------- activity (#70)
+
+  if (!standalone && opts.activity) {
+    const activity = opts.activity;
+    // ?group=<id> for a group's space, ?owner=<username>&folder=<path> for a shared folder (its owner or a recipient)
+    router.get('/activity', (req, res) => {
+      const userId = req.user!.id;
+      const before = Number(req.query.before) || undefined;
+      if (typeof req.query.group === 'string') {
+        if (!notes.groupRole(req.query.group, userId)) return void res.status(404).json({ error: 'Gruppe nicht gefunden.' });
+        return void res.json({ entries: activity.ofOwner(req.query.group, { before }) } satisfies ActivityList);
+      }
+      // Trimmed by hand: `/\/+$/` backtracks polynomially on long runs of slashes (CodeQL js/polynomial-redos)
+      const folder = typeof req.query.folder === 'string' ? trimSlashes(req.query.folder.slice(0, 1000)) : '';
+      const owner = typeof req.query.owner === 'string' ? users.findByUsername(req.query.owner) : null;
+      if (!folder || !owner) return void res.status(400).json({ error: 'Ungültiger Ordner.' });
+      const allowed =
+        owner.id === userId
+          ? (({ users: u, inherited }) => u.length + inherited.length > 0)(notes.folderShares(userId, folder))
+          : notes.sharedWith(userId).some((f) => f.owner === owner.username && (folder === f.folder || folder.startsWith(`${f.folder}/`)));
+      if (!allowed) return void res.status(404).json({ error: 'Ordner nicht gefunden.' });
+      res.json({ entries: activity.ofFolder(owner.id, folder, { before }) } satisfies ActivityList);
+    });
+
+    // Notes changed by others since the user last opened them
+    router.get('/activity/news', (req, res) => {
+      const userId = req.user!.id;
+      res.json(activity.news(userId, (noteId) => !!notes.audienceOf(noteId)?.includes(userId)));
+    });
+
+    router.post('/activity/seen', (req, res) => {
+      const noteId = typeof req.body?.noteId === 'string' ? req.body.noteId : '';
+      // Only notes somebody else sees can become new again
+      const audience = notes.audienceOf(noteId);
+      if (audience?.includes(req.user!.id) && new Set(audience).size > 1) activity.seen(req.user!.id, noteId);
+      res.json({ ok: true });
+    });
+  }
+
+  // ---------------------------------------------------------------- mentions and notifications (#69)
+
+  if (!standalone) {
+    // Who can see a note: the people a mention reaches (autocomplete, chips)
+    router.get('/notes/:id/people', (req, res) => {
+      const audience = notes.audienceOf(req.params.id);
+      if (!audience?.includes(req.user!.id)) return void notFound(res);
+      const people: NotePerson[] = [];
+      for (const id of new Set(audience)) {
+        const u = users.getUser(id);
+        if (u && !u.bannedAt) people.push({ username: u.username, avatarUrl: u.avatarUrl ?? null });
+      }
+      res.json(people.sort((a, b) => a.username.localeCompare(b.username)));
+    });
+  }
+
+  if (!standalone && opts.notifications) {
+    const notifications = opts.notifications;
+    router.get('/notifications', (req, res) => {
+      res.json(notifications.list(req.user!.id));
+    });
+    // { ids } marks those, { noteId } the ones of a note, {} all
+    router.post('/notifications/read', (req, res) => {
+      const ids = Array.isArray(req.body?.ids) ? (req.body.ids as string[]) : null;
+      const noteId = typeof req.body?.noteId === 'string' ? req.body.noteId : undefined;
+      notifications.markRead(req.user!.id, { ids, noteId });
+      res.json({ unread: notifications.unread(req.user!.id) });
+    });
+  }
+
+  // ---------------------------------------------------------------- comments (#68)
+
+  if (!standalone && opts.comments) {
+    const comments = opts.comments;
+    const notify = opts.notifications;
+    /** Everybody who sees the note, or a 404 for the caller */
+    const audienceFor = (userId: string, noteId: string): string[] => {
+      const audience = notes.audienceOf(noteId);
+      if (!audience?.includes(userId)) throw new CommentError('Notiz nicht gefunden (oder nicht deine).', 404);
+      return [...new Set(audience)];
+    };
+    const commentError = (res: Response, err: unknown) => {
+      if (err instanceof CommentError) res.status(err.status).json({ error: err.message });
+      else throw err;
+    };
+    /** Open apps load the threads again; the people concerned get a notification */
+    const after = (noteId: string, audience: string[], actorId: string, text: string, threadId: string, recipients: string[], kind: 'comment' | 'reply') => {
+      live.send(audience, 'comments', { noteId });
+      if (!notify) return;
+      const path = notes.pathOf(noteId) ?? '';
+      const mentioned = new Set(
+        extractMentions(text)
+          .map((name) => users.findByUsername(name)?.id)
+          .filter((id): id is string => !!id && id !== actorId && audience.includes(id))
+      );
+      for (const id of mentioned) notify.add({ userId: id, kind: 'mention', noteId, actorId, path, text, threadId });
+      for (const id of new Set(recipients)) {
+        if (id === actorId || mentioned.has(id) || !audience.includes(id)) continue;
+        notify.add({ userId: id, kind, noteId, actorId, path, text, threadId });
+      }
+    };
+
+    router.get('/notes/:id/comments', (req, res) => {
+      try {
+        audienceFor(req.user!.id, req.params.id);
+        res.json({ threads: comments.list(req.params.id) } satisfies CommentThreadList);
+      } catch (err) {
+        commentError(res, err);
+      }
+    });
+
+    // A new thread on a passage: { anchor, text }
+    router.post('/notes/:id/comments', rateLimit(120, 60_000), (req, res) => {
+      try {
+        const noteId = String(req.params.id);
+        const audience = audienceFor(req.user!.id, noteId);
+        const thread = comments.create(noteId, req.user!.id, req.body?.anchor, req.body?.text);
+        after(noteId, audience, req.user!.id, thread.comments[0].text, thread.id, notes.keepersOf(noteId), 'comment');
+        res.json(thread);
+      } catch (err) {
+        commentError(res, err);
+      }
+    });
+
+    router.post('/notes/:id/comments/:thread/replies', rateLimit(120, 60_000), (req, res) => {
+      try {
+        const noteId = String(req.params.id);
+        const audience = audienceFor(req.user!.id, noteId);
+        const before = comments.participants(noteId, String(req.params.thread));
+        const thread = comments.reply(noteId, String(req.params.thread), req.user!.id, req.body?.text);
+        after(noteId, audience, req.user!.id, thread.comments[thread.comments.length - 1].text, thread.id, before, 'reply');
+        res.json(thread);
+      } catch (err) {
+        commentError(res, err);
+      }
+    });
+
+    // { resolved: boolean }
+    router.patch('/notes/:id/comments/:thread', (req, res) => {
+      try {
+        const noteId = String(req.params.id);
+        const audience = audienceFor(req.user!.id, noteId);
+        const thread = comments.setResolved(noteId, String(req.params.thread), req.user!.id, !!req.body?.resolved);
+        live.send(audience, 'comments', { noteId });
+        res.json(thread);
+      } catch (err) {
+        commentError(res, err);
+      }
+    });
+
+    router.put('/notes/:id/comments/:thread/replies/:comment', (req, res) => {
+      try {
+        const noteId = String(req.params.id);
+        const audience = audienceFor(req.user!.id, noteId);
+        const thread = comments.edit(noteId, String(req.params.thread), String(req.params.comment), req.user!.id, req.body?.text);
+        live.send(audience, 'comments', { noteId });
+        res.json(thread);
+      } catch (err) {
+        commentError(res, err);
+      }
+    });
+
+    router.delete('/notes/:id/comments/:thread/replies/:comment', (req, res) => {
+      try {
+        const noteId = String(req.params.id);
+        const audience = audienceFor(req.user!.id, noteId);
+        const thread = comments.deleteComment(noteId, String(req.params.thread), String(req.params.comment), req.user!.id, notes.manages(req.user!.id, noteId));
+        live.send(audience, 'comments', { noteId });
+        res.json({ thread });
+      } catch (err) {
+        commentError(res, err);
+      }
+    });
+
+    router.delete('/notes/:id/comments/:thread', (req, res) => {
+      try {
+        const noteId = String(req.params.id);
+        const audience = audienceFor(req.user!.id, noteId);
+        comments.deleteThread(noteId, String(req.params.thread), req.user!.id, notes.manages(req.user!.id, noteId));
+        live.send(audience, 'comments', { noteId });
+        res.json({ ok: true });
+      } catch (err) {
+        commentError(res, err);
       }
     });
   }

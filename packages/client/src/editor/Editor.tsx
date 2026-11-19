@@ -8,6 +8,7 @@ import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/lang
 import type { SyntaxNode } from '@lezer/common';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 import { tags as t } from '@lezer/highlight';
+import { commentHighlights } from './comments';
 import { calloutsFacet, livePreview, noteIdFacet, previewAll, refreshEffect, slideBreakLabel } from './livePreview';
 import { configureEmbeds } from './embed';
 import { embedResolverFacet, type EmbedResolver } from './embedContext';
@@ -116,6 +117,21 @@ function tagCompletion(ctx: CompletionContext) {
     .map((x) => ({ label: x.tag, detail: String(x.count), apply: x.tag }));
   if (!options.length) return null;
   return { from: line.from + typed.from + 1, options, validFor: /^[\p{L}\p{N}_/-]*$/u };
+}
+
+/** `@` opens the people who can see the note (#69) */
+function mentionCompletion(ctx: CompletionContext) {
+  const m = ctx.matchBefore(/(?<![\p{L}\p{N}_@./\\-])@[A-Za-z0-9_.-]{0,20}/u);
+  if (!m) return null;
+  const node = syntaxTree(ctx.state).resolveInner(ctx.pos, -1);
+  for (let n: SyntaxNode | null = node; n; n = n.parent) if (/Code|URL|Link|Comment/.test(n.name)) return null;
+  const people = editorHost.people(ctx.state.facet(noteIdFacet));
+  if (!people.length) return null;
+  return {
+    from: m.from + 1,
+    options: people.map((p) => ({ label: p.username, apply: `${p.username} `, type: 'mention' })),
+    validFor: /^[A-Za-z0-9_.-]*$/,
+  };
 }
 
 /** Pasted or dropped images and PDFs are uploaded and linked */
@@ -318,7 +334,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           lockConf.current.of(readOnlyExtensions(lockedRef.current)),
           EditorView.contentAttributes.of({ spellcheck: 'true', autocapitalize: 'sentences' }),
           placeholderConf.current.of(placeholderAndLabel(resolvedPlaceholder)),
-          autocompletion({ override: [wikiCompletion, tagCompletion, slashCompletion(insertFiles)], icons: false }),
+          autocompletion({ override: [wikiCompletion, tagCompletion, mentionCompletion, slashCompletion(insertFiles)], icons: false }),
           fileHandlers(),
           dimConf.current.of(dimRef.current ? focusDim : []),
           releaseConf.current.of(releaseFacet.of(releasesRef.current ? { releases: releasesRef.current } : null)),
@@ -333,6 +349,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           }),
           EditorView.domEventHandlers({ blur: () => flush() }),
           presenceNote ? remoteCursors(presenceNote) : [],
+          commentHighlights,
           resolveEmbed ? embedResolverFacet.of(resolveEmbed) : [],
         ],
       }),

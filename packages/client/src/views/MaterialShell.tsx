@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useModal } from '../lib/modal';
-import { CalendarCheck, CalendarDays, FileText, Home, Inbox as InboxIcon, ListChecks, Menu, Network, Pencil, Search as SearchIcon, Share2, Tags, Users, X } from '../lib/icons';
+import { Bell, CalendarCheck, CalendarDays, CalendarMonth, FileText, Home, Inbox as InboxIcon, ListChecks, Menu, Network, Pencil, Search as SearchIcon, Share2, Tags, Users, X } from '../lib/icons';
 import { openSearch, SearchDialogHost } from './SearchDialog';
 import { INBOX_FOLDER, Me, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
@@ -157,6 +157,8 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
   const showShared = (sharedCount > 0 || vault.sharedFolders.length > 0) && !vault.standalone;
   const sidebarWidth = useSidebarWidth();
   const features = vault.features();
+  // Mentions and comments (#69, #68): only with an account on a server
+  const showNotifications = !vault.standalone && !DEMO && (features.mentions.enabled || features.comments.enabled);
   const dailyNote = features.daily.enabled ? vault.findDailyNote() : undefined;
   const dailyActive = path === '/daily' || path.startsWith('/daily/') || (!!dailyNote && noteId === dailyNote.id);
   const showDailyRail = features.daily.enabled && (!locked || !!dailyNote);
@@ -221,6 +223,16 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
               <Destination active={dailyActive} onClick={() => void openTodayDailyNote()} Icon={CalendarDays} label={t('daily.navShort')} title={t('daily.todayBtn')} />
             )}
             <NavItem to="/tasks" Icon={ListChecks} label={t('nav.tasks')} badge={taskBadge} badgeLabel={t('nav.badgeTasks', { n: urgentTasks })} />
+            {features.calendarView.enabled && <NavItem to="/calendar" Icon={CalendarMonth} label={t('nav.calendar')} />}
+            {showNotifications && (
+              <NavItem
+                to="/notifications"
+                Icon={Bell}
+                label={t('notices.nav')}
+                badge={vault.unreadNotifications ? <NavBadge count={vault.unreadNotifications} /> : undefined}
+                badgeLabel={t('notices.badge', { n: vault.unreadNotifications })}
+              />
+            )}
             <NavItem to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} badgeLabel={t('nav.badgeInbox', { n: inboxCount })} />
             <NavItem to="/notes" Icon={FileText} label={t('nav.notes')} />
             <RailDivider />

@@ -453,6 +453,70 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 22,
+    description: 'Activity of groups and shared notes, and when each user last opened a note (#70)',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE activity (
+          id TEXT PRIMARY KEY,
+          owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          note_id TEXT,
+          actor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          kind TEXT NOT NULL,
+          at INTEGER NOT NULL,
+          hour INTEGER NOT NULL,
+          count INTEGER NOT NULL,
+          payload BLOB NOT NULL
+        );
+        CREATE INDEX activity_owner ON activity(owner_id, at);
+        CREATE INDEX activity_note ON activity(note_id, actor_id, hour);
+        CREATE INDEX activity_at ON activity(at);
+        CREATE TABLE activity_seen (
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          note_id TEXT NOT NULL,
+          seen_at INTEGER NOT NULL,
+          PRIMARY KEY (user_id, note_id)
+        );
+      `);
+    },
+  },
+  {
+    version: 23,
+    description: 'Notifications: mentions in notes and comments (#69, #68)',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE notifications (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL,
+          note_id TEXT NOT NULL,
+          actor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          at INTEGER NOT NULL,
+          read_at INTEGER,
+          payload BLOB NOT NULL
+        );
+        CREATE INDEX notifications_user ON notifications(user_id, at);
+      `);
+    },
+  },
+  {
+    version: 24,
+    description: 'Comment threads anchored to passages of notes (#68)',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE comment_threads (
+          id TEXT PRIMARY KEY,
+          note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          resolved_at INTEGER,
+          payload BLOB NOT NULL
+        );
+        CREATE INDEX comment_threads_note ON comment_threads(note_id);
+      `);
+    },
+  },
 ];
 
 /** The schema version this build migrates to */

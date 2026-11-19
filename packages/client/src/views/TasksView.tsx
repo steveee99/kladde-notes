@@ -4,8 +4,8 @@
  * remembered per device.
  */
 import { useMemo, useState } from 'react';
-import { AlignJustify, Check, Kanban, List, ListChecks, Plus } from '../lib/icons';
-import { bucketOf, toDateString, type TaskStatus } from '@kladde/shared';
+import { AlignJustify, AtSign, Check, Kanban, List, ListChecks, Plus } from '../lib/icons';
+import { bucketOf, mentionsUser, toDateString, type TaskStatus } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { BUCKETS, TaskKanban, TaskRows, collectTasks, type TaskRow } from './TaskParts';
 import { Dropdown } from './Dropdown';
@@ -23,10 +23,12 @@ interface TaskPagePrefs {
   folder: string;
   sort: Sort;
   showDone: boolean;
+  /** Only tasks that mention the user (`@username`, #69) */
+  mine: boolean;
 }
 
 const PREFS_KEY = 'kladde.tasksPage';
-const DEFAULTS: TaskPagePrefs = { layout: 'list', compact: false, status: 'all', folder: '*', sort: 'due', showDone: false };
+const DEFAULTS: TaskPagePrefs = { layout: 'list', compact: false, status: 'all', folder: '*', sort: 'due', showDone: false, mine: false };
 
 function readPrefs(): TaskPagePrefs {
   try {
@@ -38,6 +40,7 @@ function readPrefs(): TaskPagePrefs {
       folder: typeof raw.folder === 'string' ? raw.folder : '*',
       sort: raw.sort === 'note' || raw.sort === 'text' ? raw.sort : 'due',
       showDone: raw.showDone === true,
+      mine: raw.mine === true,
     };
   } catch {
     return DEFAULTS;
@@ -76,11 +79,13 @@ export function TasksView() {
     const since = new Date();
     since.setDate(since.getDate() - 1);
     const recent = toDateString(since);
+    const me = prefs.mine && vault.features().mentions.enabled ? vault.actorName : '';
     return all
       .filter((tk) => folder === '*' || tk.folder === folder)
+      .filter((tk) => !me || mentionsUser(tk.text, me))
       .filter((tk) => (tk.done ? prefs.showDone || (prefs.layout === 'kanban' && !!tk.doneDate && tk.doneDate >= recent) : prefs.status === 'all' || tk.status === prefs.status))
       .sort(compare(prefs.sort));
-  }, [all, folder, prefs.showDone, prefs.status, prefs.sort, prefs.layout]);
+  }, [all, folder, prefs.showDone, prefs.status, prefs.sort, prefs.layout, prefs.mine]);
   const open = filtered.filter((tk) => !tk.done);
   const done = filtered.filter((tk) => tk.done);
   const openTotal = all.filter((tk) => !tk.done).length;
@@ -154,6 +159,12 @@ export function TasksView() {
             { value: 'text', label: t('tasks.sortText') },
           ]}
         />
+        {vault.features().mentions.enabled && !vault.standalone && (
+          <button type="button" className={`chip ${prefs.mine ? 'border-transparent bg-secondary-container text-on-secondary-container' : ''}`} aria-pressed={prefs.mine} onClick={() => setPrefs({ mine: !prefs.mine })} data-assigned-to-me>
+            {prefs.mine && <Check size={14} />}
+            <AtSign size={14} /> {t('tasks.assignedToMe')}
+          </button>
+        )}
         <label className="ml-auto flex items-center gap-3 text-body-m text-on-surface-variant">
           {t('tasks.showDone')}
           <Switch checked={prefs.showDone} label={t('tasks.showDone')} onChange={(v) => setPrefs({ showDone: v })} />

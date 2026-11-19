@@ -158,6 +158,8 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       zettel: { enabled: true, folder: DEFAULT_ZETTEL_FOLDER },
       recipe: { enabled: false, folder: DEFAULT_RECIPE_FOLDER },
       daily: defaultDaily,
+      weekly: { enabled: false, folder: '0 Weekly', format: 'GGGG/GGGG-[W]WW.md' },
+      monthly: { enabled: false, folder: '0 Monthly', format: 'YYYY/YYYY-MM.md' },
       heatmap: { enabled: false },
       review: { enabled: false },
       favorites: { enabled: false },
@@ -173,6 +175,10 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       database: { enabled: false },
       presentation: { enabled: false },
       callouts: { enabled: true },
+      calendarView: { enabled: true },
+      activity: { enabled: true },
+      mentions: { enabled: true },
+      comments: { enabled: true },
     });
 
     const upgraded = normalizeFeatures(undefined, ['0 Inbox', '1 Projekte', 'Zettelkasten', '3 Ressourcen/Rezepte']);
@@ -181,6 +187,8 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       zettel: { enabled: true, folder: DEFAULT_ZETTEL_FOLDER },
       recipe: { enabled: true, folder: DEFAULT_RECIPE_FOLDER },
       daily: defaultDaily,
+      weekly: { enabled: false, folder: '0 Weekly', format: 'GGGG/GGGG-[W]WW.md' },
+      monthly: { enabled: false, folder: '0 Monthly', format: 'YYYY/YYYY-MM.md' },
       heatmap: { enabled: false },
       review: { enabled: false },
       favorites: { enabled: false },
@@ -196,6 +204,10 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       database: { enabled: false },
       presentation: { enabled: false },
       callouts: { enabled: true },
+      calendarView: { enabled: true },
+      activity: { enabled: true },
+      mentions: { enabled: true },
+      comments: { enabled: true },
     });
 
     const explicitDisabled = normalizeFeatures(

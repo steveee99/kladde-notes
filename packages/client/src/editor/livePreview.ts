@@ -2,7 +2,7 @@ import { EditorState, Extension, Facet, Range, StateEffect, StateField } from '@
 import { Decoration, DecorationSet, EditorView } from '@codemirror/view';
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
-import { CALLOUT_TONES, calloutTypeTitle, escapeRegExp, isKnownCalloutType, parseCalloutLine, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, type NoteHeading, type ReleaseField } from '@kladde/shared';
+import { MENTION_RE, mentionName, CALLOUT_TONES, calloutTypeTitle, escapeRegExp, isKnownCalloutType, parseCalloutLine, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, type NoteHeading, type ReleaseField } from '@kladde/shared';
 import { getLang, tl } from '../lib/i18n';
 import {
   AutoLinkWidget,
@@ -19,6 +19,7 @@ import {
   ImageWidget,
   LigatureWidget,
   LinkWidget,
+  MentionWidget,
   PropertiesWidget,
   QueryWidget,
   SimpleWidget,
@@ -152,6 +153,7 @@ function build(state: EditorState): DecorationSet {
   const touches = (from: number, to: number) => !all && state.selection.ranges.some((r) => r.from <= to && r.to >= from);
 
   const decos: Range<Decoration>[] = [];
+  const people = editorHost.people(state.facet(noteIdFacet));
   /** Replaced ranges: nothing else may be replaced inside them */
   const replaced: [number, number][] = [];
   const protectedRanges: [number, number][] = [];
@@ -459,6 +461,20 @@ function build(state: EditorState): DecorationSet {
       const from = ln.from + m.index! + m[1].length;
       protectedRanges.push([from, from + m[2].length]);
       if (free(from, from + m[2].length)) decos.push(mark('cm-tag').range(from, from + m[2].length));
+    }
+    // @mentions (#69): people who can see the note show as a chip with their avatar
+    if (people.length && ln.text.includes('@')) {
+      for (const m of ln.text.matchAll(MENTION_RE)) {
+        const name = mentionName(m[1]);
+        const person = people.find((p) => p.username.toLowerCase() === name.toLowerCase());
+        if (!person) continue;
+        const from = ln.from + m.index!;
+        const to = from + 1 + name.length;
+        if (/Code|URL|Link/.test(tree.resolveInner(from, 1).name)) continue;
+        protectedRanges.push([from, to]);
+        if (lineActive || touches(from, to)) decos.push(mark('cm-mention').range(from, to));
+        else replace(from, to, Decoration.replace({ widget: new MentionWidget(person.username, person.avatarUrl ?? null) }));
+      }
     }
     if (!lineActive && /^\s*[-*+]\s+\[[ xXoOhH]\]/.test(ln.text)) {
       for (const m of ln.text.matchAll(/(?:📅\s*|\bdue:)(\d{4}-\d{2}-\d{2})/g)) {

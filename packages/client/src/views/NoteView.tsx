@@ -55,11 +55,17 @@ import {
   Psychology,
   PictureAsPdf,
   Slideshow,
+  MessageSquare,
+  MessageSquarePlus,
 } from '../lib/icons';
 import { undo } from '@codemirror/commands';
 import {
+  makeAnchor,
+  resolveAnchor,
+  type CommentAnchor,
   excerpt,
   extractDailyNoteDate,
+  createPeriodicExtractor,
   parseFrontmatter,
   fillReleasePlaceholders,
   type NoteRelease,
@@ -106,6 +112,7 @@ import { useModal } from '../lib/modal';
 import { useRightPaneHost } from './MaterialShell';
 import { IconPickerDialog } from './IconPicker';
 import { DailyCarryOver, DailyNoteBar } from './DailyNoteBar';
+import { PeriodicNoteBar } from './PeriodicNoteBar';
 import { NoteStats } from './NoteStats';
 import { setFocusMode, useFocusMode } from '../lib/focus';
 import { refreshConfluence, useConfluence } from '../lib/confluence';
@@ -113,6 +120,9 @@ import { ConfluenceDialog } from './ConfluenceDialog';
 import { ReleaseDialog, releaseChipLabel } from './ReleaseDialog';
 import { releaseRenderOptions } from '../editor/releases';
 import { DEMO } from '../demo/demoApi';
+import { useComments } from '../data/comments';
+import { onCommentOpen, setCommentRanges } from '../editor/comments';
+import { CommentsPanel, showPassage } from './CommentsPanel';
 import { api } from '../lib/api';
 
 const IS_APPLE = /Mac|iPhone|iPad/.test(navigator.platform);
@@ -899,6 +909,7 @@ function NoteInspectorPane({
   setTab,
   onJump,
   onClose,
+  comments: commentsTab,
 }: {
   noteId: string;
   outline: Outline;
@@ -912,6 +923,8 @@ function NoteInspectorPane({
   setTab: (tab: NoteSplitTab) => void;
   onJump: (pos: number) => void;
   onClose?: () => void;
+  /** Comments tab (#68): its content and the number of open threads; absent when comments are off */
+  comments?: { panel: React.ReactNode; count: number };
 }) {
   useLang();
   const rc = vault.roleConfig();
@@ -921,7 +934,10 @@ function NoteInspectorPane({
     { id: 'tasks', label: t('note.tabTasks'), Icon: ListChecks, count: tasks.length ? tasks.filter((tk) => !tk.done).length || undefined : undefined },
     { id: 'links', label: t('note.tabLinks'), Icon: Link2, count: backlinks.length + mentions.length || undefined },
     { id: 'graph', label: t('note.tabGraph'), Icon: Network, count: local.nodes.length > 1 ? local.nodes.length - 1 : undefined },
+    ...(commentsTab ? [{ id: 'comments' as const, label: t('comments.tab'), Icon: MessageSquare, count: commentsTab.count || undefined }] : []),
   ];
+  // Without comments a remembered comments tab falls back to the outline
+  const shown = tab === 'comments' && !commentsTab ? 'toc' : tab;
 
   /** M3 list item on the pane (one tone up from surface-container-low), headline + supporting text */
   const item = 'state-layer block w-full rounded-lg bg-surface-container px-4 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary';
@@ -939,9 +955,9 @@ function NoteInspectorPane({
       </div>
 
       {/* M3 primary tabs: icon above the label, a 3 dp primary indicator under the active one, a divider below the row */}
-      <div role="tablist" aria-label={t('note.paneTitle')} className="grid shrink-0 grid-cols-4 border-b border-outline-variant">
+      <div role="tablist" aria-label={t('note.paneTitle')} className={`grid shrink-0 border-b border-outline-variant ${tabs.length > 4 ? 'grid-cols-5' : 'grid-cols-4'}`}>
         {tabs.map(({ id, label, Icon, count }) => {
-          const active = tab === id;
+          const active = shown === id;
           return (
             <button
               key={id}
@@ -965,10 +981,11 @@ function NoteInspectorPane({
       </div>
 
       <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto scrollbar-thin pr-0.5 pt-2">
-        {tab === 'toc' && <OutlinePanel outline={outline} view={view} canEdit={canEdit} onJump={onJump} />}
-        {tab === 'tasks' && <NoteTasksPanel noteId={noteId} tasks={tasks} view={view} canEdit={canEdit} onJump={onJump} />}
+        {shown === 'comments' && commentsTab?.panel}
+        {shown === 'toc' && <OutlinePanel outline={outline} view={view} canEdit={canEdit} onJump={onJump} />}
+        {shown === 'tasks' && <NoteTasksPanel noteId={noteId} tasks={tasks} view={view} canEdit={canEdit} onJump={onJump} />}
 
-        {tab === 'links' && (
+        {shown === 'links' && (
           <div className="space-y-4">
             <section>
               <h3 className="mb-2 px-2 text-title-s text-on-surface-variant">{t('note.backlinksTitle', { n: backlinks.length })}</h3>
@@ -1012,7 +1029,7 @@ function NoteInspectorPane({
           </div>
         )}
 
-        {tab === 'graph' && (
+        {shown === 'graph' && (
           <div>
             {local.nodes.length <= 1 ? (
               <p className="py-8 text-center text-body-m text-on-surface-variant">{t('note.localGraphEmpty')}</p>
@@ -1113,6 +1130,87 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   useEffect(() => {
     if (confluence?.connection) void refreshConfluence();
   }, [id]);
+  // Activity (#70): an open note is not "new", and what others change while it is open is seen on leaving
+  useEffect(() => {
+    vault.viewing = id;
+    vault.markSeen(id);
+    // Mentions of the user in this note (#69) are read once it is open
+    void vault.readNotifications({ noteId: id });
+    return () => {
+      if (vault.viewing === id) vault.viewing = null;
+      vault.markSeen(id);
+    };
+  }, [id]);
+  // Comments (#68): threads on passages, kept on the server (only for notes it already has)
+  const commentsOn = !!note && !vault.standalone && !DEMO && vault.features().comments.enabled && note.version > 0;
+  const threads = useComments(id, commentsOn);
+  const [commentDraft, setCommentDraft] = useState<CommentAnchor | null>(null);
+  // ?thread=<id> (from a notification) opens the comments tab on that thread
+  const [focusedThread, setFocusedThread] = useState<string | null>(() => new URLSearchParams(location.search).get('thread'));
+  useEffect(() => {
+    if (!new URLSearchParams(location.search).get('thread')) return;
+    setNoteSplitTab('comments');
+    setNoteSplitOpen(true);
+    history.replaceState(null, '', location.pathname);
+  }, [id]);
+  useEffect(() => setCommentDraft(null), [id]);
+  // A click on a highlighted passage opens its thread
+  useEffect(() => {
+    onCommentOpen((threadId) => {
+      setFocusedThread(threadId);
+      setNoteSplitTab('comments');
+      setNoteSplitOpen(true);
+    });
+    return () => onCommentOpen(null);
+  }, []);
+  // The passages of open threads are highlighted in the note
+  useEffect(() => {
+    if (!view) return;
+    const doc = view.state.doc.toString();
+    const ranges = commentsOn
+      ? threads
+          .filter((th) => !th.resolved)
+          .flatMap((th) => {
+            const r = resolveAnchor(doc, th.anchor);
+            return r ? [{ from: r.from, to: r.to, threadId: th.id, active: th.id === focusedThread }] : [];
+          })
+      : [];
+    view.dispatch({ effects: setCommentRanges.of(ranges) });
+  }, [view, threads, focusedThread, commentsOn, version]);
+  /** Starts a comment on the selected text (button, Ctrl/⌘+Alt+C) */
+  const startComment = () => {
+    if (!view || !commentsOn || locked) return;
+    let { from, to } = view.state.selection.main;
+    // A read-only note (shared for reading) keeps the selection in the page, not in the editor
+    const dom = window.getSelection();
+    if (from === to && dom && !dom.isCollapsed && dom.rangeCount && view.contentDOM.contains(dom.anchorNode)) {
+      const r = dom.getRangeAt(0);
+      try {
+        from = view.posAtDOM(r.startContainer, r.startOffset);
+        to = view.posAtDOM(r.endContainer, r.endOffset);
+      } catch {
+        // outside the text
+      }
+    }
+    if (from === to) {
+      alert(t('comments.selectFirst'));
+      return;
+    }
+    setCommentDraft(makeAnchor(view.state.doc.toString(), from, to));
+    setNoteSplitTab('comments');
+    setNoteSplitOpen(true);
+  };
+  const startCommentRef = useRef(startComment);
+  startCommentRef.current = startComment;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || !e.altKey || e.shiftKey || e.code !== 'KeyC') return;
+      e.preventDefault();
+      startCommentRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const [showHistory, setShowHistory] = useState(false);
   const [presenting, setPresenting] = useState(false);
   const [releaseOpen, setReleaseOpen] = useState(false);
@@ -1249,6 +1347,9 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const isProject = isOwner && features.para.enabled && isProjectNote(note.path, rc);
   const isSingleProject = isProject && isSingleProjectFile(note.path, rc);
   const dailyDate = features.daily.enabled && note.access === 'owner' ? extractDailyNoteDate(note.path, features.daily) : null;
+  // Weekly and monthly notes (#73) get the same kind of bar
+  const weekDate = !dailyDate && features.weekly.enabled && note.access === 'owner' ? createPeriodicExtractor('week', features.weekly)(note.path) : null;
+  const monthDate = !dailyDate && !weekDate && features.monthly.enabled && note.access === 'owner' ? createPeriodicExtractor('month', features.monthly)(note.path) : null;
   const focus = focusMode && features.focus.enabled;
   const onEditorActivity = () => {
     if (statsTimer.current) clearTimeout(statsTimer.current);
@@ -1396,6 +1497,19 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                   <Check size={13} /> {t('note.copyMarkdownDone')}
                 </span>
               )}
+              {commentsOn && !locked && (
+                <button
+                  type="button"
+                  className="btn-icon rounded-full"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={startComment}
+                  title={`${t('comments.add')} (${IS_APPLE ? '⌘' : lang === 'en' ? 'Ctrl' : 'Strg'}+Alt+C)`}
+                  aria-label={t('comments.add')}
+                  data-add-comment
+                >
+                  <MessageSquarePlus size={18} />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setNoteSplitOpen(!splitOpen)}
@@ -1458,6 +1572,11 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             <div className="no-print">
               <DailyNoteBar date={dailyDate} />
               {!readOnly && <DailyCarryOver noteId={id} date={dailyDate} />}
+            </div>
+          )}
+          {(weekDate || monthDate) && !focus && (
+            <div className="no-print">
+              <PeriodicNoteBar kind={weekDate ? 'week' : 'month'} date={(weekDate ?? monthDate)!} />
             </div>
           )}
 
@@ -1633,6 +1752,29 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               setTab={setNoteSplitTab}
               onJump={(pos) => jumpToPos(pos, false)}
               onClose={() => setNoteSplitOpen(false)}
+              comments={
+                commentsOn
+                  ? {
+                      count: threads.filter((th) => !th.resolved).length,
+                      panel: (
+                        <CommentsPanel
+                          noteId={id}
+                          threads={threads}
+                          view={view}
+                          content={note.content}
+                          canComment={!locked}
+                          draft={commentDraft}
+                          onDraftDone={() => setCommentDraft(null)}
+                          focused={focusedThread}
+                          onFocus={(threadId, range) => {
+                            setFocusedThread(threadId);
+                            showPassage(view, range);
+                          }}
+                        />
+                      ),
+                    }
+                  : undefined
+              }
             />
           </aside>,
           rightHost
@@ -1658,6 +1800,29 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 setTab={setNoteSplitTab}
                 onJump={(pos) => jumpToPos(pos, true)}
                 onClose={() => setNoteSplitOpen(false)}
+              comments={
+                commentsOn
+                  ? {
+                      count: threads.filter((th) => !th.resolved).length,
+                      panel: (
+                        <CommentsPanel
+                          noteId={id}
+                          threads={threads}
+                          view={view}
+                          content={note.content}
+                          canComment={!locked}
+                          draft={commentDraft}
+                          onDraftDone={() => setCommentDraft(null)}
+                          focused={focusedThread}
+                          onFocus={(threadId, range) => {
+                            setFocusedThread(threadId);
+                            showPassage(view, range);
+                          }}
+                        />
+                      ),
+                    }
+                  : undefined
+              }
               />
             </SideSheet>
           </div>,

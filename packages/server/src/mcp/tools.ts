@@ -493,6 +493,8 @@ export const TOOLS: ToolDef[] = [
       'Fields: title, path, folder, created, updated, tags, links, any frontmatter key; for TASKS also text, due, time, done, note.',
       'Operators: = != < <= > >= contains ~ (substring). AND binds tighter than OR. Values: "text", numbers, YYYY-MM-DD, today, tomorrow, true/false.',
       'Tags nest with "/": FROM #area and tags contains "area" also match notes tagged #area/health.',
+      'Aggregates in TABLE: COUNT, SUM(field), AVG(field), MIN(field), MAX(field) (returned in totals); GROUP BY <field> for TABLE and LIST returns groups with their count and aggregates, e.g.',
+      'TABLE status, COUNT, SUM(hours) FROM "1 Projekte" GROUP BY status',
     ].join('\n'),
     inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
     write: false,
@@ -506,7 +508,13 @@ export const TOOLS: ToolDef[] = [
           const fields = result.query.mode === 'table' ? Object.fromEntries(result.columns.map((c) => [c, values[c] ?? null])) : result.query.mode === 'tasks' ? { text: values.text, due: values.due || null, done: values.done, status: values.status, repeat: values.repeat || null } : { title: values.title };
           return { note_id: r.noteId, path: r.path, ...(r.line !== undefined ? { line: r.line } : {}), ...fields };
         });
-        return { mode: result.query.mode, total: result.rows.length, rows };
+        const extra = {
+          ...(result.totals ? { totals: result.totals } : {}),
+          ...(result.groups
+            ? { groups: result.groups.map((g) => ({ key: g.key, count: g.rows.length, ...(result.totals ? { aggregates: g.aggregates } : {}), note_ids: g.rows.map((r) => r.noteId) })) }
+            : {}),
+        };
+        return { mode: result.query.mode, total: result.rows.length, ...extra, rows };
       } catch (err) {
         if (err instanceof QueryError) throw new ToolError(`Abfrage ungültig: ${err.message}`);
         throw err;

@@ -29,6 +29,10 @@ export const DEFAULT_RECIPE_FOLDER = '3 Ressourcen/Rezepte';
 export const STANDALONE_RECIPE_FOLDER = 'Rezepte';
 export const DEFAULT_DAILY_FOLDER = '0 Daily';
 export const DEFAULT_DAILY_FORMAT = 'YYYY/MM/YYYY-MM-DD.md';
+export const DEFAULT_WEEKLY_FOLDER = '0 Weekly';
+export const DEFAULT_WEEKLY_FORMAT = 'GGGG/GGGG-[W]WW.md';
+export const DEFAULT_MONTHLY_FOLDER = '0 Monthly';
+export const DEFAULT_MONTHLY_FORMAT = 'YYYY/YYYY-MM.md';
 export const PROJECT_HOME_NAME = 'Home';
 export const DEFAULT_MEMORY_FOLDER = 'AI-Memory';
 
@@ -59,6 +63,10 @@ export interface FeatureSettings {
     folder: string;
   };
   daily: DailySettings;
+  /** Weekly notes (#73, opt-in): folder and naming pattern like daily notes, dated by the week's Monday */
+  weekly: DailySettings;
+  /** Monthly notes (#73, opt-in), dated by the month's first day */
+  monthly: DailySettings;
   heatmap: {
     enabled: boolean;
   };
@@ -116,6 +124,22 @@ export interface FeatureSettings {
   callouts: {
     enabled: boolean;
   };
+  /** Calendar view (#72): month, week and agenda of tasks, daily notes and dated notes under /calendar */
+  calendarView: {
+    enabled: boolean;
+  };
+  /** Activity of groups and shared folders and "new" marks on notes others changed (#70) */
+  activity: {
+    enabled: boolean;
+  };
+  /** @mentions with notifications and "assigned to me" on the task page (#69) */
+  mentions: {
+    enabled: boolean;
+  };
+  /** Comment threads on passages of notes (#68) */
+  comments: {
+    enabled: boolean;
+  };
 }
 
 /** Configurable folder mapping per role; `null` disables matching for that role */
@@ -150,10 +174,14 @@ export function cleanDailyFolder(raw: unknown, fallback = DEFAULT_DAILY_FOLDER):
   return parts.join('/');
 }
 
+/** Longest naming pattern: real ones are a few dozen characters, the matcher built from one stays small */
+export const MAX_FORMAT_LENGTH = 200;
+
 /** Daily filename/subfolder pattern (e.g. "YYYY/MM/YYYY-MM-DD.md") */
 export function cleanDailyFormat(raw: unknown, fallback = DEFAULT_DAILY_FORMAT): string {
   if (typeof raw !== 'string') return fallback;
   const parts = raw
+    .slice(0, MAX_FORMAT_LENGTH)
     .replace(/\\/g, '/')
     .split('/')
     .map((p) => p.trim())
@@ -174,6 +202,11 @@ function optInFlag(raw: unknown): boolean {
 
 function hasFolderPrefix(folders: string[], target: string): boolean {
   return folders.some((f) => f === target || f.startsWith(`${target}/`));
+}
+
+function periodicSettings(raw: unknown, folder: string, format: string): DailySettings {
+  const obj = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  return { enabled: obj.enabled === true, folder: cleanDailyFolder(obj.folder, folder), format: cleanDailyFormat(obj.format, format) };
 }
 
 /**
@@ -230,6 +263,8 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
       folder: cleanDailyFolder(rawDaily?.folder, DEFAULT_DAILY_FOLDER),
       format: cleanDailyFormat(rawDaily?.format, DEFAULT_DAILY_FORMAT),
     },
+    weekly: periodicSettings(obj.weekly, DEFAULT_WEEKLY_FOLDER, DEFAULT_WEEKLY_FORMAT),
+    monthly: periodicSettings(obj.monthly, DEFAULT_MONTHLY_FOLDER, DEFAULT_MONTHLY_FORMAT),
     heatmap: {
       enabled: rawHeatmap?.enabled === true,
     },
@@ -261,6 +296,10 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
     database: { enabled: optInFlag(obj.database) },
     presentation: { enabled: optInFlag(obj.presentation) },
     callouts: { enabled: optOutFlag(obj.callouts) },
+    calendarView: { enabled: optOutFlag(obj.calendarView) },
+    activity: { enabled: optOutFlag(obj.activity) },
+    mentions: { enabled: optOutFlag(obj.mentions) },
+    comments: { enabled: optOutFlag(obj.comments) },
   };
 }
 
@@ -273,7 +312,14 @@ const DAYS_SHORT_DE = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 const DAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAYS_SHORT_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-function isoWeek(d: Date): number {
+/** ISO 8601 week-numbering year: the year of the week's Thursday (2024-12-30 is in week 1 of 2025) */
+export function isoWeekYear(d: Date): number {
+  const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+  return date.getFullYear();
+}
+
+export function isoWeek(d: Date): number {
   const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   const dayNum = date.getUTCDay() || 7;
   date.setUTCDate(date.getUTCDate() + 4 - dayNum);
@@ -283,7 +329,7 @@ function isoWeek(d: Date): number {
 
 /**
  * Formats a daily note path relative to the vault from folder + pattern.
- * Supported tokens: YYYY, YY, MMMM, MMM, MM, M, DD, D, dddd, ddd, WW, W, plus [literal] escapes.
+ * Supported tokens: GGGG (ISO week year), YYYY, YY, MMMM, MMM, MM, M, DD, D, dddd, ddd, WW, W, plus [literal] escapes.
  */
 export function resolveDailyNote(
   daily: Pick<DailySettings, 'folder' | 'format'>,
@@ -304,6 +350,7 @@ export function resolveDailyNote(
   const pad = (n: number) => String(n).padStart(2, '0');
 
   const tokens: Record<string, string> = {
+    GGGG: String(isoWeekYear(date)),
     YYYY: String(year),
     YY: String(year).slice(-2),
     MMMM: (lang === 'en' ? MONTHS_EN : MONTHS_DE)[monthIdx],
@@ -319,13 +366,13 @@ export function resolveDailyNote(
   };
 
   const formattedStem = stemPattern.replace(
-    /\[([^\]]*)\]|(YYYY|YY|MMMM|MMM|MM|M|DD|D|dddd|ddd|WW|W)/g,
+    /\[([^[\]]*)\]|(GGGG|YYYY|YY|MMMM|MMM|MM|M|DD|D|dddd|ddd|WW|W)/g,
     (full, literal: string | undefined, tok: string | undefined, offset: number, str: string) => {
       if (literal !== undefined) return literal;
       if (!tok) return full;
       const prev = offset > 0 ? str[offset - 1] : '';
       const next = offset + full.length < str.length ? str[offset + full.length] : '';
-      const isNonTokenLetter = (ch: string) => !!ch && /\p{L}/u.test(ch) && !/[YMDdW]/.test(ch);
+      const isNonTokenLetter = (ch: string) => !!ch && /\p{L}/u.test(ch) && !/[GYMDdW]/.test(ch);
       if (isNonTokenLetter(prev) || isNonTokenLetter(next)) return full;
       return tokens[tok] ?? full;
     }

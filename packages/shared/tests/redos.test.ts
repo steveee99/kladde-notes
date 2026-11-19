@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { parseQuery, runQuery } from '../src/query';
+import { createPeriodicExtractor, extractDailyNoteDate, resolveDailyNote, resolvePeriodicNote } from '../src/index';
 import { fillReleasePlaceholders, hasReleasePlaceholders, buildCalendar, filterGraph, pdfNoteOf, LinkIndex, normalizeTag, renameTag, tagBeforeCursor, nextDue, parseFrontmatter, parseTasks, rruleOf, setTaskMeta, setTaskStatus, stripBlockIds, extractHeadings, trimSlashes } from '../src/index';
 
 /** Runs `fn` and fails if it takes longer than a linear scan should (the CodeQL polynomial-ReDoS inputs) */
@@ -27,6 +29,30 @@ describe('regexes stay linear on hostile input', () => {
     fast(() => rruleOf(`1${' '.repeat(N)}`));
     fast(() => rruleOf(`!${'00'.repeat(N)}`));
     fast(() => nextDue(`${'00'.repeat(N)}!`, null));
+  });
+
+  it('daily, weekly and monthly naming patterns with many brackets (#73)', () => {
+    const format = `${'[\\'.repeat(N / 2)}x`;
+    fast(() => resolveDailyNote({ folder: 'D', format }, new Date(2026, 10, 19)));
+    fast(() => extractDailyNoteDate('D/x.md', { folder: 'D', format }));
+    fast(() => createPeriodicExtractor('week', { folder: 'W', format })('W/x.md'));
+    fast(() => resolvePeriodicNote('month', { folder: 'M', format: `${'['.repeat(N)}MM` }, '2026-11-19'));
+    expect(resolveDailyNote({ folder: '', format: '[KW]WW' }, new Date(2026, 10, 19)).name).toBe('KW47');
+  });
+
+  it('query aggregates (#77)', () => {
+    const attempt = (src: string) => () => {
+      try {
+        parseQuery(src);
+      } catch {
+        /* invalid, but fast */
+      }
+    };
+    fast(attempt(`TABLE SUM(${' '.repeat(N)}`));
+    fast(attempt(`TABLE ${'sum('.repeat(N / 10)}`));
+    fast(attempt(`TABLE MAX(${'a '.repeat(N)}`));
+    fast(() => runQuery(`TABLE COUNT GROUP BY ${'('.repeat(N)}`, []));
+    expect(() => parseQuery(`TABLE SUM(${'('.repeat(N)})`)).toThrow();
   });
 
   it('frontmatter, headings, block ids and slashes', () => {

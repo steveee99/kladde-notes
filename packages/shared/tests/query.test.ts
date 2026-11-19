@@ -44,6 +44,46 @@ describe('query', () => {
     expect(() => parseQuery('KANBAN FROM "x"')).toThrow();
   });
 
+  it('aggregates a TABLE in a footer (#77)', () => {
+    const r = runQuery('TABLE title, SUM(prio), AVG( prio ), MIN(prio), MAX (prio), COUNT FROM "1 Projekte"', notes);
+    expect(r.columns).toEqual(['title', 'sum(prio)', 'avg(prio)', 'min(prio)', 'max(prio)', 'count']);
+    expect(r.totals).toEqual({ 'sum(prio)': 12, 'avg(prio)': 6, 'min(prio)': '2', 'max(prio)': '10', count: 2 });
+    // Rows show the aggregated field's value
+    expect(r.rows.map((x) => x.values['sum(prio)'])).toEqual(['2', '10']);
+    expect(r.groups).toBeUndefined();
+    expect(runQuery('TABLE title, SUM(prio) FROM "3 Ressourcen"', notes).totals).toEqual({ 'sum(prio)': '' });
+  });
+
+  it('groups TABLE and LIST rows (#77)', () => {
+    const list = runQuery('LIST GROUP BY status', notes);
+    expect(list.groups?.map((g) => [g.key, g.rows.map((x) => x.noteId)])).toEqual([
+      ['aktiv', ['1']],
+      ['fertig', ['2']],
+      ['', ['3']],
+    ]);
+    const summary = runQuery('TABLE status, COUNT, SUM(prio) GROUP BY status SORT status DESC', notes);
+    expect(summary.summary).toBe(true);
+    expect(summary.groups?.map((g) => [g.key, g.aggregates])).toEqual([
+      ['fertig', { count: 1, 'sum(prio)': 10 }],
+      ['aktiv', { count: 1, 'sum(prio)': 2 }],
+      ['', { count: 1, 'sum(prio)': '' }],
+    ]);
+    expect(summary.totals).toEqual({ count: 3, 'sum(prio)': 12 });
+    // A note is in the group of each of its tags; other columns keep the notes
+    const tags = runQuery('TABLE title, COUNT GROUP BY tags', notes);
+    expect(tags.summary).toBe(false);
+    expect(tags.groups?.map((g) => [g.key, g.aggregates.count])).toEqual([['bau', 2], ['', 1]]);
+    expect(runQuery('TABLE COUNT GROUP BY folder', notes).columns).toEqual(['folder', 'count']);
+  });
+
+  it('keeps `group` as a field name and rejects bad aggregates', () => {
+    expect(parseQuery('TABLE group, title').fields).toEqual(['group', 'title']);
+    expect(parseQuery('TABLE title GROUP BY status').groupBy).toBe('status');
+    expect(() => parseQuery('TABLE SUM()')).toThrow();
+    expect(() => parseQuery('TASKS GROUP BY due')).toThrow();
+    expect(() => parseQuery('LIST GROUP BY')).toThrow();
+  });
+
   it('extracts meta', () => {
     expect(extractMeta('a/b.md', 'x #Tag `#no` [[Link|Alias]]')).toMatchObject({ title: 'b', folder: 'a', tags: ['tag'], links: ['Link'] });
   });

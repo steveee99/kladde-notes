@@ -1,5 +1,5 @@
 import { useState, useSyncExternalStore } from 'react';
-import { Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, LayoutGrid, List, Plus, Table2, Trash2, Users } from '../lib/icons';
+import { Activity as ActivityIcon, Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, LayoutGrid, List, Plus, Table2, Trash2, Users } from '../lib/icons';
 import { INBOX_FOLDER, archiveTarget, excerpt, extractMeta, findDatabaseNote, databaseFileName, inferPropertyKeys, isDatabasePath, newDatabaseContent, projectTitleOf, restoreTarget, splitPath } from '@kladde/shared';
 import type { SharedFolder } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
@@ -9,6 +9,7 @@ import { openDialog } from '../lib/dialogs';
 import { FolderNameInput, newNote } from './Shell';
 import { dragSource, useDropTarget } from '../lib/dnd';
 import { describePermissions } from './ShareDialog';
+import { activityPath, NewMark } from './ActivityView';
 import { Avatar } from './Avatar';
 import { MoveToGroupSheet } from './Groups';
 import { DatabaseView } from './DatabaseView';
@@ -93,6 +94,7 @@ function NoteRow({ note }: { note: LocalNote }) {
       onKeyDown={(e) => e.key === 'Enter' && navigate(`/n/${note.id}`)}
       className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-surface-container-high/60"
     >
+      <NewMark noteId={note.id} />
       <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
       {note.access !== 'owner' && (
         <span className="chip hidden shrink-0 sm:inline-flex">
@@ -127,7 +129,12 @@ function NoteTable({ notes }: { notes: LocalNote[] }) {
             const title = projectTitleOf(n.path, n.content, rc);
             return (
               <tr key={n.id} tabIndex={0} onClick={() => navigate(`/n/${n.id}`)} onKeyDown={(e) => e.key === 'Enter' && navigate(`/n/${n.id}`)} className="cursor-pointer border-t border-outline-variant/60 transition-colors hover:bg-surface-container-high/60">
-                <td className="max-w-[18rem] truncate px-3 py-2 font-medium">{title}</td>
+                <td className="max-w-[18rem] truncate px-3 py-2 font-medium">
+                  <span className="inline-flex max-w-full items-center gap-2">
+                    <NewMark noteId={n.id} />
+                    <span className="truncate">{title}</span>
+                  </span>
+                </td>
                 <td className="max-w-[12rem] truncate px-3 py-2 text-on-surface-variant">{meta.folder ? folderDisplayName(meta.folder, lang) : ''}</td>
                 <td className="px-3 py-2">
                   <div className="flex flex-wrap gap-1">
@@ -185,6 +192,7 @@ export function NoteCard({ note }: { note: LocalNote }) {
       className="card group w-full min-w-0 cursor-pointer p-4 text-left transition-all duration-200 hover:bg-surface-container"
     >
       <div className="flex items-center gap-2">
+        <NewMark noteId={note.id} />
         <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
         {note.access !== 'owner' && (
           <span className="chip max-w-[55%] shrink-0">
@@ -265,8 +273,19 @@ function SharedFolderSection({ shared, notes }: { shared: SharedFolder; notes: L
             {shared.owner} · {describePermissions(shared)}
           </span>
         </span>
+        {vault.features().activity.enabled && (
+          <button
+            className="btn-ghost ml-auto shrink-0 phone:!px-2.5"
+            title={t('activity.title')}
+            aria-label={`${t('activity.title')}: ${folderLabel}`}
+            onClick={() => navigate(activityPath({ owner: shared.owner, folder: shared.folder }))}
+            data-open-activity
+          >
+            <ActivityIcon size={16} /> <span className="hidden sm:inline">{t('activity.title')}</span>
+          </button>
+        )}
         {shared.canCreate && (
-          <button className="edit-only btn-ghost ml-auto shrink-0 phone:!px-2.5" onClick={() => openDialog({ kind: 'note', shared })}>
+          <button className={`edit-only btn-ghost shrink-0 phone:!px-2.5 ${vault.features().activity.enabled ? '' : 'ml-auto'}`} onClick={() => openDialog({ kind: 'note', shared })}>
             <Plus size={16} /> <span className="hidden sm:inline">{t('nav.newNote')}</span>
           </button>
         )}
@@ -387,6 +406,11 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
                 </button>
               )
             )
+          )}
+          {mode === 'folder' && folder && features.activity.enabled && !vault.standalone && !DEMO && (
+            <button className="btn-ghost shrink-0 phone:!px-2.5" title={t('activity.folderTitle')} onClick={() => navigate(activityPath({ owner: vault.actorName, folder }))} data-open-activity>
+              <ActivityIcon size={16} /> <span className="hidden sm:inline">{t('activity.title')}</span>
+            </button>
           )}
           {mode === 'folder' && folder && !protectedFolders.has(folder) && folder !== features.daily.folder && !vault.standalone && !DEMO && vault.notesInFolder(folder) > 0 && (
             <button className="edit-only btn-ghost shrink-0 phone:!px-2.5" title={t('groups.moveTitle')} onClick={() => setMovingToGroup(true)} data-move-folder-to-group>

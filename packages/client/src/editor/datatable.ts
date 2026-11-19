@@ -74,7 +74,14 @@ function actionButton(className: string, label: string, title: string, run: () =
 export function dataTable(
   headers: string[],
   rows: DataRow[],
-  opts: { align?: ('left' | 'center' | 'right' | null)[]; caption?: string; onWiki?: (t: string) => void; edit?: TableEditing } = {}
+  opts: {
+    align?: ('left' | 'center' | 'right' | null)[];
+    caption?: string;
+    onWiki?: (t: string) => void;
+    edit?: TableEditing;
+    /** A summary row below the body (query aggregates, #77); it is not sorted or filtered */
+    footer?: string[];
+  } = {}
 ): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = `cm-block-widget wz-table${opts.edit ? ' wz-table-editable' : ''}`;
@@ -145,6 +152,7 @@ export function dataTable(
   thead.append(headRow);
   const tbody = document.createElement('tbody');
   table.append(thead, tbody);
+  if (opts.footer) table.append(footerOf(opts.footer));
   scroller.append(table);
   wrap.append(bar, scroller);
 
@@ -317,6 +325,101 @@ export function dataTable(
         : t('editor.tableCountRows', { total: rows.length });
   }
   draw();
+  return wrap;
+}
+
+function footerOf(cells: string[]): HTMLTableSectionElement {
+  const tfoot = document.createElement('tfoot');
+  const tr = document.createElement('tr');
+  for (const c of cells) {
+    const td = document.createElement('td');
+    td.textContent = c;
+    tr.append(td);
+  }
+  tfoot.append(tr);
+  return tfoot;
+}
+
+export interface TableGroup {
+  label: string;
+  rows: DataRow[];
+  /** Aggregates of the group, shown below its rows */
+  footer?: string[];
+}
+
+/**
+ * Read-only table in groups (query GROUP BY, #77): each group is a `tbody` with a header row (label and count), its
+ * rows and optionally its aggregates; `footer` sums up all rows
+ */
+export function groupedTable(headers: string[], groups: TableGroup[], opts: { caption?: string; footer?: string[]; total: number }): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'cm-block-widget wz-table wz-table-grouped';
+  const bar = document.createElement('div');
+  bar.className = 'wz-table-bar';
+  if (opts.caption) {
+    const cap = document.createElement('span');
+    cap.className = 'wz-table-caption';
+    cap.textContent = opts.caption;
+    bar.append(cap);
+  }
+  const count = document.createElement('span');
+  count.className = 'wz-table-count';
+  count.style.marginLeft = 'auto';
+  count.textContent = opts.total === 1 ? t('editor.tableCountRowSingle') : t('editor.tableCountRows', { total: opts.total });
+  bar.append(count);
+  const scroller = document.createElement('div');
+  scroller.className = 'wz-table-scroll scrollbar-thin';
+  const table = document.createElement('table');
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  for (const h of headers) {
+    const th = document.createElement('th');
+    th.scope = 'col';
+    th.innerHTML = `<span>${renderInline(h)}</span>`;
+    headRow.append(th);
+  }
+  thead.append(headRow);
+  table.append(thead);
+  for (const g of groups) {
+    const tbody = document.createElement('tbody');
+    const head = document.createElement('tr');
+    head.className = 'wz-group-head';
+    const th = document.createElement('th');
+    th.scope = 'rowgroup';
+    th.colSpan = headers.length;
+    const label = document.createElement('span');
+    label.textContent = g.label;
+    const n = document.createElement('span');
+    n.className = 'wz-group-count';
+    n.textContent = String(g.rows.length);
+    th.append(label, n);
+    head.append(th);
+    tbody.append(head);
+    for (const r of g.rows) {
+      const tr = document.createElement('tr');
+      for (const c of r.cells) {
+        const td = document.createElement('td');
+        if (typeof c === 'string') td.innerHTML = renderInline(c);
+        else td.append(c);
+        tr.append(td);
+      }
+      tbody.append(tr);
+    }
+    if (g.footer) {
+      const tr = document.createElement('tr');
+      tr.className = 'wz-group-foot';
+      for (const c of g.footer) {
+        const td = document.createElement('td');
+        td.textContent = c;
+        tr.append(td);
+      }
+      tbody.append(tr);
+    }
+    table.append(tbody);
+  }
+  if (opts.footer) table.append(footerOf(opts.footer));
+  scroller.append(table);
+  wrap.append(bar, scroller);
   return wrap;
 }
 

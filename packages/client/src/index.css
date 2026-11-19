@@ -1568,6 +1568,102 @@ span.cm-checkbox {
 .wz-table tbody tr:hover {
   background: rgb(var(--surface-container-high) / 0.6);
 }
+/* Comments (#68): passages with open threads, the one shown in the panel stronger */
+.cm-comment {
+  background: rgb(var(--tertiary-container) / 0.55);
+  border-bottom: 2px solid rgb(var(--tertiary) / 0.7);
+  cursor: pointer;
+}
+.cm-comment-active {
+  background: rgb(var(--tertiary-container));
+  border-bottom-color: rgb(var(--tertiary));
+}
+/* @mentions (#69): a chip with the avatar of someone who can see the note */
+.cm-mention {
+  color: rgb(var(--primary));
+  font-weight: 500;
+}
+.cm-mention-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px 0 2px;
+  border-radius: 9999px;
+  vertical-align: baseline;
+  line-height: 1.5;
+  font-weight: 500;
+  color: rgb(var(--on-secondary-container));
+  background: rgb(var(--secondary-container));
+}
+.cm-mention-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25em;
+  height: 1.25em;
+  overflow: hidden;
+  border-radius: 9999px;
+  font-size: 0.75em;
+  color: rgb(var(--on-primary-container));
+  background: rgb(var(--primary-container));
+}
+.cm-mention-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Query aggregates and groups (#77): footer rows, group headers with a count */
+.wz-table tfoot td,
+.wz-table .wz-group-foot td {
+  font-weight: 600;
+  border-top: 1px solid rgb(var(--outline));
+  background: rgb(var(--surface-container));
+}
+.wz-table .wz-group-foot td {
+  font-weight: 500;
+  color: rgb(var(--on-surface-variant));
+  background: transparent;
+  border-top-style: dashed;
+}
+.wz-table-grouped th {
+  cursor: default;
+}
+.wz-table .wz-group-head th,
+.wz-query-groups .wz-group-head {
+  display: table-cell;
+  padding: 10px 12px 6px;
+  color: rgb(var(--primary));
+  background: rgb(var(--surface-container-high) / 0.5);
+  border-top: 1px solid rgb(var(--outline-variant));
+}
+.wz-query-groups {
+  border-radius: var(--shape-lg);
+  background: rgb(var(--surface-container-low));
+  overflow: hidden;
+}
+.wz-query-groups .wz-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.wz-query-groups .wz-group-head:first-child {
+  border-top: 0;
+}
+.wz-query-groups ul {
+  list-style: disc;
+  margin: 0;
+  padding: 6px 12px 10px 32px;
+}
+.wz-group-count {
+  margin-left: 8px;
+  padding: 0 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgb(var(--on-secondary-container));
+  background: rgb(var(--secondary-container));
+}
 /* Editable tables in the live preview: click a cell, column menu in the header, row delete on hover */
 .wz-table-action {
   flex-shrink: 0;

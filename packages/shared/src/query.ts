@@ -8,6 +8,9 @@
  *   LIMIT 20
  *
  * Modes: TABLE <fields> | LIST | TASKS | KANBAN BY <field> [VALUES "a", "b", …].
+ * TABLE fields may be aggregates (#77): COUNT, SUM(field), AVG(field), MIN(field), MAX(field); rows show the field's
+ * value, a footer row the aggregate. GROUP BY <field> (TABLE and LIST) groups the rows with a header and a count; a TABLE
+ * of only the group field and aggregates becomes a summary with one row per group.
  * KANBAN makes one column per value of the status field (default: the distinct values found). All clauses are optional and case-insensitive.
  * Fields: title, path, folder, created, updated, tags, links, due, time (tasks: reminder HH:MM), done, status (tasks: open|doing|blocked|done) and any frontmatter key.
  * Operators: = != < <= > >= contains ~ (substring, case-insensitive). AND binds tighter than OR.
@@ -33,7 +36,7 @@ interface Condition {
 export interface Query {
   mode: QueryMode;
   fields: string[];
-  /** KANBAN: frontmatter field that decides the column */
+  /** KANBAN: frontmatter field that decides the column; TABLE/LIST: the GROUP BY field */
   groupBy: string | null;
   /** KANBAN: column values in display order (empty = the distinct values found) */
   columnValues: string[];
@@ -62,12 +65,28 @@ export interface QueryRow {
   values: Record<string, unknown>;
 }
 
+export type AggregateFn = 'count' | 'sum' | 'avg' | 'min' | 'max';
+
+export interface QueryGroup {
+  /** The group's value of the GROUP BY field ('' = notes without it) */
+  key: string;
+  rows: QueryRow[];
+  /** Aggregate columns over the group's rows */
+  aggregates: Record<string, unknown>;
+}
+
 export interface QueryResult {
   query: Query;
   columns: string[];
   rows: QueryRow[];
   /** KANBAN: the lanes; rows without a matching value are left out unless the values were not given */
   lanes?: { value: string; rows: QueryRow[] }[];
+  /** GROUP BY: the groups in display order (a note with several values, e.g. tags, is in each of their groups) */
+  groups?: QueryGroup[];
+  /** TABLE with aggregate columns: the aggregates over all rows (the footer row) */
+  totals?: Record<string, unknown>;
+  /** Grouped TABLE of only the group field and aggregates: one row per group instead of the notes */
+  summary?: boolean;
 }
 
 export class QueryError extends Error {}
@@ -86,11 +105,25 @@ const unquote = (t: string) => (/^["']/.test(t) ? t.slice(1, -1).replace(/\\(.)/
 const KEYWORDS = new Set(['from', 'where', 'sort', 'limit']);
 const KANBAN_END = new Set([...KEYWORDS, 'values']);
 
+const AGGREGATE = /^(count|sum|avg|min|max)(?:\(([^()]*)\))?$/;
+
+/** The aggregate a TABLE column stands for (`sum(hours)` → sum of hours), null for a plain field */
+export function parseAggregate(column: string): { fn: AggregateFn; field: string | null } | null {
+  const m = AGGREGATE.exec(column.toLowerCase());
+  if (!m) return null;
+  const field = m[2]?.trim() || null;
+  const fn = m[1] as AggregateFn;
+  if (fn !== 'count' && !field) return null;
+  return { fn, field: fn === 'count' ? null : field };
+}
+
 export function parseQuery(src: string): Query {
   const tokens = tokenize(src.replace(/\n/g, ' '));
   let i = 0;
   const peek = () => tokens[i]?.toLowerCase();
   const next = () => tokens[i++];
+  /** A clause starts here: FROM, WHERE, SORT, LIMIT or GROUP BY (a field may still be called `group`) */
+  const atClause = () => KEYWORDS.has(peek()!) || (peek() === 'group' && tokens[i + 1]?.toLowerCase() === 'by');
   const q: Query = { mode: 'list', fields: [], groupBy: null, columnValues: [], from: null, fromTag: null, where: [], sort: null, limit: null };
 
   const mode = peek();
@@ -99,9 +132,19 @@ export function parseQuery(src: string): Query {
     next();
   }
   if (q.mode === 'table') {
-    while (i < tokens.length && !KEYWORDS.has(peek()!)) {
-      const t = next();
-      if (t !== ',') q.fields.push(unquote(t).toLowerCase());
+    while (i < tokens.length && !atClause()) {
+      let t = next();
+      if (t === ',') continue;
+      // `SUM(hours)` is one token; `SUM( hours )` or `SUM (hours)` are put back together
+      if (/^(count|sum|avg|min|max)$/i.test(t) && tokens[i]?.startsWith('(')) t += next();
+      if (/^(count|sum|avg|min|max)\(/i.test(t)) {
+        while (!t.endsWith(')') && i < tokens.length && tokens[i] !== ',') t += next();
+        const agg = parseAggregate(t);
+        if (!agg) throw new QueryError(`Ungültige Aggregation "${t}", z. B. COUNT, SUM(stunden), AVG(bewertung)`);
+        q.fields.push(agg.field ? `${agg.fn}(${agg.field})` : agg.fn);
+        continue;
+      }
+      q.fields.push(unquote(t).toLowerCase());
     }
     if (!q.fields.length) q.fields = ['title', 'updated'];
   }
@@ -112,8 +155,14 @@ export function parseQuery(src: string): Query {
   }
   while (i < tokens.length) {
     const kw = next().toLowerCase();
-    if (kw === 'values' && q.mode === 'kanban') {
-      while (i < tokens.length && !KEYWORDS.has(peek()!)) {
+    if (kw === 'group' && peek() === 'by') {
+      next();
+      if (q.mode !== 'table' && q.mode !== 'list') throw new QueryError('GROUP BY gibt es für TABLE und LIST');
+      const t = next();
+      if (!t || KEYWORDS.has(t.toLowerCase())) throw new QueryError('GROUP BY braucht ein Feld, z. B. GROUP BY status');
+      q.groupBy = unquote(t).toLowerCase();
+    } else if (kw === 'values' && q.mode === 'kanban') {
+      while (i < tokens.length && !atClause()) {
         const t = next();
         if (t !== ',') q.columnValues.push(unquote(t));
       }
@@ -124,7 +173,7 @@ export function parseQuery(src: string): Query {
       else q.from = unquote(t).replace(/\/$/, '');
     } else if (kw === 'where') {
       let group: Condition[] = [];
-      while (i < tokens.length && !KEYWORDS.has(peek()!)) {
+      while (i < tokens.length && !atClause()) {
         const field = next();
         const op = next()?.toLowerCase() as Op;
         const value = next();
@@ -290,7 +339,60 @@ export function runQuery(src: string | Query, notes: QueryNote[], today = new Da
     return { query, columns: ['title'], rows, lanes };
   }
   const columns = query.mode === 'table' ? query.fields : query.mode === 'tasks' ? ['text', 'due', 'note'] : ['title'];
-  return { query, columns, rows };
+  const aggregates = query.mode === 'table' ? columns.flatMap((c) => { const a = parseAggregate(c); return a ? [[c, a] as const] : []; }) : [];
+  // Rows show the aggregated field's own value in an aggregate column (COUNT stays empty)
+  for (const [col, a] of aggregates) {
+    if (a.field) for (const r of rows) r.values[col] = r.values[a.field];
+  }
+  const aggregate = (list: QueryRow[]) => Object.fromEntries(aggregates.map(([col, a]) => [col, aggregateOf(a.fn, a.field, list)]));
+  const result: QueryResult = { query, columns, rows };
+  if (aggregates.length) result.totals = aggregate(rows);
+  if (query.groupBy && (query.mode === 'table' || query.mode === 'list')) {
+    const field = query.groupBy;
+    const byKey = new Map<string, QueryRow[]>();
+    for (const r of rows) {
+      for (const key of groupKeys(r.values[field], field)) {
+        const list = byKey.get(key);
+        if (list) {
+          if (list[list.length - 1] !== r) list.push(r);
+        } else byKey.set(key, [r]);
+      }
+    }
+    const desc = query.sort?.field === field && query.sort.desc;
+    const keys = [...byKey.keys()].sort((a, b) => (a === '' ? 1 : b === '' ? -1 : desc ? -compare(a, b) : compare(a, b)));
+    result.groups = keys.map((key) => ({ key, rows: byKey.get(key)!, aggregates: aggregate(byKey.get(key)!) }));
+    result.summary = query.mode === 'table' && aggregates.length > 0 && columns.every((c) => c === field || parseAggregate(c));
+    // A summary always shows which group a row is
+    if (result.summary && !columns.includes(field)) result.columns = [field, ...columns];
+  }
+  return result;
+}
+
+/** The groups a value belongs to: one per list entry (tags), dates of created/updated by day */
+function groupKeys(v: unknown, field: string): string[] {
+  if (Array.isArray(v)) {
+    const keys = [...new Set(v.map((x) => String(x ?? '').trim()).filter(Boolean))];
+    return keys.length ? keys : [''];
+  }
+  if (typeof v === 'number' && (field === 'created' || field === 'updated')) return [toDateString(new Date(v))];
+  if (typeof v === 'boolean') return [String(v)];
+  return [String(v ?? '').trim()];
+}
+
+/** Sums keep their digits (0.1 + 0.2 stays 0.3), averages show two decimals */
+const round = (n: number, digits: number) => Math.round(n * 10 ** digits) / 10 ** digits;
+
+function aggregateOf(fn: AggregateFn, field: string | null, rows: QueryRow[]): unknown {
+  if (fn === 'count') return rows.length;
+  const values = rows.map((r) => r.values[field!]).flatMap((v) => (Array.isArray(v) ? v : [v])).filter((v) => v !== undefined && v !== null && v !== '');
+  if (fn === 'min' || fn === 'max') {
+    if (!values.length) return '';
+    return values.reduce((best, v) => ((fn === 'min' ? compare(v, best) < 0 : compare(v, best) > 0) ? v : best));
+  }
+  const nums = values.map((v) => (typeof v === 'number' ? v : Number(String(v).replace(',', '.')))).filter((n) => Number.isFinite(n));
+  if (!nums.length) return '';
+  const sum = nums.reduce((a, b) => a + b, 0);
+  return fn === 'sum' ? round(sum, 6) : round(sum / nums.length, 2);
 }
 
 /** Display text for a cell */

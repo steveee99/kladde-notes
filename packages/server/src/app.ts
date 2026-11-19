@@ -10,6 +10,9 @@ import { GroupStore } from './GroupStore.js';
 import { NoteStore } from './NoteStore.js';
 import { FileStore } from './FileStore.js';
 import { ExportMirror } from './ExportMirror.js';
+import { ActivityStore } from './ActivityStore.js';
+import { CommentStore } from './CommentStore.js';
+import { NotificationStore, notificationPush, type Delivery } from './NotificationStore.js';
 import { AuditLog } from './security/AuditLog.js';
 import { configuredOrigins, isAllowedOrigin } from './security/origin.js';
 import { appCsp, inlineScriptHashes } from './security/csp.js';
@@ -27,8 +30,8 @@ import { CalendarFeedStore } from './calendar/CalendarFeedStore.js';
 import { calendarRouters } from './calendar/router.js';
 import { PushStore } from './push/PushStore.js';
 import { pushRouter } from './push/router.js';
-import { runReminders, vapidSubject } from './push/reminders.js';
-import { allowedPushHosts } from './push/webpush.js';
+import { inQuietHours, localClock, runReminders, vapidSubject } from './push/reminders.js';
+import { allowedPushHosts, sendPush } from './push/webpush.js';
 import { EmbeddedAsset, ensureStandaloneUser } from './standalone.js';
 import { trashRetentionDays } from './trash.js';
 import { transcriberFromEnv } from './transcribe.js';
@@ -92,8 +95,19 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   const mirror = ExportMirror.fromEnv((id) => users.getUser(id)?.username ?? null, env);
   // Created below (it needs the file store); note changes reach it from the first push on
   let confluence: ConfluenceSync | undefined;
+  // Activity of groups and shared notes (#70)
+  const activity = new ActivityStore(opts.db, cipher);
+  // Mentions and comments (#69, #68): kept per user, a live event to open apps, Web Push to the devices
+  let deliverPush: ((userId: string, d: Delivery, noteId: string) => void) | undefined;
+  const notifications = new NotificationStore(opts.db, cipher, users, (userId, d) => {
+    live.send([userId], 'notification', {});
+    const noteId = /^\/n\/([^?]+)/.exec(d.url)?.[1] ?? '';
+    deliverPush?.(userId, d, noteId);
+  });
   const notes = new NoteStore(opts.db, cipher, (event) => {
     live.notify(event.audience);
+    activity.record(event);
+    notifications.mentions(event);
     mirror?.apply(event);
     confluence?.onNoteChange(event);
   });
@@ -118,6 +132,19 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   const standaloneUser = opts.standalone ? ensureStandaloneUser(users) : undefined;
   const push = opts.standalone ? undefined : new PushStore(opts.db, cipher, allowedPushHosts(env));
   const pushSubject = vapidSubject(env, opts.publicUrl);
+  if (push) {
+    // Outside the device's quiet hours; the note's name only travels when the device shows texts
+    deliverPush = (userId, d, noteId) => {
+      for (const sub of push.all()) {
+        if (sub.userId !== userId) continue;
+        if (inQuietHours(localClock(new Date(), sub.settings.timeZone).minutes, sub.settings)) continue;
+        const payload = notificationPush(sub.settings.showText ? d : { ...d, name: '' }, sub.settings.lang, noteId);
+        void sendPush(sub.target, payload, push.vapidKeys(), pushSubject, { urgency: 'normal', topic: payload.tag.replace(/[^\w-]/g, '').slice(0, 32) })
+          .then((outcome) => outcome === 'gone' && push.drop(sub.id))
+          .catch(() => {});
+      }
+    };
+  }
   const mcp = mcpRouters({
     users,
     notes,
@@ -287,7 +314,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       })
     );
   }
-  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db) }));
+  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db), activity, notifications, comments: opts.standalone ? undefined : new CommentStore(opts.db, cipher, users) }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
   if (opts.seaAssets && opts.seaAssets.size > 0) {
