@@ -7,6 +7,7 @@ describe('math formulas (#85)', () => {
     expect(findInlineMath('Kostet $5 und $10 pro Stück')).toEqual([]);
     expect(findInlineMath('Ein \\$ Zeichen und $ a $ nicht')).toEqual([]);
     expect(findInlineMath('`$x$` ist Code, $y$ nicht').map((m) => m.tex)).toEqual(['y']);
+    expect(findInlineMath('``a`$b$`` und $c$, offen ` $d$').map((m) => m.tex)).toEqual(['c', 'd']);
     expect(findInlineMath('Summe $$\\sum_i i$$ inline')).toEqual([{ from: 6, to: 18, tex: '\\sum_i i', display: true, block: false }]);
   });
 

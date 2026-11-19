@@ -19,11 +19,51 @@ export interface MathSpan {
   block: boolean;
 }
 
+/**
+ * `inline code` spans of a line: a run of backticks up to the next run of the same length. A linear scan
+ * (a backreference regex is polynomial on many backticks, CodeQL ReDoS).
+ */
+function codeSpans(line: string): [number, number][] {
+  if (!line.includes('`')) return [];
+  // Runs of backticks with their start and length
+  const runs: [number, number][] = [];
+  for (let i = 0; i < line.length; ) {
+    if (line[i] !== '`') {
+      i++;
+      continue;
+    }
+    const start = i;
+    while (i < line.length && line[i] === '`') i++;
+    runs.push([start, i - start]);
+  }
+  const spans: [number, number][] = [];
+  // The next unused run of each length after a position: one pass from the end
+  const nextOfLength = new Map<number, number[]>();
+  runs.forEach(([, len], k) => {
+    const list = nextOfLength.get(len);
+    if (list) list.push(k);
+    else nextOfLength.set(len, [k]);
+  });
+  const cursor = new Map<number, number>();
+  for (let k = 0; k < runs.length; k++) {
+    const [start, len] = runs[k];
+    const list = nextOfLength.get(len)!;
+    let c = cursor.get(len) ?? 0;
+    while (c < list.length && list[c] <= k) c++;
+    cursor.set(len, c);
+    if (c >= list.length) continue;
+    const close = list[c];
+    spans.push([start, runs[close][0] + len]);
+    cursor.set(len, c + 1);
+    k = close;
+  }
+  return spans;
+}
+
 /** The inline formulas of one line, outside `inline code` */
 export function findInlineMath(line: string, offset = 0): MathSpan[] {
   if (!line.includes('$')) return [];
-  const code: [number, number][] = [];
-  for (const m of line.matchAll(/(`+)[^`]*?\1/g)) code.push([m.index!, m.index! + m[0].length]);
+  const code = codeSpans(line);
   const out: MathSpan[] = [];
   for (const m of line.matchAll(new RegExp(INLINE_MATH_SOURCE, 'g'))) {
     const from = m.index!;
