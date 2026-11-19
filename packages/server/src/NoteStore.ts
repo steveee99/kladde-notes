@@ -350,6 +350,26 @@ export class NoteStore {
     return [row.owner_id, ...shared.map((s) => s.user_id), ...members.map((m) => m.user_id)];
   }
 
+  /** Path of a live note as its owner's space has it (in a group: inside the group), null otherwise */
+  pathOf(noteId: string): string | null {
+    const row = ID_PATTERN.test(noteId) ? this.getRow(noteId) : undefined;
+    return row && !row.deleted ? this.payload(row).path : null;
+  }
+
+  /** The user owns the note or writes in the group that owns it (may rename, delete it and moderate its comments) */
+  manages(userId: string, noteId: string): boolean {
+    const row = ID_PATTERN.test(noteId) ? this.getRow(noteId) : undefined;
+    return !!row && !row.deleted && this.canManage(row, userId);
+  }
+
+  /** The person who owns the note, or for a group note its owners and editors (who look after it) */
+  keepersOf(noteId: string): string[] {
+    const row = ID_PATTERN.test(noteId) ? this.getRow(noteId) : undefined;
+    if (!row) return [];
+    const writers = this.db.prepare("SELECT user_id FROM group_members WHERE group_id = ? AND role IN ('owner', 'editor')").all(row.owner_id) as { user_id: string }[];
+    return writers.length ? writers.map((w) => w.user_id) : [row.owner_id];
+  }
+
   /** Everybody who may see the note (owner and shares), or null for an unknown/deleted note; for live presence */
   audienceOf(noteId: string): string[] | null {
     if (!ID_PATTERN.test(noteId)) return null;
@@ -692,6 +712,8 @@ export class NoteStore {
     this.db.prepare('DELETE FROM note_versions WHERE note_id = ?').run(r.note_id);
     this.db.prepare('DELETE FROM note_releases WHERE note_id = ?').run(r.note_id);
     this.db.prepare('DELETE FROM note_versioning WHERE note_id = ?').run(r.note_id);
+    // Comments (#68) go with the note
+    this.db.prepare('DELETE FROM comment_threads WHERE note_id = ?').run(r.note_id);
     return content;
   }
 

@@ -1568,6 +1568,16 @@ span.cm-checkbox {
 .wz-table tbody tr:hover {
   background: rgb(var(--surface-container-high) / 0.6);
 }
+/* Comments (#68): passages with open threads, the one shown in the panel stronger */
+.cm-comment {
+  background: rgb(var(--tertiary-container) / 0.55);
+  border-bottom: 2px solid rgb(var(--tertiary) / 0.7);
+  cursor: pointer;
+}
+.cm-comment-active {
+  background: rgb(var(--tertiary-container));
+  border-bottom-color: rgb(var(--tertiary));
+}
 /* @mentions (#69): a chip with the avatar of someone who can see the note */
 .cm-mention {
   color: rgb(var(--primary));

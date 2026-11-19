@@ -1075,7 +1075,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
               {features.calendarView.enabled && navRow('calendar', CalendarMonth, t('nav.calendar'), { to: '/calendar' })}
               {!vault.standalone &&
                 !DEMO &&
-                features.mentions.enabled &&
+                (features.mentions.enabled || features.comments.enabled) &&
                 navRow('notifications', Bell, t('notices.nav'), { to: '/notifications', badge: <NavBadge count={vault.unreadNotifications} /> })}
               {navRow('inbox', InboxIcon, t('nav.inbox'), {
                 to: '/inbox',

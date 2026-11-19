@@ -1,11 +1,12 @@
 import express, { Response } from 'express';
-import { isReleaseBump } from '@kladde/shared';
+import { extractMentions, isReleaseBump, type CommentThreadList } from '@kladde/shared';
 import type { ActivityList, NotePerson, MyStorage, AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
 import { Presence } from './Presence.js';
 import { FILE_URL_RE, attachmentUsageMap } from './cliActions.js';
 import { GroupError, GroupStore } from './GroupStore.js';
 import type { ActivityStore } from './ActivityStore.js';
 import type { NotificationStore } from './NotificationStore.js';
+import { CommentError, type CommentStore } from './CommentStore.js';
 import { AvatarStore, MAX_AVATAR_BYTES } from './AvatarStore.js';
 import { NoteStore, ReleaseConflict, TrashPathTaken, VersioningOff } from './NoteStore.js';
 import { DEFAULT_TRASH_DAYS, dropUnusedAttachments } from './trash.js';
@@ -74,6 +75,8 @@ export interface ApiRouterOptions {
   activity?: ActivityStore;
   /** Mentions and comments (#69, #68) */
   notifications?: NotificationStore;
+  /** Comment threads on passages (#68) */
+  comments?: CommentStore;
 }
 
 export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, live: LiveUpdates, opts: ApiRouterOptions = {}): express.Router {
@@ -631,6 +634,123 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       const noteId = typeof req.body?.noteId === 'string' ? req.body.noteId : undefined;
       notifications.markRead(req.user!.id, { ids, noteId });
       res.json({ unread: notifications.unread(req.user!.id) });
+    });
+  }
+
+  // ---------------------------------------------------------------- comments (#68)
+
+  if (!standalone && opts.comments) {
+    const comments = opts.comments;
+    const notify = opts.notifications;
+    /** Everybody who sees the note, or a 404 for the caller */
+    const audienceFor = (userId: string, noteId: string): string[] => {
+      const audience = notes.audienceOf(noteId);
+      if (!audience?.includes(userId)) throw new CommentError('Notiz nicht gefunden (oder nicht deine).', 404);
+      return [...new Set(audience)];
+    };
+    const commentError = (res: Response, err: unknown) => {
+      if (err instanceof CommentError) res.status(err.status).json({ error: err.message });
+      else throw err;
+    };
+    /** Open apps load the threads again; the people concerned get a notification */
+    const after = (noteId: string, audience: string[], actorId: string, text: string, threadId: string, recipients: string[], kind: 'comment' | 'reply') => {
+      live.send(audience, 'comments', { noteId });
+      if (!notify) return;
+      const path = notes.pathOf(noteId) ?? '';
+      const mentioned = new Set(
+        extractMentions(text)
+          .map((name) => users.findByUsername(name)?.id)
+          .filter((id): id is string => !!id && id !== actorId && audience.includes(id))
+      );
+      for (const id of mentioned) notify.add({ userId: id, kind: 'mention', noteId, actorId, path, text, threadId });
+      for (const id of new Set(recipients)) {
+        if (id === actorId || mentioned.has(id) || !audience.includes(id)) continue;
+        notify.add({ userId: id, kind, noteId, actorId, path, text, threadId });
+      }
+    };
+
+    router.get('/notes/:id/comments', (req, res) => {
+      try {
+        audienceFor(req.user!.id, req.params.id);
+        res.json({ threads: comments.list(req.params.id) } satisfies CommentThreadList);
+      } catch (err) {
+        commentError(res, err);
+      }
+    });
+
+    // A new thread on a passage: { anchor, text }
+    router.post('/notes/:id/comments', rateLimit(120, 60_000), (req, res) => {
+      try {
+        const noteId = String(req.params.id);
+        const audience = audienceFor(req.user!.id, noteId);
+        const thread = comments.create(noteId, req.user!.id, req.body?.anchor, req.body?.text);
+        after(noteId, audience, req.user!.id, thread.comments[0].text, thread.id, notes.keepersOf(noteId), 'comment');
+        res.json(thread);
+      } catch (err) {
+        commentError(res, err);
+      }
+    });
+
+    router.post('/notes/:id/comments/:thread/replies', rateLimit(120, 60_000), (req, res) => {
+      try {
+        const noteId = String(req.params.id);
+        const audience = audienceFor(req.user!.id, noteId);
+        const before = comments.participants(noteId, String(req.params.thread));
+        const thread = comments.reply(noteId, String(req.params.thread), req.user!.id, req.body?.text);
+        after(noteId, audience, req.user!.id, thread.comments[thread.comments.length - 1].text, thread.id, before, 'reply');
+        res.json(thread);
+      } catch (err) {
+        commentError(res, err);
+      }
+    });
+
+    // { resolved: boolean }
+    router.patch('/notes/:id/comments/:thread', (req, res) => {
+      try {
+        const noteId = String(req.params.id);
+        const audience = audienceFor(req.user!.id, noteId);
+        const thread = comments.setResolved(noteId, String(req.params.thread), req.user!.id, !!req.body?.resolved);
+        live.send(audience, 'comments', { noteId });
+        res.json(thread);
+      } catch (err) {
+        commentError(res, err);
+      }
+    });
+
+    router.put('/notes/:id/comments/:thread/replies/:comment', (req, res) => {
+      try {
+        const noteId = String(req.params.id);
+        const audience = audienceFor(req.user!.id, noteId);
+        const thread = comments.edit(noteId, String(req.params.thread), String(req.params.comment), req.user!.id, req.body?.text);
+        live.send(audience, 'comments', { noteId });
+        res.json(thread);
+      } catch (err) {
+        commentError(res, err);
+      }
+    });
+
+    router.delete('/notes/:id/comments/:thread/replies/:comment', (req, res) => {
+      try {
+        const noteId = String(req.params.id);
+        const audience = audienceFor(req.user!.id, noteId);
+        const thread = comments.deleteComment(noteId, String(req.params.thread), String(req.params.comment), req.user!.id, notes.manages(req.user!.id, noteId));
+        live.send(audience, 'comments', { noteId });
+        res.json({ thread });
+      } catch (err) {
+        commentError(res, err);
+      }
+    });
+
+    router.delete('/notes/:id/comments/:thread', (req, res) => {
+      try {
+        const noteId = String(req.params.id);
+        const audience = audienceFor(req.user!.id, noteId);
+        comments.deleteThread(noteId, String(req.params.thread), req.user!.id, notes.manages(req.user!.id, noteId));
+        live.send(audience, 'comments', { noteId });
+        res.json({ ok: true });
+      } catch (err) {
+        commentError(res, err);
+      }
     });
   }
 

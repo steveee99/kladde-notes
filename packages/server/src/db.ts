@@ -500,6 +500,23 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 24,
+    description: 'Comment threads anchored to passages of notes (#68)',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE comment_threads (
+          id TEXT PRIMARY KEY,
+          note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          resolved_at INTEGER,
+          payload BLOB NOT NULL
+        );
+        CREATE INDEX comment_threads_note ON comment_threads(note_id);
+      `);
+    },
+  },
 ];
 
 /** The schema version this build migrates to */

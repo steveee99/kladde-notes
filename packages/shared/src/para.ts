@@ -136,6 +136,10 @@ export interface FeatureSettings {
   mentions: {
     enabled: boolean;
   };
+  /** Comment threads on passages of notes (#68) */
+  comments: {
+    enabled: boolean;
+  };
 }
 
 /** Configurable folder mapping per role; `null` disables matching for that role */
@@ -291,6 +295,7 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
     calendarView: { enabled: optOutFlag(obj.calendarView) },
     activity: { enabled: optOutFlag(obj.activity) },
     mentions: { enabled: optOutFlag(obj.mentions) },
+    comments: { enabled: optOutFlag(obj.comments) },
   };
 }
 

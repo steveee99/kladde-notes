@@ -13,6 +13,7 @@ export type FeatureArtId =
   | 'calendarView'
   | 'activity'
   | 'mentions'
+  | 'comments'
   | 'monthly'
   | 'review'
   | 'heatmap'
@@ -116,6 +117,21 @@ const ART: Record<FeatureArtId, ReactNode> = {
       <rect x={90} y={44} width={28} height={5} rx={2} className="fill-tertiary" />
       <rect x={30} y={64} width={13} height={5} rx={2} className="fill-secondary" />
       <rect x={75} y={58} width={13} height={18} rx={2} className="fill-primary" fillOpacity={0.25} />
+    </>
+  ),
+  comments: (
+    <>
+      <Card x={14} y={14} w={78} h={62} />
+      <Bar x={22} y={26} w={56} />
+      <rect x={22} y={36} width={40} height={6} rx={2} className="fill-tertiary-container" />
+      <Bar x={22} y={48} w={60} />
+      <Bar x={22} y={60} w={36} />
+      <Card x={98} y={22} w={50} h={44} className="fill-surface-container-high" />
+      <circle cx={108} cy={33} r={5} className="fill-primary" />
+      <Bar x={116} y={31} w={24} h={3} />
+      <Bar x={104} y={44} w={38} h={3} />
+      <Bar x={104} y={52} w={28} h={3} />
+      <path d="M62 39 L98 30" className="stroke-tertiary" strokeWidth={1.5} strokeDasharray="3 2" />
     </>
   ),
   mentions: (

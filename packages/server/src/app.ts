@@ -11,6 +11,7 @@ import { NoteStore } from './NoteStore.js';
 import { FileStore } from './FileStore.js';
 import { ExportMirror } from './ExportMirror.js';
 import { ActivityStore } from './ActivityStore.js';
+import { CommentStore } from './CommentStore.js';
 import { NotificationStore, notificationPush, type Delivery } from './NotificationStore.js';
 import { AuditLog } from './security/AuditLog.js';
 import { configuredOrigins, isAllowedOrigin } from './security/origin.js';
@@ -313,7 +314,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       })
     );
   }
-  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db), activity, notifications }));
+  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db), activity, notifications, comments: opts.standalone ? undefined : new CommentStore(opts.db, cipher, users) }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
   if (opts.seaAssets && opts.seaAssets.size > 0) {

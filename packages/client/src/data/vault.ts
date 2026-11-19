@@ -1451,6 +1451,7 @@ class Vault {
       calendarView: { enabled: true },
       activity: { enabled: true },
       mentions: { enabled: true },
+      comments: { enabled: true },
       weekly: { enabled: false, folder: DEFAULT_WEEKLY_FOLDER, format: DEFAULT_WEEKLY_FORMAT },
       monthly: { enabled: false, folder: DEFAULT_MONTHLY_FOLDER, format: DEFAULT_MONTHLY_FORMAT },
     } satisfies FeatureSettings);

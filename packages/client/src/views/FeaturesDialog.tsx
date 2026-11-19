@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Activity as ActivityIcon,
   AtSign,
+  MessageSquare,
   AlignJustify,
   ArrowLeft,
   Bell,
@@ -105,7 +106,7 @@ function useFeatures(lang: Lang): Feature[] {
   const server = !vault.standalone;
   const serverHint = L('features.serverHint');
 
-  const flag = (key: 'mentions' | 'activity' | 'calendarView' | 'heatmap' | 'review' | 'favorites' | 'icons' | 'writingStats' | 'database' | 'presentation' | 'callouts' | 'mcp' | 'notifications' | 'calendar' | 'shortcuts') => ({
+  const flag = (key: 'comments' | 'mentions' | 'activity' | 'calendarView' | 'heatmap' | 'review' | 'favorites' | 'icons' | 'writingStats' | 'database' | 'presentation' | 'callouts' | 'mcp' | 'notifications' | 'calendar' | 'shortcuts') => ({
     active: features[key].enabled,
     setActive: (on: boolean) => save((f) => ({ ...f, [key]: { ...f[key], enabled: on } })),
   });
@@ -198,6 +199,15 @@ function useFeatures(lang: Lang): Feature[] {
       details: L('features.calendarViewDesc'),
       standard: true,
       ...flag('calendarView'),
+    },
+    server && {
+      id: 'comments',
+      Icon: MessageSquare,
+      title: L('features.commentsTitle'),
+      summary: L('features.sum.comments'),
+      details: L('features.commentsDesc'),
+      standard: true,
+      ...flag('comments'),
     },
     server && {
       id: 'mentions',

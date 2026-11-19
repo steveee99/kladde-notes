@@ -8,6 +8,7 @@ import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/lang
 import type { SyntaxNode } from '@lezer/common';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 import { tags as t } from '@lezer/highlight';
+import { commentHighlights } from './comments';
 import { calloutsFacet, livePreview, noteIdFacet, previewAll, refreshEffect, slideBreakLabel } from './livePreview';
 import { configureEmbeds } from './embed';
 import { embedResolverFacet, type EmbedResolver } from './embedContext';
@@ -348,6 +349,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           }),
           EditorView.domEventHandlers({ blur: () => flush() }),
           presenceNote ? remoteCursors(presenceNote) : [],
+          commentHighlights,
           resolveEmbed ? embedResolverFacet.of(resolveEmbed) : [],
         ],
       }),

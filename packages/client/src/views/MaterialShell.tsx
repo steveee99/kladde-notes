@@ -158,7 +158,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
   const sidebarWidth = useSidebarWidth();
   const features = vault.features();
   // Mentions and comments (#69, #68): only with an account on a server
-  const showNotifications = !vault.standalone && !DEMO && features.mentions.enabled;
+  const showNotifications = !vault.standalone && !DEMO && (features.mentions.enabled || features.comments.enabled);
   const dailyNote = features.daily.enabled ? vault.findDailyNote() : undefined;
   const dailyActive = path === '/daily' || path.startsWith('/daily/') || (!!dailyNote && noteId === dailyNote.id);
   const showDailyRail = features.daily.enabled && (!locked || !!dailyNote);
