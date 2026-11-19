@@ -20,11 +20,13 @@ import {
   type CalloutKind,
   type MarkdownTable,
   type NoteHeading,
+  parseAggregate,
   type QueryResult,
+  type QueryRow,
   type TaskStatus,
 } from '@kladde/shared';
 import { getLang, locale, tl, type Lang } from '../lib/i18n';
-import { dataTable, openTableCell, parseMarkdownTable, stripInline, type CellRef, type TableEditing } from './datatable';
+import { dataTable, groupedTable, openTableCell, parseMarkdownTable, stripInline, type CellRef, type DataRow, type TableEditing } from './datatable';
 import { editorHost } from './host';
 import { embedContext } from './embedContext';
 import { DiagramKind, drawDiagram, openDiagram } from './diagram';
@@ -212,7 +214,18 @@ export class QueryWidget extends BlockWidget {
     }
     if (result.lanes) return this.frame(view, this.kanban(result, view));
     const isTasks = result.query.mode === 'tasks';
-    const rows = result.rows.map((row) => {
+    const unnamed = `(${tl(this.lang, 'common.unnamed').toLowerCase()})`;
+    const noteLink = (row: QueryRow, text: string) => {
+      const a = document.createElement('a');
+      a.className = 'cm-link';
+      a.textContent = text || unnamed;
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        editorHost.openNote(row.noteId);
+      });
+      return a;
+    };
+    const rowOf = (row: QueryRow): DataRow => {
       const cells: (string | Node)[] = result.columns.map((col, i) => {
         const v = row.values[col];
         if (i === 0) {
@@ -232,20 +245,14 @@ export class QueryWidget extends BlockWidget {
               editorHost.openTask(row.noteId, row.line!);
             });
           }
-          const a = document.createElement('a');
-          a.className = 'cm-link';
-          a.textContent = formatValue(v) || `(${tl(this.lang, 'common.unnamed').toLowerCase()})`;
-          a.addEventListener('click', (e) => {
-            e.preventDefault();
-            editorHost.openNote(row.noteId);
-          });
-          wrap.append(a);
+          wrap.append(noteLink(row, formatValue(v)));
           return wrap;
         }
         return formatValue(v);
       });
       return { cells, keys: result.columns.map((c) => (typeof row.values[c] === 'number' ? String(row.values[c]).padStart(15, '0') : formatValue(row.values[c]))) };
-    });
+    };
+    const en = this.lang === 'en';
     const label = {
       title: tl(this.lang, 'list.colTitle'),
       updated: tl(this.lang, 'list.colUpdated'),
@@ -253,10 +260,62 @@ export class QueryWidget extends BlockWidget {
       folder: tl(this.lang, 'list.colFolder'),
       tags: tl(this.lang, 'list.colTags'),
       text: tl(this.lang, 'quick.taskBtn'),
-      due: this.lang === 'en' ? 'Due' : 'Fällig',
-      note: this.lang === 'en' ? 'Note' : 'Notiz',
+      due: en ? 'Due' : 'Fällig',
+      note: en ? 'Note' : 'Notiz',
     } as Record<string, string>;
-    return this.frame(view, dataTable(result.columns.map((c) => label[c] ?? c), rows, { caption: `⚡ ${result.query.mode.toUpperCase()}` }));
+    const headerOf = (c: string) => {
+      const agg = parseAggregate(c);
+      if (agg?.fn === 'count') return tl(this.lang, 'editor.queryCount');
+      if (agg) return `${agg.fn.toUpperCase()}(${label[agg.field!] ?? agg.field})`;
+      return label[c] ?? c;
+    };
+    const headers = result.columns.map(headerOf);
+    const caption = `⚡ ${result.query.mode.toUpperCase()}`;
+    const groupBy = result.query.groupBy ?? '';
+    const groupLabel = (key: string) => key || tl(this.lang, 'editor.queryNoValue', { field: label[groupBy] ?? groupBy });
+    /** Aggregate cells of a footer row; the first cell names it when it is not an aggregate itself */
+    const footerOf = (values: Record<string, unknown>, name: string) =>
+      result.columns.map((c, i) => (c in values ? formatValue(values[c]) : i === 0 ? name : ''));
+    const total = tl(this.lang, 'editor.queryTotal');
+    if (result.groups && result.summary) {
+      // One row per group: the group field's value and its aggregates
+      const rows = result.groups.map((g) => {
+        const values = result.columns.map((c) => (c === groupBy ? groupLabel(g.key) : formatValue(g.aggregates[c])));
+        return { cells: values, keys: result.columns.map((c, i) => (typeof g.aggregates[c] === 'number' ? String(g.aggregates[c]).padStart(15, '0') : values[i])) };
+      });
+      return this.frame(view, dataTable(headers, rows, { caption, footer: footerOf(result.totals ?? {}, total) }));
+    }
+    if (result.groups && result.query.mode === 'table') {
+      const groups = result.groups.map((g) => ({
+        label: groupLabel(g.key),
+        rows: g.rows.map(rowOf),
+        footer: result.totals ? footerOf(g.aggregates, '') : undefined,
+      }));
+      return this.frame(view, groupedTable(headers, groups, { caption, total: result.rows.length, footer: result.totals ? footerOf(result.totals, total) : undefined }));
+    }
+    if (result.groups) {
+      const box = document.createElement('div');
+      box.className = 'cm-block-widget wz-query-groups';
+      for (const g of result.groups) {
+        const head = document.createElement('div');
+        head.className = 'wz-group-head';
+        head.append(groupLabel(g.key));
+        const n = document.createElement('span');
+        n.className = 'wz-group-count';
+        n.textContent = String(g.rows.length);
+        head.append(n);
+        const ul = document.createElement('ul');
+        for (const row of g.rows) {
+          const li = document.createElement('li');
+          li.append(noteLink(row, formatValue(row.values.title)));
+          ul.append(li);
+        }
+        box.append(head, ul);
+      }
+      if (!result.groups.length) box.textContent = tl(this.lang, 'nav.listEmpty');
+      return this.frame(view, box);
+    }
+    return this.frame(view, dataTable(headers, result.rows.map(rowOf), { caption, footer: result.totals ? footerOf(result.totals, total) : undefined }));
   }
 
   /** KANBAN: one lane per value of the status field; dragging a card to another lane rewrites the field */

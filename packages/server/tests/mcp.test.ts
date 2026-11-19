@@ -189,6 +189,10 @@ describe('MCP tools', () => {
     expect((await call(token, 'search_notes', { query: 'Ben' })).structuredContent.total).toBe(0);
     expect((await call(token, 'semantic_search', { query: 'Ben Tagebuch' })).structuredContent.total).toBe(0);
     expect((await call(token, 'query_notes', { query: 'LIST' })).structuredContent.total).toBe(1);
+    // Aggregates and groups (#77)
+    const grouped = (await call(token, 'query_notes', { query: 'TABLE folder, COUNT GROUP BY folder' })).structuredContent;
+    expect(grouped.totals).toEqual({ count: 1 });
+    expect(grouped.groups).toEqual([{ key: '1 Projekte', count: 1, aggregates: { count: 1 }, note_ids: [expect.any(String)] }]);
   });
 
   it('cannot change notes of other users', async () => {

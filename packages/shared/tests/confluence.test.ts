@@ -81,6 +81,18 @@ describe('markdownToConfluence (#48)', () => {
     expect(body).toContain('Kladde-Abfrage – in Confluence nicht verfügbar');
   });
 
+  it('renders query aggregates and groups (#77)', () => {
+    const notes = [
+      { id: 'n1', path: 'P/A.md', content: '---\nstatus: offen\nh: 2\n---\n', createdAt: 1, updatedAt: 1 },
+      { id: 'n2', path: 'P/B.md', content: '---\nstatus: offen\nh: 3\n---\n', createdAt: 1, updatedAt: 2 },
+      { id: 'n3', path: 'P/C.md', content: '---\nstatus: fertig\nh: 1\n---\n', createdAt: 1, updatedAt: 3 },
+    ];
+    const render = (q: string) => markdownToConfluence('X.md', `\`\`\`query\n${q}\n\`\`\``, { query: (src) => runQuery(src, notes) }).body;
+    expect(render('TABLE status, COUNT, SUM(h) GROUP BY status')).toContain('<tr><td>fertig</td><td>1</td><td>1</td></tr><tr><td>offen</td><td>2</td><td>5</td></tr><tr><td><strong>Gesamt</strong></td><td><strong>3</strong></td><td><strong>6</strong></td></tr>');
+    expect(render('LIST GROUP BY status')).toContain('<h4>fertig (1)</h4><ul><li>C</li></ul><h4>offen (2)</h4>');
+    expect(render('TABLE title, SUM(h)')).toContain('<td><strong>Gesamt</strong></td><td><strong>6</strong></td>');
+  });
+
   it('escapes XML and labels', () => {
     expect(xmlEscape('a & "b" <c>')).toBe('a &amp; &quot;b&quot; &lt;c&gt;');
     expect(cdata('x]]>y')).toBe('<![CDATA[x]]]]><![CDATA[>y]]>');

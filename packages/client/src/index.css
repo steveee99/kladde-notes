@@ -1568,6 +1568,58 @@ span.cm-checkbox {
 .wz-table tbody tr:hover {
   background: rgb(var(--surface-container-high) / 0.6);
 }
+/* Query aggregates and groups (#77): footer rows, group headers with a count */
+.wz-table tfoot td,
+.wz-table .wz-group-foot td {
+  font-weight: 600;
+  border-top: 1px solid rgb(var(--outline));
+  background: rgb(var(--surface-container));
+}
+.wz-table .wz-group-foot td {
+  font-weight: 500;
+  color: rgb(var(--on-surface-variant));
+  background: transparent;
+  border-top-style: dashed;
+}
+.wz-table-grouped th {
+  cursor: default;
+}
+.wz-table .wz-group-head th,
+.wz-query-groups .wz-group-head {
+  display: table-cell;
+  padding: 10px 12px 6px;
+  color: rgb(var(--primary));
+  background: rgb(var(--surface-container-high) / 0.5);
+  border-top: 1px solid rgb(var(--outline-variant));
+}
+.wz-query-groups {
+  border-radius: var(--shape-lg);
+  background: rgb(var(--surface-container-low));
+  overflow: hidden;
+}
+.wz-query-groups .wz-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.wz-query-groups .wz-group-head:first-child {
+  border-top: 0;
+}
+.wz-query-groups ul {
+  list-style: disc;
+  margin: 0;
+  padding: 6px 12px 10px 32px;
+}
+.wz-group-count {
+  margin-left: 8px;
+  padding: 0 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgb(var(--on-secondary-container));
+  background: rgb(var(--secondary-container));
+}
 /* Editable tables in the live preview: click a cell, column menu in the header, row delete on hover */
 .wz-table-action {
   flex-shrink: 0;
