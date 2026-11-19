@@ -55,7 +55,7 @@ export interface CalloutHeader {
 }
 
 /** `[!type]`, an optional `+`/`-`, then the title (text after the quote mark `> `) */
-const HEADER = /^\[!([A-Za-z][\w-]*)\]([+-]?)(?:[ \t]+(.*?))?[ \t]*$/;
+const HEADER = /^\[!([A-Za-z][\w-]*)\]([+-]?)(.*)$/;
 /** A whole quote line: up to three spaces, `>`, an optional space */
 const QUOTE_LINE = /^ {0,3}>[ \t]?/;
 
@@ -72,10 +72,12 @@ export function isKnownCalloutType(type: string): boolean {
 
 /** Reads the head of a callout from the text after the quote mark; null when it is an ordinary quote */
 export function parseCalloutHeader(text: string): CalloutHeader | null {
+  // One unambiguous pattern, the spaces before the title are checked by hand: `\s+(.*?)\s*$` backtracks
+  // polynomially on long runs of spaces (CodeQL js/polynomial-redos)
   const m = HEADER.exec(text);
-  if (!m) return null;
+  if (!m || (m[3] && !/^[ \t]/.test(m[3]))) return null;
   const type = m[1].toLowerCase();
-  return { type, kind: calloutKind(type), fold: m[2] as CalloutHeader['fold'], title: (m[3] ?? '').trim() };
+  return { type, kind: calloutKind(type), fold: m[2] as CalloutHeader['fold'], title: m[3].trim() };
 }
 
 /** Reads the head of a callout from a whole Markdown line (`> [!tip] Title`) */

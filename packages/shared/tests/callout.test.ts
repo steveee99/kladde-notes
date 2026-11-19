@@ -16,6 +16,13 @@ describe('callouts', () => {
     expect(parseCalloutLine('> [!note]Title glued on')).toBeNull();
   });
 
+  it('stays fast on long runs of spaces', () => {
+    const start = performance.now();
+    expect(parseCalloutHeader(`[!A]${'\t'.repeat(50_000)}x`)?.title).toBe('x');
+    expect(parseCalloutHeader(`[!A]${' \t'.repeat(50_000)}`)?.title).toBe('');
+    expect(performance.now() - start).toBeLessThan(200);
+  });
+
   it('maps aliases onto kinds with a color role', () => {
     expect(calloutKind('caution')).toBe('warning');
     expect(calloutKind('error')).toBe('danger');
