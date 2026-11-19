@@ -152,6 +152,8 @@ describe('activity API (#70)', () => {
       ['folder_shared', 'anna', 'Projekt'],
     ]);
     expect((await call(annaCookie, '/activity?owner=anna&folder=Projekt')).status).toBe(200);
+    // Slashes around the folder are trimmed without a backtracking regex
+    expect((await call(cleoCookie, `/activity?owner=anna&folder=/Projekt${'/'.repeat(5000)}`)).status).toBe(200);
     expect((await call(benCookie, '/activity?owner=anna&folder=Projekt')).status).toBe(404);
     expect((await call(cleoCookie, '/activity?owner=anna&folder=Privat')).status).toBe(404);
   });

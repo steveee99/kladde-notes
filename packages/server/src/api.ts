@@ -1,5 +1,5 @@
 import express, { Response } from 'express';
-import { extractMentions, isReleaseBump, type CommentThreadList } from '@kladde/shared';
+import { extractMentions, isReleaseBump, trimSlashes, type CommentThreadList } from '@kladde/shared';
 import type { ActivityList, NotePerson, MyStorage, AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
 import { Presence } from './Presence.js';
 import { FILE_URL_RE, attachmentUsageMap } from './cliActions.js';
@@ -581,7 +581,8 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
         if (!notes.groupRole(req.query.group, userId)) return void res.status(404).json({ error: 'Gruppe nicht gefunden.' });
         return void res.json({ entries: activity.ofOwner(req.query.group, { before }) } satisfies ActivityList);
       }
-      const folder = typeof req.query.folder === 'string' ? req.query.folder.replace(/^\/+|\/+$/g, '') : '';
+      // Trimmed by hand: `/\/+$/` backtracks polynomially on long runs of slashes (CodeQL js/polynomial-redos)
+      const folder = typeof req.query.folder === 'string' ? trimSlashes(req.query.folder.slice(0, 1000)) : '';
       const owner = typeof req.query.owner === 'string' ? users.findByUsername(req.query.owner) : null;
       if (!folder || !owner) return void res.status(400).json({ error: 'Ungültiger Ordner.' });
       const allowed =
