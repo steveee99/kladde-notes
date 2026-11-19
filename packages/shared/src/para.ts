@@ -174,10 +174,14 @@ export function cleanDailyFolder(raw: unknown, fallback = DEFAULT_DAILY_FOLDER):
   return parts.join('/');
 }
 
+/** Longest naming pattern: real ones are a few dozen characters, the matcher built from one stays small */
+export const MAX_FORMAT_LENGTH = 200;
+
 /** Daily filename/subfolder pattern (e.g. "YYYY/MM/YYYY-MM-DD.md") */
 export function cleanDailyFormat(raw: unknown, fallback = DEFAULT_DAILY_FORMAT): string {
   if (typeof raw !== 'string') return fallback;
   const parts = raw
+    .slice(0, MAX_FORMAT_LENGTH)
     .replace(/\\/g, '/')
     .split('/')
     .map((p) => p.trim())
@@ -362,7 +366,7 @@ export function resolveDailyNote(
   };
 
   const formattedStem = stemPattern.replace(
-    /\[([^\]]*)\]|(GGGG|YYYY|YY|MMMM|MMM|MM|M|DD|D|dddd|ddd|WW|W)/g,
+    /\[([^[\]]*)\]|(GGGG|YYYY|YY|MMMM|MMM|MM|M|DD|D|dddd|ddd|WW|W)/g,
     (full, literal: string | undefined, tok: string | undefined, offset: number, str: string) => {
       if (literal !== undefined) return literal;
       if (!tok) return full;

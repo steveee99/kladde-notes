@@ -19,7 +19,7 @@ describe('comment anchors (#68)', () => {
     const second = doc.lastIndexOf('Termin ist am Montag');
     const anchor = makeAnchor(doc, second, second + 20);
     // The first occurrence moved closer to the old offset; the context still picks the second one
-    const edited = doc.replace('Einleitung.', 'E.').replace('Zweiter Absatz: der', 'Zweiter Absatz: der');
+    const edited = doc.replace('Einleitung.', 'E.');
     const r = resolveAnchor(edited, anchor)!;
     expect(r.from).toBe(edited.lastIndexOf('Termin ist am Montag'));
   });

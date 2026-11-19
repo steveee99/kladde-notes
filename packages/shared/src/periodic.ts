@@ -67,7 +67,7 @@ function monthOfName(name: string): number {
 }
 
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const TOKEN = /\[([^\]]*)\]|(GGGG|YYYY|YY|MMMM|MMM|MM|M|DD|D|dddd|ddd|WW|W)/g;
+const TOKEN = /\[([^[\]]*)\]|(GGGG|YYYY|YY|MMMM|MMM|MM|M|DD|D|dddd|ddd|WW|W)/g;
 const MONTH_NAMES = 'Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|January|February|March|May|June|July|October|December|Jan|Feb|Mär|Mar|Apr|Jun|Jul|Aug|Sep|Okt|Oct|Nov|Dez|Dec';
 
 /**

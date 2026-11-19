@@ -63,7 +63,7 @@ export function createDailyDateExtractor(daily: Pick<DailySettings, 'folder' | '
   let pattern = folderRoot ? `${escapeRegExp(folderRoot)}/` : '';
   let lastIndex = 0;
 
-  const tokenRe = /\[([^\]]*)\]|(GGGG|YYYY|YY|MMMM|MMM|MM|M|DD|D|dddd|ddd|WW|W)/g;
+  const tokenRe = /\[([^[\]]*)\]|(GGGG|YYYY|YY|MMMM|MMM|MM|M|DD|D|dddd|ddd|WW|W)/g;
   let m: RegExpExecArray | null;
   while ((m = tokenRe.exec(rawStem)) !== null) {
     if (m.index > lastIndex) pattern += escapeRegExp(rawStem.slice(lastIndex, m.index));
