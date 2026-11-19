@@ -7,6 +7,7 @@ import {
   Bot,
   CalendarCheck,
   CalendarDays,
+  CalendarMonth,
   CalendarRange,
   CenterFocus,
   Check,
@@ -35,9 +36,14 @@ import {
   cleanDailyFormat,
   DEFAULT_DAILY_FOLDER,
   DEFAULT_DAILY_FORMAT,
+  DEFAULT_MONTHLY_FOLDER,
+  DEFAULT_MONTHLY_FORMAT,
+  DEFAULT_WEEKLY_FOLDER,
+  DEFAULT_WEEKLY_FORMAT,
   DEFAULT_RECIPE_FOLDER,
   type FeatureSettings,
   resolveDailyNote,
+  resolvePeriodicNote,
   STANDALONE_RECIPE_FOLDER,
 } from '@kladde/shared';
 import { api } from '../lib/api';
@@ -161,6 +167,26 @@ function useFeatures(lang: Lang): Feature[] {
       active: features.daily.enabled,
       setActive: (on) => save((f) => ({ ...f, daily: { ...f.daily, enabled: on } })),
       settings: () => <DailySettings features={features} folders={folders} locked={locked} />,
+    },
+    {
+      id: 'weekly',
+      Icon: CalendarRange,
+      title: L('features.weeklyTitle'),
+      summary: L('features.sum.weekly'),
+      details: L('features.weeklyDesc'),
+      active: features.weekly.enabled,
+      setActive: (on) => save((f) => ({ ...f, weekly: { ...f.weekly, enabled: on } })),
+      settings: () => <DailySettings kind="weekly" features={features} folders={folders} locked={locked} />,
+    },
+    {
+      id: 'monthly',
+      Icon: CalendarMonth,
+      title: L('features.monthlyTitle'),
+      summary: L('features.sum.monthly'),
+      details: L('features.monthlyDesc'),
+      active: features.monthly.enabled,
+      setActive: (on) => save((f) => ({ ...f, monthly: { ...f.monthly, enabled: on } })),
+      settings: () => <DailySettings kind="monthly" features={features} folders={folders} locked={locked} />,
     },
     {
       id: 'review',
@@ -650,22 +676,33 @@ function FeatureDetail({
   );
 }
 
-const DAILY_TOKENS = ['YYYY', 'YY', 'MMMM', 'MM', 'DD', 'WW', 'dddd'] as const;
+const PERIOD_TOKENS = {
+  daily: ['YYYY', 'YY', 'MMMM', 'MM', 'DD', 'WW', 'dddd'],
+  weekly: ['GGGG', 'YYYY', 'WW', '[W]', 'MM'],
+  monthly: ['YYYY', 'YY', 'MMMM', 'MM'],
+} as const;
+const PERIOD_DEFAULTS = {
+  daily: { folder: DEFAULT_DAILY_FOLDER, format: DEFAULT_DAILY_FORMAT },
+  weekly: { folder: DEFAULT_WEEKLY_FOLDER, format: DEFAULT_WEEKLY_FORMAT },
+  monthly: { folder: DEFAULT_MONTHLY_FOLDER, format: DEFAULT_MONTHLY_FORMAT },
+} as const;
 
-/** Target folder and naming pattern of daily notes */
-function DailySettings({ features, folders, locked }: { features: FeatureSettings; folders: string[]; locked: boolean }) {
+/** Target folder and naming pattern of daily, weekly and monthly notes (#73) */
+function DailySettings({ features, folders, locked, kind = 'daily' }: { features: FeatureSettings; folders: string[]; locked: boolean; kind?: 'daily' | 'weekly' | 'monthly' }) {
+  const defaults = PERIOD_DEFAULTS[kind];
+  const current = features[kind];
   const lang = useLang();
   const formatInputRef = useRef<HTMLInputElement>(null);
-  const [formatDraft, setFormatDraft] = useState(features.daily.format);
+  const [formatDraft, setFormatDraft] = useState(current.format);
 
   useEffect(() => {
-    setFormatDraft(features.daily.format);
-  }, [features.daily.format]);
+    setFormatDraft(current.format);
+  }, [current.format]);
 
   const commitDailyFormat = (raw: string) => {
-    const cleaned = cleanDailyFormat(raw, DEFAULT_DAILY_FORMAT);
+    const cleaned = cleanDailyFormat(raw, defaults.format);
     setFormatDraft(cleaned);
-    if (cleaned !== vault.features().daily.format) void save((f) => ({ ...f, daily: { ...f.daily, format: cleaned } })).catch(() => {});
+    if (cleaned !== vault.features()[kind].format) void save((f) => ({ ...f, [kind]: { ...f[kind], format: cleaned } })).catch(() => {});
   };
 
   const insertDailyToken = (tok: string) => {
@@ -686,31 +723,29 @@ function DailySettings({ features, folders, locked }: { features: FeatureSetting
     commitDailyFormat(`${stem}${sep}${tok}${hadMd ? '.md' : ''}`);
   };
 
-  const dailyPreview = resolveDailyNote(
-    { folder: features.daily.folder, format: formatDraft.trim() ? cleanDailyFormat(formatDraft, DEFAULT_DAILY_FORMAT) : DEFAULT_DAILY_FORMAT },
-    new Date(),
-    lang
-  ).path;
+  const previewSettings = { folder: current.folder, format: formatDraft.trim() ? cleanDailyFormat(formatDraft, defaults.format) : defaults.format };
+  const dailyPreview =
+    kind === 'daily' ? resolveDailyNote(previewSettings, new Date(), lang).path : resolvePeriodicNote(kind === 'weekly' ? 'week' : 'month', previewSettings, new Date(), lang).path;
 
   return (
     <>
       <FolderPicker
-        id="daily-target-folder"
+        id={`${kind}-target-folder`}
         label={tl(lang, 'settings.targetFolderLabel')}
-        value={features.daily.folder}
+        value={current.folder}
         folders={folders}
         allowRoot
-        extraOptions={[DEFAULT_DAILY_FOLDER]}
+        extraOptions={[defaults.folder]}
         disabled={locked}
-        onChange={(folder) => void save((f) => ({ ...f, daily: { ...f.daily, folder } }))}
+        onChange={(folder) => void save((f) => ({ ...f, [kind]: { ...f[kind], folder } }))}
       />
       <div className="space-y-1.5">
-        <label htmlFor="daily-naming-format" className="block text-xs font-medium text-on-surface-variant">
+        <label htmlFor={`${kind}-naming-format`} className="block text-xs font-medium text-on-surface-variant">
           {tl(lang, 'settings.dailyFormatLabel')}
         </label>
         <input
           ref={formatInputRef}
-          id="daily-naming-format"
+          id={`${kind}-naming-format`}
           type="text"
           disabled={locked}
           placeholder={tl(lang, 'settings.dailyFormatPlaceholder')}
@@ -728,7 +763,7 @@ function DailySettings({ features, folders, locked }: { features: FeatureSetting
         />
         <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
           <span className="text-on-surface-variant">{tl(lang, 'settings.dailyTokensLabel')}</span>
-          {DAILY_TOKENS.map((tok) => (
+          {PERIOD_TOKENS[kind].map((tok) => (
             <button
               key={tok}
               type="button"

@@ -1,9 +1,10 @@
-import { AlertTriangle, Briefcase, CalendarCheck, Check, Inbox, Lightbulb, Network, Settings, Target, Unlink } from '../lib/icons';
+import { AlertTriangle, Briefcase, CalendarCheck, CalendarRange, Check, Inbox, Lightbulb, Network, Settings, Target, Unlink } from '../lib/icons';
 import { buildReview, projectTitleOf } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { locale, tl, useLang } from '../lib/i18n';
 import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
+import { openThisPeriod } from './PeriodicNoteBar';
 
 export const REVIEW_KEY = 'lastReview';
 const WEEK = 7 * 86_400_000;
@@ -89,6 +90,19 @@ export function ReviewView() {
           {last ? tl(lang, 'review.lastDone', { date: new Date(last).toLocaleDateString(loc, { dateStyle: 'full' }) }) : tl(lang, 'review.neverDone')}
         </p>
       </div>
+
+      {features.weekly.enabled && (
+        <section className="card flex flex-wrap items-center gap-3 p-5 anim-fade-up" data-review-week>
+          <CalendarRange size={18} className="shrink-0 text-primary" />
+          <div className="min-w-0 flex-1">
+            <h2 className="font-medium">{tl(lang, 'review.weekNoteTitle')}</h2>
+            <p className="text-sm text-on-surface-variant">{tl(lang, 'review.weekNoteHint')}</p>
+          </div>
+          <button className="btn-tonal rounded-full px-4" disabled={locked && !vault.findPeriodicNote('week')} onClick={() => void openThisPeriod('week')}>
+            {tl(lang, vault.findPeriodicNote('week') ? 'review.weekNoteOpen' : 'review.weekNoteCreate')}
+          </button>
+        </section>
+      )}
 
       <Section icon={Inbox} title={tl(lang, 'review.inboxTitle')} count={r.inbox.length} ok={tl(lang, 'review.inboxOk')}>
         <button className="btn-primary rounded-full px-4" onClick={() => navigate('/inbox')}>

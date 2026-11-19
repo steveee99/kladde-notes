@@ -9,6 +9,8 @@ export type FeatureArtId =
   | 'para'
   | 'zettel'
   | 'daily'
+  | 'weekly'
+  | 'monthly'
   | 'review'
   | 'heatmap'
   | 'favorites'
@@ -85,6 +87,33 @@ const ART: Record<FeatureArtId, ReactNode> = {
       </text>
       <Bar x={54} y={60} w={52} />
       <Bar x={54} y={68} w={38} />
+    </>
+  ),
+  weekly: (
+    <>
+      <Card x={22} y={14} w={116} h={62} />
+      <text x={32} y={30} fontSize={9} fontWeight={600} className="fill-primary">
+        W47
+      </text>
+      {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+        <g key={i}>
+          <rect x={32 + i * 14.5} y={38} width={11} height={28} rx={3} className={i === 3 ? 'fill-primary' : 'fill-secondary-container'} />
+          <Bar x={34 + i * 14.5} y={58} w={7} h={3} className={i === 3 ? 'fill-on-primary' : 'fill-on-secondary-container'} o={0.7} />
+        </g>
+      ))}
+    </>
+  ),
+  monthly: (
+    <>
+      <Card x={40} y={8} w={80} h={74} />
+      <rect x={40} y={8} width={80} height={16} rx={6} className="fill-tertiary" />
+      <rect x={40} y={18} width={80} height={6} className="fill-tertiary" />
+      <text x={80} y={20} textAnchor="middle" fontSize={8} fontWeight={600} className="fill-on-tertiary">
+        2026-11
+      </text>
+      {Array.from({ length: 20 }, (_, i) => (
+        <circle key={i} cx={50 + (i % 5) * 15} cy={34 + Math.floor(i / 5) * 12} r={3.5} className={i === 12 ? 'fill-tertiary' : 'fill-on-surface-variant'} fillOpacity={i === 12 ? 1 : 0.3} />
+      ))}
     </>
   ),
   review: (

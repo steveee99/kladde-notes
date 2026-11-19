@@ -51,6 +51,7 @@ import { reviewDue } from './Review';
 import { urgentTaskCount } from './TaskParts';
 import { usePendingUploads } from '../data/uploads';
 import { useVault, vault } from '../data/vault';
+import { openThisPeriod } from './PeriodicNoteBar';
 import type { LocalNote } from '../data/db';
 import { currentPath, navigate, usePath } from '../lib/router';
 import { dragSource, useDropTarget } from '../lib/dnd';
@@ -1285,6 +1286,22 @@ function useDailyShortcut() {
   }, []);
 }
 
+/** Strg/⌘+Alt+W and Strg/⌘+Alt+M open this week's and this month's note (#73), while they are turned on */
+function usePeriodShortcuts() {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || !e.altKey || e.shiftKey) return;
+      const kind = e.code === 'KeyW' ? 'week' : e.code === 'KeyM' ? 'month' : null;
+      if (!kind || !vault.periodSettings(kind).enabled) return;
+      e.preventDefault();
+      e.stopPropagation();
+      void openThisPeriod(kind);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
+}
+
 /** Strg/⌘+Shift+F turns focus mode on/off for the open note; Escape leaves it */
 function useFocusShortcut() {
   useEffect(() => {
@@ -1368,6 +1385,7 @@ export function Shell({ me, children, isAdmin }: { me: Me; children: React.React
   useSearchShortcut();
   useSaveShortcut(showToast);
   useDailyShortcut();
+  usePeriodShortcuts();
   useFavoriteShortcut(showToast);
   useFocusShortcut();
 

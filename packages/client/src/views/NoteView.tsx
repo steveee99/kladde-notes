@@ -60,6 +60,7 @@ import { undo } from '@codemirror/commands';
 import {
   excerpt,
   extractDailyNoteDate,
+  createPeriodicExtractor,
   parseFrontmatter,
   fillReleasePlaceholders,
   type NoteRelease,
@@ -106,6 +107,7 @@ import { useModal } from '../lib/modal';
 import { useRightPaneHost } from './MaterialShell';
 import { IconPickerDialog } from './IconPicker';
 import { DailyCarryOver, DailyNoteBar } from './DailyNoteBar';
+import { PeriodicNoteBar } from './PeriodicNoteBar';
 import { NoteStats } from './NoteStats';
 import { setFocusMode, useFocusMode } from '../lib/focus';
 import { refreshConfluence, useConfluence } from '../lib/confluence';
@@ -1249,6 +1251,9 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const isProject = isOwner && features.para.enabled && isProjectNote(note.path, rc);
   const isSingleProject = isProject && isSingleProjectFile(note.path, rc);
   const dailyDate = features.daily.enabled && note.access === 'owner' ? extractDailyNoteDate(note.path, features.daily) : null;
+  // Weekly and monthly notes (#73) get the same kind of bar
+  const weekDate = !dailyDate && features.weekly.enabled && note.access === 'owner' ? createPeriodicExtractor('week', features.weekly)(note.path) : null;
+  const monthDate = !dailyDate && !weekDate && features.monthly.enabled && note.access === 'owner' ? createPeriodicExtractor('month', features.monthly)(note.path) : null;
   const focus = focusMode && features.focus.enabled;
   const onEditorActivity = () => {
     if (statsTimer.current) clearTimeout(statsTimer.current);
@@ -1458,6 +1463,11 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             <div className="no-print">
               <DailyNoteBar date={dailyDate} />
               {!readOnly && <DailyCarryOver noteId={id} date={dailyDate} />}
+            </div>
+          )}
+          {(weekDate || monthDate) && !focus && (
+            <div className="no-print">
+              <PeriodicNoteBar kind={weekDate ? 'week' : 'month'} date={(weekDate ?? monthDate)!} />
             </div>
           )}
 

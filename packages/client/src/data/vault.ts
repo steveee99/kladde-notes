@@ -50,6 +50,16 @@ import {
   parseFrontmatter,
   projectTitleOf,
   resolveDailyNote,
+  resolvePeriodicNote,
+  DEFAULT_WEEKLY_FOLDER,
+  DEFAULT_WEEKLY_FORMAT,
+  DEFAULT_MONTHLY_FOLDER,
+  DEFAULT_MONTHLY_FORMAT,
+  fillPeriodicTemplate,
+  defaultPeriodicTemplate,
+  WEEKLY_TEMPLATE_SETTING,
+  MONTHLY_TEMPLATE_SETTING,
+  type PeriodKind,
   templateUsesZettelId,
   TEMPLATES_SETTING,
   DAILY_TEMPLATE_SETTING,
@@ -648,6 +658,49 @@ class Vault {
     if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
     // The title already shows the date, so the daily template starts without a heading
     return this.insert(resolved.folder, resolved.name, fillTemplate(this.dailyTemplate(), { title: resolved.name, date: toDateString(dateObj) }));
+  }
+
+  /** Settings of weekly or monthly notes (#73) */
+  periodSettings(kind: PeriodKind) {
+    const f = this.features();
+    return kind === 'week' ? f.weekly : f.monthly;
+  }
+
+  /** The weekly or monthly note of the period containing `date`, if it exists */
+  findPeriodicNote(kind: PeriodKind, date: Date | string = new Date()): LocalNote | undefined {
+    const settings = this.periodSettings(kind);
+    if (!settings.enabled) return undefined;
+    const target = resolvePeriodicNote(kind, settings, date, getLang()).path.toLowerCase();
+    return this.list().find((n) => n.access === 'owner' && n.path.toLowerCase() === target);
+  }
+
+  /** Opens the weekly or monthly note of the period containing `date`, creating it from its template */
+  async openPeriodicNote(kind: PeriodKind, date: Date | string = new Date()): Promise<LocalNote> {
+    const existing = this.findPeriodicNote(kind, date);
+    if (existing) return existing;
+    if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    const lang = getLang();
+    const settings = this.periodSettings(kind);
+    const resolved = resolvePeriodicNote(kind, settings, date, lang);
+    const { daily, weekly } = this.features();
+    const content = fillPeriodicTemplate(kind, this.periodicTemplate(kind), date, {
+      title: resolved.name,
+      lang,
+      // Links to the day's and week's notes, also those not written yet (they open as new notes)
+      dayName: daily.enabled ? (d) => resolveDailyNote(daily, parseDate(d), lang).name : undefined,
+      weekName: weekly.enabled ? (w) => resolvePeriodicNote('week', weekly, w, lang).name : undefined,
+    });
+    if (settings.folder && !this.storedFolders().includes(settings.folder)) await this.setFolders([...this.storedFolders(), settings.folder]);
+    return this.insert(resolved.folder, resolved.name, content);
+  }
+
+  periodicTemplate(kind: PeriodKind): string {
+    const stored = this.setting(kind === 'week' ? WEEKLY_TEMPLATE_SETTING : MONTHLY_TEMPLATE_SETTING);
+    return typeof stored === 'string' ? stored : defaultPeriodicTemplate(kind, getLang());
+  }
+
+  async savePeriodicTemplate(kind: PeriodKind, content: string): Promise<void> {
+    await this.setSetting(kind === 'week' ? WEEKLY_TEMPLATE_SETTING : MONTHLY_TEMPLATE_SETTING, content);
   }
 
   async updateFeatures(next: FeatureSettings): Promise<FeatureSettings> {
@@ -1384,6 +1437,8 @@ class Vault {
       database: { enabled: false },
       presentation: { enabled: false },
       callouts: { enabled: true },
+      weekly: { enabled: false, folder: DEFAULT_WEEKLY_FOLDER, format: DEFAULT_WEEKLY_FORMAT },
+      monthly: { enabled: false, folder: DEFAULT_MONTHLY_FOLDER, format: DEFAULT_MONTHLY_FORMAT },
     } satisfies FeatureSettings);
     for (const w of welcomeNotes(getLang())) await this.insert(w.folder, w.title, w.content);
   }

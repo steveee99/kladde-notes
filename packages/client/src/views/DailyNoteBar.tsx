@@ -16,6 +16,7 @@ import { folderDisplayName, locale, tl, useLang, weekdaysShort } from '../lib/i1
 import { useReadOnly } from '../lib/readOnly';
 import { navigate } from '../lib/router';
 import { editorHost } from '../editor/host';
+import { PeriodLinks } from './PeriodicNoteBar';
 
 interface PopoverCoords {
   top?: number;
@@ -225,6 +226,7 @@ export function DailyNoteBar({ date }: { date: string }) {
           {tl(lang, 'daily.todayChip')}
         </button>
       )}
+      <PeriodLinks date={date} kinds={['week', 'month']} />
 
       {open &&
         createPortal(

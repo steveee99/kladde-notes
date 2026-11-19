@@ -20,6 +20,7 @@ import { GraphView } from './views/Graph';
 import { ReviewView } from './views/Review';
 import { McpSettingsView } from './views/McpSettings';
 import { DailyNoteEmptyView } from './views/DailyNoteBar';
+import { PeriodicEmptyView } from './views/PeriodicNoteBar';
 import { CalendarView } from './views/ActivityHeatmap';
 import { TasksView } from './views/TasksView';
 
@@ -182,12 +183,16 @@ export function App() {
   let page: React.ReactNode;
   const note = match(path, '/n/:id');
   const dailyDate = match(path, '/daily/:date');
+  const weekDate = match(path, '/week/:date');
+  const monthDate = match(path, '/month/:date');
   const tagRoute = match(path, '/tags/:tag');
   const groupRoute = match(path, '/g/:id') ?? match(path, '/g/:id/:folder');
   const groupManage = match(path, '/groups/:id');
   if (note) page = <NoteView key={note.id} id={note.id} isNew={location.search.includes('new=1')} />;
   else if (path === '/daily') page = <DailyNoteEmptyView key="today" />;
   else if (dailyDate) page = <DailyNoteEmptyView key={dailyDate.date} date={dailyDate.date} />;
+  else if (weekDate) page = <PeriodicEmptyView key={`w${weekDate.date}`} kind="week" date={weekDate.date} />;
+  else if (monthDate) page = <PeriodicEmptyView key={`m${monthDate.date}`} kind="month" date={monthDate.date} />;
   else if (path === '/calendar') page = <CalendarView />;
   else if (path === '/inbox' || path === `/f/${encodeURIComponent(INBOX_FOLDER)}`) page = <InboxView />;
   // "Share → Kladde" from another app (PWA share target)
