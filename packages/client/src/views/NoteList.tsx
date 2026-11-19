@@ -408,7 +408,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
               <Trash2 size={16} /> <span className="hidden sm:inline">{t('list.deleteFolderBtn')}</span>
             </button>
           )}
-          {mode === 'folder' && folder && !dbNote && !protectedFolders.has(folder) && (
+          {mode === 'folder' && folder && !dbNote && features.database.enabled && !protectedFolders.has(folder) && (
             <button className="edit-only btn-ghost shrink-0 phone:!px-2.5" title={t('db.makeTitle')} onClick={makeDatabase} data-make-database>
               <Table2 size={16} /> <span className="hidden sm:inline">{t('db.makeBtn')}</span>
             </button>

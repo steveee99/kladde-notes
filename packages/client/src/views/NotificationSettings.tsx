@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { PushDevice, PushSettings } from '@kladde/shared';
-import { ArrowLeft, Bell, Smartphone, Trash2 } from '../lib/icons';
+import { Bell, Smartphone, Trash2 } from '../lib/icons';
 import { api } from '../lib/api';
 import { locale, tl, useLang, type Lang } from '../lib/i18n';
-import { navigate } from '../lib/router';
+import { SettingsPage } from './SettingsPage';
 import { Switch } from './Switch';
 
 const DEVICE_KEY = 'kladde_push_device';
@@ -51,7 +51,7 @@ function defaultSettings(lang: Lang): PushSettings {
 }
 
 /** Settings → Notifications: reminders for tasks with a time and a daily digest, per device (#26) */
-export function NotificationSettingsView() {
+export function NotificationSettingsView({ embedded }: { embedded?: boolean } = {}) {
   const lang = useLang();
   const loc = locale(lang);
   const support = pushSupport();
@@ -141,13 +141,7 @@ export function NotificationSettingsView() {
   const others = devices?.filter((d) => d.id !== current?.id) ?? [];
 
   return (
-    <div className="content-container space-y-6 px-4 py-6 sm:px-8 sm:py-10">
-      <div className="flex items-center gap-2 anim-fade-up">
-        <button className="btn-icon -ml-2" onClick={() => navigate('/settings')} title={tl(lang, 'templates.backToSettings')}>
-          <ArrowLeft size={18} />
-        </button>
-        <h1 className="text-headline-m">{tl(lang, 'notify.title')}</h1>
-      </div>
+    <SettingsPage title={tl(lang, 'notify.title')} embedded={embedded}>
       <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'notify.intro')}</p>
 
       <section className="card space-y-4 p-5 anim-fade-up">
@@ -237,6 +231,6 @@ export function NotificationSettingsView() {
           ))}
         </section>
       )}
-    </div>
+    </SettingsPage>
   );
 }

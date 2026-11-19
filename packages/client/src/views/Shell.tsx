@@ -63,7 +63,7 @@ import { NavBadge } from './NavBadge';
 import { openSearch } from './SearchDialog';
 import { IconPickerDialog, ItemIcon } from './IconPicker';
 import { ConfluenceDialog } from './ConfluenceDialog';
-import { confluenceAvailable } from '../lib/confluence';
+import { useConfluenceConnected } from '../lib/confluence';
 import { getFocusMode, setFocusMode, toggleFocusMode } from '../lib/focus';
 import { editorHost } from '../editor/host';
 import { compareText, folderDisplayName, locale, t, useLang } from '../lib/i18n';
@@ -434,6 +434,7 @@ function FolderItem({
   const [mode, setMode] = useState<'idle' | 'new' | 'rename'>('idle');
   const [sharing, setSharing] = useState(false);
   const [confluenceOpen, setConfluenceOpen] = useState(false);
+  const confluenceConnected = useConfluenceConnected();
   const [pickingIcon, setPickingIcon] = useState(false);
   const iconsEnabled = vault.features().icons.enabled;
   const icon = vault.folderIcon(node.path);
@@ -530,7 +531,7 @@ function FolderItem({
                 <Share2 size={13} />
               </button>
             )}
-            {confluenceAvailable() && !empty && (
+            {confluenceConnected && !empty && (
               <button className="rounded-full p-1 hover:bg-surface-container-low hover:text-on-surface" title={t('confluence.menu')} onClick={() => setConfluenceOpen(true)}>
                 <Cloud size={13} />
               </button>

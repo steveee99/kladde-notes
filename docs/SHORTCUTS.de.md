@@ -9,7 +9,7 @@ starten sie nach Zeitplan. Kladde bietet dafür eine kleine HTTP-API unter `/api
 
 ## 1. Token erstellen
 
-1. In Kladde **Einstellungen → Apple Kurzbefehle** öffnen.
+1. In Kladde **Einstellungen → Funktionen → Apple Kurzbefehle** öffnen (falls nötig aktivieren) und zum Tab **Einstellungen** wechseln.
 2. Namen eingeben (z. B. „iPhone“), Gültigkeit wählen (Standard: ein Jahr) und **Token erstellen** tippen.
 3. Den Wert `Bearer kls_…` kopieren – er wird nur einmal angezeigt. Am besten direkt in den Kurzbefehl
    einfügen (siehe unten).

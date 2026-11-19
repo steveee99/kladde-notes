@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, CalendarDays, Plus, Trash2 } from '../lib/icons';
+import { CalendarDays, Plus, Trash2 } from '../lib/icons';
 import { CALENDAR_FEED_DAYS, type CalendarFeed, type CalendarFeedCreated } from '@kladde/shared';
 import { api } from '../lib/api';
 import { locale, tl, useLang } from '../lib/i18n';
-import { navigate } from '../lib/router';
+import { SettingsPage } from './SettingsPage';
 import { Dropdown } from './Dropdown';
 import { CopyField } from './McpSettings';
 import { Switch } from './Switch';
 
 /** Secret ICS addresses with the user's own due tasks, for subscribing in a calendar app (#34) */
-export function CalendarSettingsView() {
+export function CalendarSettingsView({ embedded }: { embedded?: boolean } = {}) {
   const lang = useLang();
   const loc = locale(lang);
   const when = (ms: number | null) => (ms ? new Date(ms).toLocaleDateString(loc, { dateStyle: 'medium' }) : tl(lang, 'import.never'));
@@ -66,13 +66,7 @@ export function CalendarSettingsView() {
       .join(' · ');
 
   return (
-    <div className="content-container space-y-6 px-4 py-6 sm:px-8 sm:py-10">
-      <div className="flex items-center gap-2 anim-fade-up">
-        <button className="btn-icon -ml-2" onClick={() => navigate('/settings')} title={tl(lang, 'templates.backToSettings')}>
-          <ArrowLeft size={18} />
-        </button>
-        <h1 className="text-headline-m">{tl(lang, 'calendar.title')}</h1>
-      </div>
+    <SettingsPage title={tl(lang, 'calendar.title')} embedded={embedded}>
       <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'calendar.intro')}</p>
 
       <section className="card space-y-3 p-5 anim-fade-up">
@@ -151,6 +145,6 @@ export function CalendarSettingsView() {
           </div>
         ))}
       </section>
-    </div>
+    </SettingsPage>
   );
 }

@@ -59,3 +59,11 @@ export function useConfluence(): ConfluenceOverview | null {
 export function confluenceAvailable(): boolean {
   return !unavailable;
 }
+
+/**
+ * Confluence is a feature that is on once the user has saved a connection (address and API token):
+ * only then do the note menu, the folder tree and the dialogs offer it.
+ */
+export function useConfluenceConnected(): boolean {
+  return !!useConfluence()?.connection;
+}

@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import type { ConfluenceKind, ConfluenceOverview } from '@kladde/shared';
-import { ArrowLeft, Check, Cloud, ExternalLink, Folder, FileText, RefreshCw, Trash2 } from '../lib/icons';
+import { Check, Cloud, ExternalLink, Folder, FileText, RefreshCw, Trash2 } from '../lib/icons';
 import { api } from '../lib/api';
 import { refreshConfluence, setConfluenceOverview, useConfluence } from '../lib/confluence';
 import { locale, tl, useLang } from '../lib/i18n';
+import { SettingsPage } from './SettingsPage';
 import { navigate } from '../lib/router';
 import { Dropdown } from './Dropdown';
 import { ConfluenceStatus } from './ConfluenceDialog';
 
 /** Settings → Confluence (#48): the user's own Confluence address and token, and the syncs set up with it */
-export function ConfluenceSettingsView() {
+export function ConfluenceSettingsView({ embedded }: { embedded?: boolean } = {}) {
   const lang = useLang();
   const overview = useConfluence();
   const connection = overview?.connection ?? null;
@@ -46,13 +47,7 @@ export function ConfluenceSettingsView() {
   const when = (ms: number | null) => (ms ? new Date(ms).toLocaleString(locale(lang), { dateStyle: 'medium', timeStyle: 'short' }) : tl(lang, 'confluence.never'));
 
   return (
-    <div className="content-container space-y-6 px-4 py-6 sm:px-8 sm:py-10">
-      <div className="flex items-center gap-2 anim-fade-up">
-        <button className="btn-icon -ml-2" onClick={() => navigate('/settings')} title={tl(lang, 'templates.backToSettings')}>
-          <ArrowLeft size={18} />
-        </button>
-        <h1 className="text-headline-m">{tl(lang, 'confluence.settingsTitle')}</h1>
-      </div>
+    <SettingsPage title={tl(lang, 'confluence.settingsTitle')} embedded={embedded}>
       <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'confluence.intro')}</p>
 
       <section className="card space-y-3 p-5 anim-fade-up">
@@ -197,6 +192,6 @@ export function ConfluenceSettingsView() {
           })}
         </section>
       )}
-    </div>
+    </SettingsPage>
   );
 }

@@ -32,7 +32,7 @@ import {
   PullResponse,
   PushResponse,
   RoleFolderMap,
-  STANDALONE_RECIPE_FOLDER,
+  DEFAULT_RECIPE_FOLDER,
   SharedFolder,
   LinkIndex,
   SYSTEM_PREFIX,
@@ -1362,13 +1362,13 @@ class Vault {
     this.emit();
   }
 
-  /** First start of a new space: Inbox folder, default daily note settings, disabled opt-in features, and welcome notes */
+  /** First start of a new space: Inbox and the folders of the standard features (PARA, Zettelkasten), default daily note settings, disabled opt-in features, and welcome notes */
   private async seed() {
-    await this.setFolders([...this.storedFolders(), INBOX_FOLDER]);
+    await this.setFolders([...this.storedFolders(), INBOX_FOLDER, ...Object.values(DEFAULT_PARA_FOLDERS), DEFAULT_ZETTEL_FOLDER]);
     await this.setSetting(FEATURES_SETTING, {
-      para: { enabled: false, folders: { ...DEFAULT_PARA_FOLDERS } },
-      zettel: { enabled: false, folder: DEFAULT_ZETTEL_FOLDER },
-      recipe: { enabled: false, folder: STANDALONE_RECIPE_FOLDER },
+      para: { enabled: true, folders: { ...DEFAULT_PARA_FOLDERS } },
+      zettel: { enabled: true, folder: DEFAULT_ZETTEL_FOLDER },
+      recipe: { enabled: false, folder: DEFAULT_RECIPE_FOLDER },
       daily: { enabled: true, folder: DEFAULT_DAILY_FOLDER, format: DEFAULT_DAILY_FORMAT },
       heatmap: { enabled: false },
       review: { enabled: false },
@@ -1377,6 +1377,11 @@ class Vault {
       focus: { enabled: true, dim: false },
       icons: { enabled: false },
       memory: { enabled: false, folder: DEFAULT_MEMORY_FOLDER },
+      notifications: { enabled: false },
+      calendar: { enabled: false },
+      shortcuts: { enabled: false },
+      mcp: { enabled: false },
+      database: { enabled: false },
     } satisfies FeatureSettings);
     for (const w of welcomeNotes(getLang())) await this.insert(w.folder, w.title, w.content);
   }

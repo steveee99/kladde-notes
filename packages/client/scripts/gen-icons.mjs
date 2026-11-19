@@ -35,7 +35,7 @@ const MAP = {
   Table2: 'table', Tags: 'sell', Target: 'target', Trash2: 'delete', Undo2: 'undo', Unlink: 'link_off', Upload: 'upload',
   UnfoldLess: 'unfold_less', UnfoldMore: 'unfold_more', Merge: 'merge', Filter: 'filter_list',
   Psychology: 'psychology', Mic: 'mic', Mood: 'mood', StopCircle: 'stop_circle', Subtitles: 'subtitles', TextFields: 'format_size', NewReleases: 'approval',
-  UserCheck: 'how_to_reg', UserPlus: 'person_add', Users: 'group', X: 'close', Zap: 'bolt',
+  Extension: 'extension', UserCheck: 'how_to_reg', UserPlus: 'person_add', Users: 'group', X: 'close', Zap: 'bolt',
 };
 
 const pathOf = (file) => {

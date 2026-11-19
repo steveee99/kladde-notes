@@ -8,7 +8,6 @@ import {
   DEFAULT_PARA_FOLDERS,
   DEFAULT_RECIPE_FOLDER,
   DEFAULT_ZETTEL_FOLDER,
-  STANDALONE_RECIPE_FOLDER,
   archiveTarget,
   isFolderProjectHome,
   isProjectNote,
@@ -154,9 +153,10 @@ describe('frontmatter, PARA, templates, daily notes', () => {
     const defaultDaily = { enabled: true, folder: DEFAULT_DAILY_FOLDER, format: DEFAULT_DAILY_FORMAT };
     const fresh = normalizeFeatures(undefined, ['0 Inbox']);
     expect(fresh).toEqual({
-      para: { enabled: false, folders: DEFAULT_PARA_FOLDERS },
-      zettel: { enabled: false, folder: DEFAULT_ZETTEL_FOLDER },
-      recipe: { enabled: false, folder: STANDALONE_RECIPE_FOLDER },
+      // PARA and Zettelkasten are the standard features
+      para: { enabled: true, folders: DEFAULT_PARA_FOLDERS },
+      zettel: { enabled: true, folder: DEFAULT_ZETTEL_FOLDER },
+      recipe: { enabled: false, folder: DEFAULT_RECIPE_FOLDER },
       daily: defaultDaily,
       heatmap: { enabled: false },
       review: { enabled: false },
@@ -165,6 +165,12 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       focus: { enabled: true, dim: false },
       icons: { enabled: false },
       memory: { enabled: false, folder: 'AI-Memory' },
+      // Existed before they became features: on until turned off
+      notifications: { enabled: true },
+      calendar: { enabled: true },
+      shortcuts: { enabled: true },
+      mcp: { enabled: true },
+      database: { enabled: false },
     });
 
     const upgraded = normalizeFeatures(undefined, ['0 Inbox', '1 Projekte', 'Zettelkasten', '3 Ressourcen/Rezepte']);
@@ -180,6 +186,12 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       focus: { enabled: true, dim: false },
       icons: { enabled: false },
       memory: { enabled: false, folder: 'AI-Memory' },
+      // Existed before they became features: on until turned off
+      notifications: { enabled: true },
+      calendar: { enabled: true },
+      shortcuts: { enabled: true },
+      mcp: { enabled: true },
+      database: { enabled: false },
     });
 
     const explicitDisabled = normalizeFeatures(
@@ -197,6 +209,13 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       ['1 Projekte', 'Zettelkasten']
     );
     expect(explicitDisabled.para.enabled).toBe(false);
+
+    const switched = normalizeFeatures({ mcp: { enabled: false }, notifications: { enabled: false }, calendar: {}, shortcuts: { enabled: 'no' }, database: { enabled: true } });
+    expect(switched.mcp.enabled).toBe(false);
+    expect(switched.notifications.enabled).toBe(false);
+    expect(switched.calendar.enabled).toBe(true);
+    expect(switched.shortcuts.enabled).toBe(true);
+    expect(switched.database.enabled).toBe(true);
     expect(explicitDisabled.zettel).toEqual({ enabled: false, folder: 'Notes/Zettel' });
     expect(explicitDisabled.recipe).toEqual({ enabled: true, folder: 'Küche/Rezepte' });
     expect(explicitDisabled.daily).toEqual({ enabled: false, folder: '', format: 'YYYY-MM-DD' });

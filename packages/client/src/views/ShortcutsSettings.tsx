@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, ExternalLink, KeyRound, Plus, Trash2 } from '../lib/icons';
+import { ExternalLink, KeyRound, Plus, Trash2 } from '../lib/icons';
 import { SHORTCUT_TOKEN_DAYS, type ImportToken, type ImportTokenCreated } from '@kladde/shared';
 import { api } from '../lib/api';
 import { locale, tl, useLang, type I18nKey } from '../lib/i18n';
-import { navigate } from '../lib/router';
+import { SettingsPage } from './SettingsPage';
 import { Dropdown } from './Dropdown';
 import { CopyField } from './McpSettings';
 
@@ -20,7 +20,7 @@ const RECIPES: { title: I18nKey; desc: I18nKey; method: 'POST' | 'GET'; route: s
 ];
 
 /** Tokens and recipes for Apple Shortcuts (#46): share sheet, Siri, Action Button and automations on iOS */
-export function ShortcutsSettingsView() {
+export function ShortcutsSettingsView({ embedded }: { embedded?: boolean } = {}) {
   const lang = useLang();
   const loc = locale(lang);
   const when = (ms: number | null) => (ms ? new Date(ms).toLocaleDateString(loc, { dateStyle: 'medium' }) : tl(lang, 'import.never'));
@@ -59,13 +59,7 @@ export function ShortcutsSettingsView() {
   };
 
   return (
-    <div className="content-container space-y-6 px-4 py-6 sm:px-8 sm:py-10">
-      <div className="flex items-center gap-2 anim-fade-up">
-        <button className="btn-icon -ml-2" onClick={() => navigate('/settings')} title={tl(lang, 'templates.backToSettings')}>
-          <ArrowLeft size={18} />
-        </button>
-        <h1 className="text-headline-m">{tl(lang, 'shortcuts.title')}</h1>
-      </div>
+    <SettingsPage title={tl(lang, 'shortcuts.title')} embedded={embedded}>
       <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'shortcuts.intro')}</p>
 
       <section className="card space-y-3 p-5 anim-fade-up">
@@ -155,6 +149,6 @@ export function ShortcutsSettingsView() {
           </div>
         ))}
       </section>
-    </div>
+    </SettingsPage>
   );
 }

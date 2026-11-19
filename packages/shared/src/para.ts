@@ -88,6 +88,26 @@ export interface FeatureSettings {
     enabled: boolean;
     folder: string;
   };
+  /** Push notifications (task reminders, daily overview); on in spaces from before it became a feature */
+  notifications: {
+    enabled: boolean;
+  };
+  /** Calendar feed (ICS) of due tasks; on in spaces from before it became a feature */
+  calendar: {
+    enabled: boolean;
+  };
+  /** Apple Shortcuts tokens; on in spaces from before it became a feature */
+  shortcuts: {
+    enabled: boolean;
+  };
+  /** AI assistants over MCP; on in spaces from before it became a feature */
+  mcp: {
+    enabled: boolean;
+  };
+  /** "Make database" in folders (#76); existing databases keep showing without it */
+  database: {
+    enabled: boolean;
+  };
 }
 
 /** Configurable folder mapping per role; `null` disables matching for that role */
@@ -149,8 +169,8 @@ function hasFolderPrefix(folders: string[], target: string): boolean {
 }
 
 /**
- * Normalizes feature opt-in settings. When a flag is missing (upgraded space), pre-enables
- * features whose standard folders already exist in `existingFolders`; new spaces start disabled.
+ * Normalizes feature settings. PARA and Zettelkasten are the standard features and on unless turned off;
+ * recipe import is pre-enabled when its standard folder already exists in `existingFolders` (upgraded space).
  * Daily notes default to enabled with "0 Daily/YYYY/MM/YYYY-MM-DD.md" unless explicitly turned off.
  */
 export function normalizeFeatures(raw: unknown, existingFolders: string[] = []): FeatureSettings {
@@ -166,12 +186,11 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
   const rawHeatmap =
     obj.heatmap && typeof obj.heatmap === 'object' && !Array.isArray(obj.heatmap) ? (obj.heatmap as Record<string, unknown>) : undefined;
 
-  const hasExistingPara = Object.values(DEFAULT_PARA_FOLDERS).some((f) => hasFolderPrefix(existingFolders, f));
-  const hasExistingZettel = hasFolderPrefix(existingFolders, DEFAULT_ZETTEL_FOLDER);
   const hasExistingRecipe = hasFolderPrefix(existingFolders, DEFAULT_RECIPE_FOLDER);
 
-  const paraEnabled = typeof rawPara?.enabled === 'boolean' ? rawPara.enabled : hasExistingPara;
-  const zettelEnabled = typeof rawZettel?.enabled === 'boolean' ? rawZettel.enabled : hasExistingZettel;
+  // PARA and Zettelkasten are the standard features: on unless turned off
+  const paraEnabled = typeof rawPara?.enabled === 'boolean' ? rawPara.enabled : true;
+  const zettelEnabled = typeof rawZettel?.enabled === 'boolean' ? rawZettel.enabled : true;
   const recipeEnabled = typeof rawRecipe?.enabled === 'boolean' ? rawRecipe.enabled : hasExistingRecipe;
   const dailyEnabled = typeof rawDaily?.enabled === 'boolean' ? rawDaily.enabled : true;
 
@@ -226,6 +245,12 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
       enabled: optInFlag(obj.memory),
       folder: cleanFeatureFolder(obj.memory && typeof obj.memory === 'object' ? (obj.memory as Record<string, unknown>).folder : undefined, DEFAULT_MEMORY_FOLDER),
     },
+    // Existed before features could be switched: stay on until turned off (new spaces start with them off)
+    notifications: { enabled: optOutFlag(obj.notifications) },
+    calendar: { enabled: optOutFlag(obj.calendar) },
+    shortcuts: { enabled: optOutFlag(obj.shortcuts) },
+    mcp: { enabled: optOutFlag(obj.mcp) },
+    database: { enabled: optInFlag(obj.database) },
   };
 }
 

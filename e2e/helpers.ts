@@ -109,3 +109,18 @@ export async function noteMenu(page: Page, item: string | RegExp): Promise<void>
   await page.getByRole('button', { name: 'More actions' }).click();
   await page.getByRole('menuitem', { name: item }).click();
 }
+
+/** Opens Settings → Features and turns the feature on (when it is off); `id` is its `data-feature` name */
+export async function enableFeature(page: Page, id: string): Promise<void> {
+  await page.goto('/settings');
+  await page.locator('[data-open-features]').click();
+  const dialog = page.locator('[data-features-dialog]');
+  await expect(dialog).toBeVisible();
+  const activate = dialog.locator(`[data-feature="${id}"] [data-activate="${id}"]`);
+  if (await activate.isVisible()) {
+    await activate.click();
+    await expect(dialog.locator(`[data-feature-detail="${id}"]`)).toBeVisible();
+  }
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+}
