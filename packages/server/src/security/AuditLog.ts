@@ -24,7 +24,9 @@ export type AuditEvent =
   | 'confluence_connected'
   | 'confluence_disconnected'
   | 'backup_restore_requested'
-  | 'backup_restored';
+  | 'backup_restored'
+  | 'account_export_requested'
+  | 'account_exported';
 
 export interface AuditEntry {
   at: number;

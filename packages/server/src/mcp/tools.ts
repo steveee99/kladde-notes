@@ -30,6 +30,16 @@ import {
   replaceMemoryBody,
   stampGenerated,
   memoryRules,
+  renameWikiLinks,
+  renameTag,
+  normalizeTag,
+  isValidTag,
+  notesByTag,
+  normalizeTemplates,
+  fillTemplate,
+  templateUsesZettelId,
+  zettelId,
+  TEMPLATES_SETTING,
   type MemoryProblem,
   type MemoryRule,
   type FeatureSettings,
@@ -113,16 +123,19 @@ export function taskDueOf(notes: NoteStore, userId: string): (path: string) => s
   return dailyDueResolver(featuresOf(notes, userId).daily);
 }
 
+/** A value of the synced settings note of the client (features, templates, …) */
+export function settingOf(notes: NoteStore, userId: string, key: string): unknown {
+  const settings = notes.ownedNotes(userId).find((n) => n.id === `syssettings-${userId}`);
+  try {
+    return settings ? (JSON.parse(settings.content) as Record<string, unknown>)[key] : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** The feature settings the client keeps in the user's settings note (daily notes, PARA, …) */
 export function featuresOf(notes: NoteStore, userId: string): FeatureSettings {
-  const settings = notes.ownedNotes(userId).find((n) => n.id === `syssettings-${userId}`);
-  let raw: unknown;
-  try {
-    raw = settings ? (JSON.parse(settings.content) as Record<string, unknown>)[FEATURES_SETTING] : undefined;
-  } catch {
-    raw = undefined;
-  }
-  return normalizeFeatures(raw);
+  return normalizeFeatures(settingOf(notes, userId, FEATURES_SETTING));
 }
 
 const str = (args: Record<string, unknown>, key: string, required = false): string | undefined => {
@@ -304,6 +317,93 @@ function snippet(content: string, word: string): string {
   const at = Math.max(0, lower.indexOf(word));
   const start = Math.max(0, at - 60);
   return `${start > 0 ? '…' : ''}${content.slice(start, at + 140).replace(/\s+/g, ' ').trim()}${at + 140 < content.length ? '…' : ''}`;
+}
+
+// ------------------------------------------------------------------ organizing (#90)
+
+/** The notes sharing a path space with `note`: the own notes, or the notes of its group (by their path inside it) */
+function pathSpace(ctx: ToolContext, note: SpaceNote): SyncedNote[] {
+  return note.group
+    ? space(ctx)
+        .filter((n) => n.group === note.group)
+        .map((n) => ({ ...n, path: n.realPath ?? n.path }))
+    : ctx.notes.ownedNotes(ctx.userId);
+}
+
+/** The index and log of the AI memory are kept by Kladde: they are neither moved, renamed nor deleted */
+function guardReserved(ctx: ToolContext, note: SpaceNote): void {
+  const folder = memoryFolder(ctx);
+  if (folder && note.realPath === undefined && isMemoryPath(note.path, folder) && isReservedMemoryNote(note.path)) {
+    throw new ToolError('Index und Log des KI-Gedächtnisses pflegt Kladde selbst.');
+  }
+}
+
+/** Moves and/or renames a note through the sync path; a new title rewrites [[links]] to it in every note the user may edit */
+function relocate(ctx: ToolContext, note: SpaceNote, folder: string, title: string) {
+  writable(note);
+  guardReserved(ctx, note);
+  const current = note.realPath ?? note.path;
+  const oldName = splitPath(current).name;
+  const target = joinPath(folder, title);
+  if (target === current) return { id: note.id, path: note.path, version: note.version, relinked: 0 };
+  const taken = pathSpace(ctx, note).filter((n) => n.id !== note.id);
+  if (taken.some((n) => n.path.toLowerCase() === target.toLowerCase())) throw new ToolError(`„${target}“ gibt es schon. Wähle einen anderen Titel oder Ordner.`);
+  const [result] = ctx.notes.push(ctx.userId, [
+    { id: note.id, baseVersion: note.version, path: target, content: note.content, deleted: false, createdAt: note.createdAt, updatedAt: Date.now() },
+  ]);
+  if (result.status === 'conflict') throw new ToolError('Die Notiz wurde gerade geändert. Versuche es noch einmal.');
+  if (result.status !== 'ok') throw new ToolError('Diese Notiz darfst du nicht verschieben oder umbenennen.');
+  let relinked = 0;
+  if (oldName !== title) {
+    for (const n of space(ctx)) {
+      if (n.id === note.id || n.access === 'read' || !n.content.includes('[[')) continue;
+      const content = renameWikiLinks(n.content, oldName, title);
+      if (content === n.content) continue;
+      try {
+        save(ctx, n, content);
+        relinked++;
+      } catch {
+        // a note changed meanwhile keeps its old link; the move itself stands
+      }
+    }
+  }
+  const shown = note.groupName !== undefined ? `${note.groupName}/${target}` : target;
+  return { id: note.id, path: shown, version: result.version, relinked };
+}
+
+/** Own templates of the user (kept in the synced settings note) */
+function templatesOf(ctx: ToolContext) {
+  return normalizeTemplates(settingOf(ctx.notes, ctx.userId, TEMPLATES_SETTING));
+}
+
+/** Creates a note in the own space or in a group; shared by create_note and create_from_template */
+function createNote(ctx: ToolContext, opts: { title: string; content: string; folder?: string; group?: string; defaultFolder?: string }) {
+  const group = opts.group !== undefined ? groupOf(ctx, opts.group) : undefined;
+  if (group && !canWriteInGroup(group.role)) throw new ToolError(`In der Gruppe „${group.name}“ darfst du nur lesen.`);
+  const folder = group ? cleanGroupFolder(opts.folder, group.name) : cleanFolder(opts.folder ?? opts.defaultFolder);
+  let content = normalizeDueWords(opts.content, ctx.today ?? new Date());
+  // Paths are unique per space: the own notes, or the notes of the group (by their path inside it)
+  const taken: SyncedNote[] = group
+    ? space(ctx)
+        .filter((n) => n.group === group.id)
+        .map((n) => ({ ...n, path: n.realPath ?? n.path }))
+    : ctx.notes.ownedNotes(ctx.userId);
+  const path = uniquePath(taken, folder, opts.title);
+  const memory = memoryWrite(ctx, group ? null : path, null, content);
+  content = memory.content;
+  checkSize(content);
+  const now = Date.now();
+  const id = crypto.randomBytes(16).toString('hex');
+  const [result] = ctx.notes.push(ctx.userId, [{ id, baseVersion: 0, path, content, deleted: false, createdAt: now, updatedAt: now, ...(group ? { group: group.id } : {}) }]);
+  if (result.status !== 'ok') throw new ToolError('Die Notiz konnte nicht angelegt werden.');
+  memory.after();
+  return {
+    id,
+    path: group ? `${group.name}/${path}` : path,
+    version: result.version,
+    ...(group ? { group: group.name } : {}),
+    ...(memory.warnings.length ? { warnings: memory.warnings } : {}),
+  };
 }
 
 // ------------------------------------------------------------------ tools
@@ -539,40 +639,14 @@ export const TOOLS: ToolDef[] = [
     write: true,
     run(args, ctx) {
       const title = str(args, 'title', true)!.trim().slice(0, 200);
-      const groupName = str(args, 'group');
-      const group = groupName !== undefined ? groupOf(ctx, groupName) : undefined;
-      if (group && !canWriteInGroup(group.role)) throw new ToolError(`In der Gruppe „${group.name}“ darfst du nur lesen.`);
-      const folder = group ? cleanGroupFolder(str(args, 'folder'), group.name) : cleanFolder(str(args, 'folder'));
-      let content = normalizeDueWords(str(args, 'content') ?? '', ctx.today ?? new Date());
-      // Paths are unique per space: the own notes, or the notes of the group (by their path inside it)
-      const taken: SyncedNote[] = group
-        ? space(ctx)
-            .filter((n) => n.group === group.id)
-            .map((n) => ({ ...n, path: n.realPath ?? n.path }))
-        : ctx.notes.ownedNotes(ctx.userId);
-      const path = uniquePath(taken, folder, title);
-      const memory = memoryWrite(ctx, group ? null : path, null, content);
-      content = memory.content;
-      checkSize(content);
-      const now = Date.now();
-      const id = crypto.randomBytes(16).toString('hex');
-      const [result] = ctx.notes.push(ctx.userId, [{ id, baseVersion: 0, path, content, deleted: false, createdAt: now, updatedAt: now, ...(group ? { group: group.id } : {}) }]);
-      if (result.status !== 'ok') throw new ToolError('Die Notiz konnte nicht angelegt werden.');
-      memory.after();
-      return {
-        id,
-        path: group ? `${group.name}/${path}` : path,
-        version: result.version,
-        ...(group ? { group: group.name } : {}),
-        ...(memory.warnings.length ? { warnings: memory.warnings } : {}),
-      };
+      return createNote(ctx, { title, content: str(args, 'content') ?? '', folder: str(args, 'folder'), group: str(args, 'group') });
     },
   },
   {
     name: 'update_note',
     title: 'Notiz ersetzen',
     description:
-      'Replaces the full content of one of the user\'s notes (or of a group note, unless the user only reads in that group). Pass the `version` you got from read_note: if the note changed since, nothing is written and you must read it again. Title and folder stay the same (rename and move in the app, so links are kept).',
+      'Replaces the full content of one of the user\'s notes (or of a group note, unless the user only reads in that group). Pass the `version` you got from read_note: if the note changed since, nothing is written and you must read it again. Title and folder stay the same: use rename_note or move_note for those (they keep links working).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -641,6 +715,149 @@ export const TOOLS: ToolDef[] = [
         { type: 'text', text: JSON.stringify({ note_id: note.id, path: note.path, line: pick.line, name: file.name, mime: file.mime, recordings: recordings.length }) },
         { type: 'audio', data: file.data.toString('base64'), mimeType: file.mime },
       ]);
+    },
+  },
+  {
+    name: 'move_note',
+    title: 'Notiz verschieben',
+    description:
+      'Moves a note into another folder (e.g. from "0 Inbox" to "1 Projekte/Umzug"), optionally with a new title. Group notes move inside their group (`folder` is a folder of the group). Links to it keep working; a new title rewrites [[links]] in the other notes. Readers of a group cannot move its notes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...noteRef,
+        folder: { type: 'string', description: 'Target folder, e.g. "1 Projekte/Umzug"; "" for the top level' },
+        new_title: { type: 'string', description: 'Optional new title' },
+      },
+      required: ['folder'],
+    },
+    write: true,
+    run(args, ctx) {
+      const note = findNote(space(ctx), args);
+      const raw = typeof args.folder === 'string' ? args.folder : undefined;
+      if (raw === undefined) throw new ToolError('Parameter "folder" fehlt.');
+      const folder = note.groupName !== undefined ? cleanGroupFolder(raw, note.groupName) : cleanFolder(raw);
+      const title = (str(args, 'new_title') ?? splitPath(note.realPath ?? note.path).name).trim().replace(/\//g, '-').slice(0, 200);
+      if (!title) throw new ToolError('Der Titel darf nicht leer sein.');
+      return relocate(ctx, note, folder, title);
+    },
+  },
+  {
+    name: 'rename_note',
+    title: 'Notiz umbenennen',
+    description: 'Gives a note a new title (its file name) in the same folder. Every [[Old Title]] link in the notes the user may edit is rewritten to the new title.',
+    inputSchema: {
+      type: 'object',
+      properties: { ...noteRef, new_title: { type: 'string' } },
+      required: ['new_title'],
+    },
+    write: true,
+    run(args, ctx) {
+      const note = findNote(space(ctx), args);
+      const title = str(args, 'new_title', true)!.trim().replace(/\//g, '-').slice(0, 200);
+      if (!title) throw new ToolError('Der Titel darf nicht leer sein.');
+      return relocate(ctx, note, splitPath(note.realPath ?? note.path).folder, title);
+    },
+  },
+  {
+    name: 'delete_note',
+    title: 'Notiz löschen',
+    description: 'Moves a note into the trash. The user can restore it in the app until the trash is emptied. Readers of a group cannot delete its notes.',
+    inputSchema: { type: 'object', properties: noteRef },
+    write: true,
+    run(args, ctx) {
+      const note = writable(findNote(space(ctx), args));
+      guardReserved(ctx, note);
+      const [result] = ctx.notes.push(ctx.userId, [
+        { id: note.id, baseVersion: note.version, path: note.realPath ?? note.path, content: note.content, deleted: true, createdAt: note.createdAt, updatedAt: Date.now() },
+      ]);
+      if (result.status === 'conflict') throw new ToolError('Die Notiz wurde gerade geändert. Versuche es noch einmal.');
+      if (result.status !== 'ok') throw new ToolError('Diese Notiz darfst du nicht löschen.');
+      return { id: note.id, path: note.path, trashed: true };
+    },
+  },
+  {
+    name: 'list_tags',
+    title: 'Tags auflisten',
+    description: 'Lists the tags (#tag in the text and `tags:` in the frontmatter) of the user\'s notes and their groups\' notes with note counts, most used first. Tags nest with "/" (#area/health).',
+    inputSchema: {
+      type: 'object',
+      properties: { prefix: { type: 'string', description: 'Only this tag and the tags below it, e.g. "area"' } },
+    },
+    write: false,
+    run(args, ctx) {
+      const prefix = str(args, 'prefix') !== undefined ? normalizeTag(str(args, 'prefix')!) : '';
+      const tags = [...notesByTag(space(ctx))]
+        .filter(([tag]) => !prefix || tag === prefix || tag.startsWith(`${prefix}/`))
+        .map(([tag, ids]) => ({ tag, count: ids.length }))
+        .sort((a, b) => b.count - a.count || (a.tag < b.tag ? -1 : a.tag > b.tag ? 1 : 0));
+      return { total: tags.length, tags };
+    },
+  },
+  {
+    name: 'rename_tag',
+    title: 'Tag umbenennen',
+    description: 'Renames a tag (and the tags nested below it) in all of the user\'s own notes, in the text and in the frontmatter. Renaming onto an existing tag merges both.',
+    inputSchema: {
+      type: 'object',
+      properties: { from: { type: 'string', description: 'Current tag, with or without #' }, to: { type: 'string', description: 'New tag' } },
+      required: ['from', 'to'],
+    },
+    write: true,
+    run(args, ctx) {
+      const from = normalizeTag(str(args, 'from', true)!);
+      const to = normalizeTag(str(args, 'to', true)!);
+      if (!isValidTag(from) || !isValidTag(to)) throw new ToolError('Tags bestehen aus Buchstaben, Ziffern, _, - und / (nicht nur Ziffern).');
+      if (from === to) return { from, to, changed: 0, notes: [] };
+      const changed: string[] = [];
+      for (const n of space(ctx)) {
+        if (n.access !== 'owner' || n.realPath !== undefined) continue;
+        const content = renameTag(n.content, from, to);
+        if (content === n.content) continue;
+        save(ctx, n, content);
+        changed.push(n.path);
+      }
+      return { from, to, changed: changed.length, notes: changed };
+    },
+  },
+  {
+    name: 'list_templates',
+    title: 'Vorlagen auflisten',
+    description: 'Lists the user\'s note templates (id, name, target folder, content). Placeholders: {{title}}, {{date}}, {{zid}} (Zettel id, also put before the title).',
+    inputSchema: { type: 'object', properties: {} },
+    write: false,
+    run(_args, ctx) {
+      return { templates: templatesOf(ctx).map((t) => ({ id: t.id, name: t.label, folder: t.folder || INBOX_FOLDER, content: t.content })) };
+    },
+  },
+  {
+    name: 'create_from_template',
+    title: 'Notiz aus Vorlage',
+    description:
+      'Creates a new note from one of the user\'s templates (see list_templates), filling {{title}}, {{date}} and {{zid}}. It goes to the template\'s folder unless `folder` is given; with `group` into that group. `content` is appended below the template text.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        template: { type: 'string', description: 'Template id or name' },
+        title: { type: 'string' },
+        folder: { type: 'string' },
+        group: { type: 'string', description: 'Name of a group to create the note in' },
+        content: { type: 'string', description: 'Optional Markdown appended below the template' },
+      },
+      required: ['template', 'title'],
+    },
+    write: true,
+    run(args, ctx) {
+      const wanted = str(args, 'template', true)!.trim();
+      const template = templatesOf(ctx).find((t) => t.id === wanted) ?? templatesOf(ctx).find((t) => t.label.toLowerCase() === wanted.toLowerCase());
+      if (!template) throw new ToolError(`Die Vorlage „${wanted}“ gibt es nicht. Die Vorlagen stehen in list_templates.`);
+      const title = str(args, 'title', true)!.trim().slice(0, 200);
+      const zid = zettelId(ctx.today ?? new Date());
+      let content = fillTemplate(template.content, { title, zid, date: toDateString(ctx.today ?? new Date()) });
+      const extra = str(args, 'content')?.replace(/^\n+|\s+$/g, '');
+      if (extra) content = `${content.replace(/\s+$/, '')}${content.trim() ? '\n\n' : ''}${extra}\n`;
+      const name = templateUsesZettelId(template.content) ? `${zid} ${title}` : title;
+      return { template: template.label, ...createNote(ctx, { title: name, content, folder: str(args, 'folder'), group: str(args, 'group'), defaultFolder: template.folder || INBOX_FOLDER }) };
     },
   },
   {

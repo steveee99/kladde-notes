@@ -1,4 +1,6 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ResizeHandle } from './SidebarResizeHandle';
+import { sidePaneWidth, useWidth } from '../lib/sidebarWidth';
 import { createPortal } from 'react-dom';
 import { EditorView } from '@codemirror/view';
 import {
@@ -106,7 +108,8 @@ import { Avatar } from './Avatar';
 import { MoveToGroupSheet, groupPath, groupRoleLabel } from './Groups';
 import { PresenceBar, useAnnouncePresence } from './PresenceBar';
 import { folderDisplayName, t, useLang, type I18nKey, type Lang } from '../lib/i18n';
-import { setLocalGraphDepth, setNoteSplitOpen, setNoteSplitTab, setSourceMode, useLocalGraphDepth, useNoteSplitOpen, useNoteSplitTab, useSourceMode, type NoteSplitTab } from '../lib/prefs';
+import { setLocalGraphDepth, setSourceMode, useLocalGraphDepth, useSourceMode, type NoteSplitTab } from '../lib/prefs';
+import { activePane, usePane, usePanePanel } from '../lib/panes';
 import { isCoarsePointer } from '../lib/viewport';
 import { useModal } from '../lib/modal';
 import { useRightPaneHost } from './MaterialShell';
@@ -1117,6 +1120,10 @@ function SideSheet({ label, onClose, children }: { label: string; onClose: () =>
 
 export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const version = useVault();
+  // Two notes side by side (#88): each pane has its own side panel; only the main pane reads the address
+  const pane = usePane();
+  const panel = usePanePanel(pane);
+  const search = pane === 'main' ? location.search : '';
   const lang = useLang();
   const note = vault.get(id);
   const rc = vault.roleConfig();
@@ -1146,20 +1153,20 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const threads = useComments(id, commentsOn);
   const [commentDraft, setCommentDraft] = useState<CommentAnchor | null>(null);
   // ?thread=<id> (from a notification) opens the comments tab on that thread
-  const [focusedThread, setFocusedThread] = useState<string | null>(() => new URLSearchParams(location.search).get('thread'));
+  const [focusedThread, setFocusedThread] = useState<string | null>(() => new URLSearchParams(search).get('thread'));
   useEffect(() => {
-    if (!new URLSearchParams(location.search).get('thread')) return;
-    setNoteSplitTab('comments');
-    setNoteSplitOpen(true);
-    history.replaceState(null, '', location.pathname);
+    if (!new URLSearchParams(search).get('thread')) return;
+    panel.setTab('comments');
+    panel.setOpen(true);
+    if (pane === 'main') history.replaceState(null, '', location.pathname);
   }, [id]);
   useEffect(() => setCommentDraft(null), [id]);
   // A click on a highlighted passage opens its thread
   useEffect(() => {
     onCommentOpen((threadId) => {
       setFocusedThread(threadId);
-      setNoteSplitTab('comments');
-      setNoteSplitOpen(true);
+      panel.setTab('comments');
+      panel.setOpen(true);
     });
     return () => onCommentOpen(null);
   }, []);
@@ -1197,14 +1204,15 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
       return;
     }
     setCommentDraft(makeAnchor(view.state.doc.toString(), from, to));
-    setNoteSplitTab('comments');
-    setNoteSplitOpen(true);
+    panel.setTab('comments');
+    panel.setOpen(true);
   };
   const startCommentRef = useRef(startComment);
   startCommentRef.current = startComment;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || !e.altKey || e.shiftKey || e.code !== 'KeyC') return;
+      if (activePane() !== pane) return;
       e.preventDefault();
       startCommentRef.current();
     };
@@ -1218,15 +1226,16 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const [movingToGroup, setMovingToGroup] = useState(false);
   const [pickingIcon, setPickingIcon] = useState(false);
   const [showGraph, setShowGraph] = useState(true);
-  const splitOpen = useNoteSplitOpen();
+  const splitOpen = panel.open;
   const sourceMode = useSourceMode();
-  const splitTab = useNoteSplitTab();
+  const splitTab = panel.tab;
   const graphDepth = useLocalGraphDepth();
   const focusMode = useFocusMode();
   // Bumped (debounced) on every edit or selection change in the editor, for the live word count
   const [statsTick, setStatsTick] = useState(0);
   const statsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rightHost = useRightPaneHost();
+  const sidePaneW = useWidth(sidePaneWidth);
   const [copiedMd, setCopiedMd] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [title, setTitle] = useState('');
@@ -1299,11 +1308,11 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
 
   // ?line=N (from a double click on a task): scroll to that line once the editor exists
   useEffect(() => {
-    const n = Number(new URLSearchParams(location.search).get('line'));
+    const n = Number(new URLSearchParams(search).get('line'));
     if (!view || !hasNote || !n) return;
     const ln = view.state.doc.line(Math.min(n, view.state.doc.lines));
     view.dispatch({ selection: { anchor: ln.from }, effects: EditorView.scrollIntoView(ln.from, { y: 'center' }) });
-    history.replaceState(null, '', location.pathname);
+    if (pane === 'main') history.replaceState(null, '', location.pathname);
   }, [view, hasNote]);
 
   // Headings for the outline, live from the editor while the side panel is open
@@ -1399,7 +1408,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
       effects: EditorView.scrollIntoView(clamped, { y: 'start', yMargin: 72 }),
     });
     view.focus();
-    if (closeSheet) setNoteSplitOpen(false);
+    if (closeSheet) panel.setOpen(false);
   };
 
   const handleDelete = () => {
@@ -1425,9 +1434,12 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             </button>
           )}
           <div className={`no-print mb-3 items-center gap-2 text-sm text-on-surface-variant anim-fade-in ${focus ? 'hidden' : 'flex'}`}>
-            <button className="btn-icon -ml-2 shrink-0 rounded-full" onClick={() => history.back()} title={t('common.back')} aria-label={t('common.back')}>
-              <ArrowLeft size={18} />
-            </button>
+            {/* The second pane (#88) has its own back button in its header; this one would go back in the main pane */}
+            {pane === 'main' && (
+              <button className="btn-icon -ml-2 shrink-0 rounded-full" onClick={() => history.back()} title={t('common.back')} aria-label={t('common.back')}>
+                <ArrowLeft size={18} />
+              </button>
+            )}
 
             {/* Mobile: single last folder breadcrumb + dropdown to tap any ancestor */}
             <MobileBreadcrumbMenu folderSegments={folderSegments} lang={lang} group={noteGroup} />
@@ -1512,7 +1524,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               )}
               <button
                 type="button"
-                onClick={() => setNoteSplitOpen(!splitOpen)}
+                onClick={() => panel.setOpen(!splitOpen)}
                 aria-pressed={splitOpen}
                 className={`btn-icon rounded-full transition-colors ${splitOpen ? 'bg-secondary-container text-on-secondary-container' : ''}`}
                 title={t('note.splitviewTitle')}
@@ -1737,8 +1749,11 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
         createPortal(
           <aside
             aria-label={t('note.paneTitle')}
-            className="flex min-h-0 w-80 flex-col overflow-hidden rounded-[28px] bg-surface-container-low p-4 xl:w-96 anim-fade-in"
+            style={{ width: sidePaneW, maxWidth: '45vw' }}
+            className="relative flex min-h-0 flex-col rounded-[28px] bg-surface-container-low anim-fade-in"
           >
+            <ResizeHandle store={sidePaneWidth} edge="left" label={t('note.resizePane')} />
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
             <NoteInspectorPane
               noteId={id}
               outline={outline}
@@ -1749,9 +1764,9 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               mentions={mentions}
               local={local}
               tab={splitTab}
-              setTab={setNoteSplitTab}
+              setTab={panel.setTab}
               onJump={(pos) => jumpToPos(pos, false)}
-              onClose={() => setNoteSplitOpen(false)}
+              onClose={() => panel.setOpen(false)}
               comments={
                 commentsOn
                   ? {
@@ -1776,6 +1791,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                   : undefined
               }
             />
+            </div>
           </aside>,
           rightHost
         )}
@@ -1785,8 +1801,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
         !focus &&
         createPortal(
           <div data-splitview-sheet="true" className="no-print fixed inset-0 z-50 lg:hidden">
-            <div className="absolute inset-0 bg-scrim/[0.32] anim-fade-in" onClick={() => setNoteSplitOpen(false)} />
-            <SideSheet label={t('note.splitviewTitle')} onClose={() => setNoteSplitOpen(false)}>
+            <div className="absolute inset-0 bg-scrim/[0.32] anim-fade-in" onClick={() => panel.setOpen(false)} />
+            <SideSheet label={t('note.splitviewTitle')} onClose={() => panel.setOpen(false)}>
               <NoteInspectorPane
                 noteId={id}
                 outline={outline}
@@ -1797,9 +1813,9 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 mentions={mentions}
                 local={local}
                 tab={splitTab}
-                setTab={setNoteSplitTab}
+                setTab={panel.setTab}
                 onJump={(pos) => jumpToPos(pos, true)}
-                onClose={() => setNoteSplitOpen(false)}
+                onClose={() => panel.setOpen(false)}
               comments={
                 commentsOn
                   ? {

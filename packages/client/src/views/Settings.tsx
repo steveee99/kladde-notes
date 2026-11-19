@@ -20,6 +20,7 @@ import {
   Smartphone,
   SunMoon,
   Trash2,
+  Archive,
   Upload,
   TextFields,
   Extension,
@@ -36,6 +37,7 @@ import { navigate } from '../lib/router';
 import { GitLabIcon, passkeysAvailable, useAuthProviders, useRedirectParam } from './Auth';
 import { Avatar } from './Avatar';
 import { Switch } from './Switch';
+import { DEMO } from '../demo/demoApi';
 import { FeaturesDialog, useFeatureCounts } from './FeaturesDialog';
 
 function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
@@ -194,6 +196,16 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
       title: tl(lang, 'settings.trashTitle'),
       desc: tl(lang, 'settings.trashDesc'),
     },
+    ...(!DEMO
+      ? [
+          {
+            path: '/settings/export',
+            Icon: Archive,
+            title: tl(lang, 'accountExport.title'),
+            desc: tl(lang, 'accountExport.cardDesc'),
+          },
+        ]
+      : []),
   ];
 
   const linkTextParts = link

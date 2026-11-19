@@ -48,6 +48,9 @@ services:
       - STORAGE_QUOTA_MB=${STORAGE_QUOTA_MB:-}
       # Optional plain Markdown mirror of all notes (e.g. a NAS share mounted at /app/export), empty = off
       - EXPORT_DIR=${EXPORT_DIR:-}
+      # Optional Prometheus metrics: /metrics with this bearer token (>= 16 characters), empty = off.
+      # Or METRICS_PORT (+ METRICS_HOST=0.0.0.0) for an internal port without token; do not publish that port
+      - METRICS_TOKEN=${METRICS_TOKEN:-}
     volumes:
       - kladde-data:/app/data
       # NAS mirror: uncomment and set EXPORT_DIR=/app/export

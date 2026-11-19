@@ -313,6 +313,9 @@ export function markdownToConfluence(path: string, content: string, ctx: Conflue
         return xmlEscape(span.text);
       case 'footnoteRef':
         return `<sup>[${xmlEscape(span.id)}]</sup>`;
+      case 'math':
+        // Confluence has no formulas of its own: the TeX source as code
+        return `<code>${xmlEscape(span.display ? `$$${span.tex}$$` : `$${span.tex}$`)}</code>`;
       case 'wikilink': {
         const title = ctx.linkTitle?.(span.target) ?? null;
         if (!title) return xmlEscape(span.label);
@@ -487,6 +490,8 @@ export function markdownToConfluence(path: string, content: string, ctx: Conflue
         return '<ac:structured-macro ac:name="toc" />';
       case 'footnote':
         return `<p><sup>[${xmlEscape(block.id)}]</sup> ${inline(block.inlines)}</p>`;
+      case 'math':
+        return codeMacro('text', block.tex);
     }
   };
 
@@ -509,7 +514,7 @@ function codeMacro(lang: string, code: string): string {
 }
 
 function inlineText(spans: ExportInline[]): string {
-  return spans.map((s) => (s.type === 'wikilink' ? s.label : s.type === 'footnoteRef' ? `[${s.id}]` : s.text)).join('');
+  return spans.map((s) => (s.type === 'wikilink' ? s.label : s.type === 'footnoteRef' ? `[${s.id}]` : s.type === 'math' ? s.tex : s.text)).join('');
 }
 
 /** Body of a folder page: a hint and Confluence's list of child pages */

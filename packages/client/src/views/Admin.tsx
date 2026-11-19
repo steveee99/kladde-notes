@@ -300,6 +300,8 @@ const EVENT_KEYS: Record<string, I18nKey> = {
   admin_command: 'admin.event.admin_command',
   backup_restore_requested: 'admin.event.backup_restore_requested',
   backup_restored: 'admin.event.backup_restored',
+  account_export_requested: 'admin.event.account_export_requested',
+  account_exported: 'admin.event.account_exported',
 };
 
 function AuditTab({ onError }: { onError: (msg: string) => void }) {

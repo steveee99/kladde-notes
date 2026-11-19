@@ -1,30 +1,32 @@
 import { useRef, useState } from 'react';
 import { t, useLang } from '../lib/i18n';
-import { SIDEBAR_WIDTH_DEFAULT, SIDEBAR_WIDTH_MAX, SIDEBAR_WIDTH_MIN, setSidebarWidth, useSidebarWidth } from '../lib/sidebarWidth';
+import { sidebarWidth, useWidth, type WidthStore } from '../lib/sidebarWidth';
 
 const STEP = 16;
 
 /**
- * Drag handle on the right edge of the expanded sidebar: pointer drag, arrow keys (Shift for bigger
- * steps), Home/End for the limits, double-click resets. The width is saved per device on release.
+ * Drag handle on the edge of a resizable panel: pointer drag, arrow keys (Shift for bigger steps),
+ * Home/End for the limits, double-click resets. The width is saved per device on release.
+ * `edge: 'right'` sits on the right edge of a left panel (dragging right widens it), `'left'` on the left
+ * edge of a right panel (dragging left widens it).
  */
-export function SidebarResizeHandle() {
-  useLang();
-  const width = useSidebarWidth();
+export function ResizeHandle({ store, edge, label, className = '' }: { store: WidthStore; edge: 'left' | 'right'; label: string; className?: string }) {
+  const width = useWidth(store);
   const [dragging, setDragging] = useState(false);
   const start = useRef<{ x: number; width: number } | null>(null);
+  const dir = edge === 'right' ? 1 : -1;
 
   return (
     <div
       role="separator"
       aria-orientation="vertical"
-      aria-label={t('nav.resizeSidebar')}
-      aria-valuemin={SIDEBAR_WIDTH_MIN}
-      aria-valuemax={SIDEBAR_WIDTH_MAX}
+      aria-label={label}
+      aria-valuemin={store.min}
+      aria-valuemax={store.max}
       aria-valuenow={width}
-      title={t('nav.resizeSidebar')}
+      title={label}
       tabIndex={0}
-      className="group absolute inset-y-4 -right-1.5 z-10 flex w-3 cursor-col-resize touch-none justify-center outline-none"
+      className={`group absolute inset-y-4 z-10 flex w-3 cursor-col-resize touch-none justify-center outline-none ${edge === 'right' ? '-right-1.5' : '-left-1.5'} ${className}`}
       onPointerDown={(e) => {
         if (e.button !== 0) return;
         e.preventDefault();
@@ -33,30 +35,30 @@ export function SidebarResizeHandle() {
         setDragging(true);
       }}
       onPointerMove={(e) => {
-        if (start.current) setSidebarWidth(start.current.width + e.clientX - start.current.x, false);
+        if (start.current) store.set(start.current.width + dir * (e.clientX - start.current.x), false);
       }}
       onPointerUp={(e) => {
         if (!start.current) return;
-        setSidebarWidth(start.current.width + e.clientX - start.current.x);
+        store.set(start.current.width + dir * (e.clientX - start.current.x));
         start.current = null;
         setDragging(false);
       }}
       onPointerCancel={() => {
-        if (start.current) setSidebarWidth(start.current.width);
+        if (start.current) store.set(start.current.width);
         start.current = null;
         setDragging(false);
       }}
-      onDoubleClick={() => setSidebarWidth(SIDEBAR_WIDTH_DEFAULT)}
+      onDoubleClick={() => store.set(store.fallback)}
       onKeyDown={(e) => {
         const step = e.shiftKey ? STEP * 4 : STEP;
         let next: number | null = null;
-        if (e.key === 'ArrowLeft') next = width - step;
-        else if (e.key === 'ArrowRight') next = width + step;
-        else if (e.key === 'Home') next = SIDEBAR_WIDTH_MIN;
-        else if (e.key === 'End') next = SIDEBAR_WIDTH_MAX;
+        if (e.key === 'ArrowLeft') next = width - dir * step;
+        else if (e.key === 'ArrowRight') next = width + dir * step;
+        else if (e.key === 'Home') next = store.min;
+        else if (e.key === 'End') next = store.max;
         if (next === null) return;
         e.preventDefault();
-        setSidebarWidth(next);
+        store.set(next);
       }}
     >
       <span
@@ -65,4 +67,10 @@ export function SidebarResizeHandle() {
       />
     </div>
   );
+}
+
+/** Handle on the right edge of the expanded left sidebar */
+export function SidebarResizeHandle() {
+  useLang();
+  return <ResizeHandle store={sidebarWidth} edge="right" label={t('nav.resizeSidebar')} />;
 }

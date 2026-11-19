@@ -46,7 +46,7 @@ function DrawerPanel({ label, onClose, children }: { label: string; onClose: () 
   );
 }
 
-const RightPaneHostContext = createContext<HTMLDivElement | null>(null);
+export const RightPaneHostContext = createContext<HTMLDivElement | null>(null);
 
 export function useRightPaneHost(): HTMLDivElement | null {
   return useContext(RightPaneHostContext);

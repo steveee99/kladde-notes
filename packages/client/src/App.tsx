@@ -1,4 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { AccountExportView } from './views/AccountExport';
+import { openNoteLink } from './lib/panes';
+import { SplitNoteView } from './views/SplitView';
 import { INBOX_FOLDER, Me, projectTitleOf, runQuery } from '@kladde/shared';
 import { api, ApiError, uploadFile } from './lib/api';
 import { match, navigate, usePath } from './lib/router';
@@ -14,7 +17,6 @@ import { Shell } from './views/Shell';
 import { HomeView } from './views/Home';
 import { NoteList } from './views/NoteList';
 import { GroupManageView, GroupView, GroupsView } from './views/Groups';
-import { NoteView } from './views/NoteView';
 import { InboxView } from './views/Inbox';
 import { GraphView } from './views/Graph';
 import { ReviewView } from './views/Review';
@@ -58,14 +60,14 @@ function cachedMe(): Me | null {
 Object.assign(editorHost, {
   openWiki: async (title: string) => {
     const target = vault.findByTitle(title);
-    if (target) navigate(`/n/${target.id}`);
+    if (target) openNoteLink(target.id);
     else {
       const note = await vault.create(INBOX_FOLDER, title, `# ${title}\n\n`);
-      navigate(`/n/${note.id}`);
+      openNoteLink(note.id);
     }
   },
   wikiExists: (title: string) => !!vault.findByTitle(title),
-  openNote: (id: string) => navigate(`/n/${id}`),
+  openNote: (id: string) => openNoteLink(id),
   // Only through the link index (title, frontmatter id, Zettel id); the vault only holds notes this reader may see
   resolveEmbed: (target: string) => {
     const links = vault.links();
@@ -82,7 +84,7 @@ Object.assign(editorHost, {
     }
   },
   toggleTask: (id: string, line: number) => void vault.toggleTask(id, line),
-  openTask: (id: string, line: number) => navigate(`/n/${id}?line=${line + 1}`),
+  openTask: (id: string, line: number) => openNoteLink(id, `?line=${line + 1}`),
   setFrontmatter: (id: string, updates: Record<string, string | null>) => void vault.setFrontmatter(id, updates),
   noteTitles: () => {
     const rc = vault.roleConfig();
@@ -191,7 +193,7 @@ export function App() {
   const tagRoute = match(path, '/tags/:tag');
   const groupRoute = match(path, '/g/:id') ?? match(path, '/g/:id/:folder');
   const groupManage = match(path, '/groups/:id');
-  if (note) page = <NoteView key={note.id} id={note.id} isNew={location.search.includes('new=1')} />;
+  if (note) page = <SplitNoteView mainId={note.id} isNew={location.search.includes('new=1')} />;
   else if (path === '/daily') page = <DailyNoteEmptyView key="today" />;
   else if (dailyDate) page = <DailyNoteEmptyView key={dailyDate.date} date={dailyDate.date} />;
   else if (weekDate) page = <PeriodicEmptyView key={`w${weekDate.date}`} kind="week" date={weekDate.date} />;
@@ -222,6 +224,7 @@ export function App() {
   else if (path === '/search') page = <SearchView />;
   else if (path === '/admin' && !me.standalone) page = <AdminView me={me} />;
   else if (path === '/settings/templates') page = <TemplatesView />;
+  else if (path === '/settings/export') page = <AccountExportView />;
   else if (path === '/settings/mcp') page = <McpSettingsView />;
   else if (path === '/settings/confluence') page = <ConfluenceSettingsView />;
   else if (path === '/settings/import' && !me.standalone) page = <ImportSettingsView />;

@@ -19,8 +19,8 @@ test('creates and edits a note, and renaming it rewrites the links to it', async
   await expect.poll(async () => (await serverNote(page.request, targetId))?.path ?? '').toMatch(new RegExp(`${renamed}\\.md$`));
   await expectOnServer(page.request, sourceId, `[[${renamed}]]`);
 
-  // The link still leads to the note
+  // The link still leads to the note (a plain click; Ctrl/⌘+click opens it next to this one, #88)
   await page.goto(`/n/${sourceId}`);
-  await editor(page).getByText(renamed).click({ modifiers: ['ControlOrMeta'] });
+  await editor(page).getByText(renamed).click();
   await expect.poll(() => noteIdOf(page)).toBe(targetId);
 });

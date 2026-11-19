@@ -1,5 +1,6 @@
 import { parseCalloutLine, type CalloutHeader } from './callout.js';
 import { extractHeadings, parseFrontmatter, TOC_ANCHOR_RE } from './markdown.js';
+import { INLINE_MATH_SOURCE, findMath } from './math.js';
 
 export type TableAlign = 'left' | 'center' | 'right' | null;
 
@@ -12,7 +13,9 @@ export type ExportInline =
   | { type: 'link'; text: string; url: string }
   | { type: 'wikilink'; target: string; label: string }
   | { type: 'tag'; text: string }
-  | { type: 'footnoteRef'; id: string };
+  | { type: 'footnoteRef'; id: string }
+  /** A formula (#85), `display` for `$$…$$` inside a line */
+  | { type: 'math'; tex: string; display: boolean };
 
 export interface ExportListItem {
   indent: number;
@@ -31,7 +34,9 @@ export type ExportBlock =
   | { type: 'image'; alt: string; url: string }
   | { type: 'hr' }
   | { type: 'toc'; items: { level: 1 | 2 | 3 | 4 | 5 | 6; text: string }[] }
-  | { type: 'footnote'; id: string; inlines: ExportInline[] };
+  | { type: 'footnote'; id: string; inlines: ExportInline[] }
+  /** A display formula on lines of its own (#85) */
+  | { type: 'math'; tex: string };
 
 export interface ExportDocument {
   title: string;
@@ -74,8 +79,11 @@ export function parseExportInlines(text: string): ExportInline[] {
   };
 
   // Match highest-precedence inline tokens from left to right
-  const pattern =
-    /(`[^`\n]+`|!\[([^\]]*)\]\(([^)\s]+)\)|\[([^\]]+)\]\(([^)\s]+)\)|\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]|\*\*([^*\n]+)\*\*|__([^_\n]+)__|~~([^~\n]+)~~|\*([^*\n]+)\*|(?<!\w)_([^_\n]+)_(?!\w)|\[\^([A-Za-z0-9_-]+)\]|(https?:\/\/[^\s<>)"]+))/;
+  const pattern = new RegExp(
+    `(\x60[^\x60\\n]+\x60|${INLINE_MATH_SOURCE}|${
+      /!\[([^\]]*)\]\(([^)\s]+)\)|\[([^\]]+)\]\(([^)\s]+)\)|\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]|\*\*([^*\n]+)\*\*|__([^_\n]+)__|~~([^~\n]+)~~|\*([^*\n]+)\*|(?<!\w)_([^_\n]+)_(?!\w)|\[\^([A-Za-z0-9_-]+)\]|(https?:\/\/[^\s<>)"]+)/.source
+    })`
+  );
 
   while (rest.length > 0) {
     const m = pattern.exec(rest);
@@ -87,30 +95,32 @@ export function parseExportInlines(text: string): ExportInline[] {
 
     if (m[1].startsWith('`')) {
       out.push({ type: 'code', text: m[1].slice(1, -1) });
-    } else if (m[2] !== undefined && m[3] !== undefined) {
-      // Inline image fallback as link/label when nested inside a paragraph or list item
-      const label = m[2].trim() || 'Bild';
-      out.push({ type: 'link', text: `[${label}]`, url: m[3] });
+    } else if (m[2] !== undefined || m[3] !== undefined) {
+      out.push({ type: 'math', tex: (m[2] ?? m[3]).trim(), display: m[2] !== undefined });
     } else if (m[4] !== undefined && m[5] !== undefined) {
-      out.push({ type: 'link', text: m[4], url: m[5] });
-    } else if (m[6] !== undefined) {
-      const target = m[6].split('#')[0].trim();
-      const label = (m[7] ?? m[6].replace(/#/, ' › ')).trim();
-      out.push({ type: 'wikilink', target, label });
+      // Inline image fallback as link/label when nested inside a paragraph or list item
+      const label = m[4].trim() || 'Bild';
+      out.push({ type: 'link', text: `[${label}]`, url: m[5] });
+    } else if (m[6] !== undefined && m[7] !== undefined) {
+      out.push({ type: 'link', text: m[6], url: m[7] });
     } else if (m[8] !== undefined) {
-      out.push({ type: 'strong', text: m[8] });
-    } else if (m[9] !== undefined) {
-      out.push({ type: 'strong', text: m[9] });
+      const target = m[8].split('#')[0].trim();
+      const label = (m[9] ?? m[8].replace(/#/, ' › ')).trim();
+      out.push({ type: 'wikilink', target, label });
     } else if (m[10] !== undefined) {
-      out.push({ type: 'strike', text: m[10] });
+      out.push({ type: 'strong', text: m[10] });
     } else if (m[11] !== undefined) {
-      out.push({ type: 'em', text: m[11] });
+      out.push({ type: 'strong', text: m[11] });
     } else if (m[12] !== undefined) {
-      out.push({ type: 'em', text: m[12] });
+      out.push({ type: 'strike', text: m[12] });
     } else if (m[13] !== undefined) {
-      out.push({ type: 'footnoteRef', id: m[13] });
+      out.push({ type: 'em', text: m[13] });
     } else if (m[14] !== undefined) {
-      out.push({ type: 'link', text: m[14], url: m[14] });
+      out.push({ type: 'em', text: m[14] });
+    } else if (m[15] !== undefined) {
+      out.push({ type: 'footnoteRef', id: m[15] });
+    } else if (m[16] !== undefined) {
+      out.push({ type: 'link', text: m[16], url: m[16] });
     }
 
     rest = rest.slice(m.index + m[0].length);
@@ -197,6 +207,16 @@ export function parseMarkdownForExport(title: string, content: string): ExportDo
         blocks.push({ type: 'code', lang, code });
       }
       continue;
+    }
+
+    // Display formula (#85): `$$…$$` alone on a line, or `$$` lines around the TeX
+    if (/^\s{0,3}\$\$(?!\$)/.test(line)) {
+      const [math] = findMath(lines.slice(i, i + 501).join('\n'));
+      if (math?.block && math.from === 0) {
+        blocks.push({ type: 'math', tex: math.tex });
+        i += lines.slice(i, i + 501).join('\n').slice(0, math.to).split('\n').length;
+        continue;
+      }
     }
 
     // Table of contents anchor (##TOC## / [[TOC]])
@@ -300,6 +320,7 @@ export function parseMarkdownForExport(title: string, content: string): ExportDo
       if (
         !next.trim() ||
         /^\s*(`{3,}|~{3,})/.test(next) ||
+        /^\s{0,3}\$\$(?!\$)/.test(next) ||
         TOC_ANCHOR_RE.test(next) ||
         /^\s{0,3}#{1,6}\s+/.test(next) ||
         /^\s*(?:[-*_]\s*){3,}$/.test(next) ||
@@ -339,6 +360,8 @@ export function inlinesToPlainText(inlines: ExportInline[]): string {
           return span.label;
         case 'footnoteRef':
           return `[${span.id}]`;
+        case 'math':
+          return span.tex;
       }
     })
     .join('');

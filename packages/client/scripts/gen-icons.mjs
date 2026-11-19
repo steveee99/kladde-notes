@@ -34,6 +34,7 @@ const MAP = {
   SlidersHorizontal: 'tune', Smartphone: 'mobile', Sparkles: 'wand_stars', Star: 'star', SunMoon: 'contrast',
   Table2: 'table', Tags: 'sell', Target: 'target', Trash2: 'delete', Undo2: 'undo', Unlink: 'link_off', Upload: 'upload',
   UnfoldLess: 'unfold_less', UnfoldMore: 'unfold_more', Merge: 'merge', Filter: 'filter_list',
+  SwapHoriz: 'swap_horiz', VerticalSplit: 'vertical_split', OpenInFull: 'open_in_full',
   Psychology: 'psychology', Mic: 'mic', Mood: 'mood', StopCircle: 'stop_circle', Subtitles: 'subtitles', TextFields: 'format_size', NewReleases: 'approval',
   Callout: 'chat_info', Extension: 'extension', Slideshow: 'slideshow', SpeakerNotes: 'speaker_notes', Fullscreen: 'fullscreen', AspectRatio: 'aspect_ratio', PictureAsPdf: 'picture_as_pdf', UserCheck: 'how_to_reg', UserPlus: 'person_add', Users: 'group', X: 'close', Zap: 'bolt',
 };
