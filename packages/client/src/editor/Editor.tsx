@@ -118,6 +118,21 @@ function tagCompletion(ctx: CompletionContext) {
   return { from: line.from + typed.from + 1, options, validFor: /^[\p{L}\p{N}_/-]*$/u };
 }
 
+/** `@` opens the people who can see the note (#69) */
+function mentionCompletion(ctx: CompletionContext) {
+  const m = ctx.matchBefore(/(?<![\p{L}\p{N}_@./\\-])@[A-Za-z0-9_.-]{0,20}/u);
+  if (!m) return null;
+  const node = syntaxTree(ctx.state).resolveInner(ctx.pos, -1);
+  for (let n: SyntaxNode | null = node; n; n = n.parent) if (/Code|URL|Link|Comment/.test(n.name)) return null;
+  const people = editorHost.people(ctx.state.facet(noteIdFacet));
+  if (!people.length) return null;
+  return {
+    from: m.from + 1,
+    options: people.map((p) => ({ label: p.username, apply: `${p.username} `, type: 'mention' })),
+    validFor: /^[A-Za-z0-9_.-]*$/,
+  };
+}
+
 /** Pasted or dropped images and PDFs are uploaded and linked */
 function insertFiles(view: EditorView, files: File[], pos: number) {
   for (const file of files) {
@@ -318,7 +333,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           lockConf.current.of(readOnlyExtensions(lockedRef.current)),
           EditorView.contentAttributes.of({ spellcheck: 'true', autocapitalize: 'sentences' }),
           placeholderConf.current.of(placeholderAndLabel(resolvedPlaceholder)),
-          autocompletion({ override: [wikiCompletion, tagCompletion, slashCompletion(insertFiles)], icons: false }),
+          autocompletion({ override: [wikiCompletion, tagCompletion, mentionCompletion, slashCompletion(insertFiles)], icons: false }),
           fileHandlers(),
           dimConf.current.of(dimRef.current ? focusDim : []),
           releaseConf.current.of(releaseFacet.of(releasesRef.current ? { releases: releasesRef.current } : null)),

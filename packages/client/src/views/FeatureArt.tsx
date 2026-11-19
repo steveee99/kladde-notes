@@ -12,6 +12,7 @@ export type FeatureArtId =
   | 'weekly'
   | 'calendarView'
   | 'activity'
+  | 'mentions'
   | 'monthly'
   | 'review'
   | 'heatmap'
@@ -115,6 +116,21 @@ const ART: Record<FeatureArtId, ReactNode> = {
       <rect x={90} y={44} width={28} height={5} rx={2} className="fill-tertiary" />
       <rect x={30} y={64} width={13} height={5} rx={2} className="fill-secondary" />
       <rect x={75} y={58} width={13} height={18} rx={2} className="fill-primary" fillOpacity={0.25} />
+    </>
+  ),
+  mentions: (
+    <>
+      <Card x={24} y={14} w={112} h={62} />
+      <Bar x={34} y={28} w={30} />
+      <rect x={68} y={23} width={46} height={14} rx={7} className="fill-secondary-container" />
+      <circle cx={75} cy={30} r={5} className="fill-primary" />
+      <Bar x={84} y={28} w={24} className="fill-on-secondary-container" o={0.7} />
+      <Bar x={34} y={46} w={80} />
+      <Bar x={34} y={58} w={52} />
+      <circle cx={128} cy={16} r={10} className="fill-error" />
+      <text x={128} y={19.5} textAnchor="middle" fontSize={10} fontWeight={700} className="fill-on-error">
+        1
+      </text>
     </>
   ),
   activity: (

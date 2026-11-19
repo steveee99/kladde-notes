@@ -1391,3 +1391,36 @@ export class PropertiesWidget extends WidgetType {
     return true;
   }
 }
+
+/** An @mention of someone who can see the note (#69): a chip with their avatar and name */
+export class MentionWidget extends WidgetType {
+  constructor(
+    readonly username: string,
+    readonly avatarUrl: string | null
+  ) {
+    super();
+  }
+  eq(other: MentionWidget) {
+    return other.username === this.username && other.avatarUrl === this.avatarUrl;
+  }
+  toDOM() {
+    const chip = document.createElement('span');
+    chip.className = 'cm-mention-chip';
+    chip.dataset.mention = this.username;
+    const avatar = document.createElement('span');
+    avatar.className = 'cm-mention-avatar';
+    avatar.setAttribute('aria-hidden', 'true');
+    if (this.avatarUrl) {
+      const img = document.createElement('img');
+      img.src = this.avatarUrl;
+      img.alt = '';
+      img.addEventListener('error', () => img.replaceWith(this.username.charAt(0).toUpperCase()));
+      avatar.append(img);
+    } else avatar.textContent = this.username.charAt(0).toUpperCase();
+    chip.append(avatar, `@${this.username}`);
+    return chip;
+  }
+  ignoreEvent() {
+    return false;
+  }
+}

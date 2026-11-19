@@ -22,6 +22,7 @@ import { McpSettingsView } from './views/McpSettings';
 import { DailyNoteEmptyView } from './views/DailyNoteBar';
 import { PeriodicEmptyView } from './views/PeriodicNoteBar';
 import { ActivityView } from './views/ActivityView';
+import { NotificationsView } from './views/NotificationsView';
 import { CalendarView } from './views/ActivityHeatmap';
 import { TasksView } from './views/TasksView';
 
@@ -88,6 +89,7 @@ Object.assign(editorHost, {
     return vault.list().map((n) => projectTitleOf(n.path, n.content, rc));
   },
   tags: () => vault.tagCounts(),
+  people: (noteId: string) => (vault.features().mentions.enabled ? vault.peopleOf(noteId) : []),
   autoLinkTargets: (excludeId?: string) => vault.links().autoLinkTargets(excludeId),
   // Offline (or on a network error) the file waits on this device and the note links it as kladde-pending:<id> (#28)
   upload: (file: File) => (vault.standalone ? uploadFile(file) : uploads.upload(file)),
@@ -195,6 +197,7 @@ export function App() {
   else if (weekDate) page = <PeriodicEmptyView key={`w${weekDate.date}`} kind="week" date={weekDate.date} />;
   else if (monthDate) page = <PeriodicEmptyView key={`m${monthDate.date}`} kind="month" date={monthDate.date} />;
   else if (path === '/calendar') page = <CalendarView />;
+  else if (path === '/notifications' && !me.standalone) page = <NotificationsView />;
   else if (path === '/activity' && !me.standalone) {
     const q = new URLSearchParams(location.search);
     const group = q.get('group');

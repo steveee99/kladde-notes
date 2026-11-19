@@ -481,6 +481,25 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 23,
+    description: 'Notifications: mentions in notes and comments (#69, #68)',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE notifications (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL,
+          note_id TEXT NOT NULL,
+          actor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          at INTEGER NOT NULL,
+          read_at INTEGER,
+          payload BLOB NOT NULL
+        );
+        CREATE INDEX notifications_user ON notifications(user_id, at);
+      `);
+    },
+  },
 ];
 
 /** The schema version this build migrates to */

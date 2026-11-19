@@ -1119,6 +1119,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   useEffect(() => {
     vault.viewing = id;
     vault.markSeen(id);
+    // Mentions of the user in this note (#69) are read once it is open
+    void vault.readNotifications({ noteId: id });
     return () => {
       if (vault.viewing === id) vault.viewing = null;
       vault.markSeen(id);

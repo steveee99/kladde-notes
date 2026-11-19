@@ -134,6 +134,8 @@ export interface NoteChangeEvent {
   deleted: boolean;
   /** Who made the change (activity feed, #70) */
   actorId?: string;
+  /** The text before the change ('' for a new note): new @mentions are the difference (#69) */
+  previousContent?: string;
   /** Changes that are not a plain edit: a restore from the trash or a new release (with its version) */
   action?: 'restored' | 'released';
   version?: string;
@@ -471,7 +473,7 @@ export class NoteStore {
           const shares = ownerId === userId ? folderShares() : this.folderSharesOf(ownerId);
           const added = change.deleted ? [] : this.applyFolderShares(ownerId, change.id, path, seq, shares);
           const members = ownerId === userId ? [] : (this.db.prepare('SELECT user_id FROM group_members WHERE group_id = ?').all(ownerId) as { user_id: string }[]).map((m) => m.user_id);
-          events.push({ noteId: change.id, ownerId, audience: [...new Set([ownerId, userId, ...added, ...members])], path, previousPath: null, content, deleted: !!change.deleted, actorId: userId });
+          events.push({ noteId: change.id, ownerId, audience: [...new Set([ownerId, userId, ...added, ...members])], path, previousPath: null, content, deleted: !!change.deleted, actorId: userId, previousContent: '' });
           return { id: change.id, status: 'ok', version: 1 };
         }
         const access = this.accessOf(userId, row);
@@ -498,7 +500,7 @@ export class NoteStore {
         const audience = this.audience(row);
         if (deleted) this.dropShares(row.id, seq);
         else if (access === 'owner' && path !== old.path) audience.push(...this.applyFolderShares(userId, row.id, path, seq, folderShares()));
-        events.push({ noteId: row.id, ownerId: row.owner_id, audience: [...new Set(audience)], path, previousPath: old.path, content: deleted ? content : this.published(row.id, content), deleted, actorId: userId });
+        events.push({ noteId: row.id, ownerId: row.owner_id, audience: [...new Set(audience)], path, previousPath: old.path, content: deleted ? content : this.published(row.id, content), deleted, actorId: userId, previousContent: old.content });
         return { id: change.id, status: 'ok', version: row.version + 1 };
       })
     );

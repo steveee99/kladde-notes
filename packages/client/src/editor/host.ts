@@ -17,6 +17,8 @@ export interface EditorHost {
   noteTitles(): string[];
   /** Known tags with their note counts, most used first */
   tags(): { tag: string; count: number }[];
+  /** People who can see the note, for @mentions (#69); empty when mentions are off */
+  people(noteId: string): { username: string; avatarUrl?: string | null }[];
   autoLinkTargets(excludeId?: string): { name: string; target: string }[];
   upload(file: File): Promise<{ url: string; name: string; mime: string }>;
   /** Local blob: URL of an attachment still waiting to be uploaded (`kladde-pending:<id>`), null when not on this device */
@@ -43,6 +45,7 @@ export const editorHost: EditorHost = {
   setFrontmatter: () => {},
   noteTitles: () => [],
   tags: () => [],
+  people: () => [],
   autoLinkTargets: () => [],
   upload: () => Promise.reject(new Error(t('editor.notAvailable'))),
   pendingUrl: () => null,

@@ -3,6 +3,7 @@ import { useModal } from '../lib/modal';
 import { createPortal } from 'react-dom';
 import { Copy, Folder, Globe, Trash2, UserPlus, X } from '../lib/icons';
 import type { FolderPermissions, FolderShares, NoteShare, NoteShares } from '@kladde/shared';
+import { vault } from '../data/vault';
 import { api } from '../lib/api';
 import { folderDisplayName, folderLeafDisplayName, getLang, Lang, tl, useLang } from '../lib/i18n';
 import { useVisualViewport } from '../lib/viewport';
@@ -29,8 +30,10 @@ function endpoints(target: ShareTarget) {
     const base = `/notes/${target.note}`;
     return {
       list: () => api<NoteShares>(`${base}/shares`),
-      set: (username: string, p: FolderPermissions) => api<NoteShares>(`${base}/shares`, { method: 'PUT', json: { username, canWrite: p.canWrite } }),
-      remove: (username: string) => api<NoteShares>(`${base}/shares/${encodeURIComponent(username)}`, { method: 'DELETE' }),
+      // Who can be mentioned follows the shares (#69)
+      set: (username: string, p: FolderPermissions) =>
+        api<NoteShares>(`${base}/shares`, { method: 'PUT', json: { username, canWrite: p.canWrite } }).finally(() => vault.refreshPeople(target.note)),
+      remove: (username: string) => api<NoteShares>(`${base}/shares/${encodeURIComponent(username)}`, { method: 'DELETE' }).finally(() => vault.refreshPeople(target.note)),
     };
   }
   const folder = target.folder;

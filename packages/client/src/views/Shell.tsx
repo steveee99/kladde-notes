@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Bell,
   CalendarCheck,
   CalendarMonth,
   Globe,
@@ -1072,6 +1073,10 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
                 })}
               {navRow('tasks', ListChecks, t('nav.tasks'), { to: '/tasks', badge: <NavBadge tone="warn" count={urgentTasks} /> })}
               {features.calendarView.enabled && navRow('calendar', CalendarMonth, t('nav.calendar'), { to: '/calendar' })}
+              {!vault.standalone &&
+                !DEMO &&
+                features.mentions.enabled &&
+                navRow('notifications', Bell, t('notices.nav'), { to: '/notifications', badge: <NavBadge count={vault.unreadNotifications} /> })}
               {navRow('inbox', InboxIcon, t('nav.inbox'), {
                 to: '/inbox',
                 badge: inboxZero ? <NavBadge tone="warn" count={inboxCount} /> : null,

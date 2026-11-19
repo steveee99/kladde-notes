@@ -31,6 +31,7 @@ The app and its UI are available in **English and German**; the guides in `docs/
 | **Administration** | In the app for admins: accounts, password reset, device codes, admin role, blocking, invitations, audit log. The oldest account is the admin |
 | **Spaces** | Every user has their own space, no access to other people's notes |
 | **Sharing** | Share single notes or **whole folders** (with rights to read, edit, create, delete), or a public read-only link for guests (`/s/…`) |
+| **Mentions** | `@username` suggests the people who can see the note and shows as a chip with their picture; the person gets a notification in the app and by Web Push, with a link to the passage; "Assigned to me" on the task page lists tasks that mention you |
 | **Activity** | Groups and shared folders have an activity page: who created, edited (grouped per person and hour), moved, deleted, restored or released notes, and who joined or left; notes someone else changed since you last opened them carry a dot in the folder tree and lists |
 | **Editor** | CodeMirror 6 with live preview: Markdown syntax is only visible on the cursor line; **slash commands** (`/`) for blocks, diagrams, tables, queries and file upload; footnotes (`[^1]`) |
 | **Tables & diagrams** | GFM tables as interactive tables (sort, filter) that can be edited right in the preview: click a cell (Tab/Enter moves on), insert/rename/remove columns, add/remove rows. In the Markdown view it stays plain text. Mermaid diagrams (` ```mermaid `) and mind maps (` ```mindmap `) rendered in place |

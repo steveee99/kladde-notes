@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { ActivityNews } from '@kladde/shared';
+import type { ActivityNews, NotePerson, NotificationItem, NotificationList } from '@kladde/shared';
 import {
   HUMAN_ACTOR,
   actorId,
@@ -283,6 +283,16 @@ class Vault {
     this.events = new EventSource(`/api/events?client=${clientId}`);
     this.events.addEventListener('changed', this.kick);
     this.events.addEventListener('hello', presence.reconnected);
+    this.events.addEventListener('hello', () => void this.loadNotifications());
+    this.events.addEventListener('notification', () => void this.loadNotifications());
+    this.events.addEventListener('comments', (e) => {
+      try {
+        const { noteId } = JSON.parse((e as MessageEvent<string>).data) as { noteId: string };
+        this.commentListeners.forEach((fn) => fn(noteId));
+      } catch {
+        // malformed event: ignore
+      }
+    });
     this.events.addEventListener('presence', (e) => {
       try {
         presence.receive(JSON.parse((e as MessageEvent<string>).data));
@@ -1440,6 +1450,7 @@ class Vault {
       callouts: { enabled: true },
       calendarView: { enabled: true },
       activity: { enabled: true },
+      mentions: { enabled: true },
       weekly: { enabled: false, folder: DEFAULT_WEEKLY_FOLDER, format: DEFAULT_WEEKLY_FORMAT },
       monthly: { enabled: false, folder: DEFAULT_MONTHLY_FOLDER, format: DEFAULT_MONTHLY_FORMAT },
     } satisfies FeatureSettings);
@@ -1495,6 +1506,69 @@ class Vault {
       }
     }
   }
+
+  // ------------------------------------------------------------------ mentions and notifications (#69)
+
+  /** People who can see a note (the ones a mention reaches), by note id */
+  private people = new Map<string, NotePerson[]>();
+  private peopleLoading = new Set<string>();
+
+  /** People who can see the note; loads them the first time (an empty list until then, or offline) */
+  peopleOf(noteId: string): NotePerson[] {
+    const known = this.people.get(noteId);
+    if (known) return known;
+    if (!this.standalone && !this.peopleLoading.has(noteId) && this.notes.get(noteId)?.version) {
+      this.peopleLoading.add(noteId);
+      void api<NotePerson[]>(`/notes/${encodeURIComponent(noteId)}/people`)
+        .then((list) => {
+          this.people.set(noteId, list);
+          this.emit();
+        })
+        .catch(() => {})
+        .finally(() => this.peopleLoading.delete(noteId));
+    }
+    return [];
+  }
+
+  /** Asks again who can see the note (after sharing it) */
+  refreshPeople(noteId: string) {
+    this.people.delete(noteId);
+    this.peopleOf(noteId);
+  }
+
+  notifications: NotificationItem[] = [];
+  unreadNotifications = 0;
+
+  async loadNotifications(): Promise<void> {
+    if (this.standalone) return;
+    try {
+      const list = await api<NotificationList>('/notifications');
+      this.notifications = list.items;
+      this.unreadNotifications = list.unread;
+      this.emit();
+    } catch {
+      // offline or an old server: keep what is there
+    }
+  }
+
+  /** Marks notifications read: some by id, those of a note, or all */
+  async readNotifications(opts: { ids?: string[]; noteId?: string } = {}): Promise<void> {
+    const affected = this.notifications.filter((n) => !n.read && (opts.ids ? opts.ids.includes(n.id) : opts.noteId ? n.noteId === opts.noteId : true));
+    if (!affected.length) return;
+    for (const n of affected) n.read = true;
+    this.unreadNotifications = Math.max(0, this.unreadNotifications - affected.length);
+    this.emit();
+    try {
+      const res = await api<{ unread: number }>('/notifications/read', { method: 'POST', json: opts.ids ? { ids: opts.ids } : opts.noteId ? { noteId: opts.noteId } : {} });
+      this.unreadNotifications = res.unread;
+      this.emit();
+    } catch {
+      // read again on the next load
+    }
+  }
+
+  /** Comment threads changed on a note (#68): listeners load them again */
+  readonly commentListeners = new Set<(noteId: string) => void>();
 
   /** Notes someone else changed since the user last opened them (#70), by id */
   private news = new Map<string, { at: number; by: string | null }>();

@@ -1,10 +1,11 @@
 import express, { Response } from 'express';
 import { isReleaseBump } from '@kladde/shared';
-import type { ActivityList, MyStorage, AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
+import type { ActivityList, NotePerson, MyStorage, AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
 import { Presence } from './Presence.js';
 import { FILE_URL_RE, attachmentUsageMap } from './cliActions.js';
 import { GroupError, GroupStore } from './GroupStore.js';
 import type { ActivityStore } from './ActivityStore.js';
+import type { NotificationStore } from './NotificationStore.js';
 import { AvatarStore, MAX_AVATAR_BYTES } from './AvatarStore.js';
 import { NoteStore, ReleaseConflict, TrashPathTaken, VersioningOff } from './NoteStore.js';
 import { DEFAULT_TRASH_DAYS, dropUnusedAttachments } from './trash.js';
@@ -71,6 +72,8 @@ export interface ApiRouterOptions {
   groups?: GroupStore;
   /** Activity of groups and shared folders (#70) */
   activity?: ActivityStore;
+  /** Mentions and comments (#69, #68) */
+  notifications?: NotificationStore;
 }
 
 export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, live: LiveUpdates, opts: ApiRouterOptions = {}): express.Router {
@@ -598,6 +601,36 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       const audience = notes.audienceOf(noteId);
       if (audience?.includes(req.user!.id) && new Set(audience).size > 1) activity.seen(req.user!.id, noteId);
       res.json({ ok: true });
+    });
+  }
+
+  // ---------------------------------------------------------------- mentions and notifications (#69)
+
+  if (!standalone) {
+    // Who can see a note: the people a mention reaches (autocomplete, chips)
+    router.get('/notes/:id/people', (req, res) => {
+      const audience = notes.audienceOf(req.params.id);
+      if (!audience?.includes(req.user!.id)) return void notFound(res);
+      const people: NotePerson[] = [];
+      for (const id of new Set(audience)) {
+        const u = users.getUser(id);
+        if (u && !u.bannedAt) people.push({ username: u.username, avatarUrl: u.avatarUrl ?? null });
+      }
+      res.json(people.sort((a, b) => a.username.localeCompare(b.username)));
+    });
+  }
+
+  if (!standalone && opts.notifications) {
+    const notifications = opts.notifications;
+    router.get('/notifications', (req, res) => {
+      res.json(notifications.list(req.user!.id));
+    });
+    // { ids } marks those, { noteId } the ones of a note, {} all
+    router.post('/notifications/read', (req, res) => {
+      const ids = Array.isArray(req.body?.ids) ? (req.body.ids as string[]) : null;
+      const noteId = typeof req.body?.noteId === 'string' ? req.body.noteId : undefined;
+      notifications.markRead(req.user!.id, { ids, noteId });
+      res.json({ unread: notifications.unread(req.user!.id) });
     });
   }
 

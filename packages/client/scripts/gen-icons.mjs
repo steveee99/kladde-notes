@@ -15,7 +15,7 @@ const MAP = {
   AlertTriangle: 'warning', AlignJustify: 'density_small', FormatAlignCenter: 'format_align_center', FormatAlignJustify: 'format_align_justify', FormatAlignLeft: 'format_align_left', FormatAlignRight: 'format_align_right', Archive: 'archive', ArchiveRestore: 'unarchive',
   ArrowDownAZ: 'sort_by_alpha', ArrowDownToLine: 'vertical_align_bottom', ArrowLeft: 'arrow_back', ArrowRight: 'arrow_forward',
   Backup: 'backup', Ban: 'block', Bell: 'notifications', Bold: 'format_bold', CenterFocus: 'center_focus_strong', CloseFullscreen: 'fullscreen_exit', Bot: 'smart_toy', Briefcase: 'work', CalendarCheck: 'event_available',
-  CalendarClock: 'edit_calendar', CalendarDays: 'today', CalendarPlus: 'calendar_add_on', CalendarRange: 'date_range', CalendarMonth: 'calendar_month', Activity: 'timeline',
+  CalendarClock: 'edit_calendar', CalendarDays: 'today', CalendarPlus: 'calendar_add_on', CalendarRange: 'date_range', CalendarMonth: 'calendar_month', Activity: 'timeline', AtSign: 'alternate_email', CheckCheck: 'done_all', MessageSquare: 'chat_bubble', MessageSquarePlus: 'add_comment', Reply: 'reply',
   Camera: 'photo_camera', Check: 'check', CheckCircle2: 'check_circle', CheckSquare: 'check_box', ChefHat: 'chef_hat',
   ChevronDown: 'keyboard_arrow_down', ChevronLeft: 'chevron_left', ChevronRight: 'chevron_right', ClipboardPaste: 'content_paste',
   Clock: 'schedule', Cloud: 'cloud_done', CloudOff: 'cloud_off', Code: 'code', Copy: 'content_copy',

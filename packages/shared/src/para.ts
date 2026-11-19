@@ -132,6 +132,10 @@ export interface FeatureSettings {
   activity: {
     enabled: boolean;
   };
+  /** @mentions with notifications and "assigned to me" on the task page (#69) */
+  mentions: {
+    enabled: boolean;
+  };
 }
 
 /** Configurable folder mapping per role; `null` disables matching for that role */
@@ -286,6 +290,7 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
     callouts: { enabled: optOutFlag(obj.callouts) },
     calendarView: { enabled: optOutFlag(obj.calendarView) },
     activity: { enabled: optOutFlag(obj.activity) },
+    mentions: { enabled: optOutFlag(obj.mentions) },
   };
 }
 
