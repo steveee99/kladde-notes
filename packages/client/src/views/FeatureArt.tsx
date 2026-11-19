@@ -17,6 +17,7 @@ export type FeatureArtId =
   | 'focus'
   | 'recipe'
   | 'database'
+  | 'presentation'
   | 'memory'
   | 'mcp'
   | 'notifications'
@@ -199,6 +200,24 @@ const ART: Record<FeatureArtId, ReactNode> = {
       <Bar x={70} y={17} w={20} className="fill-on-surface" o={0.7} />
       <Bar x={108} y={17} w={22} className="fill-on-surface" o={0.7} />
       <path d="M64 12 V78 M102 12 V78" className="stroke-outline-variant" strokeWidth={1} />
+    </>
+  ),
+  presentation: (
+    <>
+      <rect x={18} y={8} width={124} height={70} rx={6} className="fill-primary-container" />
+      <Bar x={30} y={20} w={62} h={8} className="fill-on-primary-container" o={0.9} />
+      <circle cx={34} cy={40} r={2.5} className="fill-primary" />
+      <Bar x={42} y={38} w={48} h={4.5} className="fill-on-primary-container" o={0.6} />
+      <circle cx={34} cy={52} r={2.5} className="fill-primary" />
+      <Bar x={42} y={50} w={38} h={4.5} className="fill-on-primary-container" o={0.6} />
+      <circle cx={34} cy={64} r={2.5} className="fill-primary" />
+      <Bar x={42} y={62} w={44} h={4.5} className="fill-on-primary-container" o={0.6} />
+      <rect x={100} y={36} width={32} height={32} rx={4} className="fill-tertiary" fillOpacity={0.85} />
+      <path d="M104 64 l9 -12 l7 8 l4 -5 l6 9 Z" className="fill-on-tertiary" fillOpacity={0.8} />
+      <rect x={58} y={82} width={44} height={6} rx={3} className="fill-surface-container-highest" />
+      <circle cx={72} cy={85} r={1.6} className="fill-primary" />
+      <circle cx={80} cy={85} r={1.6} className="fill-outline" />
+      <circle cx={88} cy={85} r={1.6} className="fill-outline" />
     </>
   ),
   memory: (

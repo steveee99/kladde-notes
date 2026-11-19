@@ -20,6 +20,7 @@ import {
   PropertiesWidget,
   QueryWidget,
   SimpleWidget,
+  SlideBreakWidget,
   TableWidget,
   TocWidget,
   WikiWidget,
@@ -39,6 +40,8 @@ import { releaseFacet, ReleaseFieldWidget, releaseRenderOptions } from './releas
 
 /** true = render every line (read-only views) */
 export const previewAll = Facet.define<boolean, boolean>({ combine: (v) => v.some(Boolean) });
+/** Presentation mode (#87) is on: horizontal rules are slide breaks, labelled with this text (`{n}`: the next slide's number) */
+export const slideBreakLabel = Facet.define<string, string>({ combine: (v) => v[0] ?? '' });
 /** Current note id so notes don't autolink to themselves */
 export const noteIdFacet = Facet.define<string, string>({ combine: (v) => v[0] ?? '' });
 /** Re-render widgets that depend on other notes (queries, link targets, language) */
@@ -106,6 +109,8 @@ function build(state: EditorState): DecorationSet {
   // Release versioning (#53): placeholders are shown filled in
   const release = state.facet(releaseFacet);
   const releaseOpts = release ? releaseRenderOptions(lang) : null;
+  const slideLabel = state.facet(slideBreakLabel);
+  let slideNo = 1;
   const active = new Set<number>();
   if (!all) {
     for (const r of state.selection.ranges) {
@@ -250,7 +255,9 @@ function build(state: EditorState): DecorationSet {
           if (!isActive(node.from, node.to)) replace(node.from, node.to + (doc.sliceString(node.to, node.to + 1) === ' ' ? 1 : 0));
           return;
         case 'HorizontalRule':
-          if (!isActive(node.from, node.to)) replace(node.from, node.to, Decoration.replace({ widget: new SimpleWidget('hr') }));
+          slideNo++;
+          if (!isActive(node.from, node.to))
+            replace(node.from, node.to, Decoration.replace({ widget: slideLabel ? new SlideBreakWidget(slideLabel.replace('{n}', String(slideNo))) : new SimpleWidget('hr') }));
           return;
         case 'ListMark': {
           if (isActive(node.from, node.to)) return;

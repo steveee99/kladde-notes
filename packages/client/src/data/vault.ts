@@ -1382,6 +1382,7 @@ class Vault {
       shortcuts: { enabled: false },
       mcp: { enabled: false },
       database: { enabled: false },
+      presentation: { enabled: false },
     } satisfies FeatureSettings);
     for (const w of welcomeNotes(getLang())) await this.insert(w.folder, w.title, w.content);
   }

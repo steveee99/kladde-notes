@@ -108,6 +108,10 @@ export interface FeatureSettings {
   database: {
     enabled: boolean;
   };
+  /** Presentation mode (#87): "Present" and the slide PDF in the note menu; otherwise `---` is just a rule */
+  presentation: {
+    enabled: boolean;
+  };
 }
 
 /** Configurable folder mapping per role; `null` disables matching for that role */
@@ -251,6 +255,7 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
     shortcuts: { enabled: optOutFlag(obj.shortcuts) },
     mcp: { enabled: optOutFlag(obj.mcp) },
     database: { enabled: optInFlag(obj.database) },
+    presentation: { enabled: optInFlag(obj.presentation) },
   };
 }
 
