@@ -18,6 +18,7 @@ export type FeatureArtId =
   | 'recipe'
   | 'database'
   | 'presentation'
+  | 'callouts'
   | 'memory'
   | 'mcp'
   | 'notifications'
@@ -218,6 +219,21 @@ const ART: Record<FeatureArtId, ReactNode> = {
       <circle cx={72} cy={85} r={1.6} className="fill-primary" />
       <circle cx={80} cy={85} r={1.6} className="fill-outline" />
       <circle cx={88} cy={85} r={1.6} className="fill-outline" />
+    </>
+  ),
+  callouts: (
+    <>
+      <rect x={22} y={10} width={116} height={36} rx={6} className="fill-warn-container" />
+      <rect x={22} y={10} width={3.5} height={36} rx={1.75} className="fill-warn" />
+      <path d="M36 25 l5 -9 l5 9 Z" className="fill-warn" />
+      <Bar x={52} y={18} w={44} h={5} className="fill-on-warn-container" o={0.9} />
+      <Bar x={36} y={31} w={88} className="fill-on-warn-container" o={0.55} />
+      <Bar x={36} y={38} w={64} className="fill-on-warn-container" o={0.55} />
+      <rect x={22} y={52} width={116} height={22} rx={6} className="fill-primary-container" />
+      <rect x={22} y={52} width={3.5} height={22} rx={1.75} className="fill-primary" />
+      <circle cx={41} cy={63} r={4.5} className="fill-primary" />
+      <Bar x={52} y={60.5} w={50} h={5} className="fill-on-primary-container" o={0.9} />
+      <path d="M122 60.5 l4 4 l4 -4" className="stroke-on-primary-container" strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" />
     </>
   ),
   memory: (

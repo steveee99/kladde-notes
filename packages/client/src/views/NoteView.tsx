@@ -1540,6 +1540,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               onView={setView}
               onActivity={features.writingStats.enabled ? onEditorActivity : undefined}
               slideBreaks={features.presentation.enabled ? t('present.slideBreak') : ''}
+              callouts={features.callouts.enabled}
             />
             </div>
           )}
@@ -1683,6 +1684,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             title={title || displayName}
             content={note.content}
             releases={note.versioning ? (note.releases ?? []) : null}
+            callouts={features.callouts.enabled}
             onFormat={!readOnly && view ? (format) => applyFrontmatter(view, { presentation: format }) : undefined}
             onClose={() => setPresenting(false)}
           />

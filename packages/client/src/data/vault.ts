@@ -1383,6 +1383,7 @@ class Vault {
       mcp: { enabled: false },
       database: { enabled: false },
       presentation: { enabled: false },
+      callouts: { enabled: true },
     } satisfies FeatureSettings);
     for (const w of welcomeNotes(getLang())) await this.insert(w.folder, w.title, w.content);
   }

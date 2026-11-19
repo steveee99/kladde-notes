@@ -30,6 +30,8 @@ export interface PresentationProps {
   onFormat?: (format: SlideFormat) => void;
   resolveEmbed?: EmbedResolver;
   releases?: NoteReleaseInfo[] | null;
+  /** Callouts (#86) drawn as boxes (default) or as plain quotes */
+  callouts?: boolean;
 }
 
 const canvasOf = (format: SlideFormat) => {
@@ -39,7 +41,7 @@ const canvasOf = (format: SlideFormat) => {
 
 const fullscreenOn = () => typeof document !== 'undefined' && !!document.fullscreenElement;
 
-export default function Presentation({ docKey, title, content, onClose, onFormat, resolveEmbed, releases = null }: PresentationProps) {
+export default function Presentation({ docKey, title, content, onClose, onFormat, resolveEmbed, releases = null, callouts = true }: PresentationProps) {
   useLang();
   const rootRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -255,7 +257,7 @@ export default function Presentation({ docKey, title, content, onClose, onFormat
           >
             <div ref={bodyRef} className={`slide-body ${centered ? 'slide-title' : ''}`} style={{ fontSize: BASE_FONT }}>
               <div className="slide-inner">
-                <Editor key={`${current}:${format}`} docKey={`present:${docKey}:${current}`} value={slide.markdown} readOnly resolveEmbed={resolveEmbed} releases={releases} />
+                <Editor key={`${current}:${format}`} docKey={`present:${docKey}:${current}`} value={slide.markdown} readOnly resolveEmbed={resolveEmbed} releases={releases} callouts={callouts} />
               </div>
             </div>
             <div className="slide-footer" aria-hidden="true">

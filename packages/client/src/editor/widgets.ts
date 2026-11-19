@@ -1,3 +1,4 @@
+import { StateEffect } from '@codemirror/state';
 import { EditorView, WidgetType } from '@codemirror/view';
 import {
   PROJECT_STATUSES,
@@ -16,6 +17,7 @@ import {
   TASK_STATUSES,
   toDateString,
   toggleTask,
+  type CalloutKind,
   type MarkdownTable,
   type NoteHeading,
   type QueryResult,
@@ -26,6 +28,7 @@ import { dataTable, openTableCell, parseMarkdownTable, stripInline, type CellRef
 import { editorHost } from './host';
 import { embedContext } from './embedContext';
 import { DiagramKind, drawDiagram, openDiagram } from './diagram';
+import { CALLOUT_ICON_PATHS } from './calloutIcons';
 
 /** Moves the cursor into a block so it shows its source (the "✎" button of block widgets) */
 export function editButton(view: EditorView, pos: () => number, lang: Lang): HTMLElement {
@@ -1053,6 +1056,71 @@ export class SimpleWidget extends WidgetType {
     s.className = this.kind === 'hr' ? 'cm-hr' : 'cm-bullet';
     if (this.kind === 'bullet') s.textContent = '•';
     return s;
+  }
+}
+
+/** Opens or closes the collapsible callout (#86) whose head line starts at this position */
+export const toggleCalloutEffect = StateEffect.define<number>();
+
+/**
+ * The head line of a callout (#86): icon and title in the color role of its type. A collapsible one gets a button
+ * that opens and closes it; in read-only views (public links, embeds) the whole head does.
+ */
+export class CalloutHeadWidget extends WidgetType {
+  constructor(
+    readonly kind: CalloutKind,
+    readonly title: string,
+    readonly foldable: boolean,
+    readonly collapsed: boolean,
+    readonly pos: number,
+    readonly readOnly: boolean,
+    readonly lang: Lang
+  ) {
+    super();
+  }
+  eq(o: CalloutHeadWidget) {
+    return o.kind === this.kind && o.title === this.title && o.foldable === this.foldable && o.collapsed === this.collapsed && o.pos === this.pos && o.readOnly === this.readOnly && o.lang === this.lang;
+  }
+  toDOM(view: EditorView) {
+    const head = document.createElement('span');
+    head.className = 'cm-callout-head';
+    head.dataset.callout = this.kind;
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    icon.setAttribute('viewBox', '0 -960 960 960');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.classList.add('cm-callout-icon');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', CALLOUT_ICON_PATHS[this.kind]);
+    icon.append(path);
+    const title = document.createElement('span');
+    title.className = 'cm-callout-title';
+    title.textContent = stripInline(this.title).trim();
+    head.append(icon, title);
+    if (this.foldable) {
+      const toggle = () => view.dispatch({ effects: toggleCalloutEffect.of(this.pos) });
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'cm-callout-fold';
+      btn.setAttribute('aria-expanded', String(!this.collapsed));
+      btn.setAttribute('aria-label', tl(this.lang, this.collapsed ? 'callout.expand' : 'callout.collapse', { title: title.textContent }));
+      btn.innerHTML = chevron(this.collapsed ? 'm9 18 6-6-6-6' : 'm6 9 6 6 6-6');
+      // mousedown would move the cursor into the head line and show its Markdown instead
+      btn.addEventListener('mousedown', (e) => e.preventDefault());
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggle();
+      });
+      head.append(btn);
+      if (this.readOnly) {
+        head.classList.add('cm-callout-head-toggle');
+        head.addEventListener('click', toggle);
+      }
+    }
+    return head;
+  }
+  ignoreEvent(e: Event) {
+    return e.type === 'mousedown' || e.type === 'click' ? (e.target as HTMLElement).closest('.cm-callout-fold') !== null || this.readOnly : false;
   }
 }
 

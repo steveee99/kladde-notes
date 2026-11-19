@@ -3,7 +3,7 @@ import { EditorView } from '@codemirror/view';
 import { linkAllMentions, toDateString } from '@kladde/shared';
 import { getLang, tl, type Lang } from '../lib/i18n';
 import { editorHost } from './host';
-import { noteIdFacet } from './livePreview';
+import { calloutsFacet, noteIdFacet } from './livePreview';
 
 /**
  * Slash commands: "/" at the start of a line or after a space opens a menu of blocks (table, lists,
@@ -23,6 +23,8 @@ interface SlashCommand {
   /** Open wiki link completion immediately after insert */
   openCompletions?: boolean;
   run?: (view: EditorView, from: number, to: number) => void;
+  /** Only offered while callouts (#86) are on */
+  callout?: boolean;
 }
 
 export type FileInserter = (view: EditorView, files: File[], pos: number) => void;
@@ -40,6 +42,18 @@ function commands(insertFiles: FileInserter, lang: Lang): SlashCommand[] {
     { label: tl(lang, 'editor.slash.task'), detail: '- [ ]', keywords: 'todo task checkbox checkliste aufgabe', template: '- [ ] |', block: true },
     { label: tl(lang, 'editor.slash.table'), detail: '3 × 2', keywords: 'table grid tabelle', template: tableTpl, select: [2, Math.max(2, firstPipeEnd - 1)], block: true },
     { label: tl(lang, 'editor.slash.quote'), detail: '>', keywords: 'quote blockquote zitat', template: '> |', block: true },
+    { label: tl(lang, 'editor.slash.callout'), detail: '> [!note]', keywords: 'callout hinweis note info box admonition', template: `> [!note] |${tl(lang, 'callout.note')}|\n> `, block: true, callout: true },
+    { label: tl(lang, 'editor.slash.calloutTip'), detail: '> [!tip]', keywords: 'callout tipp tip hint', template: `> [!tip] |${tl(lang, 'callout.tip')}|\n> `, block: true, callout: true },
+    { label: tl(lang, 'editor.slash.calloutWarning'), detail: '> [!warning]', keywords: 'callout warnung warning caution achtung', template: `> [!warning] |${tl(lang, 'callout.warning')}|\n> `, block: true, callout: true },
+    { label: tl(lang, 'editor.slash.calloutDanger'), detail: '> [!danger]', keywords: 'callout gefahr danger error fehler', template: `> [!danger] |${tl(lang, 'callout.danger')}|\n> `, block: true, callout: true },
+    {
+      label: tl(lang, 'editor.slash.collapsible'),
+      detail: '> [!note]-',
+      keywords: 'callout einklappbar collapsible fold details toggle aufklappen',
+      template: `> [!note]- |${tl(lang, 'editor.slash.collapsibleTitle')}|\n> `,
+      block: true,
+      callout: true,
+    },
     { label: tl(lang, 'editor.slash.code'), detail: '```', keywords: 'code snippet pre codeblock', template: '```|\n\n```', block: true },
     { label: tl(lang, 'editor.slash.hr'), detail: '---', keywords: 'divider hr linie separator trennlinie', template: '---\n|', block: true },
     { label: tl(lang, 'editor.slash.query'), detail: 'query', keywords: 'query table dataview tabelle abfrage', template: '```query\nTABLE title, updated\nFROM "|"\nSORT updated DESC\n```', block: true },
@@ -173,9 +187,10 @@ export function slashCompletion(insertFiles: FileInserter) {
     if (fences % 2) return null;
     const { list, options } = ensureCommands();
     const query = m.text.slice(m.text.indexOf('/') + 1).toLowerCase();
-    const matching = query
-      ? options.filter((_o, i) => `${list[i].label} ${list[i].keywords}`.toLowerCase().split(/\s+/).some((w) => w.startsWith(query)))
-      : options;
+    const callouts = ctx.state.facet(calloutsFacet);
+    const matching = options.filter(
+      (_o, i) => (callouts || !list[i].callout) && (!query || `${list[i].label} ${list[i].keywords}`.toLowerCase().split(/\s+/).some((w) => w.startsWith(query)))
+    );
     if (!matching.length) return null;
     return { from: slash + 1, options: matching, filter: false };
   };

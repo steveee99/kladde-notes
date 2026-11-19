@@ -24,6 +24,7 @@ import {
   Mood,
   Psychology,
   Slideshow,
+  Callout,
   Smartphone,
   Star,
   Table2,
@@ -96,7 +97,7 @@ function useFeatures(lang: Lang): Feature[] {
   const server = !vault.standalone;
   const serverHint = L('features.serverHint');
 
-  const flag = (key: 'heatmap' | 'review' | 'favorites' | 'icons' | 'writingStats' | 'database' | 'presentation' | 'mcp' | 'notifications' | 'calendar' | 'shortcuts') => ({
+  const flag = (key: 'heatmap' | 'review' | 'favorites' | 'icons' | 'writingStats' | 'database' | 'presentation' | 'callouts' | 'mcp' | 'notifications' | 'calendar' | 'shortcuts') => ({
     active: features[key].enabled,
     setActive: (on: boolean) => save((f) => ({ ...f, [key]: { ...f[key], enabled: on } })),
   });
@@ -242,6 +243,15 @@ function useFeatures(lang: Lang): Feature[] {
       summary: L('features.sum.presentation'),
       details: L('features.presentationDesc'),
       ...flag('presentation'),
+    },
+    {
+      id: 'callouts',
+      Icon: Callout,
+      title: L('features.calloutsTitle'),
+      summary: L('features.sum.callouts'),
+      details: L('features.calloutsDesc'),
+      standard: true,
+      ...flag('callouts'),
     },
     {
       id: 'recipe',

@@ -8,7 +8,7 @@ import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/lang
 import type { SyntaxNode } from '@lezer/common';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 import { tags as t } from '@lezer/highlight';
-import { livePreview, noteIdFacet, previewAll, refreshEffect, slideBreakLabel } from './livePreview';
+import { calloutsFacet, livePreview, noteIdFacet, previewAll, refreshEffect, slideBreakLabel } from './livePreview';
 import { configureEmbeds } from './embed';
 import { embedResolverFacet, type EmbedResolver } from './embedContext';
 import { statusTaskList } from './taskStatus';
@@ -252,9 +252,11 @@ export interface EditorProps {
   releases?: NoteReleaseInfo[] | null;
   /** Presentation mode (#87) is on: rules show as slide breaks with this label (`{n}`: slide number) */
   slideBreaks?: string;
+  /** Callouts (#86): `> [!type]` quotes as callouts (default) or, with the feature off, as plain quotes */
+  callouts?: boolean;
 }
 
-export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote, dim = false, onActivity, resolveEmbed, releases = null, slideBreaks = '' }: EditorProps) {
+export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote, dim = false, onActivity, resolveEmbed, releases = null, slideBreaks = '', callouts = true }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const changeRef = useRef(onChange);
@@ -273,6 +275,9 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   const slideConf = useRef(new Compartment());
   const slideRef = useRef(slideBreaks);
   slideRef.current = slideBreaks;
+  const calloutConf = useRef(new Compartment());
+  const calloutRef = useRef(callouts);
+  calloutRef.current = callouts;
   const releasesRef = useRef(releases);
   releasesRef.current = releases;
   const releaseKey = releases ? JSON.stringify(releases) : '';
@@ -319,6 +324,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           releaseConf.current.of(releaseFacet.of(releasesRef.current ? { releases: releasesRef.current } : null)),
           outlineSupport,
           slideConf.current.of(slideBreakLabel.of(slideRef.current)),
+          calloutConf.current.of(calloutsFacet.of(calloutRef.current)),
           EditorView.updateListener.of((u) => {
             if (u.docChanged || u.selectionSet) activityRef.current?.(u.view);
             if (!u.docChanged) return;
@@ -371,6 +377,16 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
     }
     view.current?.dispatch({ effects: [slideConf.current.reconfigure(slideBreakLabel.of(slideBreaks)), refreshEffect.of(Date.now())] });
   }, [slideBreaks]);
+
+  // Callouts on/off (feature) without rebuilding the editor
+  const firstCallouts = useRef(true);
+  useEffect(() => {
+    if (firstCallouts.current) {
+      firstCallouts.current = false;
+      return;
+    }
+    view.current?.dispatch({ effects: [calloutConf.current.reconfigure(calloutsFacet.of(callouts)), refreshEffect.of(Date.now())] });
+  }, [callouts]);
 
   // Dimming on/off without rebuilding the editor
   useEffect(() => {

@@ -440,16 +440,10 @@ export function markdownToConfluence(path: string, content: string, ctx: Conflue
       case 'list':
         return renderList(block.items, block.ordered);
       case 'blockquote': {
-        const first = block.lines[0];
-        const head = first?.[0]?.type === 'text' ? /^\s*\[!([A-Za-z]+)\][+-]?\s*(.*)$/.exec(first[0].text) : null;
-        if (head) {
-          const macro = CALLOUTS[head[1].toLowerCase()] ?? 'info';
-          const titleInlines: ExportInline[] = [{ type: 'text', text: head[2] }, ...first.slice(1)];
-          const title = inlineText(titleInlines).trim();
-          const body = block.lines
-            .slice(1)
-            .map((l) => `<p>${inline(l)}</p>`)
-            .join('');
+        if (block.callout) {
+          const macro = CALLOUTS[block.callout.type] ?? CALLOUTS[block.callout.kind] ?? 'info';
+          const title = inlineText(block.callout.titleInlines).trim();
+          const body = block.lines.map((l) => `<p>${inline(l)}</p>`).join('');
           return `<ac:structured-macro ac:name="${macro}">${title ? `<ac:parameter ac:name="title">${xmlEscape(title)}</ac:parameter>` : ''}<ac:rich-text-body>${body || '<p />'}</ac:rich-text-body></ac:structured-macro>`;
         }
         return `<blockquote>${block.lines.map((l) => `<p>${inline(l)}</p>`).join('')}</blockquote>`;
