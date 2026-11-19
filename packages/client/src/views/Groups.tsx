@@ -5,9 +5,10 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { GROUP_ROLES, canWriteInGroup, splitPath, type GroupDetails, type GroupInfo, type GroupRole } from '@kladde/shared';
-import { ArrowLeft, ChevronRight, CornerLeftUp, Folder, FolderInput, FolderPlus, Loader2, Plus, Settings, Star, Trash2, Users } from '../lib/icons';
+import { Activity as ActivityIcon, ArrowLeft, ChevronRight, CornerLeftUp, Folder, FolderInput, FolderPlus, Loader2, Plus, Settings, Star, Trash2, Users } from '../lib/icons';
 import { api, ApiError } from '../lib/api';
 import { useVault, vault } from '../data/vault';
+import { activityPath } from './ActivityView';
 import { openDialog } from '../lib/dialogs';
 import { folderDisplayName, t, useLang, type I18nKey } from '../lib/i18n';
 import { navigate } from '../lib/router';
@@ -131,6 +132,11 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
               data-group-favorite
             >
               <Star size={20} filled={vault.isFavoriteGroupFolder(groupId, folder)} />
+            </button>
+          )}
+          {vault.features().activity.enabled && (
+            <button className="btn-ghost shrink-0 phone:!px-2.5" onClick={() => navigate(activityPath({ group: groupId }))} title={t('activity.title')} data-open-activity>
+              <ActivityIcon size={16} /> <span className="hidden sm:inline">{t('activity.title')}</span>
             </button>
           )}
           <button className="btn-ghost shrink-0 phone:!px-2.5" onClick={() => navigate(groupManagePath(groupId))} title={t('groups.manage')}>

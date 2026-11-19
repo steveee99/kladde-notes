@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  Activity as ActivityIcon,
   AlignJustify,
   ArrowLeft,
   Bell,
@@ -103,7 +104,7 @@ function useFeatures(lang: Lang): Feature[] {
   const server = !vault.standalone;
   const serverHint = L('features.serverHint');
 
-  const flag = (key: 'calendarView' | 'heatmap' | 'review' | 'favorites' | 'icons' | 'writingStats' | 'database' | 'presentation' | 'callouts' | 'mcp' | 'notifications' | 'calendar' | 'shortcuts') => ({
+  const flag = (key: 'activity' | 'calendarView' | 'heatmap' | 'review' | 'favorites' | 'icons' | 'writingStats' | 'database' | 'presentation' | 'callouts' | 'mcp' | 'notifications' | 'calendar' | 'shortcuts') => ({
     active: features[key].enabled,
     setActive: (on: boolean) => save((f) => ({ ...f, [key]: { ...f[key], enabled: on } })),
   });
@@ -196,6 +197,15 @@ function useFeatures(lang: Lang): Feature[] {
       details: L('features.calendarViewDesc'),
       standard: true,
       ...flag('calendarView'),
+    },
+    server && {
+      id: 'activity',
+      Icon: ActivityIcon,
+      title: L('features.activityTitle'),
+      summary: L('features.sum.activity'),
+      details: L('features.activityDesc'),
+      standard: true,
+      ...flag('activity'),
     },
     {
       id: 'review',

@@ -607,3 +607,49 @@ export interface PresenceAnnounce {
   clientId: string;
   noteId: string | null;
 }
+
+// ---------------------------------------------------------------- activity feed (#70)
+
+export type ActivityKind =
+  | 'created'
+  | 'edited'
+  | 'moved'
+  | 'deleted'
+  | 'restored'
+  | 'released'
+  | 'member_added'
+  | 'member_removed'
+  | 'member_role'
+  | 'folder_shared'
+  | 'folder_unshared';
+
+/** One entry of the activity of a group or a shared folder; edits of one person to one note are grouped per hour */
+export interface ActivityEntry {
+  id: string;
+  kind: ActivityKind;
+  /** When it happened (for grouped edits: the last one) */
+  at: number;
+  /** Grouped edits: how many saves */
+  count: number;
+  /** Who did it; null when the account is gone */
+  actor: string | null;
+  noteId: string | null;
+  /** Path of the note (in a group: inside the group) */
+  path?: string;
+  previousPath?: string;
+  /** `released`: the new version */
+  version?: string;
+  /** Membership and share changes: whom it concerns and their role */
+  member?: string;
+  role?: string;
+  folder?: string;
+}
+
+export interface ActivityList {
+  entries: ActivityEntry[];
+}
+
+/** Notes someone else changed since the user last opened them (marks in the folder tree) */
+export interface ActivityNews {
+  notes: { id: string; at: number; by: string | null }[];
+}

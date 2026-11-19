@@ -132,6 +132,11 @@ export interface NoteChangeEvent {
   previousPath: string | null;
   content: string;
   deleted: boolean;
+  /** Who made the change (activity feed, #70) */
+  actorId?: string;
+  /** Changes that are not a plain edit: a restore from the trash or a new release (with its version) */
+  action?: 'restored' | 'released';
+  version?: string;
 }
 
 /**
@@ -293,7 +298,7 @@ export class NoteStore {
       this.db
         .prepare('INSERT INTO note_releases (id, note_id, major, minor, patch, released_at, payload) VALUES (?, ?, ?, ?, ?, ?, ?)')
         .run(id, noteId, version.major, version.minor, version.patch, now, this.cipher.encryptJson(payload, `note_release:${id}`));
-      events.push(this.touch(row));
+      events.push({ ...this.touch(row), actorId: userId, action: 'released', version: formatSemVer(version) });
       return { version: formatSemVer(version), releasedAt: now, releasedBy: payload.releasedBy, note: payload.note };
     });
     for (const e of events) this.onChange(e);
@@ -466,7 +471,7 @@ export class NoteStore {
           const shares = ownerId === userId ? folderShares() : this.folderSharesOf(ownerId);
           const added = change.deleted ? [] : this.applyFolderShares(ownerId, change.id, path, seq, shares);
           const members = ownerId === userId ? [] : (this.db.prepare('SELECT user_id FROM group_members WHERE group_id = ?').all(ownerId) as { user_id: string }[]).map((m) => m.user_id);
-          events.push({ noteId: change.id, ownerId, audience: [...new Set([ownerId, userId, ...added, ...members])], path, previousPath: null, content, deleted: !!change.deleted });
+          events.push({ noteId: change.id, ownerId, audience: [...new Set([ownerId, userId, ...added, ...members])], path, previousPath: null, content, deleted: !!change.deleted, actorId: userId });
           return { id: change.id, status: 'ok', version: 1 };
         }
         const access = this.accessOf(userId, row);
@@ -493,7 +498,7 @@ export class NoteStore {
         const audience = this.audience(row);
         if (deleted) this.dropShares(row.id, seq);
         else if (access === 'owner' && path !== old.path) audience.push(...this.applyFolderShares(userId, row.id, path, seq, folderShares()));
-        events.push({ noteId: row.id, ownerId: row.owner_id, audience: [...new Set(audience)], path, previousPath: old.path, content: deleted ? content : this.published(row.id, content), deleted });
+        events.push({ noteId: row.id, ownerId: row.owner_id, audience: [...new Set(audience)], path, previousPath: old.path, content: deleted ? content : this.published(row.id, content), deleted, actorId: userId });
         return { id: change.id, status: 'ok', version: row.version + 1 };
       })
     );
@@ -642,7 +647,7 @@ export class NoteStore {
         this.db.prepare('DELETE FROM trash WHERE note_id = ?').run(noteId);
         this.recordVersion(noteId, path, p.content, now);
         const added = t.owner_id === userId ? this.applyFolderShares(userId, noteId, path, seq, (cached ??= this.folderSharesOf(userId))) : [];
-        events.push({ noteId, ownerId: t.owner_id, audience: [...new Set([userId, ...added, ...this.audience(row)])], path, previousPath: null, content: this.published(noteId, p.content), deleted: false });
+        events.push({ noteId, ownerId: t.owner_id, audience: [...new Set([userId, ...added, ...this.audience(row)])], path, previousPath: null, content: this.published(noteId, p.content), deleted: false, actorId: userId, action: 'restored' });
         out.push({ id: noteId, path });
       }
       return out;
@@ -1111,7 +1116,7 @@ export class NoteStore {
         const after = this.getRow(id)!;
         // Gone from the old owner's space (export mirror), new in the group's
         events.push({ noteId: id, ownerId: userId, audience: [], path: p.path, previousPath: p.path, content: '', deleted: true });
-        events.push({ noteId: id, ownerId: groupId, audience: [...new Set([...before, ...this.audience(after)])], path, previousPath: null, content: this.published(id, p.content), deleted: false });
+        events.push({ noteId: id, ownerId: groupId, audience: [...new Set([...before, ...this.audience(after)])], path, previousPath: null, content: this.published(id, p.content), deleted: false, actorId: userId });
         moved.push({ id, path });
         contents.push(p.content);
       }

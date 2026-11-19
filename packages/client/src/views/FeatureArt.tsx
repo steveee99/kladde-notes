@@ -11,6 +11,7 @@ export type FeatureArtId =
   | 'daily'
   | 'weekly'
   | 'calendarView'
+  | 'activity'
   | 'monthly'
   | 'review'
   | 'heatmap'
@@ -114,6 +115,19 @@ const ART: Record<FeatureArtId, ReactNode> = {
       <rect x={90} y={44} width={28} height={5} rx={2} className="fill-tertiary" />
       <rect x={30} y={64} width={13} height={5} rx={2} className="fill-secondary" />
       <rect x={75} y={58} width={13} height={18} rx={2} className="fill-primary" fillOpacity={0.25} />
+    </>
+  ),
+  activity: (
+    <>
+      <Card x={26} y={10} w={108} h={70} />
+      {[0, 1, 2, 3].map((i) => (
+        <g key={i}>
+          <circle cx={40} cy={24 + i * 15} r={5} className={['fill-primary', 'fill-tertiary', 'fill-secondary', 'fill-primary'][i]} />
+          <Bar x={51} y={22 + i * 15} w={[58, 44, 66, 36][i]} />
+          {i === 0 && <circle cx={122} cy={24} r={3} className="fill-primary" />}
+        </g>
+      ))}
+      <path d="M40 29 V 64" className="stroke-outline-variant" strokeWidth={1.5} />
     </>
   ),
   monthly: (

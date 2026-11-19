@@ -1115,6 +1115,15 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   useEffect(() => {
     if (confluence?.connection) void refreshConfluence();
   }, [id]);
+  // Activity (#70): an open note is not "new", and what others change while it is open is seen on leaving
+  useEffect(() => {
+    vault.viewing = id;
+    vault.markSeen(id);
+    return () => {
+      if (vault.viewing === id) vault.viewing = null;
+      vault.markSeen(id);
+    };
+  }, [id]);
   const [showHistory, setShowHistory] = useState(false);
   const [presenting, setPresenting] = useState(false);
   const [releaseOpen, setReleaseOpen] = useState(false);

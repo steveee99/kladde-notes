@@ -53,6 +53,7 @@ import { urgentTaskCount } from './TaskParts';
 import { usePendingUploads } from '../data/uploads';
 import { useVault, vault } from '../data/vault';
 import { openThisPeriod } from './PeriodicNoteBar';
+import { NewMark } from './ActivityView';
 import type { LocalNote } from '../data/db';
 import { currentPath, navigate, usePath } from '../lib/router';
 import { dragSource, useDropTarget } from '../lib/dnd';
@@ -402,6 +403,7 @@ function SidebarNoteRow({
           />
         )}
         <span className="min-w-0 flex-1 truncate">{name}</span>
+        <NewMark noteId={note.id} />
       </div>
     </li>
   );

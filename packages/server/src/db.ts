@@ -453,6 +453,34 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 22,
+    description: 'Activity of groups and shared notes, and when each user last opened a note (#70)',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE activity (
+          id TEXT PRIMARY KEY,
+          owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          note_id TEXT,
+          actor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          kind TEXT NOT NULL,
+          at INTEGER NOT NULL,
+          hour INTEGER NOT NULL,
+          count INTEGER NOT NULL,
+          payload BLOB NOT NULL
+        );
+        CREATE INDEX activity_owner ON activity(owner_id, at);
+        CREATE INDEX activity_note ON activity(note_id, actor_id, hour);
+        CREATE INDEX activity_at ON activity(at);
+        CREATE TABLE activity_seen (
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          note_id TEXT NOT NULL,
+          seen_at INTEGER NOT NULL,
+          PRIMARY KEY (user_id, note_id)
+        );
+      `);
+    },
+  },
 ];
 
 /** The schema version this build migrates to */

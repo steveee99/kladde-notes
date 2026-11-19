@@ -21,6 +21,7 @@ import { ReviewView } from './views/Review';
 import { McpSettingsView } from './views/McpSettings';
 import { DailyNoteEmptyView } from './views/DailyNoteBar';
 import { PeriodicEmptyView } from './views/PeriodicNoteBar';
+import { ActivityView } from './views/ActivityView';
 import { CalendarView } from './views/ActivityHeatmap';
 import { TasksView } from './views/TasksView';
 
@@ -194,6 +195,11 @@ export function App() {
   else if (weekDate) page = <PeriodicEmptyView key={`w${weekDate.date}`} kind="week" date={weekDate.date} />;
   else if (monthDate) page = <PeriodicEmptyView key={`m${monthDate.date}`} kind="month" date={monthDate.date} />;
   else if (path === '/calendar') page = <CalendarView />;
+  else if (path === '/activity' && !me.standalone) {
+    const q = new URLSearchParams(location.search);
+    const group = q.get('group');
+    page = group ? <ActivityView key={`g${group}`} scope={{ group }} /> : <ActivityView key={location.search} scope={{ owner: q.get('owner') ?? '', folder: q.get('folder') ?? '' }} />;
+  }
   else if (path === '/inbox' || path === `/f/${encodeURIComponent(INBOX_FOLDER)}`) page = <InboxView />;
   // "Share → Kladde" from another app (PWA share target)
   else if (path === '/share') page = <ShareCaptureView key={location.search} />;

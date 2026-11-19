@@ -128,6 +128,10 @@ export interface FeatureSettings {
   calendarView: {
     enabled: boolean;
   };
+  /** Activity of groups and shared folders and "new" marks on notes others changed (#70) */
+  activity: {
+    enabled: boolean;
+  };
 }
 
 /** Configurable folder mapping per role; `null` disables matching for that role */
@@ -281,6 +285,7 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
     presentation: { enabled: optInFlag(obj.presentation) },
     callouts: { enabled: optOutFlag(obj.callouts) },
     calendarView: { enabled: optOutFlag(obj.calendarView) },
+    activity: { enabled: optOutFlag(obj.activity) },
   };
 }
 

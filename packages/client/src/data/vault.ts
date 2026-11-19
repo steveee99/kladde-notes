@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import type { ActivityNews } from '@kladde/shared';
 import {
   HUMAN_ACTOR,
   actorId,
@@ -1438,6 +1439,7 @@ class Vault {
       presentation: { enabled: false },
       callouts: { enabled: true },
       calendarView: { enabled: true },
+      activity: { enabled: true },
       weekly: { enabled: false, folder: DEFAULT_WEEKLY_FOLDER, format: DEFAULT_WEEKLY_FORMAT },
       monthly: { enabled: false, folder: DEFAULT_MONTHLY_FOLDER, format: DEFAULT_MONTHLY_FORMAT },
     } satisfies FeatureSettings);
@@ -1494,6 +1496,40 @@ class Vault {
     }
   }
 
+  /** Notes someone else changed since the user last opened them (#70), by id */
+  private news = new Map<string, { at: number; by: string | null }>();
+  private newsTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The note open in the editor: changes to it are seen as they come in */
+  viewing: string | null = null;
+
+  /** Fetches the "new since your last visit" marks again, shortly after the last pull */
+  private refreshNews() {
+    if (this.standalone) return;
+    if (this.newsTimer) clearTimeout(this.newsTimer);
+    this.newsTimer = setTimeout(() => {
+      this.newsTimer = null;
+      void api<ActivityNews>('/activity/news')
+        .then((r) => {
+          const next = new Map(r.notes.filter((n) => n.id !== this.viewing).map((n) => [n.id, { at: n.at, by: n.by }]));
+          if (next.size === 0 && this.news.size === 0) return;
+          this.news = next;
+          this.emit();
+        })
+        .catch(() => {});
+    }, 400);
+  }
+
+  /** Who changed the note since the user last opened it, if somebody did */
+  newsOf(id: string): { at: number; by: string | null } | undefined {
+    return this.news.get(id);
+  }
+
+  /** The user opened (or left) the note: it is no longer new to them, on every device */
+  markSeen(id: string) {
+    if (this.news.delete(id)) this.emit();
+    if (!this.standalone) void api('/activity/seen', { method: 'POST', json: { noteId: id } }).catch(() => {});
+  }
+
   private async pull() {
     const since = ((await this.db!.get('meta', 'cursor')) as number | undefined) ?? 0;
     const res = await api<PullResponse>(`/sync?since=${since}`);
@@ -1535,7 +1571,12 @@ class Vault {
     }
     await this.db!.put('meta', res.cursor, 'cursor');
     this.emit();
+    if (res.notes.length || since === 0 || !this.newsLoaded) {
+      this.newsLoaded = true;
+      this.refreshNews();
+    }
   }
+  private newsLoaded = false;
 
   private async accept(server: SyncedNote) {
     if (server.deleted) {

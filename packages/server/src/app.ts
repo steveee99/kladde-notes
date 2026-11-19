@@ -10,6 +10,7 @@ import { GroupStore } from './GroupStore.js';
 import { NoteStore } from './NoteStore.js';
 import { FileStore } from './FileStore.js';
 import { ExportMirror } from './ExportMirror.js';
+import { ActivityStore } from './ActivityStore.js';
 import { AuditLog } from './security/AuditLog.js';
 import { configuredOrigins, isAllowedOrigin } from './security/origin.js';
 import { appCsp, inlineScriptHashes } from './security/csp.js';
@@ -92,8 +93,11 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   const mirror = ExportMirror.fromEnv((id) => users.getUser(id)?.username ?? null, env);
   // Created below (it needs the file store); note changes reach it from the first push on
   let confluence: ConfluenceSync | undefined;
+  // Activity of groups and shared notes (#70)
+  const activity = new ActivityStore(opts.db, cipher);
   const notes = new NoteStore(opts.db, cipher, (event) => {
     live.notify(event.audience);
+    activity.record(event);
     mirror?.apply(event);
     confluence?.onNoteChange(event);
   });
@@ -287,7 +291,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       })
     );
   }
-  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db) }));
+  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db), activity }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
   if (opts.seaAssets && opts.seaAssets.size > 0) {

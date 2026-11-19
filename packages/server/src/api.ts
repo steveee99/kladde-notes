@@ -1,9 +1,10 @@
 import express, { Response } from 'express';
 import { isReleaseBump } from '@kladde/shared';
-import type { MyStorage, AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
+import type { ActivityList, MyStorage, AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
 import { Presence } from './Presence.js';
 import { FILE_URL_RE, attachmentUsageMap } from './cliActions.js';
 import { GroupError, GroupStore } from './GroupStore.js';
+import type { ActivityStore } from './ActivityStore.js';
 import { AvatarStore, MAX_AVATAR_BYTES } from './AvatarStore.js';
 import { NoteStore, ReleaseConflict, TrashPathTaken, VersioningOff } from './NoteStore.js';
 import { DEFAULT_TRASH_DAYS, dropUnusedAttachments } from './trash.js';
@@ -68,6 +69,8 @@ export interface ApiRouterOptions {
   attachmentSearch?: { files: FileStore; texts: AttachmentTextStore; ocr: boolean };
   /** Groups (#58); not in standalone mode */
   groups?: GroupStore;
+  /** Activity of groups and shared folders (#70) */
+  activity?: ActivityStore;
 }
 
 export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, live: LiveUpdates, opts: ApiRouterOptions = {}): express.Router {
@@ -384,7 +387,9 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
         return;
       }
       const { canWrite, canCreate, canDelete } = req.body;
+      const already = notes.folderShares(req.user!.id, folder).users.some((u) => u.username === target.username);
       live.notify(notes.shareFolder(req.user!.id, folder, target.id, { canWrite: !!canWrite, canCreate: !!canCreate, canDelete: !!canDelete }));
+      if (!already) opts.activity?.folderShare(req.user!.id, req.user!.id, 'folder_shared', folder, target.username);
       res.json(notes.folderShares(req.user!.id, folder));
     });
 
@@ -392,7 +397,11 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       const folder = folderOf(req.body?.folder);
       if (!folder) return void badFolder(res);
       const target = typeof req.body?.username === 'string' ? users.findByUsername(req.body.username) : null;
-      if (target) live.notify(notes.unshareFolder(req.user!.id, folder, target.id));
+      if (target) {
+        const had = notes.folderShares(req.user!.id, folder).users.some((u) => u.username === target.username);
+        live.notify(notes.unshareFolder(req.user!.id, folder, target.id));
+        if (had) opts.activity?.folderShare(req.user!.id, req.user!.id, 'folder_unshared', folder, target.username);
+      }
       res.json(notes.folderShares(req.user!.id, folder));
     });
 
@@ -482,7 +491,10 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     router.put('/groups/:id/members', (req, res) => {
       try {
         const target = memberTarget(req.body?.username);
+        const before = groups.roleOf(req.params.id, target.id);
         groups.setMember(req.user!.id, req.params.id, target.id, req.body?.role);
+        const after = groups.roleOf(req.params.id, target.id);
+        if (after && after !== before) opts.activity?.member(req.params.id, req.user!.id, before ? 'member_role' : 'member_added', target.username, after);
         live.notify(groups.memberIds(req.params.id));
         res.json(groups.details(req.user!.id, req.params.id));
       } catch (err) {
@@ -497,6 +509,7 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
         if (!target) throw new GroupError('Diese Person ist nicht in der Gruppe.', 404);
         const before = groups.memberIds(req.params.id);
         groups.removeMember(req.user!.id, req.params.id, target.id);
+        opts.activity?.member(req.params.id, req.user!.id, 'member_removed', target.username, null);
         live.notify(before);
         res.json(target.id === req.user!.id ? { left: true } : groups.details(req.user!.id, req.params.id));
       } catch (err) {
@@ -508,6 +521,7 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       try {
         const before = groups.memberIds(req.params.id);
         groups.removeMember(req.user!.id, req.params.id, req.user!.id);
+        opts.activity?.member(req.params.id, req.user!.id, 'member_removed', req.user!.username, null);
         live.notify(before);
         res.json({ left: true });
       } catch (err) {
@@ -546,6 +560,44 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       } catch (err) {
         groupError(res, err);
       }
+    });
+  }
+
+  // ---------------------------------------------------------------- activity (#70)
+
+  if (!standalone && opts.activity) {
+    const activity = opts.activity;
+    // ?group=<id> for a group's space, ?owner=<username>&folder=<path> for a shared folder (its owner or a recipient)
+    router.get('/activity', (req, res) => {
+      const userId = req.user!.id;
+      const before = Number(req.query.before) || undefined;
+      if (typeof req.query.group === 'string') {
+        if (!notes.groupRole(req.query.group, userId)) return void res.status(404).json({ error: 'Gruppe nicht gefunden.' });
+        return void res.json({ entries: activity.ofOwner(req.query.group, { before }) } satisfies ActivityList);
+      }
+      const folder = typeof req.query.folder === 'string' ? req.query.folder.replace(/^\/+|\/+$/g, '') : '';
+      const owner = typeof req.query.owner === 'string' ? users.findByUsername(req.query.owner) : null;
+      if (!folder || !owner) return void res.status(400).json({ error: 'Ungültiger Ordner.' });
+      const allowed =
+        owner.id === userId
+          ? (({ users: u, inherited }) => u.length + inherited.length > 0)(notes.folderShares(userId, folder))
+          : notes.sharedWith(userId).some((f) => f.owner === owner.username && (folder === f.folder || folder.startsWith(`${f.folder}/`)));
+      if (!allowed) return void res.status(404).json({ error: 'Ordner nicht gefunden.' });
+      res.json({ entries: activity.ofFolder(owner.id, folder, { before }) } satisfies ActivityList);
+    });
+
+    // Notes changed by others since the user last opened them
+    router.get('/activity/news', (req, res) => {
+      const userId = req.user!.id;
+      res.json(activity.news(userId, (noteId) => !!notes.audienceOf(noteId)?.includes(userId)));
+    });
+
+    router.post('/activity/seen', (req, res) => {
+      const noteId = typeof req.body?.noteId === 'string' ? req.body.noteId : '';
+      // Only notes somebody else sees can become new again
+      const audience = notes.audienceOf(noteId);
+      if (audience?.includes(req.user!.id) && new Set(audience).size > 1) activity.seen(req.user!.id, noteId);
+      res.json({ ok: true });
     });
   }
 
