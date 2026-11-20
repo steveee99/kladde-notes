@@ -107,6 +107,9 @@ import { clientId, presence } from '../lib/presence';
 import { LocalDb, LocalNote, openLocalDb } from './db';
 import { welcomeNotes } from './welcome';
 
+/** Window event with the server's version (from the live stream's `hello`), heard by `lib/update.ts` */
+export const SERVER_VERSION_EVENT = 'kladde-server-version';
+
 export type SyncState = 'idle' | 'syncing' | 'offline' | 'error';
 
 export function newId(): string {
@@ -283,6 +286,15 @@ class Vault {
     this.events = new EventSource(`/api/events?client=${clientId}`);
     this.events.addEventListener('changed', this.kick);
     this.events.addEventListener('hello', presence.reconnected);
+    // The server's version (lib/update.ts): a deploy restarts the server, the stream reconnects and the app updates at once
+    this.events.addEventListener('hello', (e) => {
+      try {
+        const { version } = JSON.parse((e as MessageEvent<string>).data) as { version?: unknown };
+        if (typeof version === 'string') window.dispatchEvent(new CustomEvent(SERVER_VERSION_EVENT, { detail: version }));
+      } catch {
+        // malformed event: ignore
+      }
+    });
     this.events.addEventListener('hello', () => void this.loadNotifications());
     this.events.addEventListener('notification', () => void this.loadNotifications());
     this.events.addEventListener('comments', (e) => {

@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- Changed: Updates reach open apps within seconds of a deploy. The live connection tells the app the server's version when it reconnects (a deploy restarts the server), and the app also checks every 10 minutes while open. The reload no longer waits until the cursor leaves the editor: it happens after 10 seconds without typing or clicking (or right away when the app is in the background). Notes are kept on the device, nothing is lost.
+
 - New: Duplicate a note: "Duplicate" in a note's ⋮ menu and in the right-click menu of a note in the folder tree creates a copy next to it named "<name> (Copy)" ("(Kopie)" in German) and opens it. Works for own notes, group notes you may edit and folders shared with you that allow new notes; a frontmatter `id` is left out of the copy so links keep resolving to the original.
 - New: Link an attachment you already uploaded: "Insert existing attachment" in the editor toolbar and the slash command "Existing attachment" open a searchable list of your attachments (with previews); a new file can be uploaded from there too.
 - New: Upload attachments on the attachments page (images and PDFs, several at once); they show up as not yet used until a note links them.
