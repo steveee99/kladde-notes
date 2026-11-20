@@ -10,7 +10,6 @@ All user-visible changes to Kladde.
 - Changed: Due dates, repeats and times in the editor show the same symbols as the task lists instead of emoji (📅 🔁 ⏰); the text stays as written.
 - Changed: Small motions: the tick of a task draws itself, the sync dot in the status bar pulses while syncing, changed counts roll in. They are off with "reduce motion".
 - Changed: The welcome note of a new space is titled "Willkommen bei Kladde" ("Welcome to Kladde") and no longer repeats its title as a heading.
-
 - Changed: Notes always use the full width of the content area; the "Widescreen (content width)" slider in the settings is gone.
 - Changed: The folder panel is organized in sections like the settings: Favorites, Folders and Groups each have a heading with the entries below; groups are no longer listed inside the folder tree.
 - Changed: Navigation badges (urgent tasks, inbox, notifications) use your accent color.
@@ -23,6 +22,8 @@ All user-visible changes to Kladde.
 - New: Accent color per account (Settings → Appearance → Accent color): Blue (default), Amber, Green, Teal, Violet, Pink, Coral or Graphite. It colors the selection, links, the main action, done checkboxes and your avatar, is stored with your account and follows you to all devices; every preset is checked for contrast in the dark and the light scheme. State colors (overdue, today, done) stay the same for everyone.
 - New: The folder panel can be collapsed on the desktop: the button at the top of the panel or of the rail, `Ctrl/⌘+\`, or a click on the active "Notes" destination. The rail stays; the choice is kept per device.
 - Removed: The "Darker" color scheme. Devices that used it switch to the new dark scheme, which is about as dark.
+- Changed: Updates reach open apps within seconds of a deploy. The live connection tells the app the server's version when it reconnects (a deploy restarts the server), and the app also checks every 10 minutes while open. The reload no longer waits until the cursor leaves the editor: it happens after 10 seconds without typing or clicking (or right away when the app is in the background). Notes are kept on the device, nothing is lost.
+
 - New: Duplicate a note: "Duplicate" in a note's ⋮ menu and in the right-click menu of a note in the folder tree creates a copy next to it named "<name> (Copy)" ("(Kopie)" in German) and opens it. Works for own notes, group notes you may edit and folders shared with you that allow new notes; a frontmatter `id` is left out of the copy so links keep resolving to the original.
 - New: Link an attachment you already uploaded: "Insert existing attachment" in the editor toolbar and the slash command "Existing attachment" open a searchable list of your attachments (with previews); a new file can be uploaded from there too.
 - New: Upload attachments on the attachments page (images and PDFs, several at once); they show up as not yet used until a note links them.
