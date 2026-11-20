@@ -1,15 +1,15 @@
 import { useMemo, useState } from 'react';
-import { AlignJustify, ArrowRight, Briefcase, Check, CalendarCheck, CalendarDays, Inbox as InboxIcon, Kanban, List, ListChecks, Plus } from '../lib/icons';
-import { INBOX_FOLDER, Task, bucketOf, projectsOf, splitPath, toDateString } from '@kladde/shared';
+import { AlignJustify, ArrowRight, Briefcase, CalendarCheck, CalendarDays, Kanban, List, ListChecks, Plus } from '../lib/icons';
+import { INBOX_FOLDER, Task, bucketOf, isoWeek, projectTitleOf, projectsOf, splitPath, toDateString } from '@kladde/shared';
 import { openDialog } from '../lib/dialogs';
 import { reviewDue } from './Review';
 import { useVault, vault } from '../data/vault';
 import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
 import { formatDue } from '../editor/widgets';
-import { NoteCollection, ViewSwitch } from './NoteList';
+import { PageBody, PageHeader, Panel } from './PageHeader';
 import { ActivityHeatmap } from './ActivityHeatmap';
-import { BUCKETS, TaskKanban, TaskRows, collectTasks } from './TaskParts';
+import { TaskBuckets, TaskKanban, TaskQuickAdd, collectTasks } from './TaskParts';
 import { locale, t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
 
@@ -18,7 +18,6 @@ export function HomeView() {
   const lang = useLang();
   const inboxZero = useInboxZero();
   const locked = useReadOnly();
-  const [input, setInput] = useState('');
   const [compact, setCompactState] = useState(() => {
     try {
       return localStorage.getItem('kladde.tasksCompact') === '1';
@@ -76,202 +75,192 @@ export function HomeView() {
   const todayStr = toDateString(new Date());
   const inboxCount = own.filter((n) => splitPath(n.path).folder === INBOX_FOLDER).length;
   const recent = [...notes].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6);
-  const hour = new Date().getHours();
-  const greeting = hour < 11 ? t('home.greetingMorning') : hour < 18 ? t('home.greetingDay') : t('home.greetingEvening');
   const openCount = tasks.filter((tk) => bucketOf(tk) === 'overdue' || bucketOf(tk) === 'today').length;
   const openCountText = openCount === 0 ? t('home.allDoneToday') : openCount === 1 ? t('home.openTodaySingle') : t('home.openTodayPlural', { n: openCount });
   const inboxChipText = inboxCount === 1 ? t('home.inboxSingle') : t('home.inboxPlural', { n: inboxCount });
 
-  return (
-    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
-      <header className="mb-6 anim-fade-up">
-        <p className="text-title-m text-on-surface-variant">{new Date().toLocaleDateString(locale(lang), { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-        <h1 className="mt-1 text-display-s sm:text-display-m">{greeting} 👋</h1>
-        <p className="mt-3 text-title-l">{openCountText}</p>
-        <p className="mt-1 text-body-l text-on-surface-variant">{t(features.para.enabled ? 'home.subtitle' : 'home.subtitleNoPara')}</p>
-      </header>
+  const inboxNotes = own
+    .filter((n) => splitPath(n.path).folder === INBOX_FOLDER)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  const dateTitle = new Date().toLocaleDateString(locale(lang), { weekday: 'long', day: 'numeric', month: 'long' });
+  const when = (ts: number) =>
+    new Date(ts).toDateString() === new Date().toDateString()
+      ? new Date(ts).toLocaleTimeString(locale(lang), { hour: '2-digit', minute: '2-digit' })
+      : new Date(ts).toLocaleDateString(locale(lang), { day: 'numeric', month: 'short' });
 
-      {(showDailyBtn || (inboxZero && inboxCount > 0) || reviewDue()) && (
-        <div className="mb-6 flex flex-wrap gap-2.5 anim-fade-up">
-          {showDailyBtn && (
-            <button
-              type="button"
-              className="btn-outlined"
-              onClick={() => void vault.openDailyNote().then((n) => navigate(`/n/${n.id}`))}
-            >
-              <CalendarDays size={18} /> {t('daily.todayBtn')}
-            </button>
-          )}
-          {inboxZero && inboxCount > 0 && (
-            <button className="chip text-on-surface" onClick={() => navigate('/inbox')}>
-              <InboxIcon size={18} className="text-warn" /> {inboxChipText}
-            </button>
-          )}
-          {reviewDue() && (
-            <button className="chip text-on-surface" onClick={() => navigate('/review')}>
-              <CalendarCheck size={18} className="text-primary" /> {t('home.reviewDueChip')}
-            </button>
-          )}
-        </div>
-      )}
-
-      <hr className="my-7 border-0 border-t border-outline-variant/80" />
-
-      <section aria-labelledby="home-tasks-heading">
-        <div className="mb-3 flex items-center justify-between px-1 anim-fade-up">
-          <h2 id="home-tasks-heading" className="text-title-m">
-            {t('home.tasksTitle')}
-          </h2>
-          <div className="flex items-center gap-1">
-            {tasks.length > 0 && layout === 'list' && (
-              <button
-                className="btn-icon"
-                aria-pressed={compact}
-                onClick={() => setCompact(!compact)}
-                title={compact ? t('home.viewNormalTitle') : t('home.viewCompactTitle')}
-                aria-label={compact ? t('home.viewNormal') : t('home.viewCompact')}
-              >
-                {compact ? <List size={24} /> : <AlignJustify size={24} />}
-              </button>
-            )}
-            <button type="button" className="btn-text" onClick={() => navigate('/tasks')} title={t('tasks.allTitle')}>
-              <span className="hidden sm:inline">{t('tasks.allBtn')}</span> <ArrowRight size={18} />
-            </button>
-            <div role="group" aria-label={t('home.layoutAria')} className="segmented">
-              {(
-                [
-                  ['list', ListChecks, 'home.layoutList'],
-                  ['kanban', Kanban, 'home.layoutKanban'],
-                ] as const
-              ).map(([id, Icon, key]) => (
-                <button
-                  key={id}
-                  type="button"
-                  aria-pressed={layout === id}
-                  title={t(key)}
-                  onClick={() => setLayout(id)}
-                  aria-label={t(key)}
-                >
-                  {layout === id ? <Check size={18} /> : <Icon size={18} />} <span className="hidden sm:inline">{t(key)}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <form
-          className="edit-only mb-6 flex min-h-14 items-center gap-3 rounded-t-[var(--shape-xs)] border-b border-on-surface-variant bg-surface-container-highest py-1 pl-3 pr-2 transition-colors focus-within:border-primary focus-within:shadow-[inset_0_-1px_0_rgb(var(--primary))] anim-fade-up"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!input.trim()) return;
-            void vault.addFreeTask(input.trim());
-            setInput('');
-          }}
+  const layoutSwitch = (
+    <>
+      {tasks.length > 0 && layout === 'list' && (
+        <button
+          className="btn-icon h-8 w-8"
+          aria-pressed={compact}
+          onClick={() => setCompact(!compact)}
+          title={compact ? t('home.viewNormalTitle') : t('home.viewCompactTitle')}
+          aria-label={compact ? t('home.viewNormal') : t('home.viewCompact')}
         >
-          <Plus size={24} className="shrink-0 text-on-surface-variant" />
-          <input
-            className="min-w-0 flex-1 bg-transparent py-2 text-body-l outline-none placeholder:text-on-surface-variant"
-            placeholder={t('home.taskInputPlaceholder')}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-          />
-          <button className="btn-tonal phone:!px-4" disabled={!input.trim()}>
-            {t('home.addBtn')}
+          {compact ? <List size={18} /> : <AlignJustify size={18} />}
+        </button>
+      )}
+      <div role="group" aria-label={t('home.layoutAria')} className="segmented !h-7">
+        {(
+          [
+            ['list', ListChecks, 'home.layoutList'],
+            ['kanban', Kanban, 'home.layoutKanban'],
+          ] as const
+        ).map(([id, Icon, key]) => (
+          <button key={id} type="button" aria-pressed={layout === id} title={t(key)} onClick={() => setLayout(id)} aria-label={t(key)} className="!px-2">
+            <Icon size={16} />
           </button>
-        </form>
+        ))}
+      </div>
+    </>
+  );
 
-        {layout === 'kanban' ? (
-          <TaskKanban tasks={allTasks} />
-        ) : (
-          <div className={compact ? 'space-y-3' : 'space-y-5'}>
-            {BUCKETS.map((b) => {
-              const list = tasks.filter((tk) => bucketOf(tk) === b.id);
-              if (!list.length) return null;
-              return (
-                <div key={b.id} className="anim-fade-up">
-                  <h3 className={`mb-2 px-4 text-title-s ${b.tone}`}>
-                    {t(b.labelKey)} <span className="text-on-surface-variant">· {list.length}</span>
-                  </h3>
-                  <TaskRows tasks={list} compact={compact} />
-                </div>
-              );
-            })}
-            {undated > 0 && (
-              <button type="button" className="btn-text" onClick={() => navigate('/tasks')}>
-                {t('tasks.undatedLink', { n: undated })} <ArrowRight size={18} />
+  return (
+    <div>
+      <PageHeader
+        title={<span className="capitalize">{dateTitle}</span>}
+        subtitle={`${t('home.weekShort', { n: isoWeek(new Date()) })} · ${openCountText}`}
+        actions={
+          <>
+            {reviewDue() && (
+              <button className="btn-outlined" onClick={() => navigate('/review')}>
+                <CalendarCheck size={16} /> {t('home.reviewDueChip')}
               </button>
             )}
-          </div>
-        )}
-      </section>
-
-      {features.para.enabled && (
-        <>
-          <hr className="my-8 border-0 border-t border-outline-variant/80" />
-
-          <section aria-labelledby="home-projects-heading" className="anim-fade-up">
-            <div className="mb-4 flex flex-wrap items-center gap-3 px-1">
-              <h2 id="home-projects-heading" className="min-w-0 flex-1 text-title-m">
-                {t('home.projectsTitle')}
-              </h2>
-              <button
-                className="edit-only btn-tonal ml-auto"
-                onClick={() => openDialog({ kind: 'note', folder: features.para.folders.projects })}
-              >
-                <Plus size={18} /> {t('home.addProject')}
+            {showDailyBtn && (
+              <button type="button" className="btn-primary" title={t('daily.todayBtn')} onClick={() => void vault.openDailyNote().then((n) => navigate(`/n/${n.id}`))}>
+                <CalendarDays size={16} /> {t('home.dailyOpen')}
               </button>
+            )}
+          </>
+        }
+      />
+      <PageBody className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+        <Panel
+          labelId="home-tasks-heading"
+          label={t('home.tasksTitle')}
+          aside={
+            <>
+              <button type="button" className="btn-text !h-7 !px-2 text-label-m" onClick={() => navigate('/tasks')} title={t('tasks.allTitle')}>
+                <span className="hidden sm:inline">{t('tasks.allBtn')}</span> <ArrowRight size={14} />
+              </button>
+              {layoutSwitch}
+            </>
+          }
+        >
+          <TaskQuickAdd />
+          {layout === 'kanban' ? (
+            <div className="p-3">
+              <TaskKanban tasks={allTasks} />
             </div>
-            {projects.length === 0 ? (
-              <p className="px-1 text-sm text-on-surface-variant">{t('home.noProjectsYet')}</p>
-            ) : (
-              <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {projects.map((p) => (
-                  <button key={p.id} onClick={() => navigate(`/n/${p.id}`)} className="card min-w-0 p-4 text-left transition-all duration-200 hover:bg-surface-container">
-                    <div className="flex items-center gap-2">
-                      <Briefcase size={15} className="shrink-0 text-primary" />
-                      <span className="truncate font-medium">{p.title}</span>
-                      {p.status === 'pausiert' && <span className="chip text-warn">{t('home.statusPaused')}</span>}
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      {p.openTasks ? (
-                        <span className="chip">{t('home.projectOpenTasks', { n: p.openTasks })}</span>
-                      ) : (
-                        <span className="chip text-warn">{t('home.projectNoNextStep')}</span>
-                      )}
-                      {p.nextDue && (
-                        // A chip like its neighbours: the bare `.cm-due` pill stretched to the 32 dp row and left its text at the top
-                        <span className={`chip ${p.nextDue < todayStr ? 'text-error' : p.nextDue === todayStr ? 'text-warn' : ''}`}>
-                          <CalendarDays size={18} className="shrink-0" />
-                          {formatDue(p.nextDue)}
-                        </span>
-                      )}
-                    </div>
-                  </button>
+          ) : (
+            <div className="pb-1">
+              <TaskBuckets tasks={tasks} compact={compact} />
+              {tasks.length === 0 && <p className="px-3.5 py-4 text-body-m text-muted">{t('home.allDoneToday')}</p>}
+              {undated > 0 && (
+                <button type="button" className="btn-text mx-2 my-1.5" onClick={() => navigate('/tasks')}>
+                  {t('tasks.undatedLink', { n: undated })} <ArrowRight size={14} />
+                </button>
+              )}
+            </div>
+          )}
+        </Panel>
+
+        <div className="flex min-w-0 flex-col gap-4">
+          {inboxNotes.length > 0 && (
+            <Panel
+              labelId="home-inbox-heading"
+              label={t('nav.inbox')}
+              aside={<span className={`pill ${inboxZero ? 'bg-amber-bg text-amber-hi' : 'bg-raised text-soft'}`}>{inboxChipText}</span>}
+            >
+              <ul>
+                {inboxNotes.slice(0, 4).map((n) => (
+                  <li key={n.id} className="flex items-center gap-3 border-b border-line px-3.5 py-2 last:border-b-0">
+                    <button type="button" className="min-w-0 flex-1 text-left outline-none focus-visible:underline" onClick={() => navigate(`/n/${n.id}`)}>
+                      <span className="block truncate text-body-m text-text">{projectTitleOf(n.path, n.content, roleConfig)}</span>
+                      <span className="block font-mono text-[11px] text-muted">{when(n.updatedAt)}</span>
+                    </button>
+                    <button type="button" className="chip shrink-0" onClick={() => navigate('/inbox')}>
+                      {t('home.inboxSortIn')}
+                    </button>
+                  </li>
                 ))}
-              </div>
-            )}
-          </section>
-        </>
-      )}
-
-      <hr className="my-8 border-0 border-t border-outline-variant/80" />
-
-      <section aria-labelledby="home-recent-heading">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
-          <h2 id="home-recent-heading" className="text-title-s text-on-surface-variant">
-            {t('home.recentTitle')}
-          </h2>
-          <ViewSwitch />
+              </ul>
+              {inboxNotes.length > 4 && (
+                <button type="button" className="btn-text mx-2 my-1.5" onClick={() => navigate('/inbox')}>
+                  {t('home.inboxMore', { n: inboxNotes.length })} <ArrowRight size={14} />
+                </button>
+              )}
+            </Panel>
+          )}
+          {features.heatmap.enabled && <ActivityHeatmap embedded />}
         </div>
-        <NoteCollection notes={recent} cols="sm:grid-cols-2" />
-      </section>
 
-      {features.heatmap.enabled && (
-        <>
-          <hr className="my-8 border-0 border-t border-outline-variant/80" />
-          <ActivityHeatmap embedded />
-        </>
-      )}
+        {features.para.enabled && (
+          <Panel
+            labelId="home-projects-heading"
+            label={t('home.projectsTitle')}
+            className="lg:col-span-2"
+            aside={
+              <button className="edit-only btn-text !h-7 !px-2 text-label-m" onClick={() => openDialog({ kind: 'note', folder: features.para.folders.projects })}>
+                <Plus size={14} /> {t('home.addProject')}
+              </button>
+            }
+          >
+            {projects.length === 0 ? (
+              <p className="px-3.5 py-4 text-body-m text-muted">{t('home.noProjectsYet')}</p>
+            ) : (
+              <ul className="stagger grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
+                {projects.map((p) => (
+                  <li key={p.id} className="border-b border-line sm:odd:border-r xl:border-r xl:[&:nth-child(3n)]:border-r-0">
+                    <button onClick={() => navigate(`/n/${p.id}`)} className="state-layer flex w-full min-w-0 flex-col gap-1.5 px-3.5 py-2.5 text-left outline-none focus-visible:bg-raised">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <Briefcase size={14} className="shrink-0 text-amber" />
+                        <span className="truncate text-body-m text-text">{p.title}</span>
+                        {p.status === 'pausiert' && <span className="pill bg-amber-bg text-amber-hi">{t('home.statusPaused')}</span>}
+                      </span>
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        {p.openTasks ? (
+                          <span className="pill bg-raised text-soft">{t('home.projectOpenTasks', { n: p.openTasks })}</span>
+                        ) : (
+                          <span className="pill bg-amber-bg text-amber-hi">{t('home.projectNoNextStep')}</span>
+                        )}
+                        {p.nextDue && (
+                          <span className={`pill ${p.nextDue < todayStr ? 'bg-red-bg text-red' : p.nextDue === todayStr ? 'bg-amber-bg text-amber-hi' : 'bg-violet-bg text-violet'}`}>
+                            {formatDue(p.nextDue)}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+        )}
+
+        <Panel labelId="home-recent-heading" label={t('home.recentTitle')} className="lg:col-span-2">
+          <table className="w-full table-fixed border-collapse text-body-m">
+            <tbody>
+              {recent.map((n) => {
+                const { folder } = splitPath(n.path);
+                return (
+                  <tr key={n.id} className="cursor-pointer border-b border-line last:border-b-0 hover:bg-raised/60" onClick={() => navigate(`/n/${n.id}`)}>
+                    <td className="truncate px-3.5 py-2">
+                      <a href={`/n/${n.id}`} onClick={(e) => e.preventDefault()} className="text-text no-underline outline-none focus-visible:underline">
+                        {projectTitleOf(n.path, n.content, roleConfig)}
+                      </a>
+                    </td>
+                    <td className="hidden truncate px-3 py-2 text-muted sm:table-cell">{n.group ? vault.groups.find((g) => g.id === n.group)?.name ?? '' : folder.replace(/\//g, ' / ')}</td>
+                    <td className="w-28 whitespace-nowrap px-3.5 py-2 text-right font-mono text-[11.5px] text-muted">{when(n.updatedAt)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Panel>
+      </PageBody>
     </div>
   );
 }

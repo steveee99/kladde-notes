@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Inbox as InboxIcon, Trash2 } from '../lib/icons';
+import { Trash2 } from '../lib/icons';
 import { INBOX_FOLDER, excerpt, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
@@ -7,6 +7,7 @@ import { navigate } from '../lib/router';
 import { ChipSelect } from './ChipSelect';
 import { folderDisplayName, locale, t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
+import { PageBody, PageHeader } from './PageHeader';
 
 function InboxItem({ note }: { note: LocalNote }) {
   const lang = useLang();
@@ -87,13 +88,9 @@ export function InboxView() {
       : t('inbox.subtitleNeutral');
 
   return (
-    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
-      <div className="mb-6 anim-fade-up">
-        <h1 className="flex items-center gap-2 text-headline-m">
-          <InboxIcon size={24} className="text-primary" /> {t('inbox.title')}
-        </h1>
-        <p className="mt-1 text-on-surface-variant">{subtitle}</p>
-      </div>
+    <div>
+      <PageHeader title={t('inbox.title')} subtitle={subtitle} />
+      <PageBody>
       {items.length === 0 ? (
         <div className="card p-8 text-center anim-fade-in">
           <p className="font-medium text-on-surface">{inboxZero ? t('inbox.emptyTitleZero') : t('inbox.emptyTitle')}</p>
@@ -106,6 +103,7 @@ export function InboxView() {
           ))}
         </ul>
       )}
+      </PageBody>
     </div>
   );
 }

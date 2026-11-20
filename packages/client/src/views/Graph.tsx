@@ -7,6 +7,7 @@ import { Dropdown } from './Dropdown';
 import { useVault, vault } from '../data/vault';
 import { navigate } from '../lib/router';
 import { compareText, folderDisplayName, locale, t, useLang, type I18nKey } from '../lib/i18n';
+import { PageBody, PageHeader } from './PageHeader';
 
 /** A graph node; `orphan` (no link in or out on the whole graph) draws it as a ring */
 type ViewNode = GraphNode & { orphan?: boolean };
@@ -427,25 +428,25 @@ export function GraphView() {
   };
 
   return (
-    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 anim-fade-up">
-        <div className="min-w-0 flex-1 basis-56">
-          <h1 className="text-headline-m">{t('graph.title')}</h1>
-          <p className="mt-1 text-body-m text-on-surface-variant">
-            {t('graph.summary', { nodes: g.nodes.length, edges: g.edges.length })}
-            {g.orphans > 0 && ` · ${t('graph.orphanCount', { n: g.orphans })}`}
-          </p>
-        </div>
-        {active > 0 && (
-          <button type="button" className="btn-text" onClick={reset}>
-            {t('graph.reset')}
-          </button>
-        )}
-        <button type="button" className="btn-tonal" aria-expanded={filterOpen} onClick={() => setFilterOpen(!filterOpen)}>
-          <Filter size={18} /> {t('graph.filters')}
-          {active > 0 && <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-label-s text-on-primary">{active}</span>}
-        </button>
-      </div>
+    <div>
+      <PageHeader
+        title={t('graph.title')}
+        subtitle={`${t('graph.summary', { nodes: g.nodes.length, edges: g.edges.length })}${g.orphans > 0 ? ` · ${t('graph.orphanCount', { n: g.orphans })}` : ''}`}
+        actions={
+          <>
+            {active > 0 && (
+              <button type="button" className="btn-text" onClick={reset}>
+                {t('graph.reset')}
+              </button>
+            )}
+            <button type="button" className="btn-tonal" aria-expanded={filterOpen} onClick={() => setFilterOpen(!filterOpen)}>
+              <Filter size={16} /> {t('graph.filters')}
+              {active > 0 && <span className="pill bg-acc text-on-acc">{active}</span>}
+            </button>
+          </>
+        }
+      />
+      <PageBody>
 
       {filterOpen && (
         <div className="card mb-4 grid gap-5 p-4 anim-fade-in sm:p-5 lg:grid-cols-2">
@@ -584,6 +585,7 @@ export function GraphView() {
           </FilterChip>
         </div>
       </div>
+      </PageBody>
     </div>
   );
 }

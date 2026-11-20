@@ -7,6 +7,7 @@ import { useReadOnly } from '../lib/readOnly';
 import { t, useLang } from '../lib/i18n';
 import { NoteCollection, ViewSwitch } from './NoteList';
 import { Sheet } from './Dialogs';
+import { PageBody, PageHeader } from './PageHeader';
 
 /** All tags in a flat list (for the merge suggestions and "does it exist?") */
 function flatten(nodes: TagNode[], out: TagNode[] = []): TagNode[] {
@@ -182,11 +183,9 @@ export function TagsView({ tag }: { tag?: string }) {
     });
 
   return (
-    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
-      <div className="mb-6 anim-fade-up">
-        <h1 className="text-headline-m">{t('tags.title')}</h1>
-        <p className="mt-1 text-body-m text-on-surface-variant">{t('tags.summary', { tags: all.filter((n) => n.count > 0).length, notes: tagged })}</p>
-      </div>
+    <div>
+      <PageHeader title={t('tags.title')} subtitle={t('tags.summary', { tags: all.filter((n) => n.count > 0).length, notes: tagged })} />
+      <PageBody>
 
       {tree.length === 0 ? (
         <div className="card flex flex-col items-center gap-3 px-6 py-12 text-center">
@@ -254,6 +253,7 @@ export function TagsView({ tag }: { tag?: string }) {
       )}
 
       {sheet && selected && <RenameTagSheet tag={selected} merge={sheet === 'merge'} allTags={all.map((n) => n.tag)} onClose={() => setSheet(null)} />}
+      </PageBody>
     </div>
   );
 }

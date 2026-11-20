@@ -4,10 +4,11 @@
  * remembered per device.
  */
 import { useMemo, useState } from 'react';
-import { AlignJustify, AtSign, Check, Kanban, List, ListChecks, Plus } from '../lib/icons';
-import { bucketOf, mentionsUser, toDateString, type TaskStatus } from '@kladde/shared';
+import { AlignJustify, AtSign, Check, Kanban, List, ListChecks } from '../lib/icons';
+import { mentionsUser, toDateString, type TaskStatus } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
-import { BUCKETS, TaskKanban, TaskRows, collectTasks, type TaskRow } from './TaskParts';
+import { TaskBuckets, TaskKanban, TaskQuickAdd, collectTasks, type TaskRow } from './TaskParts';
+import { PageBody, PageHeader } from './PageHeader';
 import { Dropdown } from './Dropdown';
 import { Switch } from './Switch';
 import { folderDisplayName, t, useLang } from '../lib/i18n';
@@ -58,7 +59,6 @@ export function TasksView() {
   const version = useVault();
   const lang = useLang();
   const [prefs, setPrefsState] = useState(readPrefs);
-  const [input, setInput] = useState('');
   const setPrefs = (patch: Partial<TaskPagePrefs>) =>
     setPrefsState((p) => {
       const next = { ...p, ...patch };
@@ -93,12 +93,11 @@ export function TasksView() {
   const folderLabel = (f: string) => (f ? folderDisplayName(f, lang) : t('tasks.folderTop'));
 
   return (
-    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
-      <header className="mb-5 flex flex-wrap items-end justify-between gap-3 anim-fade-up">
-        <div className="min-w-0">
-          <h1 className="text-headline-m">{t('tasks.title')}</h1>
-          <p className="mt-1 text-body-l text-on-surface-variant">{openTotal === 1 ? t('tasks.openSingle') : t('tasks.openPlural', { n: openTotal })}</p>
-        </div>
+    <div>
+      <PageHeader
+        title={t('tasks.title')}
+        subtitle={openTotal === 1 ? t('tasks.openSingle') : t('tasks.openPlural', { n: openTotal })}
+        actions={
         <div className="flex items-center gap-1">
           {prefs.layout === 'list' && (
             <button
@@ -124,9 +123,9 @@ export function TasksView() {
             ))}
           </div>
         </div>
-      </header>
-
-      <div className="mb-4 flex flex-wrap items-center gap-2 anim-fade-up">
+        }
+      >
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         {prefs.layout === 'list' && (
           <Dropdown
             variant="chip"
@@ -160,7 +159,7 @@ export function TasksView() {
           ]}
         />
         {vault.features().mentions.enabled && !vault.standalone && (
-          <button type="button" className={`chip ${prefs.mine ? 'border-transparent bg-secondary-container text-on-secondary-container' : ''}`} aria-pressed={prefs.mine} onClick={() => setPrefs({ mine: !prefs.mine })} data-assigned-to-me>
+          <button type="button" className="chip" aria-pressed={prefs.mine} onClick={() => setPrefs({ mine: !prefs.mine })} data-assigned-to-me>
             {prefs.mine && <Check size={14} />}
             <AtSign size={14} /> {t('tasks.assignedToMe')}
           </button>
@@ -170,56 +169,22 @@ export function TasksView() {
           <Switch checked={prefs.showDone} label={t('tasks.showDone')} onChange={(v) => setPrefs({ showDone: v })} />
         </label>
       </div>
-
-      <form
-        className="edit-only mb-6 flex min-h-14 items-center gap-3 rounded-t-[var(--shape-xs)] border-b border-on-surface-variant bg-surface-container-highest py-1 pl-3 pr-2 transition-colors focus-within:border-primary focus-within:shadow-[inset_0_-1px_0_rgb(var(--primary))] anim-fade-up"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!input.trim()) return;
-          void vault.addFreeTask(input.trim());
-          setInput('');
-        }}
-      >
-        <Plus size={24} className="shrink-0 text-on-surface-variant" />
-        <input
-          className="min-w-0 flex-1 bg-transparent py-2 text-body-l outline-none placeholder:text-on-surface-variant"
-          placeholder={t('home.taskInputPlaceholder')}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-        />
-        <button className="btn-tonal phone:!px-4" disabled={!input.trim()}>
-          {t('home.addBtn')}
-        </button>
-      </form>
+      </PageHeader>
+      <PageBody>
 
       {prefs.layout === 'kanban' ? (
         <TaskKanban tasks={filtered} />
-      ) : filtered.length === 0 ? (
-        <p className="py-10 text-center text-body-l text-on-surface-variant">{all.length ? t('tasks.emptyFiltered') : t('tasks.empty')}</p>
       ) : (
-        <div className={prefs.compact ? 'space-y-3' : 'space-y-5'}>
-          {BUCKETS.map((b) => {
-            const list = open.filter((tk) => bucketOf(tk) === b.id);
-            if (!list.length) return null;
-            return (
-              <div key={b.id} className="anim-fade-up">
-                <h2 className={`mb-2 px-4 text-title-s ${b.tone}`}>
-                  {t(b.labelKey)} <span className="text-on-surface-variant">· {list.length}</span>
-                </h2>
-                <TaskRows tasks={list} compact={prefs.compact} />
-              </div>
-            );
-          })}
-          {done.length > 0 && (
-            <div className="anim-fade-up">
-              <h2 className="mb-2 px-4 text-title-s text-ok">
-                {t('task.status.done')} <span className="text-on-surface-variant">· {done.length}</span>
-              </h2>
-              <TaskRows tasks={done} compact={prefs.compact} className="flex flex-col gap-0.5" />
-            </div>
+        <div className="card overflow-hidden pb-1">
+          <TaskQuickAdd />
+          {filtered.length === 0 ? (
+            <p className="px-3.5 py-10 text-center text-body-m text-muted">{all.length ? t('tasks.emptyFiltered') : t('tasks.empty')}</p>
+          ) : (
+            <TaskBuckets tasks={open} done={done} compact={prefs.compact} />
           )}
         </div>
       )}
+      </PageBody>
     </div>
   );
 }

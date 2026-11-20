@@ -52,8 +52,9 @@ export default {
         'display-m': type(40, 48, -0.4, '600'),
         'display-s': type(34, 40, -0.3, '600'),
         'headline-l': type(30, 36, -0.2, '600'),
-        'headline-m': type(26, 32, -0.2, '600'),
-        'headline-s': type(22, 28, -0.1, '600'),
+        // Page titles (pages without PageHeader) and dialog titles stay small, like the PageHeader title
+        'headline-m': type(20, 28, 0, '600'),
+        'headline-s': type(17, 24, 0, '600'),
         'title-xl': type(30, 36, -0.2, '600'),
         'title-l': type(20, 28, 0, '600'),
         'title-m': type(15, 22, 0, '600'),

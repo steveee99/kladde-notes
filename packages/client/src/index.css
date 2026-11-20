@@ -2292,9 +2292,29 @@ span.cm-checkbox {
 [data-theme='werkbank'] .cm-checkbox[data-status='blocked'] {
   border-color: rgb(var(--warn));
 }
-[data-theme='werkbank'] .cm-due,
+/* Dates as pills: planned violet, today amber, overdue red; tags in mono */
+[data-theme='werkbank'] .cm-due {
+  border-radius: var(--shape-xs);
+  padding: 1px 6px;
+  font-size: 0.78em;
+  background: rgb(var(--violet-bg));
+  color: rgb(var(--violet));
+}
+[data-theme='werkbank'] .cm-due.today {
+  background: rgb(var(--amber-bg));
+  color: rgb(var(--amber-hi));
+}
+[data-theme='werkbank'] .cm-due.overdue {
+  background: rgb(var(--red-bg));
+  color: rgb(var(--red));
+}
 [data-theme='werkbank'] .cm-tag {
-  border-radius: var(--shape-sm);
+  border-radius: var(--shape-xs);
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  color: rgb(var(--soft));
+  background: rgb(var(--raised));
+  padding: 0 5px;
 }
 [data-theme='werkbank'] .wz-prop {
   border-color: rgb(var(--outline-variant));
@@ -2586,28 +2606,23 @@ span.cm-checkbox {
   transition: transform 120ms var(--ease), box-shadow 120ms var(--ease);
 }
 .heatmap-cell[data-level='0'] {
-  background: rgb(var(--surface-container-high));
-  box-shadow: inset 0 0 0 1px rgb(var(--outline-variant) / 0.8);
-}
-[data-theme='werkbank'] .heatmap-cell[data-level='0'] {
-  background: rgb(var(--surface-container-low));
-  box-shadow: inset 0 0 0 1px rgb(var(--outline-variant) / 0.55);
+  background: rgb(var(--raised));
 }
 [data-theme='werkbank'][data-scheme='light'] .heatmap-cell[data-level='0'] {
-  background: rgb(var(--outline-variant) / 0.45);
-  box-shadow: inset 0 0 0 1px rgb(var(--outline-variant));
+  background: rgb(var(--line));
 }
+/* Activity in the user's accent, mixed into the empty cell color */
 .heatmap-cell[data-level='1'] {
-  background: rgb(var(--ok) / 0.28);
+  background: color-mix(in srgb, rgb(var(--acc)) 25%, rgb(var(--raised)));
 }
 .heatmap-cell[data-level='2'] {
-  background: rgb(var(--ok) / 0.52);
+  background: color-mix(in srgb, rgb(var(--acc)) 48%, rgb(var(--raised)));
 }
 .heatmap-cell[data-level='3'] {
-  background: rgb(var(--ok) / 0.76);
+  background: color-mix(in srgb, rgb(var(--acc)) 74%, rgb(var(--raised)));
 }
 .heatmap-cell[data-level='4'] {
-  background: rgb(var(--ok));
+  background: rgb(var(--acc));
 }
 
 

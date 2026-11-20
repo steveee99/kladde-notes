@@ -116,9 +116,8 @@ export function ActivityHeatmap({ embedded = false }: { embedded?: boolean }) {
     <section className="card p-4 sm:p-5 anim-fade-up" aria-label={tl(lang, 'heatmap.regionAria')}>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="flex min-w-0 flex-1 basis-40 items-center gap-2">
-          <CalendarDays size={18} className="shrink-0 text-ok" />
-          <h2 className="truncate font-medium">{tl(lang, 'heatmap.title')}</h2>
-          <span className="chip shrink-0">{activeBadgeText}</span>
+          <h2 className="section-label truncate">{tl(lang, 'heatmap.title')}</h2>
+          <span className="shrink-0 font-mono text-[11px] text-muted">· {activeBadgeText}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <Dropdown

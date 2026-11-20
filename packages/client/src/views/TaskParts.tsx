@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarClock, Repeat, X } from '../lib/icons';
+import { CalendarClock, Plus, Repeat, X } from '../lib/icons';
 import { NoteMemo, TASK_STATUSES, Task, TaskBucket, TaskStatus, bucketOf, parseTasks, projectTitleOf, roleOfPath, shortcutDate, splitPath } from '@kladde/shared';
 import { vault } from '../data/vault';
 import { navigate } from '../lib/router';
@@ -22,10 +22,10 @@ export interface TaskRow extends Task {
 }
 
 export const BUCKETS: { id: TaskBucket; labelKey: I18nKey; tone: string }[] = [
-  { id: 'overdue', labelKey: 'home.bucketOverdue', tone: 'text-error' },
-  { id: 'today', labelKey: 'home.bucketToday', tone: 'text-tertiary' },
-  { id: 'upcoming', labelKey: 'home.bucketNext', tone: 'text-primary' },
-  { id: 'someday', labelKey: 'home.taskNoDate', tone: 'text-on-surface-variant' },
+  { id: 'overdue', labelKey: 'home.bucketOverdue', tone: 'text-red' },
+  { id: 'today', labelKey: 'home.bucketToday', tone: 'text-amber' },
+  { id: 'upcoming', labelKey: 'home.bucketNext', tone: 'text-violet' },
+  { id: 'someday', labelKey: 'home.taskNoDate', tone: 'text-muted' },
 ];
 
 const REPEATS: { value: string; labelKey: I18nKey }[] = [
@@ -218,7 +218,7 @@ export function TaskItem({ task, compact }: { task: TaskRow; compact: boolean })
         if (!task.noteTitle || (e.target as HTMLElement).closest('input,button,select')) return;
         navigate(`/n/${task.noteId}?line=${task.line + 1}`);
       }}
-      className={`group flex gap-4 rounded-[var(--shape-xs)] bg-surface-container-low px-4 transition-all duration-300 first:rounded-t-2xl last:rounded-b-2xl hover:bg-surface-container ${compact ? 'py-2' : 'py-3'} ${top ? 'items-start' : 'items-center'} ${leaving ? 'translate-x-4 opacity-0' : ''}`}
+      className={`group flex gap-3 border-b border-line px-3.5 transition-all duration-300 last:border-b-0 hover:bg-raised/60 ${compact ? 'py-1.5' : 'py-2'} ${top ? 'items-start' : 'items-center'} ${leaving ? 'translate-x-4 opacity-0' : ''}`}
     >
       <input
         type="checkbox"
@@ -251,7 +251,7 @@ export function TaskItem({ task, compact }: { task: TaskRow; compact: boolean })
         </>
       ) : (
         <div className="min-w-0 flex-1">
-          <div className={`break-words text-[15px] leading-snug ${task.done ? 'text-on-surface-variant line-through' : ''}`}>{task.text || t('home.taskEmpty')}</div>
+          <div className={`break-words text-body-m text-body ${task.done ? '!text-faint line-through' : ''}`}>{task.text || t('home.taskEmpty')}</div>
           {hasMeta && (
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               <StatusChip status={task.status} />
@@ -298,7 +298,7 @@ export function ShowMore({ hidden, onMore }: { hidden: number; onMore: () => voi
 }
 
 /** A list of task rows that renders the first `TASK_PAGE` and more on request */
-export function TaskRows({ tasks, compact, className = 'stagger flex flex-col gap-0.5' }: { tasks: TaskRow[]; compact: boolean; className?: string }) {
+export function TaskRows({ tasks, compact, className = 'stagger flex flex-col overflow-hidden rounded-lg border border-line bg-panel' }: { tasks: TaskRow[]; compact: boolean; className?: string }) {
   const [shown, setShown] = useState(TASK_PAGE);
   return (
     <>
@@ -467,4 +467,60 @@ export function urgentTaskCount(version: number): number {
     const b = bucketOf(tk);
     return b === 'overdue' || b === 'today';
   }).length;
+}
+
+/** One line to add a task (`due:`/`every:` understood), as the first row of a task card */
+export function TaskQuickAdd() {
+  useLang();
+  const [input, setInput] = useState('');
+  return (
+    <form
+      className="edit-only flex items-center gap-2.5 border-b border-line px-3.5 py-1.5 focus-within:bg-raised/50"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!input.trim()) return;
+        void vault.addFreeTask(input.trim());
+        setInput('');
+      }}
+    >
+      <Plus size={16} className="shrink-0 text-muted" />
+      <input
+        className="min-w-0 flex-1 bg-transparent py-1.5 text-body-m outline-none placeholder:text-muted"
+        placeholder={t('home.taskInputPlaceholder')}
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        aria-label={t('home.taskInputPlaceholder')}
+      />
+      {input.trim() && <button className="btn-tonal !h-7">{t('home.addBtn')}</button>}
+    </form>
+  );
+}
+
+/** Tasks grouped by due date inside a card: a colored caption per group (overdue, today, next, no date) */
+export function TaskBuckets({ tasks, compact, done = [] }: { tasks: TaskRow[]; compact: boolean; done?: TaskRow[] }) {
+  useLang();
+  return (
+    <>
+      {BUCKETS.map((b) => {
+        const list = tasks.filter((tk) => bucketOf(tk) === b.id);
+        if (!list.length) return null;
+        return (
+          <div key={b.id} className="anim-fade-up">
+            <h3 className={`flex items-center gap-2 px-3.5 pb-1 pt-3 text-caption uppercase ${b.tone}`}>
+              {t(b.labelKey)} <span className="font-mono text-muted">{list.length}</span>
+            </h3>
+            <TaskRows tasks={list} compact={compact} className="stagger flex flex-col border-y border-line" />
+          </div>
+        );
+      })}
+      {done.length > 0 && (
+        <div className="anim-fade-up">
+          <h3 className="flex items-center gap-2 px-3.5 pb-1 pt-3 text-caption uppercase text-green">
+            {t('task.status.done')} <span className="font-mono text-muted">{done.length}</span>
+          </h3>
+          <TaskRows tasks={done} compact={compact} className="flex flex-col border-y border-line" />
+        </div>
+      )}
+    </>
+  );
 }

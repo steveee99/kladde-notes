@@ -587,6 +587,10 @@ const de = {
 
   // Inbox
   'inbox.title': 'Inbox',
+  'home.inboxSortIn': 'Einsortieren',
+  'home.dailyOpen': 'Tagesnotiz öffnen',
+  'home.weekShort': 'KW {n}',
+  'home.inboxMore': 'Alle {n} im Eingang',
   'inbox.subtitleZero': 'Alles einsortiert. Inbox Zero ✨',
   'inbox.subtitleSingle': '1 Nachricht zum einsortieren',
   'inbox.subtitlePlural': '{n} Nachrichten zum einsortieren',
@@ -2380,6 +2384,10 @@ const en: Record<I18nKey, string> = {
   'home.noProjectsYet': 'No projects yet.',
 
   // Inbox
+  'home.inboxSortIn': 'Sort in',
+  'home.dailyOpen': 'Open daily note',
+  'home.weekShort': 'Week {n}',
+  'home.inboxMore': 'All {n} in the inbox',
   'inbox.title': 'Inbox',
   'inbox.subtitleZero': 'All caught up. Inbox Zero ✨',
   'inbox.subtitleSingle': '1 message to sort',

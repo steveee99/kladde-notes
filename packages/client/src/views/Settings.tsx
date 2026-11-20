@@ -40,6 +40,7 @@ import { Switch } from './Switch';
 import { AccentPicker } from './AccentPicker';
 import { DEMO } from '../demo/demoApi';
 import { FeaturesDialog, useFeatureCounts } from './FeaturesDialog';
+import { PageBody, PageHeader } from './PageHeader';
 
 function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   const lang = useLang();
@@ -216,8 +217,9 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
     : [];
 
   return (
-    <div className="content-container space-y-6 px-4 py-6 sm:px-8 sm:py-10">
-      <h1 className="text-headline-m anim-fade-up">{tl(lang, 'settings.title')}</h1>
+    <div>
+      <PageHeader title={tl(lang, 'settings.title')} subtitle={me.username} />
+      <PageBody className="max-w-[960px] space-y-5 !mx-0">
 
       <ProfileSection me={me} onMe={onMe} />
 
@@ -531,6 +533,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
         )}
         <span className="text-xs text-on-surface-variant">Kladde {APP_VERSION}</span>
       </div>
+      </PageBody>
     </div>
   );
 }

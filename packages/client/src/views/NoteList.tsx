@@ -1,5 +1,6 @@
 import { useState, useSyncExternalStore } from 'react';
 import { Activity as ActivityIcon, Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, LayoutGrid, List, Plus, Table2, Trash2, Users } from '../lib/icons';
+import { PageBody, PageHeader } from './PageHeader';
 import { INBOX_FOLDER, archiveTarget, excerpt, extractMeta, findDatabaseNote, databaseFileName, inferPropertyKeys, isDatabasePath, newDatabaseContent, projectTitleOf, restoreTarget, splitPath } from '@kladde/shared';
 import type { SharedFolder } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
@@ -368,17 +369,17 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
   if (features.zettel.enabled) protectedFolders.add(features.zettel.folder);
 
   return (
-    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
-      <div className="mb-6 flex flex-wrap items-center gap-2 anim-fade-up">
-        <div className="min-w-0 flex-1 basis-40">
-          {mode === 'folder' && folder && folder.includes('/') && (
-            <p className="truncate text-sm text-on-surface-variant">
-              {folderDisplayName(folder.split('/').slice(0, -1).join('/'), lang).replace(/\//g, ' / ')}
-            </p>
-          )}
-          <h1 className="truncate text-headline-m">{title}</h1>
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+    <div>
+      <PageHeader
+        title={title}
+        subtitle={
+          <span className="font-mono text-[11.5px]">
+            {mode === 'folder' && folder && folder.includes('/') ? `${folderDisplayName(folder.split('/').slice(0, -1).join('/'), lang).replace(/\//g, ' / ')} · ` : ''}
+            {t('nav.noteCount', { n: notes.length })}
+          </span>
+        }
+        actions={
+        <div className="flex flex-wrap items-center gap-1.5">
           <ViewSwitch />
           <button className="btn-icon shrink-0" title={t('list.sortTooltip')} onClick={() => setSort(sort === 'updated' ? 'title' : 'updated')}>
             {sort === 'updated' ? <Clock size={24} /> : <ArrowDownAZ size={24} />}
@@ -443,9 +444,11 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
             </button>
           )}
         </div>
-      </div>
+        }
+      />
+      <PageBody>
       {mode === 'folder' && (
-        <ul className="card mb-6 divide-y divide-outline-variant/60 p-1 anim-fade-up">
+        <ul className="card mb-5 divide-y divide-line p-1 anim-fade-up">
           {parent !== null && <ParentRow folder={parent} />}
           {subfolders.map((f) => (
             <FolderRow key={f} path={f} count={countIn(f)} />
@@ -481,6 +484,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
       ) : (
         <NoteCollection notes={notes} />
       )}
+      </PageBody>
     </div>
   );
 }

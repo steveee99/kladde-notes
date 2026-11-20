@@ -1478,11 +1478,11 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             <MobileBreadcrumbMenu folderSegments={folderSegments} lang={lang} group={noteGroup} />
 
             {/* Desktop: full folder path breadcrumbs */}
-            <nav aria-label={t('note.breadcrumbAria')} className="hidden min-w-0 flex-1 flex-wrap items-center gap-1 md:flex">
+            <nav aria-label={t('note.breadcrumbAria')} className="hidden min-w-0 flex-1 flex-wrap items-center gap-0.5 font-mono text-[11.5px] md:flex">
               <button
                 type="button"
                 onClick={() => navigate(noteGroup ? groupPath(noteGroup.id) : '/notes')}
-                className="truncate rounded-lg px-1.5 py-0.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+                className="truncate rounded px-1 py-0.5 text-muted transition-colors hover:bg-raised hover:text-text"
               >
                 {noteGroup ? noteGroup.name : t('note.breadcrumbRoot')}
               </button>
@@ -1491,19 +1491,19 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 const label = i === 0 && !noteGroup ? folderDisplayName(seg, lang) : seg;
                 return (
                   <Fragment key={segPath}>
-                    <ChevronRight size={14} className="shrink-0 opacity-60" />
+                    <span aria-hidden className="text-faint">/</span>
                     <button
                       type="button"
                       onClick={() => navigate(noteGroup ? groupPath(noteGroup.id, segPath) : `/f/${encodeURIComponent(segPath)}`)}
-                      className="truncate rounded-lg px-1.5 py-0.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+                      className="truncate rounded px-1 py-0.5 text-muted transition-colors hover:bg-raised hover:text-text"
                     >
                       {label}
                     </button>
                   </Fragment>
                 );
               })}
-              <ChevronRight size={14} className="shrink-0 opacity-60" />
-              <span className="truncate px-1 font-medium text-on-surface/85">{isProjectHome ? name : title || displayName}</span>
+              <span aria-hidden className="text-faint">/</span>
+              <span className="truncate px-1 text-acc-hi">{isProjectHome ? name : title || displayName}</span>
               {note.access !== 'owner' && (
                 <span className="chip ml-1 shrink-0" data-note-owner-chip>
                   {noteGroup ? <Users size={14} /> : <Avatar name={note.owner ?? ''} avatarUrl={note.ownerAvatar} size="xs" />} {note.owner} · {accessLabel}
