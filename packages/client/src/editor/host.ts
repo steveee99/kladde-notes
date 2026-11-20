@@ -2,6 +2,16 @@ import type { QueryResult } from '@kladde/shared';
 import type { EmbedNote } from './embedContext';
 import { t } from '../lib/i18n';
 
+/** An attachment as the editor links it */
+export type UploadedFile = { url: string; name: string; mime: string };
+
+/** Markdown for an attachment: images, PDFs, audio and video are embedded, other files become a plain link */
+export function attachmentMarkdown(file: UploadedFile): string {
+  const embed = /^(image|audio|video)\//.test(file.mime) || file.mime === 'application/pdf' || file.url.startsWith('kladde-pending:');
+  const name = file.name.replace(/[[\]\n]/g, ' ');
+  return `${embed ? '!' : ''}[${name}](${file.url})`;
+}
+
 /** What the editor widgets need from the app (set once by the app, read at render time) */
 export interface EditorHost {
   openWiki(title: string): void;
@@ -20,7 +30,9 @@ export interface EditorHost {
   /** People who can see the note, for @mentions (#69); empty when mentions are off */
   people(noteId: string): { username: string; avatarUrl?: string | null }[];
   autoLinkTargets(excludeId?: string): { name: string; target: string }[];
-  upload(file: File): Promise<{ url: string; name: string; mime: string }>;
+  upload(file: File): Promise<UploadedFile>;
+  /** Opens the list of the user's attachments; `onPick` gets the chosen (or newly uploaded) one */
+  pickAttachment(onPick: (file: UploadedFile) => void): void;
   /** Local blob: URL of an attachment still waiting to be uploaded (`kladde-pending:<id>`), null when not on this device */
   pendingUrl(id: string): string | null;
   /** Records a voice note (#33); null when cancelled */
@@ -48,6 +60,7 @@ export const editorHost: EditorHost = {
   people: () => [],
   autoLinkTargets: () => [],
   upload: () => Promise.reject(new Error(t('editor.notAvailable'))),
+  pickAttachment: () => {},
   pendingUrl: () => null,
   recordVoice: () => Promise.resolve(null),
   transcribe: null,

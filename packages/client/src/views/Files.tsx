@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { MyStorage } from '@kladde/shared';
 import { StorageMeter } from './StorageMeter';
@@ -16,10 +16,11 @@ import {
   RefreshCw,
   Search,
   Trash2,
+  Upload,
   X,
 } from '../lib/icons';
 import { useVault, vault } from '../data/vault';
-import { api, deleteFiles, listFiles } from '../lib/api';
+import { api, deleteFiles, listFiles, uploadFile } from '../lib/api';
 import { locale, t, tl, useLang } from '../lib/i18n';
 import { useReadOnly } from '../lib/readOnly';
 import { navigate } from '../lib/router';
@@ -54,6 +55,8 @@ export function FilesView() {
   const [deleting, setDeleting] = useState(false);
   const [preview, setPreview] = useState<AttachmentInfo | null>(null);
   const [storage, setStorage] = useState<MyStorage | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const uploadInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -211,6 +214,30 @@ export function FilesView() {
     }
   };
 
+  // New attachments land unused in the list; the editor links them later ("Insert existing attachment")
+  const uploadFiles = async (files: File[]) => {
+    if (!files.length || locked) return;
+    setUploading(true);
+    setError('');
+    setNotice('');
+    const failed: string[] = [];
+    let done = 0;
+    for (const file of files) {
+      try {
+        await uploadFile(file);
+        done++;
+      } catch (e) {
+        failed.push(tl(lang, 'files.uploadFailed', { name: file.name, error: (e as Error).message }));
+      }
+    }
+    setUploading(false);
+    if (failed.length) setError(failed.join(' '));
+    if (done) {
+      setNotice(tl(lang, 'files.uploadedResult', { count: done, unit: done === 1 ? tl(lang, 'files.unitSingle') : tl(lang, 'files.unitPlural') }));
+      await load();
+    }
+  };
+
   return (
     <div className="content-container space-y-5 px-4 py-6 sm:px-8 sm:py-10">
       <PendingUploadsCard />
@@ -229,6 +256,32 @@ export function FilesView() {
             })}
           </p>
         </div>
+        {!locked && (
+          <button
+            type="button"
+            className="btn-tonal shrink-0"
+            onClick={() => uploadInput.current?.click()}
+            disabled={uploading}
+            title={tl(lang, 'files.uploadTitle')}
+            data-files-upload
+          >
+            {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+            <span className="hidden sm:inline">{tl(lang, 'files.upload')}</span>
+          </button>
+        )}
+        <input
+          ref={uploadInput}
+          type="file"
+          accept="image/*,application/pdf"
+          multiple
+          hidden
+          aria-label={tl(lang, 'files.uploadTitle')}
+          onChange={(e) => {
+            const files = [...(e.target.files ?? [])];
+            e.target.value = '';
+            void uploadFiles(files);
+          }}
+        />
         <button className="btn-ghost shrink-0 rounded-full border border-outline-variant px-4" onClick={() => void load()} disabled={loading} title={tl(lang, 'files.refreshTitle')}>
           <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           <span className="hidden sm:inline">{tl(lang, 'files.refresh')}</span>

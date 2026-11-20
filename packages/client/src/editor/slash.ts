@@ -2,7 +2,7 @@ import { Completion, CompletionContext, CompletionResult, startCompletion } from
 import { EditorView } from '@codemirror/view';
 import { linkAllMentions, toDateString } from '@kladde/shared';
 import { getLang, tl, type Lang } from '../lib/i18n';
-import { editorHost } from './host';
+import { attachmentMarkdown, editorHost } from './host';
 import { calloutsFacet, noteIdFacet } from './livePreview';
 
 /**
@@ -127,6 +127,20 @@ function commands(insertFiles: FileInserter, lang: Lang): SlashCommand[] {
           if (files.length) insertFiles(view, files, from);
         };
         input.click();
+      },
+    },
+    {
+      label: tl(lang, 'editor.slash.attachment'),
+      detail: tl(lang, 'editor.slash.attachmentDetail'),
+      keywords: 'anhang attachment vorhanden existing datei file bild image pdf verlinken link',
+      run: (view, from, to) => {
+        view.dispatch({ changes: { from, to, insert: '' } });
+        editorHost.pickAttachment((file) => {
+          const pos = Math.min(from, view.state.doc.length);
+          const insert = attachmentMarkdown(file);
+          view.dispatch({ changes: { from: pos, insert }, selection: { anchor: pos + insert.length }, userEvent: 'input' });
+          view.focus();
+        });
       },
     },
     {
