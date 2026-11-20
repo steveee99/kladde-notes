@@ -52,6 +52,17 @@ export class DataCipher {
   decryptJson<T>(blob: Uint8Array, aad: string): T {
     return JSON.parse(this.decrypt(blob, aad).toString('utf8')) as T;
   }
+
+  private macKey?: Buffer;
+
+  /**
+   * Keyed hash of a value from note content that has to be looked up (a project key of tickets): equal
+   * values give equal hashes, but without the data key short values cannot be guessed from the database.
+   */
+  mac(value: string, context: string): string {
+    this.macKey ??= Buffer.from(crypto.hkdfSync('sha256', this.key, Buffer.alloc(0), 'kladde-lookup-mac', 32));
+    return crypto.createHmac('sha256', this.macKey).update(`${context}\0${value}`).digest('base64url');
+  }
 }
 
 export const sha256 = (value: string) => crypto.createHash('sha256').update(value).digest('hex');

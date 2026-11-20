@@ -27,7 +27,7 @@ import {
 } from '@kladde/shared';
 import { getLang, locale, tl, type Lang } from '../lib/i18n';
 import { dataTable, groupedTable, openTableCell, parseMarkdownTable, stripInline, type CellRef, type DataRow, type TableEditing } from './datatable';
-import { editorHost } from './host';
+import { editorHost, type TicketChip } from './host';
 import { embedContext } from './embedContext';
 import { DiagramKind, drawDiagram, openDiagram } from './diagram';
 import { CALLOUT_ICON_PATHS } from './calloutIcons';
@@ -1442,6 +1442,46 @@ export class MentionWidget extends WidgetType {
       avatar.append(img);
     } else avatar.textContent = this.username.charAt(0).toUpperCase();
     chip.append(avatar, `@${this.username}`);
+    return chip;
+  }
+  ignoreEvent() {
+    return false;
+  }
+}
+
+/** A ticket id in the text (`KLD-118`) as a chip with the ticket's status; finished tickets are struck through */
+export class TicketWidget extends WidgetType {
+  constructor(
+    readonly id: string,
+    readonly chip: TicketChip
+  ) {
+    super();
+  }
+  eq(o: TicketWidget) {
+    return o.id === this.id && o.chip.noteId === this.chip.noteId && o.chip.status === this.chip.status && o.chip.category === this.chip.category && o.chip.blocked === this.chip.blocked && o.chip.title === this.chip.title;
+  }
+  toDOM() {
+    const chip = document.createElement('span');
+    chip.className = `cm-ticket-chip cm-ticket-${this.chip.blocked ? 'blocked' : this.chip.category}`;
+    chip.dataset.ticket = this.id;
+    chip.title = `${this.id} · ${this.chip.title} · ${this.chip.status}`;
+    chip.setAttribute('role', 'link');
+    const dot = document.createElement('span');
+    dot.className = 'cm-ticket-dot';
+    dot.setAttribute('aria-hidden', 'true');
+    const id = document.createElement('b');
+    id.textContent = this.id;
+    chip.append(dot, id);
+    if (this.chip.category !== 'done' && this.chip.status) {
+      const status = document.createElement('span');
+      status.className = 'cm-ticket-status';
+      status.textContent = this.chip.status;
+      chip.append(status);
+    }
+    chip.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      editorHost.openNote(this.chip.noteId);
+    });
     return chip;
   }
   ignoreEvent() {

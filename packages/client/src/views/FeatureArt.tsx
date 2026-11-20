@@ -23,6 +23,7 @@ export type FeatureArtId =
   | 'focus'
   | 'recipe'
   | 'database'
+  | 'tickets'
   | 'presentation'
   | 'callouts'
   | 'memory'
@@ -289,6 +290,24 @@ const ART: Record<FeatureArtId, ReactNode> = {
       <Bar x={70} y={17} w={20} className="fill-on-surface" o={0.7} />
       <Bar x={108} y={17} w={22} className="fill-on-surface" o={0.7} />
       <path d="M64 12 V78 M102 12 V78" className="stroke-outline-variant" strokeWidth={1} />
+    </>
+  ),
+  tickets: (
+    <>
+      {[0, 1, 2].map((lane) => (
+        <g key={lane}>
+          <rect x={14 + lane * 46} y={10} width={40} height={70} rx={6} className="fill-surface-container-high" />
+          <Bar x={20 + lane * 46} y={16} w={[18, 22, 16][lane]} className="fill-on-surface" o={0.6} />
+          {Array.from({ length: [3, 2, 1][lane] }, (_, i) => (
+            <g key={i}>
+              <rect x={18 + lane * 46} y={26 + i * 17} width={32} height={14} rx={3} className="fill-surface-container-highest" />
+              <circle cx={23 + lane * 46} cy={33 + i * 17} r={2} className={['fill-outline', 'fill-primary', 'fill-ok'][lane]} />
+              <Bar x={28 + lane * 46} y={31 + i * 17} w={[16, 18, 14][(lane + i) % 3]} h={3.5} />
+            </g>
+          ))}
+        </g>
+      ))}
+      <path d="M150 12 v10 l-6 -3 z" className="fill-warn" />
     </>
   ),
   presentation: (

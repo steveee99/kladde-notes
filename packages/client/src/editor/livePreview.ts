@@ -2,7 +2,7 @@ import { EditorState, Extension, Facet, Range, StateEffect, StateField } from '@
 import { Decoration, DecorationSet, EditorView } from '@codemirror/view';
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
-import { findMath, type MathSpan, MENTION_RE, mentionName, CALLOUT_TONES, calloutTypeTitle, escapeRegExp, isKnownCalloutType, parseCalloutLine, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, type NoteHeading, type ReleaseField } from '@kladde/shared';
+import { findMath, ticketIdPattern, type MathSpan, MENTION_RE, mentionName, CALLOUT_TONES, calloutTypeTitle, escapeRegExp, isKnownCalloutType, parseCalloutLine, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, type NoteHeading, type ReleaseField } from '@kladde/shared';
 import { getLang, tl } from '../lib/i18n';
 import {
   AutoLinkWidget,
@@ -20,6 +20,7 @@ import {
   LigatureWidget,
   LinkWidget,
   MentionWidget,
+  TicketWidget,
   PropertiesWidget,
   QueryWidget,
   SimpleWidget,
@@ -108,6 +109,14 @@ const focusField = StateField.define<boolean>({
   update: (v, tr) => tr.effects.reduce((acc, e) => (e.is(focusEffect) ? e.value : acc), v),
 });
 
+let ticketReCache: { keys: string; re: RegExp | null } | null = null;
+/** The regex for ticket ids of the current project keys, rebuilt only when the keys change */
+function ticketPattern(keys: string[]): RegExp | null {
+  const joined = keys.join(',');
+  if (!ticketReCache || ticketReCache.keys !== joined) ticketReCache = { keys: joined, re: ticketIdPattern(keys) };
+  return ticketReCache.re;
+}
+
 const stampField = StateField.define<number>({
   create: () => 0,
   update: (v, tr) => tr.effects.reduce((acc, e) => (e.is(refreshEffect) ? e.value : acc), v),
@@ -166,6 +175,7 @@ function build(state: EditorState): DecorationSet {
 
   const decos: Range<Decoration>[] = [];
   const people = editorHost.people(state.facet(noteIdFacet));
+  const ticketRe = ticketPattern(editorHost.ticketKeys());
   /** Replaced ranges: nothing else may be replaced inside them */
   const replaced: [number, number][] = [];
   const protectedRanges: [number, number][] = [];
@@ -497,6 +507,20 @@ function build(state: EditorState): DecorationSet {
         protectedRanges.push([from, to]);
         if (lineActive || touches(from, to)) decos.push(mark('cm-mention').range(from, to));
         else replace(from, to, Decoration.replace({ widget: new MentionWidget(person.username, person.avatarUrl ?? null) }));
+      }
+    }
+    // Ticket ids: `KLD-118` of a project where tickets are on shows as a chip with its status
+    if (ticketRe && (fmEnd === 0 || ln.from > fmEnd) && /\d/.test(ln.text)) {
+      ticketRe.lastIndex = 0;
+      for (const m of ln.text.matchAll(ticketRe)) {
+        const from = ln.from + m.index!;
+        const to = from + m[0].length;
+        if (isProtected(from, to) || /Code|URL|Link/.test(tree.resolveInner(from, 1).name)) continue;
+        const chip = editorHost.ticket(m[0]);
+        if (!chip) continue;
+        protectedRanges.push([from, to]);
+        if (lineActive || touches(from, to)) decos.push(mark('cm-ticket-ref').range(from, to));
+        else replace(from, to, Decoration.replace({ widget: new TicketWidget(m[0], chip) }));
       }
     }
     if (!lineActive && /^\s*[-*+]\s+\[[ xXoOhH]\]/.test(ln.text)) {

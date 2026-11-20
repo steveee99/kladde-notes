@@ -494,6 +494,17 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       }
     });
 
+    // Features the owners switch on for every member (tickets and milestones)
+    router.put('/groups/:id/features', (req, res) => {
+      try {
+        groups.setFeatures(req.user!.id, req.params.id, req.body);
+        live.notify(groups.memberIds(req.params.id));
+        res.json(groups.details(req.user!.id, req.params.id));
+      } catch (err) {
+        groupError(res, err);
+      }
+    });
+
     router.put('/groups/:id/members', (req, res) => {
       try {
         const target = memberTarget(req.body?.username);
