@@ -113,7 +113,6 @@
   --state-press: 0.1;
   --font-sans: 'Inter Variable', Inter, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, Menlo, monospace;
-  --content-width: 80%;
   /* Other people's cursors in the editor (one color per person) */
   --cursor-1: 111 214 207;
   --cursor-2: 195 166 255;
@@ -527,16 +526,9 @@ progress {
   [data-scheme='light'] .accent-swatch[data-swatch='pink'] { --swatch: 192 42 111; }
   [data-scheme='light'] .accent-swatch[data-swatch='coral'] { --swatch: 194 65 12; }
   [data-scheme='light'] .accent-swatch[data-swatch='graphite'] { --swatch: 61 67 75; }
+  /* Notes use the whole width of the content area (no width setting) */
   .content-container {
     width: 100%;
-    max-width: var(--content-width, 80%);
-    margin-left: auto;
-    margin-right: auto;
-  }
-  @media (max-width: 799px) {
-    .content-container {
-      max-width: 100%;
-    }
   }
   /* Focus mode: centered text with a comfortable line length (about 70 characters) */
   .content-container.focus-container {
@@ -2070,11 +2062,17 @@ span.cm-checkbox {
   max-height: 3rem;
   opacity: 1;
   margin-top: 0.25rem;
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+  border-width: 1px;
 }
 .drop-zone-root {
   max-height: 0;
   opacity: 0;
   overflow: hidden;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-width: 0;
   transition: all 200ms var(--ease);
 }
 

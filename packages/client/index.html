@@ -36,18 +36,6 @@
         if (fs >= 12 && fs <= 28) document.documentElement.style.setProperty('--editor-font-size', Math.round(fs) + 'px');
       } catch (e) {}
       document.documentElement.dataset.scheme = scheme;
-      try {
-        var w = localStorage.getItem('kladde_widescreen');
-        var cfg = w ? JSON.parse(w) : null;
-        var pct = 80;
-        if (cfg && typeof cfg.percent === 'number' && cfg.percent >= 35 && cfg.percent <= 100) {
-          pct = Math.round(cfg.percent);
-        } else if (cfg && cfg.mode === 'fluid') {
-          pct = 100;
-        }
-        document.documentElement.dataset.widescreen = String(pct);
-        document.documentElement.style.setProperty('--content-width', pct + '%');
-      } catch (e) {}
     </script>
   </head>
   <body class="bg-surface text-on-surface antialiased">

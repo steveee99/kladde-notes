@@ -172,7 +172,7 @@ export function HomeView() {
             <Panel
               labelId="home-inbox-heading"
               label={t('nav.inbox')}
-              aside={<span className={`pill ${inboxZero ? 'bg-amber-bg text-amber-hi' : 'bg-raised text-soft'}`}>{inboxChipText}</span>}
+              aside={<span className={`pill ${inboxZero ? 'bg-acc-bg text-acc-hi' : 'bg-raised text-soft'}`}>{inboxChipText}</span>}
             >
               <ul>
                 {inboxNotes.slice(0, 4).map((n) => (

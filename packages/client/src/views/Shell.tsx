@@ -902,16 +902,21 @@ function SectionHeader({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="mt-2 mb-0.5 flex shrink-0 items-center gap-1 pl-1 pr-1.5 text-title-s text-on-surface-variant">
+    <div className="group/section mt-3 flex shrink-0 items-center gap-0.5 pr-1 text-label-s text-faint first:mt-1">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex min-w-0 flex-1 items-center gap-1 rounded-md py-1 pl-2 pr-0 text-left transition-colors hover:bg-surface-container-high hover:text-on-surface"
+        className="flex h-6 min-w-0 flex-1 items-center gap-1 rounded-md pl-2.5 pr-0 text-left outline-none transition-colors hover:text-text focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-acc"
       >
-        {open ? <ChevronDown size={13} className="shrink-0" /> : <ChevronRight size={13} className="shrink-0" />}
         {Icon && <Icon size={12} className="shrink-0" />}
-        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span className="min-w-0 truncate">{label}</span>
+        {open ? (
+          <ChevronDown size={12} className="shrink-0 opacity-0 transition-opacity group-hover/section:opacity-100" />
+        ) : (
+          <ChevronRight size={12} className="shrink-0" />
+        )}
+        <span className="flex-1" />
         {!open && badge}
         {!open && !badge && count ? <NavBadge tone="plain" count={count} /> : null}
       </button>
@@ -934,6 +939,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
   const [newRoot, setNewRoot] = useState(false);
   const [favoritesOpen, setFavoritesOpen] = useSectionOpen('favorites', () => window.innerHeight >= 700);
   const [foldersOpen, setFoldersOpen] = useSectionOpen('folders', () => true);
+  const [groupsOpen, setGroupsOpen] = useSectionOpen('groups', () => true);
   const [navOpen, setNavOpen] = useSectionOpen('nav', () => true);
   const [revealRequest, setRevealRequest] = useState<RevealRequest | null>(null);
   const [flashNoteId, setFlashNoteId] = useState<string | null>(null);
@@ -1170,9 +1176,9 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
           )}
           {favoriteCount > 0 && (
             <>
-              <SectionHeader icon={Star} label={t('nav.favorites')} open={favoritesOpen} onToggle={() => setFavoritesOpen(!favoritesOpen)} count={favoriteCount} />
+              <SectionHeader label={t('nav.favorites')} open={favoritesOpen} onToggle={() => setFavoritesOpen(!favoritesOpen)} count={favoriteCount} />
               {favoritesOpen && (
-                <ul data-favorites-list className="max-h-[10.75rem] shrink-0 overflow-y-auto pl-6 scrollbar-thin">
+                <ul data-favorites-list className="shrink-0 space-y-px">
                   {favoriteGroupFolders.map(({ group, folder }) => {
                     const to = groupPath(group.id, folder);
                     const active = path === to;
@@ -1185,8 +1191,8 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
                           data-favorite-group-folder
                           onClick={() => nav(to)}
                           aria-current={active ? 'page' : undefined}
-                          className={`flex w-full min-w-0 items-center gap-2 rounded-md py-1.5 pl-[26px] pr-3 text-left text-sm transition-colors ${
-                            active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                          className={`flex h-8 w-full min-w-0 items-center gap-2 rounded-md pl-2.5 pr-3 text-left text-body-m transition-colors ${
+                            active ? 'bg-line text-strong' : 'text-soft hover:bg-raised hover:text-text'
                           }`}
                           title={folder ? `${group.name}/${folder}` : group.name}
                         >
@@ -1207,7 +1213,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
             <button
               type="button"
               data-focus-open-note="true"
-              className="rounded-full p-1 transition-colors hover:bg-surface-container-high hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded p-1 text-muted transition-colors hover:bg-raised hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
               title={activeNote ? t('nav.focusOpenNote') : t('nav.focusOpenNoteEmpty')}
               aria-label={t('nav.focusOpenNote')}
               disabled={!activeNote}
@@ -1216,7 +1222,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
               <LocateFixed size={14} />
             </button>
             <button
-              className="edit-only rounded-full p-1 hover:bg-surface-container-high hover:text-on-surface"
+              className="edit-only rounded p-1 text-muted hover:bg-raised hover:text-text"
               title={t('nav.newFolder')}
               aria-label={t('nav.newFolder')}
               onClick={() => {
@@ -1227,7 +1233,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
               <FolderPlus size={14} />
             </button>
           </SectionHeader>
-          <ul className={`min-h-[8rem] flex-1 overflow-y-auto pl-6 scrollbar-thin ${foldersOpen ? '' : 'hidden'}`}>
+          <ul className={`shrink-0 ${foldersOpen ? '' : 'hidden'}`}>
             {newRoot && (
               <li className="px-1">
                 <FolderNameInput
@@ -1263,16 +1269,30 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
                 onNavigate={onNavigate}
               />
             ))}
-            {/* Groups (#58): each group is a top folder with its own folders and notes */}
-            {!vault.standalone &&
-              vault.groups.map((g) => <GroupTreeItem key={g.id} groupId={g.id} current={path} activeNoteId={activeNoteId} onNavigate={onNavigate} />)}
-            <li className="edit-only mt-1">
-              <div {...rootDrop.props} className={`drop-target drop-zone-root rounded-xl border border-dashed border-outline-variant px-3 py-2 text-xs text-on-surface-variant ${rootDrop.over ? 'drop-over' : ''}`}>
+            <li className="edit-only">
+              <div {...rootDrop.props} className={`drop-target drop-zone-root rounded-md border border-dashed border-line2 px-3 py-1.5 text-xs text-muted ${rootDrop.over ? 'drop-over' : ''}`}>
                 {t('nav.dropTopLevel')}
               </div>
             </li>
           </ul>
-          {!foldersOpen && <div className="flex-1" aria-hidden />}
+          {/* Groups (#58): each group with its own folders and notes, in a section of its own */}
+          {!vault.standalone && vault.groups.length > 0 && (
+            <>
+              <SectionHeader label={t('nav.groups')} open={groupsOpen} onToggle={() => setGroupsOpen(!groupsOpen)} count={vault.groups.length}>
+                <button type="button" className="rounded p-1 text-muted hover:bg-raised hover:text-text" title={t('groups.title')} aria-label={t('groups.title')} onClick={() => nav('/groups')}>
+                  <Users size={14} />
+                </button>
+              </SectionHeader>
+              {groupsOpen && (
+                <ul className="shrink-0" data-groups-tree>
+                  {vault.groups.map((g) => (
+                    <GroupTreeItem key={g.id} groupId={g.id} current={path} activeNoteId={activeNoteId} onNavigate={onNavigate} />
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+          <div className="flex-1" aria-hidden />
           {/* Settings with the device status (read-only, sync) next to it; the desktop has them in the rail and status bar */}
           {!panel && (
           <div className="m3-status mt-1 flex shrink-0 items-center gap-1 border-t border-outline-variant/60 pt-1.5">

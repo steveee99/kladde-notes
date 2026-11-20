@@ -5,7 +5,6 @@ import {
   RefreshCw,
   Camera,
   Images,
-  Info,
   KeyRound,
   LayoutTemplate,
   Loader2,
@@ -21,7 +20,6 @@ import { useConfluence } from '../lib/confluence';
 import { Lang, locale, setLang, tl, useLang, type I18nKey } from '../lib/i18n';
 import { EDITOR_FONT_SIZES, setEditorFontSize, setInboxZero, setLigatures, useEditorFontSize, useInboxZero, useLigatures } from '../lib/prefs';
 import { setColorSchemeChoice, useColorSchemeChoice } from '../lib/theme';
-import { DEFAULT_PERCENT, MAX_PERCENT, MIN_PERCENT, setWidescreen, useWidescreen, WIDESCREEN_PRESETS } from '../lib/widescreen';
 import { useVault, vault } from '../data/vault';
 import { navigate, usePath } from '../lib/router';
 import { GitLabIcon, passkeysAvailable, useAuthProviders, useRedirectParam } from './Auth';
@@ -182,7 +180,6 @@ export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (m
   useVault();
   const lang = useLang();
   const loc = locale(lang);
-  const widescreen = useWidescreen();
   const inboxZero = useInboxZero();
   const ligatures = useLigatures();
   const editorFontSize = useEditorFontSize();
@@ -375,22 +372,6 @@ export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (m
                 ))}
               </div>
             </SettingRow>
-            <div className="border-b border-line py-4">
-              <div className="mb-3 flex items-start gap-4">
-                <div className="min-w-0 flex-1">
-                  <label htmlFor="widescreen-slider" className="text-body-m font-medium text-text">
-                    {tl(lang, 'settings.widescreenTitle')}
-                  </label>
-                  <div className="mt-0.5 text-body-s text-muted">{tl(lang, 'settings.widescreenDesc')}</div>
-                </div>
-                <span className="shrink-0 font-mono text-body-m tabular-nums text-strong">{widescreen.percent} %</span>
-              </div>
-              <WidescreenSlider />
-              <p className="mt-3 flex items-start gap-2 text-body-s text-muted">
-                <Info size={14} className="mt-0.5 shrink-0" />
-                <span>{tl(lang, 'settings.widescreenSmallScreenHint')}</span>
-              </p>
-            </div>
             <GroupLabel>{tl(lang, 'settings.workTitle')}</GroupLabel>
             <SwitchRow
               id="inbox-zero-switch"
@@ -646,66 +627,3 @@ function PasswordSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
 }
 
 /** Snap distance (percent points) around the presets */
-const WIDESCREEN_SNAP = 4;
-
-/** Slider for the content width: 50–100 %, snaps to the presets and marks them with dots */
-function WidescreenSlider() {
-  const lang = useLang();
-  const { percent } = useWidescreen();
-  const pos = (v: number) => ((v - MIN_PERCENT) / (MAX_PERCENT - MIN_PERCENT)) * 100;
-  const set = (raw: number) => {
-    const snap = WIDESCREEN_PRESETS.find((p) => Math.abs(p - raw) <= WIDESCREEN_SNAP);
-    const next = snap ?? raw;
-    setWidescreen({ percent: next, custom: !(WIDESCREEN_PRESETS as readonly number[]).includes(next) });
-  };
-  return (
-    <div className="px-1">
-      <div className="relative h-6">
-        {/* Track, active part and preset dots, drawn under the native thumb */}
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-secondary-container">
-          <div className="h-full rounded-full bg-primary" style={{ width: `calc(10px + (100% - 20px) * ${pos(percent) / 100})` }} />
-        </div>
-        <div aria-hidden className="pointer-events-none absolute inset-x-[10px] top-1/2 -translate-y-1/2">
-          {WIDESCREEN_PRESETS.map((p) => (
-            <span
-              key={p}
-              className={`absolute top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full ${p <= percent ? 'bg-on-primary' : 'bg-primary'}`}
-              style={{ left: `${pos(p)}%` }}
-            />
-          ))}
-        </div>
-        <input
-          id="widescreen-slider"
-          type="range"
-          min={MIN_PERCENT}
-          max={MAX_PERCENT}
-          step={1}
-          value={percent}
-          list="widescreen-presets"
-          onChange={(e) => set(Number(e.target.value))}
-          aria-valuetext={`${percent} %`}
-          aria-label={tl(lang, 'settings.widescreenSliderAria')}
-          className="m3-slider relative w-full"
-        />
-        <datalist id="widescreen-presets">
-          {WIDESCREEN_PRESETS.map((p) => (
-            <option key={p} value={p} />
-          ))}
-        </datalist>
-      </div>
-      <div className="relative mx-[10px] mt-1 h-4 text-[11px] text-on-surface-variant tabular-nums">
-        {WIDESCREEN_PRESETS.map((p) => (
-          <button
-            key={p}
-            type="button"
-            onClick={() => set(p)}
-            className={`absolute -translate-x-1/2 whitespace-nowrap hover:text-on-surface ${p === percent ? 'font-semibold text-on-surface' : ''}`}
-            style={{ left: `${pos(p)}%` }}
-          >
-            {p} %{p === DEFAULT_PERCENT ? ` · ${tl(lang, 'settings.widescreenDefaultTag')}` : ''}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}

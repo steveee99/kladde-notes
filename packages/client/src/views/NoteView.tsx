@@ -1454,7 +1454,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   return (
     <div className="flex h-full min-h-0 flex-col print:block print:h-auto print:overflow-visible">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto scrollbar-thin print:block print:h-auto print:overflow-visible">
-        <div className={`content-container mx-auto w-full flex-1 px-4 pt-4 sm:px-8 sm:pt-8 ${showPdf ? 'flex flex-col' : ''} ${focus ? 'focus-container' : ''}`}>
+        <div className={`content-container mx-auto w-full flex-1 px-4 pt-4 nav:px-7 nav:pt-5 ${showPdf ? 'flex flex-col' : ''} ${focus ? 'focus-container' : ''}`}>
           {focus && (
             <button
               type="button"
