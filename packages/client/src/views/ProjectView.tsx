@@ -36,19 +36,18 @@ export function PriorityIcon({ p, size = 16 }: { p: Priority | null; size?: numb
   if (!p) return null;
   const Icon = p === 'high' ? PriorityHigh : p === 'low' ? PriorityLow : PriorityMedium;
   return (
-    <span className={p === 'high' ? 'text-error' : p === 'medium' ? 'text-warn' : 'text-outline'} title={priorityLabel(p)} aria-label={priorityLabel(p)} role="img">
+    <span className={p === 'high' ? 'text-red' : p === 'medium' ? 'text-amber' : 'text-faint'} title={priorityLabel(p)} aria-label={priorityLabel(p)} role="img">
       <Icon size={size} />
     </span>
   );
 }
 
-/** Colors of a status category: open neutral, active primary, done ok */
-export const categoryClass = (c: TicketInfo['category']) =>
-  c === 'done' ? 'bg-ok-container text-on-ok-container' : c === 'active' ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container-highest text-on-surface-variant';
+/** Colors of a status category: open neutral, active in the accent, done green */
+export const categoryClass = (c: TicketInfo['category']) => (c === 'done' ? 'bg-green-bg text-green' : c === 'active' ? 'bg-acc-bg text-acc-hi' : 'bg-raised text-soft');
 
 export function StatusBadge({ tk }: { tk: TicketInfo }) {
   return (
-    <span className={`inline-flex h-6 items-center whitespace-nowrap rounded-lg px-2 text-label-m ${tk.blockedBy.length && tk.category !== 'done' ? 'bg-error-container text-on-error-container' : categoryClass(tk.category)}`}>
+    <span className={`pill whitespace-nowrap font-medium ${tk.blockedBy.length && tk.category !== 'done' ? 'bg-red-bg text-red' : categoryClass(tk.category)}`}>
       {tk.blockedBy.length && tk.category !== 'done' ? t('tickets.blocked') : tk.meta.status || t('tickets.noStatus')}
     </span>
   );
@@ -59,8 +58,8 @@ const ticketLabel = (tk: TicketInfo) => tk.meta.id ?? `${tk.project.config.key}-
 function Progress({ done, total, className = '' }: { done: number; total: number; className?: string }) {
   const pct = total ? Math.round((done / total) * 100) : 0;
   return (
-    <div className={`h-1 overflow-hidden rounded-full bg-surface-container-highest ${className}`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={t('tickets.progressLabel', { done, total })}>
-      <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+    <div className={`h-1 overflow-hidden rounded-full bg-line ${className}`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={t('tickets.progressLabel', { done, total })}>
+      <div className="h-full rounded-full bg-acc" style={{ width: `${pct}%` }} />
     </div>
   );
 }
@@ -68,13 +67,13 @@ function Progress({ done, total, className = '' }: { done: number; total: number
 function DocsBadge({ tk }: { tk: TicketInfo }) {
   if (tk.docsMissing)
     return (
-      <span className="inline-flex items-center gap-0.5 text-label-m text-warn" title={t('tickets.docsMissing')}>
+      <span className="inline-flex items-center gap-0.5 text-label-m text-amber" title={t('tickets.docsMissing')}>
         <AlertTriangle size={14} /> {t('tickets.docsShort')}
       </span>
     );
   if (!tk.docIds.length) return null;
   return (
-    <span className="inline-flex items-center gap-0.5 text-label-m text-primary" title={t('tickets.docsCount', { n: tk.docIds.length })}>
+    <span className="inline-flex items-center gap-0.5 text-label-m text-acc" title={t('tickets.docsCount', { n: tk.docIds.length })}>
       <FileText size={14} /> {tk.docIds.length}
     </span>
   );
@@ -91,23 +90,23 @@ function TicketCard({ tk, canEdit }: { tk: TicketInfo; canEdit: boolean }) {
       onDragStart={(e) => e.dataTransfer.setData(DRAG, tk.note.id)}
       onClick={() => navigate(`/n/${tk.note.id}`)}
       onKeyDown={(e) => e.key === 'Enter' && navigate(`/n/${tk.note.id}`)}
-      className={`wz-card space-y-2 outline-none focus-visible:ring-2 focus-visible:ring-primary ${tk.category === 'done' ? 'opacity-75' : ''} ${blocked ? '!border-dashed !border-error' : ''}`}
+      className={`wz-card space-y-2 outline-none focus-visible:ring-2 focus-visible:ring-acc ${tk.category === 'done' ? 'opacity-75' : ''} ${blocked ? '!border-dashed !border-error' : ''}`}
       data-ticket={tk.meta.id ?? ''}
     >
-      <div className="flex items-start gap-1.5 font-medium leading-snug text-on-surface">
-        {blocked && <Ban size={16} className="mt-0.5 shrink-0 text-error" />}
+      <div className="flex items-start gap-1.5 font-medium leading-snug text-text">
+        {blocked && <Ban size={16} className="mt-0.5 shrink-0 text-red" />}
         <span className="min-w-0 break-words">{tk.title}</span>
       </div>
       {tk.progress.total > 0 && <Progress done={tk.progress.done} total={tk.progress.total} />}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-label-m text-on-surface-variant">{ticketLabel(tk)}</span>
+        <span className="font-mono text-label-m text-muted">{ticketLabel(tk)}</span>
         <PriorityIcon p={tk.meta.priority} />
-        {tk.meta.labels[0] && <span className="rounded bg-surface-container-high px-1.5 text-label-s text-on-surface-variant">{tk.meta.labels[0]}</span>}
+        {tk.meta.labels[0] && <span className="pill bg-raised text-soft">{tk.meta.labels[0]}</span>}
         <span className="flex-1" />
         <DocsBadge tk={tk} />
         {tk.meta.assignee && <Avatar name={tk.meta.assignee} size="xs" />}
       </div>
-      {blocked && <div className="text-label-m text-error">{t('tickets.blockedBy', { list: tk.blockedBy.map(ticketLabel).join(', ') })}</div>}
+      {blocked && <div className="text-label-m text-red">{t('tickets.blockedBy', { list: tk.blockedBy.map(ticketLabel).join(', ') })}</div>}
     </div>
   );
 }
@@ -190,14 +189,14 @@ function BacklogTab({ project, tickets, milestones, canEdit }: { project: Projec
 
   return (
     <div className="anim-fade-up" data-project-backlog>
-      <label className="mb-2 flex items-center justify-end gap-3 text-label-l text-on-surface-variant">
+      <label className="mb-2 flex items-center justify-end gap-3 text-label-l text-muted">
         {t('tickets.showDone')}
         <Switch id="backlog-show-done" checked={showDone} label={t('tickets.showDone')} onChange={setShowDone} />
       </label>
       <div className="card overflow-x-auto p-0">
         <table className="w-full min-w-[44rem] border-collapse text-sm">
           <thead>
-            <tr className="border-b border-outline-variant text-left text-label-l text-on-surface-variant">
+            <tr className="border-b border-line text-left text-label-l text-muted">
               <th className="w-8" />
               <th className="px-2 py-2 font-medium">{t('tickets.colTicket')}</th>
               <th className="px-2 py-2 font-medium">{t('tickets.colTitle')}</th>
@@ -211,7 +210,7 @@ function BacklogTab({ project, tickets, milestones, canEdit }: { project: Projec
           {groups.map((g) => (
             <tbody key={g.key || 'none'}>
               <tr
-                className={`bg-surface-container ${overGroup === g.key ? 'outline outline-2 -outline-offset-2 outline-primary' : ''}`}
+                className={`bg-panel ${overGroup === g.key ? 'outline outline-2 -outline-offset-2 outline-acc' : ''}`}
                 onDragOver={(e) => {
                   if (!canEdit || !e.dataTransfer.types.includes(DRAG)) return;
                   e.preventDefault();
@@ -226,7 +225,7 @@ function BacklogTab({ project, tickets, milestones, canEdit }: { project: Projec
               >
                 <td colSpan={7} className="px-3 py-2 font-medium">
                   <span className="inline-flex items-center gap-1.5">
-                    <Flag size={16} className="text-primary" />
+                    <Flag size={16} className="text-acc" />
                     {g.milestone ? (
                       <button className="hover:underline" onClick={() => navigate(`/n/${g.milestone!.note.id}`)}>
                         {g.title}
@@ -234,7 +233,7 @@ function BacklogTab({ project, tickets, milestones, canEdit }: { project: Projec
                     ) : (
                       g.title
                     )}
-                    {g.milestone?.meta.due && <span className="font-normal text-on-surface-variant">· {t('tickets.dueOn', { date: formatDay(g.milestone.meta.due) })}</span>}
+                    {g.milestone?.meta.due && <span className="font-normal text-muted">· {t('tickets.dueOn', { date: formatDay(g.milestone.meta.due) })}</span>}
                   </span>
                 </td>
                 <td className="px-3 py-2 text-right font-medium tabular-nums">{points(g.rows) || ''}</td>
@@ -242,7 +241,7 @@ function BacklogTab({ project, tickets, milestones, canEdit }: { project: Projec
               {g.rows.map((tk) => (
                 <tr
                   key={tk.note.id}
-                  className="border-b border-outline-variant/50"
+                  className="border-b border-line"
                   draggable={canEdit}
                   onDragStart={(e) => e.dataTransfer.setData(DRAG, tk.note.id)}
                   onDragOver={(e) => canEdit && e.dataTransfer.types.includes(DRAG) && e.preventDefault()}
@@ -253,13 +252,13 @@ function BacklogTab({ project, tickets, milestones, canEdit }: { project: Projec
                   }}
                   data-backlog-row={tk.meta.id ?? ''}
                 >
-                  <td className="pl-2 text-outline">{canEdit && <DragIndicator size={16} className="cursor-grab" />}</td>
-                  <td className="whitespace-nowrap px-2 py-1.5 font-mono text-label-m text-on-surface-variant">{ticketLabel(tk)}</td>
+                  <td className="pl-2 text-faint">{canEdit && <DragIndicator size={16} className="cursor-grab" />}</td>
+                  <td className="whitespace-nowrap px-2 py-1.5 font-mono text-label-m text-muted">{ticketLabel(tk)}</td>
                   <td className="px-2 py-1.5">
                     <button className="text-left font-medium hover:underline" onClick={() => navigate(`/n/${tk.note.id}`)}>
                       {tk.title}
                     </button>
-                    {tk.meta.provisional && <span className="ml-2 rounded bg-surface-container-highest px-1.5 text-label-s text-on-surface-variant">{t('tickets.notSynced')}</span>}
+                    {tk.meta.provisional && <span className="pill ml-2 bg-raised text-soft">{t('tickets.notSynced')}</span>}
                   </td>
                   <td className="px-2 py-1">
                     {canEdit ? (
@@ -280,7 +279,7 @@ function BacklogTab({ project, tickets, milestones, canEdit }: { project: Projec
               ))}
               {g.rows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-3 py-3 text-center text-on-surface-variant">
+                  <td colSpan={8} className="px-3 py-3 text-center text-muted">
                     {t('tickets.groupEmpty')}
                   </td>
                 </tr>
@@ -304,7 +303,7 @@ function RoadmapTab({ milestones, tickets, onNewMilestone, canEdit }: { mileston
   return (
     <div className="anim-fade-up" data-project-roadmap>
       {milestones.length === 0 ? (
-        <div className="py-10 text-center text-on-surface-variant">
+        <div className="py-10 text-center text-muted">
           <p className="mb-3">{t('tickets.roadmapEmpty')}</p>
           {canEdit && (
             <button className="btn-tonal" onClick={onNewMilestone}>
@@ -315,10 +314,10 @@ function RoadmapTab({ milestones, tickets, onNewMilestone, canEdit }: { mileston
       ) : (
         <div className="card overflow-x-auto p-0">
           <div className="grid min-w-[44rem]" style={{ gridTemplateColumns: '13rem minmax(0,1fr)' }}>
-            <div className="border-b border-outline-variant px-3 py-2 text-label-m text-on-surface-variant">{t('tickets.milestone')}</div>
-            <div className="grid border-b border-outline-variant text-label-m text-on-surface-variant" style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0,1fr))` }}>
+            <div className="border-b border-line px-3 py-2 text-label-m text-muted">{t('tickets.milestone')}</div>
+            <div className="grid border-b border-line text-label-m text-muted" style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0,1fr))` }}>
               {weeks.map((w, i) => (
-                <span key={i} className={`border-l border-outline-variant px-1.5 py-2 tabular-nums ${i === nowWeek ? 'font-medium text-primary' : ''}`}>
+                <span key={i} className={`border-l border-line px-1.5 py-2 tabular-nums ${i === nowWeek ? 'font-medium text-acc' : ''}`}>
                   {t('tickets.week', { n: w.week })}
                 </span>
               ))}
@@ -327,27 +326,27 @@ function RoadmapTab({ milestones, tickets, onNewMilestone, canEdit }: { mileston
               const from = roadmapOffset(m.meta.start ?? m.meta.due ?? today, start, weeks.length);
               const to = m.meta.due ? roadmapOffset(m.meta.due, start, weeks.length) + 1 / (weeks.length * 7) : Math.min(1, from + 1 / weeks.length);
               const finished = m.progress.total > 0 && m.progress.done === m.progress.total;
-              const tone = finished ? 'bg-ok-container text-on-ok-container' : m.progress.done || m.tickets.some((tk) => tk.category === 'active') ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container-highest text-on-surface';
+              const tone = finished ? 'border border-green/40 bg-green-bg text-green' : m.progress.done || m.tickets.some((tk) => tk.category === 'active') ? 'border border-acc-line bg-acc-bg text-acc-hi' : 'border border-line2 bg-raised text-text';
               return (
                 <div key={m.note.id} className="contents">
-                  <div className="flex min-h-[4.25rem] flex-col justify-center border-b border-outline-variant px-3 py-2">
+                  <div className="flex min-h-[4.25rem] flex-col justify-center border-b border-line px-3 py-2">
                     <button className="truncate text-left font-medium hover:underline" onClick={() => navigate(`/n/${m.note.id}`)}>
                       {m.title}
                     </button>
-                    <span className="text-label-m text-on-surface-variant">
+                    <span className="text-label-m text-muted">
                       {t('tickets.doneOf', { done: m.progress.done, total: m.progress.total })}
                       {m.progress.atRisk && (
-                        <span className="ml-1.5 inline-flex items-center gap-0.5 text-warn">
+                        <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber">
                           <AlertTriangle size={12} /> {t('tickets.atRisk')}
                         </span>
                       )}
                     </span>
                   </div>
                   <div
-                    className="relative min-h-[4.25rem] border-b border-outline-variant"
+                    className="relative min-h-[4.25rem] border-b border-line"
                     style={{ backgroundImage: 'linear-gradient(to right, rgb(var(--outline-variant) / 0.55) 1px, transparent 1px)', backgroundSize: `${100 / weeks.length}% 100%` }}
                   >
-                    <div className="absolute inset-y-0 z-[1] w-0.5 bg-primary" style={{ left: `${nowAt * 100}%` }} aria-hidden />
+                    <div className="absolute inset-y-0 z-[1] w-0.5 bg-acc" style={{ left: `${nowAt * 100}%` }} aria-hidden />
                     <button
                       className={`absolute top-3 flex h-10 flex-col justify-center overflow-hidden rounded-lg px-2.5 text-left text-label-m ${tone}`}
                       style={{ left: `${from * 100}%`, width: `max(2.5rem, ${(to - from) * 100}%)` }}
@@ -358,8 +357,8 @@ function RoadmapTab({ milestones, tickets, onNewMilestone, canEdit }: { mileston
                         {m.meta.release ? `${m.meta.release} · ` : ''}
                         {Math.round(m.progress.ratio * 100)} %
                       </span>
-                      <span className="mt-1 block h-1 overflow-hidden rounded-full bg-on-surface/15">
-                        <span className={`block h-full ${finished ? 'bg-ok' : 'bg-primary'}`} style={{ width: `${Math.round(m.progress.ratio * 100)}%` }} />
+                      <span className="mt-1 block h-1 overflow-hidden rounded-full bg-text/15">
+                        <span className={`block h-full ${finished ? 'bg-green' : 'bg-acc'}`} style={{ width: `${Math.round(m.progress.ratio * 100)}%` }} />
                       </span>
                     </button>
                     {m.meta.due && m.meta.release && (
@@ -371,9 +370,9 @@ function RoadmapTab({ milestones, tickets, onNewMilestone, canEdit }: { mileston
             })}
             <div className="flex flex-col justify-center px-3 py-2">
               <span className="font-medium">{t('tickets.noMilestone')}</span>
-              <span className="text-label-m text-on-surface-variant">{t('tickets.openCount', { n: without })}</span>
+              <span className="text-label-m text-muted">{t('tickets.openCount', { n: without })}</span>
             </div>
-            <div className="flex items-center px-3 text-label-l text-on-surface-variant">{t('tickets.roadmapHint')}</div>
+            <div className="flex items-center px-3 text-label-l text-muted">{t('tickets.roadmapHint')}</div>
           </div>
         </div>
       )}
@@ -401,7 +400,7 @@ export function NewTicketSheet({ project: fixed, onClose, milestone: presetMiles
   if (!project) {
     return (
       <Sheet title={t('tickets.newTicket')} onClose={onClose}>
-        <p className="pb-6 text-on-surface-variant">{t('tickets.noWritableProject')}</p>
+        <p className="pb-6 text-muted">{t('tickets.noWritableProject')}</p>
       </Sheet>
     );
   }
@@ -436,7 +435,7 @@ export function NewTicketSheet({ project: fixed, onClose, milestone: presetMiles
           void save();
         }}
       >
-        <div className="flex items-center gap-2 text-label-l text-on-surface-variant">
+        <div className="flex items-center gap-2 text-label-l text-muted">
           <span className="font-mono">{project.config.key}-?</span>
           {!navigator.onLine && <span className="chip">{t('tickets.offlineNumber')}</span>}
         </div>
@@ -452,8 +451,8 @@ export function NewTicketSheet({ project: fixed, onClose, milestone: presetMiles
         </div>
         <input className="input" list="ticket-doc-targets" aria-label={t('tickets.docLink')} placeholder={t('tickets.docLinkPlaceholder')} value={doc} onChange={(e) => setDoc(e.target.value)} />
         <DocTargets />
-        <p className="text-body-s text-on-surface-variant">{t('tickets.numberHint')}</p>
-        {error && <p className="text-sm text-error">{error}</p>}
+        <p className="text-body-s text-muted">{t('tickets.numberHint')}</p>
+        {error && <p className="text-sm text-red">{error}</p>}
         <div className="flex justify-end gap-2">
           <button type="button" className="btn-text" onClick={onClose}>
             {t('common.cancel')}
@@ -510,11 +509,11 @@ function MilestoneSheet({ project, onClose }: { project: ProjectInfo; onClose: (
       >
         <input className="input" autoFocus aria-label={t('tickets.milestoneTitle')} placeholder={t('tickets.milestoneTitlePlaceholder')} value={title} onChange={(e) => setTitle(e.target.value)} />
         <div className="grid grid-cols-2 gap-2">
-          <label className="text-label-l text-on-surface-variant">
+          <label className="text-label-l text-muted">
             {t('tickets.start')}
             <input type="date" className="input mt-1" value={start} onChange={(e) => setStart(e.target.value)} />
           </label>
-          <label className="text-label-l text-on-surface-variant">
+          <label className="text-label-l text-muted">
             {t('tickets.due')}
             <input type="date" className="input mt-1" value={due} onChange={(e) => setDue(e.target.value)} />
           </label>
@@ -522,7 +521,7 @@ function MilestoneSheet({ project, onClose }: { project: ProjectInfo; onClose: (
           <input className="input" aria-label={t('tickets.release')} placeholder={t('tickets.releasePlaceholder')} value={release} onChange={(e) => setRelease(e.target.value)} />
         </div>
         <input className="input" aria-label={t('tickets.goal')} placeholder={t('tickets.goalPlaceholder')} value={goal} onChange={(e) => setGoal(e.target.value)} />
-        {error && <p className="text-sm text-error">{error}</p>}
+        {error && <p className="text-sm text-red">{error}</p>}
         <div className="flex justify-end gap-2">
           <button type="button" className="btn-text" onClick={onClose}>
             {t('common.cancel')}
@@ -569,31 +568,31 @@ function ProjectSettingsSheet({ project, onClose }: { project: ProjectInfo; onCl
   return (
     <Sheet title={t('tickets.projectSettings')} onClose={onClose}>
       <div className="space-y-4 pb-2">
-        <label className="block text-label-l text-on-surface-variant">
+        <label className="block text-label-l text-muted">
           {t('tickets.key')}
           <input className="input mt-1 font-mono uppercase" value={key} maxLength={10} onChange={(e) => setKey(e.target.value)} />
           <span className="mt-1 block text-body-s">{t('tickets.keyChangeHint')}</span>
         </label>
-        <label className="block text-label-l text-on-surface-variant">
+        <label className="block text-label-l text-muted">
           {t('tickets.workflow')}
           <input className="input mt-1" value={workflow} onChange={(e) => setWorkflow(e.target.value)} />
           <span className="mt-1 block text-body-s">{t('tickets.workflowHint')}</span>
         </label>
         <div>
-          <div className="mb-1 text-label-l text-on-surface-variant">{t('tickets.activeStatuses')}</div>
+          <div className="mb-1 text-label-l text-muted">{t('tickets.activeStatuses')}</div>
           <div className="flex flex-wrap gap-1.5">
             {statuses.map((s) => (
-              <button key={s} type="button" className={`chip ${active.includes(s) ? 'bg-secondary-container text-on-secondary-container' : ''}`} aria-pressed={active.includes(s)} onClick={() => toggle(active, setActive, s)}>
+              <button key={s} type="button" className={`chip ${active.includes(s) ? 'bg-acc-bg text-acc-hi' : ''}`} aria-pressed={active.includes(s)} onClick={() => toggle(active, setActive, s)}>
                 {s}
               </button>
             ))}
           </div>
         </div>
         <div>
-          <div className="mb-1 text-label-l text-on-surface-variant">{t('tickets.doneStatuses')}</div>
+          <div className="mb-1 text-label-l text-muted">{t('tickets.doneStatuses')}</div>
           <div className="flex flex-wrap gap-1.5">
             {statuses.map((s) => (
-              <button key={s} type="button" className={`chip ${done.includes(s) ? 'bg-secondary-container text-on-secondary-container' : ''}`} aria-pressed={done.includes(s)} onClick={() => toggle(done, setDone, s)}>
+              <button key={s} type="button" className={`chip ${done.includes(s) ? 'bg-acc-bg text-acc-hi' : ''}`} aria-pressed={done.includes(s)} onClick={() => toggle(done, setDone, s)}>
                 {s}
               </button>
             ))}
@@ -603,8 +602,8 @@ function ProjectSettingsSheet({ project, onClose }: { project: ProjectInfo; onCl
           {t('tickets.requireDocs')}
           <Switch id="project-require-docs" checked={requireDocs} label={t('tickets.requireDocs')} onChange={setRequireDocs} />
         </label>
-        <p className="text-body-s text-on-surface-variant">{t('tickets.requireDocsHint')}</p>
-        {error && <p className="text-sm text-error">{error}</p>}
+        <p className="text-body-s text-muted">{t('tickets.requireDocsHint')}</p>
+        {error && <p className="text-sm text-red">{error}</p>}
         <div className="flex justify-end gap-2">
           <button className="btn-text" onClick={onClose}>
             {t('common.cancel')}
@@ -642,8 +641,8 @@ export function MakeProjectSheet({ space, folder, onClose }: { space: TicketSpac
           void save();
         }}
       >
-        <p className="text-body-m text-on-surface-variant">{t('tickets.makeProjectIntro')}</p>
-        <label className="block text-label-l text-on-surface-variant">
+        <p className="text-body-m text-muted">{t('tickets.makeProjectIntro')}</p>
+        <label className="block text-label-l text-muted">
           {t('tickets.key')}
           <input className="input mt-1 font-mono uppercase" autoFocus value={key} maxLength={10} onChange={(e) => setKey(e.target.value)} data-project-key />
           <span className="mt-1 block text-body-s">{t('tickets.keyHint')}</span>
@@ -652,7 +651,7 @@ export function MakeProjectSheet({ space, folder, onClose }: { space: TicketSpac
           {t('tickets.requireDocs')}
           <Switch id="new-project-require-docs" checked={requireDocs} label={t('tickets.requireDocs')} onChange={setRequireDocs} />
         </label>
-        {error && <p className="text-sm text-error">{error}</p>}
+        {error && <p className="text-sm text-red">{error}</p>}
         <div className="flex justify-end gap-2">
           <button type="button" className="btn-text" onClick={onClose}>
             {t('common.cancel')}
@@ -674,19 +673,19 @@ export function currentMilestone(milestones: MilestoneInfo[]): MilestoneInfo | n
 export function MilestoneBanner({ m }: { m: MilestoneInfo }) {
   const days = m.progress.daysLeft;
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl bg-surface-container px-3.5 py-2.5" data-milestone-banner>
-      <Flag size={18} className="text-primary" />
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-line bg-panel px-3.5 py-2" data-milestone-banner>
+      <Flag size={18} className="text-acc" />
       <button className="font-medium hover:underline" onClick={() => navigate(`/n/${m.note.id}`)}>
         {m.title}
       </button>
-      <span className="text-body-m text-on-surface-variant">
+      <span className="text-body-m text-muted">
         {m.meta.start && m.meta.due ? `${formatDay(m.meta.start)} – ${formatDay(m.meta.due)}` : m.meta.due ? t('tickets.dueOn', { date: formatDay(m.meta.due) }) : ''}
         {days !== null && ` · ${days >= 0 ? t('tickets.daysLeft', { n: days }) : t('tickets.overdueDays', { n: -days })}`}
       </span>
       <Progress done={m.progress.done} total={m.progress.total} className="w-32 sm:w-44" />
       <span className="tabular-nums text-body-m">{t('tickets.doneOf', { done: m.progress.done, total: m.progress.total })}</span>
       {m.progress.atRisk && (
-        <span className="inline-flex items-center gap-1 text-label-l text-warn">
+        <span className="inline-flex items-center gap-1 text-label-l text-amber">
           <AlertTriangle size={14} /> {t('tickets.atRisk')}
         </span>
       )}
@@ -738,7 +737,7 @@ export function ProjectView({ project }: { project: ProjectInfo }) {
   return (
     <section className="mb-6 space-y-3" aria-label={t('tickets.projectLabel', { key: project.config.key })} data-project={project.config.key}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-lg bg-secondary-container px-2.5 py-1 font-mono text-label-l text-on-secondary-container">
+        <span className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line2 bg-raised px-2 font-mono text-label-m text-strong">
           <Ticket size={16} /> {project.config.key}
         </span>
         <div className="segmented" role="tablist" aria-label={t('tickets.views')}>
@@ -785,7 +784,7 @@ export function ProjectView({ project }: { project: ProjectInfo }) {
         </div>
       )}
       {all.length === 0 && tab !== 'roadmap' ? (
-        <div className="py-10 text-center text-on-surface-variant">{t('tickets.empty')}</div>
+        <div className="empty-sheet"><p className="empty-title">{t('tickets.empty')}</p></div>
       ) : tab === 'board' ? (
         <BoardTab project={project} tickets={tickets} canEdit={canEdit} />
       ) : tab === 'backlog' ? (

@@ -338,9 +338,12 @@ export function GroupManageView({ groupId }: { groupId: string }) {
 
         <section className="card p-4 anim-fade-up" data-group-features>
           <h2 className="mb-1 text-title-m">{t('groups.featuresTitle')}</h2>
-          <p className="mb-3 text-body-m text-on-surface-variant">{owner ? t('groups.featuresIntro') : t('groups.featuresIntroMember')}</p>
-          <label className="flex items-center justify-between gap-3 text-body-l">
-            {t('groups.featureTickets')}
+          <p className="mb-3 text-body-m text-muted">{owner ? t('groups.featuresIntro') : t('groups.featuresIntroMember')}</p>
+          <div className="flex items-center justify-between gap-4 border-t border-line pt-3">
+            <label htmlFor="group-feature-tickets" className="min-w-0">
+              <span className="block text-title-s text-strong">{t('groups.featureTickets')}</span>
+              <span className="mt-0.5 block text-body-s text-muted">{t('groups.featureTicketsHint')}</span>
+            </label>
             <Switch
               id="group-feature-tickets"
               checked={!!details.features?.tickets}
@@ -348,8 +351,7 @@ export function GroupManageView({ groupId }: { groupId: string }) {
               label={t('groups.featureTickets')}
               onChange={(on) => void run(() => api(`/groups/${encodeURIComponent(groupId)}/features`, { method: 'PUT', json: { tickets: on } }))}
             />
-          </label>
-          <p className="mt-1 text-body-s text-on-surface-variant">{t('groups.featureTicketsHint')}</p>
+          </div>
         </section>
 
         <section className="card p-4 anim-fade-up">

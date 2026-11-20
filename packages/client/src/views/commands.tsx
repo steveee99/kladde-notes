@@ -21,6 +21,7 @@ import {
   Users,
   VerticalSplit,
   X,
+  Kanban,
 } from '../lib/icons';
 import { t } from '../lib/i18n';
 import { navigate } from '../lib/router';
@@ -31,6 +32,7 @@ import { toggleFocusMode } from '../lib/focus';
 import { closeSide, openInSide, sideNoteId, splitAvailable } from '../lib/panes';
 import { closeOtherTabs, neighborTab, tabIds } from '../lib/tabs';
 import { DEMO } from '../demo/demoApi';
+import { ticketsAnywhere } from '../data/tickets';
 import { closeNoteTab, openNoteOfPath } from './NoteTabs';
 import { folderOfRoute, newNote, openTodayDailyNote } from './Shell';
 
@@ -58,6 +60,7 @@ export function buildCommands(path: string): Command[] {
     features.daily.enabled && { id: 'daily', label: t('cmd.dailyNote'), icon: i(<CalendarDays size={16} />), hint: 'Ctrl/⌘+Shift+D', keywords: 'today heute journal', run: () => void openTodayDailyNote() },
     { id: 'go-home', label: t('cmd.goHome'), icon: i(<Home size={16} />), run: () => navigate('/') },
     { id: 'go-tasks', label: t('cmd.goTasks'), icon: i(<ListChecks size={16} />), keywords: 'todo', run: () => navigate('/tasks') },
+    ticketsAnywhere() && { id: 'go-projects', label: t('cmd.goProjects'), icon: i(<Kanban size={16} />), keywords: 'tickets milestones', run: () => navigate('/projects') },
     features.calendarView.enabled && { id: 'go-calendar', label: t('cmd.goCalendar'), icon: i(<CalendarMonth size={16} />), run: () => navigate('/calendar') },
     { id: 'go-inbox', label: t('cmd.goInbox'), icon: i(<InboxIcon size={16} />), keywords: 'eingang', run: () => navigate('/inbox') },
     { id: 'go-notes', label: t('cmd.goNotes'), icon: i(<FileText size={16} />), run: () => navigate('/notes') },
