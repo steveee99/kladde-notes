@@ -1,5 +1,5 @@
 import express, { Response } from 'express';
-import { extractMentions, isReleaseBump, trimSlashes, type CommentThreadList } from '@kladde/shared';
+import { APP_VERSION, extractMentions, isReleaseBump, trimSlashes, type CommentThreadList } from '@kladde/shared';
 import type { ActivityList, NotePerson, MyStorage, AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
 import { Presence } from './Presence.js';
 import { FILE_URL_RE, attachmentUsageMap } from './cliActions.js';
@@ -178,7 +178,8 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
-    res.write('event: hello\ndata: {}\n\n');
+    // The version lets open clients notice a deploy right away: the server restarts and every client reconnects
+    res.write(`event: hello\ndata: ${JSON.stringify({ version: APP_VERSION })}\n\n`);
     const keepAlive = setInterval(() => res.write(': ping\n\n'), 25_000);
     const clientId = typeof req.query.client === 'string' ? req.query.client : '';
     res.on('close', () => {
