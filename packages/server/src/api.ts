@@ -1,5 +1,5 @@
 import express, { Response } from 'express';
-import { extractMentions, isReleaseBump, trimSlashes, type CommentThreadList } from '@kladde/shared';
+import { extractMentions, isAccent, isReleaseBump, trimSlashes, type CommentThreadList } from '@kladde/shared';
 import type { ActivityList, NotePerson, MyStorage, AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
 import { Presence } from './Presence.js';
 import { FILE_URL_RE, attachmentUsageMap } from './cliActions.js';
@@ -887,22 +887,38 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     })
   );
 
+  const toMe = (u: UserRecord): Me =>
+    opts.meFor
+      ? opts.meFor(u)
+      : {
+          id: u.id,
+          username: u.username,
+          createdAt: u.createdAt,
+          passkeys: users.credentialsOf(u.id).map((c) => ({ id: c.id, name: c.name, createdAt: c.createdAt, lastUsedAt: c.lastUsedAt })),
+          hasPassword: u.hasPassword,
+          isAdmin: u.isAdmin,
+          avatarUrl: u.avatarUrl,
+          accent: u.accent,
+          ...(standalone ? { standalone: true } : {}),
+        };
+
+  // Accent color of the Werkbank design (per account, all devices)
+  router.put(
+    '/me/accent',
+    express.json({ limit: '1kb' }),
+    handle((req, res) => {
+      const accent = (req.body as { accent?: unknown } | undefined)?.accent;
+      if (!isAccent(accent)) {
+        res.status(400).json({ error: 'Unbekannte Akzentfarbe.' });
+        return;
+      }
+      users.setAccent(req.user!.id, accent);
+      res.json(toMe(users.getUser(req.user!.id) ?? req.user!));
+    })
+  );
+
   if (opts.avatars) {
     const avatars = opts.avatars;
-    const toMe = (u: UserRecord): Me =>
-      opts.meFor
-        ? opts.meFor(u)
-        : {
-            id: u.id,
-            username: u.username,
-            createdAt: u.createdAt,
-            passkeys: users.credentialsOf(u.id).map((c) => ({ id: c.id, name: c.name, createdAt: c.createdAt, lastUsedAt: c.lastUsedAt })),
-            hasPassword: u.hasPassword,
-            isAdmin: u.isAdmin,
-            avatarUrl: u.avatarUrl,
-            ...(standalone ? { standalone: true } : {}),
-          };
-
     router.post(
       '/me/avatar',
       express.raw({ type: () => true, limit: MAX_AVATAR_BYTES + 1024 }),

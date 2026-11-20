@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { AccountExportView } from './views/AccountExport';
+import { applyAccentOf } from './lib/accent';
 import { openNoteLink } from './lib/panes';
 import { SplitNoteView } from './views/SplitView';
 import { INBOX_FOLDER, Me, projectTitleOf, runQuery } from '@kladde/shared';
@@ -107,6 +108,7 @@ export function App() {
   const [me, setMe] = useState<Me | null | undefined>(() => {
     const cached = cachedMe();
     if (cached) {
+      applyAccentOf(cached);
       vault.standalone = !!cached.standalone;
       vault.actorName = cached.username;
       void vault.open(cached.id);
@@ -115,6 +117,7 @@ export function App() {
   });
 
   const signedIn = useCallback((user: Me) => {
+    applyAccentOf(user);
     vault.standalone = !!user.standalone;
     // Voice notes: the server transcribes when its admin set up a speech-to-text service
     editorHost.transcribe = user.transcription

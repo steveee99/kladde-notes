@@ -517,6 +517,13 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 25,
+    description: 'Accent color per account (Werkbank design)',
+    up: (db) => {
+      db.exec('ALTER TABLE users ADD COLUMN accent TEXT');
+    },
+  },
 ];
 
 /** The schema version this build migrates to */

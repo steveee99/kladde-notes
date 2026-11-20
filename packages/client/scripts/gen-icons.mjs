@@ -1,4 +1,4 @@
-// Generates src/lib/icons.tsx from Material Symbols Rounded (weight 400, @material-symbols/svg-400).
+// Generates src/lib/icons.tsx from Material Symbols Rounded (weight 300, @material-symbols/svg-300).
 // The components keep the names the views import (formerly lucide-react), so call sites stay unchanged.
 // Run with `npm run icons --workspace=packages/client` after adding an icon to MAP.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
-const root = join(dirname(require.resolve('@material-symbols/svg-400/package.json')), 'rounded');
+const root = join(dirname(require.resolve('@material-symbols/svg-300/package.json')), 'rounded');
 const out = join(dirname(fileURLToPath(import.meta.url)), '../src/lib/icons.tsx');
 
 /** Component name → Material Symbols name */
@@ -36,7 +36,7 @@ const MAP = {
   UnfoldLess: 'unfold_less', UnfoldMore: 'unfold_more', Merge: 'merge', Filter: 'filter_list',
   SwapHoriz: 'swap_horiz', VerticalSplit: 'vertical_split', OpenInFull: 'open_in_full',
   Psychology: 'psychology', Mic: 'mic', Mood: 'mood', StopCircle: 'stop_circle', Subtitles: 'subtitles', TextFields: 'format_size', NewReleases: 'approval',
-  Callout: 'chat_info', Extension: 'extension', Slideshow: 'slideshow', SpeakerNotes: 'speaker_notes', Fullscreen: 'fullscreen', AspectRatio: 'aspect_ratio', PictureAsPdf: 'picture_as_pdf', UserCheck: 'how_to_reg', UserPlus: 'person_add', Users: 'group', X: 'close', Zap: 'bolt',
+  Palette: 'palette', PanelLeftClose: 'left_panel_close', PanelLeftOpen: 'left_panel_open', Callout: 'chat_info', Extension: 'extension', Slideshow: 'slideshow', SpeakerNotes: 'speaker_notes', Fullscreen: 'fullscreen', AspectRatio: 'aspect_ratio', PictureAsPdf: 'picture_as_pdf', UserCheck: 'how_to_reg', UserPlus: 'person_add', Users: 'group', X: 'close', Zap: 'bolt',
 };
 
 /** Callout kind (#86) → Material Symbol; written as plain paths to src/editor/calloutIcons.ts for the editor widgets */

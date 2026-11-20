@@ -28,6 +28,8 @@ test('weekly and monthly notes with navigation, templates and links from the dai
   try {
     // Ctrl/⌘+Alt+W creates this week's note from the default template
     await page.goto('/');
+    // The shortcuts listen once the app shell is there
+    await expect(page.getByRole('navigation', { name: 'Navigation' }).first()).toBeVisible();
     await page.keyboard.press('ControlOrMeta+Alt+KeyW');
     await expect(noteTitle(page)).toHaveValue(/^\d{4}-W\d{2}$/, { timeout: 15_000 });
     const week = await noteTitle(page).inputValue();

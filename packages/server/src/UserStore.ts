@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import crypto from 'crypto';
-import { PASSWORD_MIN_LENGTH, USERNAME_PATTERN, type AdminUser } from '@kladde/shared';
+import { normalizeAccent, PASSWORD_MIN_LENGTH, USERNAME_PATTERN, type Accent, type AdminUser } from '@kladde/shared';
 import { randomToken, sha256 } from './crypto.js';
 
 /** Sessions unused for this long stop working */
@@ -27,6 +27,8 @@ export interface UserRecord {
   isAdmin: boolean;
   hasPassword: boolean;
   avatarUrl: string | null;
+  /** Accent color of the Werkbank design (always a valid preset, the default when none was picked) */
+  accent: Accent;
 }
 
 /** A sign-in through another service (e.g. GitLab) linked to an account */
@@ -118,6 +120,7 @@ const toUser = (r: Row): UserRecord => ({
   isAdmin: !!r.is_admin,
   hasPassword: !!r.password_hash,
   avatarUrl: r.avatar_id ? `/api/avatars/${r.avatar_id as string}` : null,
+  accent: normalizeAccent(r.accent),
 });
 const toCredential = (r: Row): StoredCredential => ({
   id: r.id as string,
@@ -202,6 +205,11 @@ export class UserStore {
       )
       .all() as Row[];
     return rows.map((r) => ({ ...toUser(r), passkeys: Number(r.passkeys), notes: Number(r.note_count), lastSeenAt: (r.last_seen as number | null) ?? null }));
+  }
+
+  /** Stores the account's accent color (a preset name from `ACCENTS`) */
+  setAccent(id: string, accent: Accent): boolean {
+    return this.db.prepare('UPDATE users SET accent = ? WHERE id = ? AND is_group = 0').run(accent, id).changes > 0;
   }
 
   /** The last admin cannot lose the role, the admin area would be gone for good */

@@ -1,5 +1,9 @@
 import { useSyncExternalStore } from 'react';
 
+/**
+ * The folder side panel next to the navigation rail (desktop): 'sticky' = shown, 'rail' = collapsed (only the
+ * rail remains). Kept per device; toggled with the panel's button, the rail's toggle and Ctrl/⌘+\.
+ */
 export type MaterialSidebarMode = 'rail' | 'sticky';
 
 const KEY = 'kladde_material_sidebar';
@@ -7,11 +11,11 @@ const listeners = new Set<() => void>();
 
 export function getMaterialSidebarMode(): MaterialSidebarMode {
   try {
-    if (typeof localStorage === 'undefined') return 'rail';
-    // Migrate legacy 'overlay' directly to compact 'rail'
-    return localStorage.getItem(KEY) === 'sticky' ? 'sticky' : 'rail';
+    if (typeof localStorage === 'undefined') return 'sticky';
+    // Shown unless the user collapsed it on this device
+    return localStorage.getItem(KEY) === 'rail' ? 'rail' : 'sticky';
   } catch {
-    return 'rail';
+    return 'sticky';
   }
 }
 

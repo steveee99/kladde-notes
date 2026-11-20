@@ -1,6 +1,6 @@
 # Accessibility
 
-Kladde aims for WCAG 2.1 level AA in all three color schemes (dark, light, darker) on phones, tablets and desktops.
+Kladde aims for WCAG 2.1 level AA in both color schemes (dark and light) and with every accent color on phones, tablets and desktops.
 This page records the audit from issue #63 (version 2.11.0), what was fixed and what is still open.
 
 ## How it is checked
@@ -9,7 +9,7 @@ This page records the audit from issue #63 (version 2.11.0), what was fixed and 
 
 - **axe-core** (rules for WCAG 2.0/2.1 A and AA) on home, a note, tasks (list and Kanban), notes, tags, groups, settings,
   trash and the admin area, plus the side pane, the share dialog, the new-note dialog, the search overlay and the phone
-  navigation drawer – in the dark, light and darker scheme, at phone, tablet and desktop sizes. Every violation fails
+  navigation drawer – in the dark and the light scheme, at phone, tablet and desktop sizes. Every violation fails
   the test.
 - **Keyboard paths**: dialogs move the focus inside when they open, keep Tab and Shift+Tab inside, close with Escape
   and give the focus back to the control that opened them; the phone drawer does the same; a Kanban card changes its
@@ -30,8 +30,8 @@ This page records the audit from issue #63 (version 2.11.0), what was fixed and 
 | The status menu (Kanban cards, note task panel) could only be used with a pointer | Kanban, task panel | It takes the focus, moves with the arrow keys, Home and End, closes with Escape and returns the focus to its button; the card's button names the current status and the task. Inside the editor the menu leaves the focus in the text, so the on-screen keyboard stays |
 | Admin tabs did not expose which one is selected | Administration | `aria-pressed` on the tab buttons |
 
-Color contrast passed axe in all three schemes without changes; the Material 3 color roles keep text on its container
-at 4.5:1 or more.
+Color contrast passed axe in all three schemes of the Material 3 design without changes. The Werkbank design that
+replaced it (docs/DESIGN.md) keeps text at 4.5:1 or more in the dark and the light scheme and with every accent preset.
 
 ## Known gaps
 

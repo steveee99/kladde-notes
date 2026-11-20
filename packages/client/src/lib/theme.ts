@@ -1,11 +1,8 @@
 import { useSyncExternalStore } from 'react';
 
-export type ThemeChoice = 'material';
-/**
- * Color scheme of the Material 3 design, stored per device ('system' follows the OS). 'darker' is the dark
- * scheme with neutral dark grey surfaces instead of the blue-tinted ones (`data-tone="darker"`).
- */
-export type ColorSchemeChoice = 'dark' | 'darker' | 'light' | 'system';
+export type ThemeChoice = 'werkbank';
+/** Color scheme of the Werkbank design, stored per device ('system' follows the OS) */
+export type ColorSchemeChoice = 'dark' | 'light' | 'system';
 export type ColorScheme = 'dark' | 'light';
 
 const KEY = 'kladde_color_scheme';
@@ -16,7 +13,8 @@ function readChoice(): ColorSchemeChoice {
   try {
     if (typeof localStorage === 'undefined') return 'dark';
     const v = localStorage.getItem(KEY);
-    return v === 'light' || v === 'system' || v === 'darker' ? v : 'dark';
+    // The former 'darker' tone became the dark scheme
+    return v === 'light' || v === 'system' ? v : 'dark';
   } catch {
     return 'dark';
   }
@@ -33,12 +31,11 @@ function resolveScheme(choice: ColorSchemeChoice): ColorScheme {
   return choice === 'light' ? 'light' : 'dark';
 }
 
-/** Applies the Material 3 theme with the resolved color scheme and updates the browser bar color */
+/** Applies the Werkbank theme with the resolved color scheme and updates the browser bar color */
 export function applyTheme(): void {
   const root = document.documentElement;
-  root.dataset.theme = 'material';
+  root.dataset.theme = 'werkbank';
   root.dataset.scheme = resolveScheme(current);
-  root.dataset.tone = current === 'darker' ? 'darker' : 'default';
   const bg = getComputedStyle(root).getPropertyValue('--surface').trim().split(/\s+/).join(',');
   if (bg) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', `rgb(${bg})`);
 }
@@ -80,12 +77,12 @@ export function useColorSchemeChoice(): ColorSchemeChoice {
 
 function subscribeRoot(cb: () => void): () => void {
   const mo = new MutationObserver(cb);
-  mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-scheme', 'data-tone'] });
+  mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-scheme', 'data-accent'] });
   return () => mo.disconnect();
 }
 
 export function useResolvedTheme(): string {
-  return useSyncExternalStore(subscribeRoot, () => document.documentElement.dataset.theme ?? 'material');
+  return useSyncExternalStore(subscribeRoot, () => document.documentElement.dataset.theme ?? 'werkbank');
 }
 
 /** The scheme in effect right now ('system' already resolved) */

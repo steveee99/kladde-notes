@@ -1,10 +1,10 @@
 # Design: Werkbank
 
-Werkbank ("workbench") is the planned design for Kladde. It will replace the Material 3 design described in rule 4
-of [CLAUDE.md](../CLAUDE.md).
+Werkbank ("workbench") is the design of Kladde. It replaced the Material 3 design.
 
-**Status: proposal.** Nothing in this document is implemented yet. The mockups below show the target; the migration
-plan at the end lists the steps. Until it is merged, the Material 3 rules stay in force.
+**Status: in use since the release after 2.13.0.** The tokens, both color schemes, the accent colors, the
+components and the shell are implemented; [Still to come](#still-to-come) lists what the mockups show beyond that.
+Rule 4 in [CLAUDE.md](../CLAUDE.md) is the short version for contributors.
 
 ![Home on the desktop](images/design/d1-start.png)
 
@@ -26,8 +26,10 @@ Kladde is a tool for people with large vaults who write, link and plan every day
 
 ## Colors
 
-The dark scheme is the default. All values are CSS variables on `:root` (later
-`[data-theme='werkbank'][data-scheme='dark']`); Tailwind classes use the same names (`bg-panel`, `text-muted`).
+The dark scheme is the default. All values are CSS variables in `client/src/index.css` (`:root`, light values in
+`[data-theme='werkbank'][data-scheme='light']`) as `R G B` triplets; Tailwind classes use the same names (`bg-panel`,
+`text-muted`, `bg-acc/20`). The Material 3 role names (`--surface-container-high`, `--primary`, …) remain as aliases
+onto these tokens so older views keep working; new code uses the Werkbank names.
 
 ### Surfaces and lines
 
@@ -74,28 +76,41 @@ schemes:
 
 | Preset            | `--acc`   | `--acc-hi` | `--acc-bg` | `--acc-line` | `--on-acc` | `--acc` on `--bg` | `--on-acc` on `--acc` |
 | ----------------- | --------- | ---------- | ---------- | ------------ | ---------- | ----------------- | --------------------- |
-| Blau (default)    | `#5B9BFF` | `#A8C8FF`  | `#14243D`  | `#2D4E80`    | `#08111F`  | 6.9 : 1           | 6.8 : 1               |
-| Bernstein         | `#E8B04A` | `#F5CB78`  | `#3A2E14`  | `#6B5320`    | `#1A1408`  | 9.8 : 1           | 9.4 : 1               |
-| Grün              | `#4FC385` | `#9BE3B8`  | `#12301F`  | `#2A5C3E`    | `#06170D`  | 8.7 : 1           | 8.3 : 1               |
-| Türkis            | `#3EC1C4` | `#95E2E3`  | `#0F2E30`  | `#265B5D`    | `#041616`  | 8.8 : 1           | 8.5 : 1               |
-| Violett           | `#A98BFF` | `#CDBDFF`  | `#241B3F`  | `#46387A`    | `#130C26`  | 7.1 : 1           | 7.1 : 1               |
-| Rosa              | `#F27BB0` | `#F9B5D3`  | `#3A1729`  | `#6E2E4D`    | `#22081A`  | 7.5 : 1           | 7.4 : 1               |
-| Koralle           | `#F2876B` | `#F8B9A7`  | `#3A1D15`  | `#6E3828`    | `#220C05`  | 7.7 : 1           | 7.5 : 1               |
-| Graphit           | `#C3C8CF` | `#E6E8EB`  | `#262A30`  | `#4A5059`    | `#0E0F11`  | 11.4 : 1          | 11.4 : 1              |
+| `blue` (default)  | `#5B9BFF` | `#A8C8FF`  | `#14243D`  | `#2D4E80`    | `#08111F`  | 6.9 : 1           | 6.8 : 1               |
+| `amber`           | `#E8B04A` | `#F5CB78`  | `#3A2E14`  | `#6B5320`    | `#1A1408`  | 9.8 : 1           | 9.4 : 1               |
+| `green`           | `#4FC385` | `#9BE3B8`  | `#12301F`  | `#2A5C3E`    | `#06170D`  | 8.7 : 1           | 8.3 : 1               |
+| `teal`            | `#3EC1C4` | `#95E2E3`  | `#0F2E30`  | `#265B5D`    | `#041616`  | 8.8 : 1           | 8.5 : 1               |
+| `violet`          | `#A98BFF` | `#CDBDFF`  | `#241B3F`  | `#46387A`    | `#130C26`  | 7.1 : 1           | 7.1 : 1               |
+| `pink`            | `#F27BB0` | `#F9B5D3`  | `#3A1729`  | `#6E2E4D`    | `#22081A`  | 7.5 : 1           | 7.4 : 1               |
+| `coral`           | `#F2876B` | `#F8B9A7`  | `#3A1D15`  | `#6E3828`    | `#220C05`  | 7.7 : 1           | 7.5 : 1               |
+| `graphite`        | `#C3C8CF` | `#E6E8EB`  | `#262A30`  | `#4A5059`    | `#0E0F11`  | 11.4 : 1          | 11.4 : 1              |
 
 `--acc-hi` on `--acc-bg` is at least 9.1 : 1 for every preset; `--acc` on `--line` (active rail entry) at least
-5.2 : 1. The light scheme gets its own value set per preset (darker `--acc`, light `--acc-bg`).
+5.2 : 1. The settings show the presets as Blau, Bernstein, Grün, Türkis, Violett, Rosa, Koralle and Graphit (German UI).
+
+Light scheme values (text and fill on white; `--on-acc` is white for every preset):
+
+| Preset     | `--acc`   | `--acc-hi` | `--acc-bg` | `--acc-line` | `--acc` on white | white on `--acc` |
+| ---------- | --------- | ---------- | ---------- | ------------ | ---------------- | ---------------- |
+| `blue`     | `#2160D8` | `#1A4FB3`  | `#E6EEFC`  | `#9DB9EE`    | 5.6 : 1          | 5.6 : 1          |
+| `amber`    | `#8F5D00` | `#7A4F00`  | `#FFF1D6`  | `#E3C27D`    | 5.6 : 1          | 5.6 : 1          |
+| `green`    | `#1C7C4A` | `#17673D`  | `#E3F4EA`  | `#93CDAE`    | 5.2 : 1          | 5.2 : 1          |
+| `teal`     | `#0B7276` | `#095E61`  | `#E0F4F4`  | `#8FCFD0`    | 5.6 : 1          | 5.6 : 1          |
+| `violet`   | `#6B46D9` | `#5734BC`  | `#EFEAFE`  | `#B9A6F2`    | 6.0 : 1          | 6.0 : 1          |
+| `pink`     | `#C02A6F` | `#A3215D`  | `#FCE8F1`  | `#EBA2C3`    | 5.5 : 1          | 5.5 : 1          |
+| `coral`    | `#C2410C` | `#A3360A`  | `#FDEBE4`  | `#F0AE93`    | 5.2 : 1          | 5.2 : 1          |
+| `graphite` | `#3D434B` | `#1A1D21`  | `#ECEEF1`  | `#A9AFB7`    | 10.0 : 1         | 10.0 : 1         |
 
 How it works:
 
-- The preset name is stored on the server with the account (e.g. `accent: 'blau'`), sent to the client with the
-  session and cached locally, so the app starts in the right color offline and without a flash.
-- The client sets `data-accent="blau"` on `<html>` (next to `data-scheme`); the token values live in CSS as
-  `[data-accent='gruen'] { --acc: …; }` blocks for each scheme. No inline styles, so the strict CSP is untouched.
-- The settings page shows the presets as round swatches with their name and a live preview (button, chip, link,
-  checkbox, own avatar). Picking one applies it at once.
-- Other people see you in your accent: avatar and cursor use your accent so you are recognizable in presence and
-  shared notes. If two people share an accent, the second one shown gets a neutral ring around the avatar.
+- The preset name (`shared/accent.ts`: `ACCENTS`, default `blue`) is stored in `users.accent` (migration 25), sent
+  with the account (`Me.accent`) and changed with `PUT /api/me/accent`. The client (`lib/accent.ts`) caches it in
+  `kladde_accent`, so the inline script in `index.html` sets it before the first paint, also offline.
+- The client sets `data-accent="green"` on `<html>` (next to `data-scheme`); the token values live in CSS as
+  `[data-theme='werkbank'][data-accent='green'] { --acc: …; }` blocks for each scheme. No inline styles, so the
+  strict CSP is untouched.
+- Settings → Appearance shows the presets as round swatches with their name (`views/AccentPicker.tsx`, a radio
+  group). Picking one applies it at once and goes back to the previous one if saving fails.
 
 ### States
 
@@ -165,47 +180,36 @@ filled icons.
 ### Desktop (`nav:` screen and up)
 
 ```
-┌──────────────────────── top bar: logo · command field (⌘K) · presence ────────────────────────┐
-│rail│ side panel        │ main                                              │ inspector (opt.) │
-│52px│ 240px, resizable  │ tabs / page header                                │ 280px            │
-│    │ tree, views,      │ content (editor column max. 760px, centered)      │ outline,         │
-│    │ saved queries     │                                                   │ backlinks, …     │
-└──────────────────────── status bar: sync · seq · counts · activity of others ─────────────────┘
+┌──────────────────────── top bar: logo · search field (⌘K) · read-only · account ───────────────┐
+│rail│ folder panel      │ main                                              │ inspector (opt.) │
+│52px│ resizable,        │ page header or note                               │ outline, tasks,  │
+│    │ collapsible       │ content                                           │ links, comments  │
+└──────────────────────── status bar: sync · number of notes · version ──────────────────────────┘
 ```
 
-- **Top bar (48px):** logo, the command field in the middle (it is a button that opens the palette), avatars of the
-  people online.
-- **Rail (52px):** Home, Notes, Tasks, Calendar, Inbox (dot for new items), Graph, Tags, Groups; settings at the
-  bottom. The active entry has `--line` background and an accent icon. Tooltips name every entry. The rail never
-  collapses.
-- **Side panel:** depends on the destination: the folder tree with pinned notes and groups (notes), views and saved
-  queries (tasks), settings sections (settings), nothing (graph). Resizable with `ResizeHandle` and collapsible (see
-  [Collapsible side panel](#collapsible-side-panel)).
-- **Main:** a page header (title, short summary, actions on the right) or the tab row of open notes (active tab: accent
-  line on top). Split view shows two editor columns side by side.
-- **Inspector:** optional, per note: outline, backlinks, unlinked mentions, properties. Collapsible on its own with
-  ⌘⇧\\ and the button in its header.
-- **Status bar (24px, mono 11px):** `● synchron` in green (amber while syncing, red when offline), `seq`, counts that
-  belong to the page, and on the right what others are doing ("Ben bearbeitet …").
+- **Top bar (48px):** logo (to Home), the search field in the middle (a button that opens the search, Ctrl/⌘+K),
+  the read-only switch and the account avatar (to the settings).
+- **Rail (52px):** at the top the panel toggle and "new note"; then Home, daily note, Notes, Tasks, Calendar, Inbox,
+  mentions; Graph, Tags, Review, Shared, Groups. Icons only, each with a tooltip and an accessible name (badges are
+  read out with it). The active entry has a `--line` background and an accent icon. The rail never collapses.
+- **Folder panel:** `Sidebar` with `panel`: caption "Notes" with the count and the collapse button, the new-note split
+  button, favorites and the folder tree with the groups. Resizable at its edge (`SidebarResizeHandle`).
+- **Main:** pages and notes on `--bg`, separated by lines; split view shows two notes side by side.
+- **Inspector:** the note's side panel (outline, tasks, links, comments), as before.
+- **Status bar (24px, mono 11px):** the sync state with a colored dot (green synced, amber syncing or pending, red
+  error; a click syncs), the number of own notes and the version.
+- **Capture button:** bottom right, filled with the accent (56px on phones, 44px on the desktop).
 
 ### Collapsible side panel
 
-The folder side panel can be collapsed so the editor gets the full width.
+The folder panel can be collapsed so the content gets the full width.
 
-- **Toggle:** the button at the right end of the side panel's caption row (next to the note count), the shortcut **⌘\\**
-  (Ctrl+\\ on Windows/Linux) and the command palette ("Seitenleiste ein-/ausblenden"). Dragging the `ResizeHandle`
-  below 160px collapses it as well.
-- **Collapsed:** the panel is gone completely; the rail stays. The tab row starts with a "show side panel" button
-  (tooltip with the shortcut), and the editor shows the note's folder path as a mono breadcrumb above the properties.
-  The editor column grows to max. 840px.
-- **Reopening** restores the last width. Clicking the active Notes entry in the rail also toggles the panel.
-- **Remembered per device** (like the width in `lib/sidebarWidth.ts`), because it depends on the screen.
-- **Settings › Appearance › Side panel:** "start collapsed" (off by default), "collapse automatically below 1280px"
-  (on by default; then the panel opens as an overlay over the editor and closes after a note is chosen), and whether
-  the inspector is shown.
-- Animation: width 160ms ease-out, none with `prefers-reduced-motion`. Focus moves to the toggle button when the
-  panel closes and to the tree when it opens.
-- On phones there is no side panel; the tree lives in the drawer as before.
+- **Toggle:** the button in the panel's caption row, the button at the top of the rail, `Ctrl/⌘+\` and a click on the
+  active "Notes" destination in the rail.
+- **Collapsed:** the panel is gone completely; the rail stays. Reopening keeps the last width.
+- **Remembered per device** (`lib/sidebarMode.ts`, like the width in `lib/sidebarWidth.ts`), because it depends on the
+  screen. It is open unless the user collapsed it.
+- On phones there is no panel; the tree lives in the drawer as before.
 
 ### Phone (below `nav:`)
 
@@ -273,30 +277,15 @@ Dialogs keep the rules from CLAUDE.md (role, name, `useModal`).
 - Focus: a 2px `--acc` outline with 2px offset on every focusable element; never removed.
 - The axe checks in `e2e/a11y.spec.ts` stay the gate for every screen and scheme.
 
-## Open points
+## Still to come
 
-- **Light scheme.** Werkbank is designed dark first. A light scheme (paper-white surfaces, graphite text, darker state
-  colors and a darker value set for every accent preset) has to be designed and checked before release; the `system`
-  choice follows the OS as today.
-- **`darker` tone.** Werkbank is already close to the old "darker" tone; it is probably dropped and mapped to dark.
-- **Screens not drawn yet:** calendar, inbox triage, the other settings pages, admin, sharing and group dialogs, database view, split
-  view, presentation mode.
+The mockups go further than the first implementation. Not built yet:
 
-## Migration plan
-
-1. Add the tokens above to `client/src/index.css` under `data-theme="werkbank"` and expose them in
-   `tailwind.config.js` (colors, the type scale, radii). Keep the Material roles as aliases for one release so
-   existing views keep working.
-2. Self-host Inter and JetBrains Mono through `@fontsource`; drop Roboto Flex.
-3. Accent color: a numbered migration in `server/src/db.ts` that stores the preset per user (default `blau`), an API to
-   read and change it, `data-accent` on `<html>` (set early by the inline theme script from the cached value, which
-   needs a new CSP hash), the CSS blocks per preset and scheme, and the swatches in the settings.
-4. Rebuild the components in `@layer components` (`.btn-*`, `.chip`, `.input`, `.card`, `.segmented`, `Switch`) and
-   regenerate the icons with weight 300.
-5. Replace `MaterialShell` with a Werkbank shell: top bar, rail, collapsible side panel (⌘\\, state per device next to
-   `lib/sidebarWidth.ts`), inspector, status bar; on phones the top
-   bar, bottom navigation bar, drawer and FAB. Keep the `nav:`, `phone:` and `tablet:` screens.
-6. Add the command palette as the central entry (it can grow out of `SearchDialog`).
-7. Move the views over one by one, remove the Material aliases, then update rule 4 in `CLAUDE.md` and the screenshots
-   in `docs/images`.
-8. Run the axe checks in all schemes, sizes and accent presets; record the results in `docs/ACCESSIBILITY.md`.
+- A command palette with commands and tasks next to the notes (today ⌘K opens the search).
+- Tabs for open notes, the breadcrumb above a note with a collapsed panel, a "show panel" button in the tab row.
+- `seq`, word count and other people's activity in the status bar; presence avatars in the top bar.
+- The inspector's own shortcut, the settings "start collapsed" and "collapse automatically below 1280px".
+- Other people's avatars and cursors in their accent color (cursors still use the fixed set `--cursor-1…6`).
+- The density setting and the live preview next to the accent swatches.
+- Views that still set Material-era classes inline (rounded pills, `secondary-container`) are moved over step by step;
+  the role aliases keep them in the new colors meanwhile.

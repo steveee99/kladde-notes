@@ -114,7 +114,7 @@ import { setLocalGraphDepth, setSourceMode, useLocalGraphDepth, useSourceMode, t
 import { activePane, usePane, usePanePanel } from '../lib/panes';
 import { isCoarsePointer } from '../lib/viewport';
 import { useModal } from '../lib/modal';
-import { useRightPaneHost } from './MaterialShell';
+import { useRightPaneHost } from './WerkbankShell';
 import { IconPickerDialog } from './IconPicker';
 import { DailyCarryOver, DailyNoteBar } from './DailyNoteBar';
 import { PeriodicNoteBar } from './PeriodicNoteBar';

@@ -4,6 +4,11 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- Changed: New design "Werkbank" replaces Material 3 (docs/DESIGN.md). Dense, calm graphite surfaces with thin lines instead of filled cards and shadows, Inter for text and JetBrains Mono for numbers, dates, tags and shortcuts, finer icons and smaller radii. On the desktop a top bar with the search field (Ctrl/⌘+K) in the middle, a slim navigation rail of icons on the left, the folder panel next to it and a status bar at the bottom with the sync state and the number of notes; phones keep the top bar, the bottom navigation bar and the drawer in the new look.
+- New: Light scheme for the new design, chosen per device like before (Settings → Appearance → Color scheme: Dark, Light or System).
+- New: Accent color per account (Settings → Appearance → Accent color): Blue (default), Amber, Green, Teal, Violet, Pink, Coral or Graphite. It colors the selection, links, the main action, done checkboxes and your avatar, is stored with your account and follows you to all devices; every preset is checked for contrast in the dark and the light scheme. State colors (overdue, today, done) stay the same for everyone.
+- New: The folder panel can be collapsed on the desktop: the button at the top of the panel or of the rail, `Ctrl/⌘+\`, or a click on the active "Notes" destination. The rail stays; the choice is kept per device.
+- Removed: The "Darker" color scheme. Devices that used it switch to the new dark scheme, which is about as dark.
 - New: Duplicate a note: "Duplicate" in a note's ⋮ menu and in the right-click menu of a note in the folder tree creates a copy next to it named "<name> (Copy)" ("(Kopie)" in German) and opens it. Works for own notes, group notes you may edit and folders shared with you that allow new notes; a frontmatter `id` is left out of the copy so links keep resolving to the original.
 - New: Link an attachment you already uploaded: "Insert existing attachment" in the editor toolbar and the slash command "Existing attachment" open a searchable list of your attachments (with previews); a new file can be uploaded from there too.
 - New: Upload attachments on the attachments page (images and PDFs, several at once); they show up as not yet used until a note links them.

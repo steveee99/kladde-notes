@@ -1,6 +1,12 @@
 /** @type {import('tailwindcss').Config} */
-// Every color is a Material 3 color role defined as a CSS variable in src/index.css
+// Every color is a CSS variable from src/index.css: the Werkbank tokens (docs/DESIGN.md) and the
+// Material 3 role names that are kept as aliases onto them
 const v = (name) => `rgb(var(--${name}) / <alpha-value>)`;
+const werkbank = [
+  'bg', 'panel', 'bar', 'raised', 'line', 'line2', 'sunken', 'strong', 'text', 'body', 'soft', 'muted', 'faint', 'edge',
+  'acc', 'acc-hi', 'acc-bg', 'acc-line', 'on-acc',
+  'amber', 'amber-hi', 'amber-bg', 'red', 'red-bg', 'violet', 'violet-bg', 'green', 'green-bg',
+];
 const roles = [
   'primary', 'on-primary', 'primary-container', 'on-primary-container',
   'secondary', 'on-secondary', 'secondary-container', 'on-secondary-container',
@@ -35,29 +41,32 @@ export default {
         tablet: { raw: '(min-width: 640px) and (min-height: 600px)' },
         phone: { raw: '(max-width: 639.98px)' },
       },
-      colors: Object.fromEntries(roles.map((r) => [r, v(r)])),
+      colors: Object.fromEntries([...werkbank, ...roles].map((r) => [r, v(r)])),
       fontFamily: {
         sans: ['var(--font-sans)'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+        mono: ['var(--font-mono)'],
       },
+      // Werkbank type scale (docs/DESIGN.md): dense, Inter, no extra letter spacing
       fontSize: {
-        'display-l': type(57, 64, -0.25, '400'),
-        'display-m': type(45, 52, 0, '400'),
-        'display-s': type(36, 44, 0, '400'),
-        'headline-l': type(32, 40, 0, '400'),
-        'headline-m': type(28, 36, 0, '400'),
-        'headline-s': type(24, 32, 0, '400'),
-        'title-l': type(22, 28, 0, '400'),
-        'title-m': type(16, 24, 0.15, '500'),
-        'title-s': type(14, 20, 0.1, '500'),
-        'body-l': type(16, 24, 0.5, '400'),
-        'body-m': type(14, 20, 0.25, '400'),
-        'body-s': type(12, 16, 0.4, '400'),
-        'label-l': type(14, 20, 0.1, '500'),
-        'label-m': type(12, 16, 0.5, '500'),
-        'label-s': type(11, 16, 0.5, '500'),
+        'display-l': type(48, 56, -0.5, '600'),
+        'display-m': type(40, 48, -0.4, '600'),
+        'display-s': type(34, 40, -0.3, '600'),
+        'headline-l': type(30, 36, -0.2, '600'),
+        'headline-m': type(26, 32, -0.2, '600'),
+        'headline-s': type(22, 28, -0.1, '600'),
+        'title-xl': type(30, 36, -0.2, '600'),
+        'title-l': type(20, 28, 0, '600'),
+        'title-m': type(15, 22, 0, '600'),
+        'title-s': type(13, 20, 0, '600'),
+        'body-l': type(15, 24, 0, '400'),
+        'body-m': type(13, 20, 0, '400'),
+        'body-s': type(12, 18, 0, '400'),
+        'label-l': type(13, 20, 0, '500'),
+        'label-m': type(12, 16, 0, '500'),
+        'label-s': type(11, 16, 0, '500'),
+        caption: type(11, 16, 0.66, '500'),
       },
-      // Tailwind radius names mapped onto the M3 shape scale (rounded = extra-small 4px)
+      // Tailwind radius names mapped onto the Werkbank shape scale (rounded = 4px pills, md 6px controls, lg 8px cards)
       borderRadius: {
         sm: 'var(--shape-sm)',
         md: 'var(--shape-sm)',

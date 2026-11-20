@@ -3,7 +3,6 @@ import { startRegistration } from '@simplewebauthn/browser';
 import {
   ArrowRight,
   Camera,
-  Check,
   ChevronRight,
   FolderInput,
   Globe,
@@ -24,6 +23,7 @@ import {
   Upload,
   TextFields,
   Extension,
+  Palette,
 } from '../lib/icons';
 import { APP_VERSION, Me, PASSWORD_MIN_LENGTH } from '@kladde/shared';
 import { api, deleteAvatar, uploadAvatar } from '../lib/api';
@@ -37,6 +37,7 @@ import { navigate } from '../lib/router';
 import { GitLabIcon, passkeysAvailable, useAuthProviders, useRedirectParam } from './Auth';
 import { Avatar } from './Avatar';
 import { Switch } from './Switch';
+import { AccentPicker } from './AccentPicker';
 import { DEMO } from '../demo/demoApi';
 import { FeaturesDialog, useFeatureCounts } from './FeaturesDialog';
 
@@ -326,7 +327,21 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
       <section className="card p-5 anim-fade-up">
         <h2 className="mb-4 text-base font-medium">{tl(lang, 'settings.appearanceTitle')}</h2>
 
-        {/* Color scheme selector (M3 Segmented Pill Button) */}
+        {/* Accent color (per account) */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2.5">
+            <Palette size={18} className="mt-0.5 shrink-0 text-primary" />
+            <div>
+              <div className="text-sm font-medium">{tl(lang, 'settings.accentTitle')}</div>
+              <div className="text-xs text-on-surface-variant">{tl(lang, 'settings.accentDesc')}</div>
+            </div>
+          </div>
+          <AccentPicker onMe={onMe} />
+        </div>
+
+        <hr className="my-5 border-outline-variant" />
+
+        {/* Color scheme selector */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
             <SunMoon size={18} className="mt-0.5 shrink-0 text-primary" />
@@ -335,11 +350,10 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
               <div className="text-xs text-on-surface-variant">{tl(lang, 'settings.colorSchemeDesc')}</div>
             </div>
           </div>
-          <div className="grid w-full grid-cols-4 rounded-full border border-outline-variant bg-surface-container-high p-1 sm:inline-flex sm:w-auto sm:shrink-0" role="group" aria-label={tl(lang, 'settings.colorSchemeTitle')}>
+          <div className="segmented grid w-full grid-cols-3 sm:inline-flex sm:w-auto sm:shrink-0" role="group" aria-label={tl(lang, 'settings.colorSchemeTitle')}>
             {(
               [
                 ['dark', 'settings.colorSchemeDark'],
-                ['darker', 'settings.colorSchemeDarker'],
                 ['light', 'settings.colorSchemeLight'],
                 ['system', 'settings.colorSchemeSystem'],
               ] as const
@@ -351,11 +365,8 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
                   type="button"
                   aria-pressed={active}
                   onClick={() => setColorSchemeChoice(choice)}
-                  className={`inline-flex min-w-0 items-center justify-center gap-1 rounded-full px-1.5 py-1.5 text-sm font-medium transition-colors sm:gap-1.5 sm:px-4 ${
-                    active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
+                  className="min-w-0"
                 >
-                  {active && <Check size={14} strokeWidth={2.5} className="hidden shrink-0 min-[400px]:block" />}
                   <span className="truncate">{tl(lang, label)}</span>
                 </button>
               );
@@ -374,7 +385,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
               <div className="text-xs text-on-surface-variant">{tl(lang, 'common.languageDesc')}</div>
             </div>
           </div>
-          <div className="inline-flex max-w-full flex-wrap rounded-full border border-outline-variant bg-surface-container-high p-1 shrink-0" role="group" aria-label={tl(lang, 'common.language')}>
+          <div className="segmented max-w-full shrink-0" role="group" aria-label={tl(lang, 'common.language')}>
             {(['de', 'en'] as Lang[]).map((code) => {
               const active = lang === code;
               const label = code === 'de' ? tl(lang, 'common.langDe') : tl(lang, 'common.langEn');
@@ -384,11 +395,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
                   type="button"
                   aria-pressed={active}
                   onClick={() => setLang(code)}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                    active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
                 >
-                  {active && <Check size={14} strokeWidth={2.5} />}
                   {label}
                 </button>
               );

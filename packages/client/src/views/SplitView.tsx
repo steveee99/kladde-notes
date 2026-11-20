@@ -8,7 +8,7 @@ import { useFocusMode } from '../lib/focus';
 import { navigate } from '../lib/router';
 import { closeSide, openInSide, PaneContext, sideBack, sideForward, splitPaneWidth, swapPanes, useSideNote, useSplitAvailable, type Pane } from '../lib/panes';
 import { useWidth } from '../lib/sidebarWidth';
-import { RightPaneHostContext } from './MaterialShell';
+import { RightPaneHostContext } from './WerkbankShell';
 import { NoteView } from './NoteView';
 import { ResizeHandle } from './SidebarResizeHandle';
 
