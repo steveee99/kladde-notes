@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import crypto from 'crypto';
-import { GroupDetails, GroupInfo, GroupMember, GroupRole, cleanGroupName, isGroupRole, keepsAnOwner } from '@kladde/shared';
+import { GroupDetails, GroupFeatures, GroupInfo, GroupMember, GroupRole, cleanGroupName, isGroupRole, keepsAnOwner, parseGroupFeatures } from '@kladde/shared';
 import { transaction } from './db.js';
 
 /** A refused group operation with its HTTP status */
@@ -77,7 +77,7 @@ export class GroupStore {
   /** The group with its members and what deleting it would remove (members only) */
   details(userId: string, groupId: string): GroupDetails {
     const role = this.requireRole(groupId, userId, false);
-    const group = this.db.prepare('SELECT username, created_at FROM users WHERE id = ? AND is_group = 1').get(groupId) as { username: string; created_at: number };
+    const group = this.db.prepare('SELECT username, created_at, group_features FROM users WHERE id = ? AND is_group = 1').get(groupId) as { username: string; created_at: number; group_features: string | null };
     const members = this.db
       .prepare(
         `SELECT users.username, users.avatar_id, group_members.role FROM group_members JOIN users ON users.id = group_members.user_id
@@ -90,6 +90,7 @@ export class GroupStore {
       id: groupId,
       name: group.username,
       role,
+      features: parseGroupFeatures(group.group_features),
       createdAt: group.created_at,
       members: members
         .map((m): GroupMember => ({ username: m.username, ...(m.avatar_id ? { avatarUrl: `/api/avatars/${m.avatar_id}` } : {}), role: m.role }))
@@ -109,6 +110,27 @@ export class GroupStore {
       this.db.prepare('UPDATE group_members SET seq = ? WHERE group_id = ?').run(this.nextSeq(), groupId);
     });
     return { id: groupId, name: clean, role: 'owner' };
+  }
+
+  /**
+   * Switches features on or off for every member of the group (owners). Members pull again and see the
+   * group's notes with the features of the group, whatever their own settings say.
+   */
+  setFeatures(userId: string, groupId: string, patch: unknown): GroupFeatures {
+    this.requireRole(groupId, userId, true);
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new GroupError('Ungültige Einstellungen.');
+    const row = this.db.prepare('SELECT group_features FROM users WHERE id = ? AND is_group = 1').get(groupId) as { group_features: string | null };
+    const next: GroupFeatures = { ...parseGroupFeatures(row.group_features) };
+    const p = patch as Record<string, unknown>;
+    if ('tickets' in p) {
+      if (typeof p.tickets !== 'boolean') throw new GroupError('Ungültige Einstellungen.');
+      next.tickets = p.tickets;
+    }
+    transaction(this.db, () => {
+      this.db.prepare('UPDATE users SET group_features = ? WHERE id = ? AND is_group = 1').run(JSON.stringify(next), groupId);
+      this.db.prepare('UPDATE group_members SET seq = ? WHERE group_id = ?').run(this.nextSeq(), groupId);
+    });
+    return next;
   }
 
   /** Adds a member or changes their role (owners). The last owner keeps the role until another member is owner. */

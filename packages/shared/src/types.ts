@@ -81,6 +81,14 @@ export interface GroupInfo {
   name: string;
   /** The signed-in user's role */
   role: GroupRole;
+  /** Features the group's owners switched on for every member */
+  features?: GroupFeatures;
+}
+
+/** Features a group turns on for all its members, whatever their own settings say */
+export interface GroupFeatures {
+  /** Tickets and milestones in the group's project folders */
+  tickets: boolean;
 }
 
 export interface GroupMember {
@@ -181,7 +189,8 @@ export interface TrashConflict {
 }
 
 export type PushResult =
-  | { id: string; status: 'ok'; version: number }
+  /** `content` is set when the server changed the text on arrival (a ticket got its number) */
+  | { id: string; status: 'ok'; version: number; content?: string }
   /** Someone changed the note in between: the client keeps `server` and saves its own text as a copy */
   | { id: string; status: 'conflict'; server: SyncedNote }
   | { id: string; status: 'forbidden' };

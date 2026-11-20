@@ -4,8 +4,11 @@
  * renames and deletes the group, and the move sheet moves own notes or folders into a group.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { GROUP_ROLES, canWriteInGroup, splitPath, type GroupDetails, type GroupInfo, type GroupRole } from '@kladde/shared';
-import { Activity as ActivityIcon, ArrowLeft, ChevronRight, CornerLeftUp, Folder, FolderInput, FolderPlus, Loader2, Plus, Settings, Star, Trash2, Users } from '../lib/icons';
+import { GROUP_ROLES, canWriteInGroup, findDatabaseNote, isDatabasePath, splitPath, type GroupDetails, type GroupInfo, type GroupRole } from '@kladde/shared';
+import { Activity as ActivityIcon, ArrowLeft, ChevronRight, CornerLeftUp, Folder, FolderInput, FolderPlus, Kanban, Loader2, Plus, Settings, Star, Trash2, Users } from '../lib/icons';
+import { projectAt } from '../data/tickets';
+import { MakeProjectSheet, ProjectView } from './ProjectView';
+import { Switch } from './Switch';
 import { api, ApiError } from '../lib/api';
 import { useVault, vault } from '../data/vault';
 import { activityPath } from './ActivityView';
@@ -95,6 +98,7 @@ export function GroupsView() {
 export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: string }) {
   useVault();
   useLang();
+  const [makingProject, setMakingProject] = useState(false);
   const group = vault.group(groupId);
   if (!group) {
     return (
@@ -108,7 +112,11 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
   }
   const writer = canWriteInGroup(group.role);
   const notes = vault.groupNotes(groupId);
-  const here = notes.filter((n) => splitPath(n.path).folder === folder).sort((a, b) => b.updatedAt - a.updatedAt);
+  // Database notes (#76) are no entries of the folder
+  const here = notes.filter((n) => splitPath(n.path).folder === folder && !isDatabasePath(n.path)).sort((a, b) => b.updatedAt - a.updatedAt);
+  // A project folder of a group where the owners switched tickets on
+  const project = folder ? projectAt({ group: groupId }, folder) : undefined;
+  const canMakeProject = writer && !!folder && !!group.features?.tickets && !findDatabaseNote(folder, notes);
   const subfolders = vault.groupFolders(groupId).filter((f) => (folder ? f.startsWith(`${folder}/`) && !f.slice(folder.length + 1).includes('/') : !f.includes('/')));
   const countIn = (f: string) => notes.filter((n) => splitPath(n.path).folder === f || splitPath(n.path).folder.startsWith(`${f}/`)).length;
   const parent = folder ? (folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) : '') : null;
@@ -142,7 +150,12 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
           <button className="btn-ghost shrink-0 phone:!px-2.5" onClick={() => navigate(groupManagePath(groupId))} title={t('groups.manage')}>
             <Settings size={16} /> <span className="hidden sm:inline">{t('groups.manage')}</span>
           </button>
-          {writer && (
+          {canMakeProject && (
+            <button className="edit-only btn-ghost shrink-0 phone:!px-2.5" title={t('tickets.makeProjectTitle')} onClick={() => setMakingProject(true)} data-make-project>
+              <Kanban size={16} /> <span className="hidden sm:inline">{t('tickets.makeProject')}</span>
+            </button>
+          )}
+          {writer && !project && (
             <button className="edit-only btn-tonal" onClick={() => openDialog({ kind: 'note', group: groupId, folder })}>
               <Plus size={18} /> {t('groups.newNote')}
             </button>
@@ -192,11 +205,14 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
           </li>
         )}
       </ul>
-      {here.length === 0 ? (
+      {project ? (
+        <ProjectView project={project} />
+      ) : here.length === 0 ? (
         <div className="py-16 text-center text-on-surface-variant anim-fade-in">{t('groups.emptyFolder')}</div>
       ) : (
         <NoteCollection notes={here} />
       )}
+      {makingProject && <MakeProjectSheet space={{ group: groupId }} folder={folder} onClose={() => setMakingProject(false)} />}
     </div>
   );
 }
@@ -309,6 +325,22 @@ export function GroupManageView({ groupId }: { groupId: string }) {
             </div>
           </section>
         )}
+
+        <section className="card p-4 anim-fade-up" data-group-features>
+          <h2 className="mb-1 text-title-m">{t('groups.featuresTitle')}</h2>
+          <p className="mb-3 text-body-m text-on-surface-variant">{owner ? t('groups.featuresIntro') : t('groups.featuresIntroMember')}</p>
+          <label className="flex items-center justify-between gap-3 text-body-l">
+            {t('groups.featureTickets')}
+            <Switch
+              id="group-feature-tickets"
+              checked={!!details.features?.tickets}
+              disabled={!owner || busy}
+              label={t('groups.featureTickets')}
+              onChange={(on) => void run(() => api(`/groups/${encodeURIComponent(groupId)}/features`, { method: 'PUT', json: { tickets: on } }))}
+            />
+          </label>
+          <p className="mt-1 text-body-s text-on-surface-variant">{t('groups.featureTicketsHint')}</p>
+        </section>
 
         <section className="card p-4 anim-fade-up">
           <div className="mb-3 flex flex-wrap items-center gap-2">

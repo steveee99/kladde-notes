@@ -2,7 +2,7 @@
  * Groups (#58): a group owns notes, and every member sees them according to their role. Pure rules shared by
  * server and client: roles, the "last owner" guard and where moved notes land in the group.
  */
-import type { GroupRole } from './types.js';
+import type { GroupFeatures, GroupRole } from './types.js';
 
 export const GROUP_ROLES: readonly GroupRole[] = ['owner', 'editor', 'reader'];
 export const GROUP_NAME_MAX = 60;
@@ -48,4 +48,18 @@ export function groupMovePath(path: string, target: string, folder?: string): st
     rel = path.slice(path.lastIndexOf('/') + 1);
   }
   return base ? `${base}/${rel}` : rel;
+}
+
+/** Features of a group as stored on the server (JSON); everything off when missing or unreadable */
+export function parseGroupFeatures(raw: unknown): GroupFeatures {
+  let obj: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      obj = JSON.parse(raw);
+    } catch {
+      obj = null;
+    }
+  }
+  const o = obj && typeof obj === 'object' ? (obj as Record<string, unknown>) : {};
+  return { tickets: o.tickets === true };
 }

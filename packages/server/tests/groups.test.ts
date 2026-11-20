@@ -82,7 +82,7 @@ describe('groups (#58)', () => {
     expect(notes.groupRole(g.id, stranger.anna.id)).toBeNull();
 
     const forBen = notes.pull(ben.id, 0);
-    expect(forBen.groups).toEqual([{ id: g.id, name: 'Team', role: 'editor' }]);
+    expect(forBen.groups).toEqual([{ id: g.id, name: 'Team', role: 'editor', features: { tickets: false } }]);
     expect(forBen.notes.find((n) => n.id === 'group-note-1')).toMatchObject({ access: 'write', group: g.id, owner: 'Team', canDelete: true, path: 'Plan.md' });
     const forCleo = notes.pull(cleo.id, 0).notes.find((n) => n.id === 'group-note-1');
     expect(forCleo).toMatchObject({ access: 'read', group: g.id });

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useModal } from '../lib/modal';
-import { Bell, CalendarCheck, CalendarDays, CalendarMonth, FileText, Home, Inbox as InboxIcon, ListChecks, Menu, Network, Pencil, Search as SearchIcon, Share2, Tags, Users, X } from '../lib/icons';
+import { Bell, CalendarCheck, CalendarDays, CalendarMonth, FileText, Home, Inbox as InboxIcon, Kanban, ListChecks, Menu, Network, Pencil, Search as SearchIcon, Share2, Tags, Users, X } from '../lib/icons';
 import { openSearch, SearchDialogHost } from './SearchDialog';
 import { INBOX_FOLDER, Me, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
@@ -8,6 +8,7 @@ import { navigate, usePath } from '../lib/router';
 import { toggleMaterialSidebarMode, useMaterialSidebarMode } from '../lib/sidebarMode';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
 import { useSidebarWidth } from '../lib/sidebarWidth';
+import { ticketsAnywhere } from '../data/tickets';
 import { DEMO } from '../demo/demoApi';
 import { NavBadge } from './NavBadge';
 import { reviewDue } from './Review';
@@ -223,6 +224,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
               <Destination active={dailyActive} onClick={() => void openTodayDailyNote()} Icon={CalendarDays} label={t('daily.navShort')} title={t('daily.todayBtn')} />
             )}
             <NavItem to="/tasks" Icon={ListChecks} label={t('nav.tasks')} badge={taskBadge} badgeLabel={t('nav.badgeTasks', { n: urgentTasks })} />
+            {ticketsAnywhere() && <NavItem to="/projects" Icon={Kanban} label={t('nav.projects')} />}
             {features.calendarView.enabled && <NavItem to="/calendar" Icon={CalendarMonth} label={t('nav.calendar')} />}
             {showNotifications && (
               <NavItem
@@ -314,6 +316,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
               <Destination bar className="hidden tablet:flex" active={dailyActive} onClick={() => void openTodayDailyNote()} Icon={CalendarDays} label={t('daily.navShort')} title={t('daily.todayBtn')} />
             )}
             <NavItem bar to="/tasks" Icon={ListChecks} label={t('nav.tasks')} badge={taskBadge} badgeLabel={t('nav.badgeTasks', { n: urgentTasks })} />
+            {ticketsAnywhere() && <NavItem bar className="hidden tablet:flex" to="/projects" Icon={Kanban} label={t('nav.projects')} />}
             <NavItem bar to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} badgeLabel={t('nav.badgeInbox', { n: inboxCount })} />
             <NavItem bar to="/notes" Icon={FileText} label={t('nav.notes')} />
             <Destination bar className="hidden tablet:flex" active={false} onClick={openSearch} Icon={SearchIcon} label={t('common.search')} title={t('common.search')} />

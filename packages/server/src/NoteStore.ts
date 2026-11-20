@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, contentHash, embedsOf, extractMeta, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, splitPath } from '@kladde/shared';
+import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, assignTicketNumber, contentHash, embedsOf, extractMeta, numberedTicketId, parseGroupFeatures, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, splitPath } from '@kladde/shared';
 import { DataCipher, randomToken } from './crypto.js';
 import { transaction } from './db.js';
 
@@ -201,12 +201,63 @@ export class NoteStore {
     return row?.role ?? null;
   }
 
+  /** Username of an account (for "assigned to me") */
+  usernameOf(userId: string): string | null {
+    return (this.db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as { username: string } | undefined)?.username ?? null;
+  }
+
   /** Groups the user is a member of, by name */
   groupsOf(userId: string): GroupInfo[] {
     const rows = this.db
-      .prepare('SELECT users.id, users.username, group_members.role FROM group_members JOIN users ON users.id = group_members.group_id WHERE group_members.user_id = ?')
-      .all(userId) as { id: string; username: string; role: GroupRole }[];
-    return rows.map((r) => ({ id: r.id, name: r.username, role: r.role })).sort((a, b) => a.name.localeCompare(b.name, 'de') || a.id.localeCompare(b.id));
+      .prepare('SELECT users.id, users.username, users.group_features, group_members.role FROM group_members JOIN users ON users.id = group_members.group_id WHERE group_members.user_id = ?')
+      .all(userId) as { id: string; username: string; group_features: string | null; role: GroupRole }[];
+    return rows
+      .map((r) => ({ id: r.id, name: r.username, role: r.role, features: parseGroupFeatures(r.group_features) }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'de') || a.id.localeCompare(b.id));
+  }
+
+  // ------------------------------------------------------------------ ticket numbers
+
+  /** The next ticket number of a project key in an owner's space (a user or a group) */
+  private nextTicketNumber(ownerId: string, key: string): number {
+    const mac = this.cipher.mac(key, 'ticket-key');
+    const row = this.db.prepare('SELECT value FROM ticket_counters WHERE owner_id = ? AND key_mac = ?').get(ownerId, mac) as { value: number } | undefined;
+    const next = (row ? row.value : this.highestTicketNumber(ownerId, key)) + 1;
+    this.db
+      .prepare('INSERT INTO ticket_counters (owner_id, key_mac, value) VALUES (?, ?, ?) ON CONFLICT(owner_id, key_mac) DO UPDATE SET value = excluded.value')
+      .run(ownerId, mac, next);
+    return next;
+  }
+
+  /** Before the first number of a key: the highest one already used in the owner's notes and trash (imports, older notes) */
+  private highestTicketNumber(ownerId: string, key: string): number {
+    let max = 0;
+    const rows = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND deleted = 0').all(ownerId) as unknown as NoteRow[];
+    for (const content of [...rows.map((r) => this.payload(r).content), ...this.trashedContents(ownerId)]) {
+      const id = numberedTicketId(content);
+      if (id && id.key === key) max = Math.max(max, id.number);
+    }
+    return max;
+  }
+
+  /** A ticket that arrives with a number above the counter (written by hand or imported) moves the counter up */
+  private observeTicketNumber(ownerId: string, content: string): void {
+    const id = numberedTicketId(content);
+    if (!id) return;
+    const mac = this.cipher.mac(id.key, 'ticket-key');
+    const row = this.db.prepare('SELECT value FROM ticket_counters WHERE owner_id = ? AND key_mac = ?').get(ownerId, mac) as { value: number } | undefined;
+    if (row && row.value >= id.number) return;
+    const value = Math.max(id.number, row ? row.value : this.highestTicketNumber(ownerId, id.key));
+    this.db.prepare('INSERT INTO ticket_counters (owner_id, key_mac, value) VALUES (?, ?, ?) ON CONFLICT(owner_id, key_mac) DO UPDATE SET value = excluded.value').run(ownerId, mac, value);
+  }
+
+  /** Numbers a provisional ticket (`KLD-?`) of `ownerId`; the content unchanged when it is none */
+  private numberTicket(ownerId: string, content: string): string {
+    if (!content.startsWith('---')) return content;
+    const numbered = assignTicketNumber(content, (key) => this.nextTicketNumber(ownerId, key));
+    if (numbered) return numbered;
+    this.observeTicketNumber(ownerId, content);
+    return content;
   }
 
   private groupName(groupId: string): string {
@@ -466,7 +517,8 @@ export class NoteStore {
     const results = transaction(this.db, () =>
       changes.map((change): PushResult => {
         if (typeof change?.id !== 'string' || !ID_PATTERN.test(change.id)) return { id: String(change?.id), status: 'forbidden' };
-        const content = typeof change.content === 'string' ? change.content : '';
+        const sent = typeof change.content === 'string' ? change.content : '';
+        let content = sent;
         if (Buffer.byteLength(content) > MAX_NOTE_BYTES) return { id: change.id, status: 'forbidden' };
         const now = Date.now();
         const updatedAt = Math.min(Number(change.updatedAt) || now, now);
@@ -484,6 +536,7 @@ export class NoteStore {
             if (!grant || change.deleted) return { id: change.id, status: 'forbidden' };
             ownerId = grant;
           }
+          if (!change.deleted) content = this.numberTicket(ownerId, content);
           const seq = this.nextSeq();
           const createdAt = Math.min(Number(change.createdAt) || now, now);
           this.db
@@ -494,7 +547,7 @@ export class NoteStore {
           const added = change.deleted ? [] : this.applyFolderShares(ownerId, change.id, path, seq, shares);
           const members = ownerId === userId ? [] : (this.db.prepare('SELECT user_id FROM group_members WHERE group_id = ?').all(ownerId) as { user_id: string }[]).map((m) => m.user_id);
           events.push({ noteId: change.id, ownerId, audience: [...new Set([ownerId, userId, ...added, ...members])], path, previousPath: null, content, deleted: !!change.deleted, actorId: userId, previousContent: '' });
-          return { id: change.id, status: 'ok', version: 1 };
+          return { id: change.id, status: 'ok', version: 1, ...(content !== sent ? { content } : {}) };
         }
         const access = this.accessOf(userId, row);
         if (access !== 'owner' && access !== 'write') return { id: change.id, status: 'forbidden' };
@@ -509,6 +562,7 @@ export class NoteStore {
         // Only the owner moves or renames a note: it lives in their space. Deleting also needs the folder share's permission
         const path = manager ? cleanPath(change.path) : old.path;
         const deleted = !!change.deleted;
+        if (!deleted) content = this.numberTicket(row.owner_id, content);
         const seq = this.nextSeq();
         this.db
           .prepare('UPDATE notes SET version = version + 1, seq = ?, updated_at = ?, deleted = ?, payload = ? WHERE id = ?')
@@ -521,7 +575,7 @@ export class NoteStore {
         if (deleted) this.dropShares(row.id, seq);
         else if (access === 'owner' && path !== old.path) audience.push(...this.applyFolderShares(userId, row.id, path, seq, folderShares()));
         events.push({ noteId: row.id, ownerId: row.owner_id, audience: [...new Set(audience)], path, previousPath: old.path, content: deleted ? content : this.published(row.id, content), deleted, actorId: userId, previousContent: old.content });
-        return { id: change.id, status: 'ok', version: row.version + 1 };
+        return { id: change.id, status: 'ok', version: row.version + 1, ...(content !== sent ? { content } : {}) };
       })
     );
     for (const e of events) this.onChange(e);

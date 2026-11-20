@@ -168,7 +168,7 @@ export function readFrontmatterYaml(content: string): { yaml: string; data: Yaml
   return { yaml: m[1], data: parseYaml(m[1]), body: content.slice(m[0].length) };
 }
 
-const PLAIN = /^[\p{L}\p{N}_./@+-][\p{L}\p{N}_ ./@+:()-]*$/u;
+const PLAIN = /^[\p{L}\p{N}_./+-][\p{L}\p{N}_ ./@+:()-]*$/u;
 
 function quoteScalar(s: string): string {
   if (s === '') return '""';
