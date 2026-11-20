@@ -36,7 +36,7 @@ const MAP = {
   UnfoldLess: 'unfold_less', UnfoldMore: 'unfold_more', Merge: 'merge', Filter: 'filter_list',
   SwapHoriz: 'swap_horiz', VerticalSplit: 'vertical_split', OpenInFull: 'open_in_full',
   Psychology: 'psychology', Mic: 'mic', Mood: 'mood', StopCircle: 'stop_circle', Subtitles: 'subtitles', TextFields: 'format_size', NewReleases: 'approval',
-  Palette: 'palette', PanelLeftClose: 'left_panel_close', PanelLeftOpen: 'left_panel_open', Callout: 'chat_info', Extension: 'extension', Slideshow: 'slideshow', SpeakerNotes: 'speaker_notes', Fullscreen: 'fullscreen', AspectRatio: 'aspect_ratio', PictureAsPdf: 'picture_as_pdf', UserCheck: 'how_to_reg', UserPlus: 'person_add', Users: 'group', X: 'close', Zap: 'bolt',
+  Palette: 'palette', PanelLeftClose: 'left_panel_close', PanelLeftOpen: 'left_panel_open', Callout: 'chat_info', Extension: 'extension', Slideshow: 'slideshow', SpeakerNotes: 'speaker_notes', Fullscreen: 'fullscreen', AspectRatio: 'aspect_ratio', PictureAsPdf: 'picture_as_pdf', UserCheck: 'how_to_reg', UserPlus: 'person_add', Users: 'group', AccountCircle: 'account_circle', EditNote: 'edit_note', Sync: 'sync', X: 'close', Zap: 'bolt',
 };
 
 /** Callout kind (#86) → Material Symbol; written as plain paths to src/editor/calloutIcons.ts for the editor widgets */

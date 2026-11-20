@@ -232,3 +232,25 @@ test('opened notes get tabs that switch, close and remember their order', async 
   await expect(noteTitle(page).first()).toHaveValue(b);
   await expect(tabs.getByRole('link', { name: a })).toHaveCount(0);
 });
+
+test('the settings have their own navigation in the side panel', async ({ page }) => {
+  await page.goto('/settings');
+  const nav = page.getByRole('navigation', { name: 'Settings' });
+  // The settings navigation replaces the folder panel; plain /settings shows the account
+  await expect(nav.getByRole('link', { name: 'Account', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('[data-settings-section="account"]')).toBeVisible();
+
+  await nav.getByRole('link', { name: 'Appearance', exact: true }).click();
+  await expect(page).toHaveURL(/\/settings\/appearance$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Appearance' })).toBeVisible();
+  await page.getByRole('group', { name: 'Color scheme' }).getByRole('button', { name: 'Light' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-scheme', 'light');
+  await page.getByRole('group', { name: 'Color scheme' }).getByRole('button', { name: 'Dark' }).click();
+
+  // Subpages keep the navigation, leaving the settings brings the folders back
+  await nav.getByRole('link', { name: 'Templates', exact: true }).click();
+  await expect(page).toHaveURL(/\/settings\/templates$/);
+  await expect(nav.getByRole('link', { name: 'Templates', exact: true })).toHaveAttribute('aria-current', 'page');
+  await page.goto('/notes');
+  await expect(page.getByRole('navigation', { name: 'Settings' })).toHaveCount(0);
+});

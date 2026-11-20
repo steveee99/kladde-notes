@@ -29,6 +29,7 @@ import { ActivityView } from './views/ActivityView';
 import { NotificationsView } from './views/NotificationsView';
 import { CalendarView } from './views/ActivityHeatmap';
 import { TasksView } from './views/TasksView';
+import { settingsSectionOf } from './lib/settingsRoutes';
 
 // Pages that are opened now and then load on first use, so the app starts with a smaller bundle (#64).
 // The service worker caches them with everything else, so they work offline too.
@@ -227,7 +228,7 @@ export function App() {
   else if (groupManage && !me.standalone) page = <GroupManageView key={path} groupId={groupManage.id} />;
   else if (groupRoute && !me.standalone) page = <GroupView key={path} groupId={groupRoute.id} folder={groupRoute.folder ?? ''} />;
   else if (path === '/search') page = <SearchView />;
-  else if (path === '/admin' && !me.standalone) page = <AdminView me={me} />;
+  else if ((path === '/admin' || path === '/settings/admin') && !me.standalone) page = <AdminView me={me} />;
   else if (path === '/settings/templates') page = <TemplatesView />;
   else if (path === '/settings/export') page = <AccountExportView />;
   else if (path === '/settings/mcp') page = <McpSettingsView />;
@@ -237,10 +238,11 @@ export function App() {
   else if (path === '/settings/shortcuts' && !me.standalone) page = <ShortcutsSettingsView />;
   else if (path === '/settings/notifications' && !me.standalone) page = <NotificationSettingsView />;
   else if (path === '/files' || path === '/settings/files') page = <FilesView />;
-  else if (path === '/trash') page = <TrashView />;
-  else if (path === '/settings')
+  else if (path === '/trash' || path === '/settings/trash') page = <TrashView />;
+  else if (settingsSectionOf(path))
     page = (
       <SettingsView
+        section={settingsSectionOf(path)}
         me={me}
         onMe={signedIn}
         onLogout={async () => {

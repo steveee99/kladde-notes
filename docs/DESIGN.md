@@ -292,6 +292,7 @@ The mockups go further than the first implementation. Not built yet:
 - `seq`, word count and other people's activity in the status bar; presence avatars in the top bar.
 - The inspector's own shortcut, the settings "start collapsed" and "collapse automatically below 1280px".
 - Other people's avatars and cursors in their accent color (cursors still use the fixed set `--cursor-1…6`).
-- The density setting and the live preview next to the accent swatches.
+- The density setting and the live preview next to the accent swatches (the settings navigation and the row layout
+  are built: `views/SettingsNav.tsx`, sections in `views/Settings.tsx`).
 - A few rarely used views (sign-in, Confluence, presentation) still carry Material-era spacing; the role aliases and
   the shared components keep them in the new colors and shapes.

@@ -1,45 +1,35 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
 import {
-  ArrowRight,
+  ArrowLeft,
+  RefreshCw,
   Camera,
-  ChevronRight,
-  FolderInput,
-  Globe,
   Images,
-  Inbox,
   Info,
   KeyRound,
   LayoutTemplate,
   Loader2,
   Lock,
   LogOut,
-  Maximize2,
-  ShieldCheck,
   Smartphone,
-  SunMoon,
   Trash2,
-  Archive,
   Upload,
-  TextFields,
-  Extension,
-  Palette,
 } from '../lib/icons';
 import { APP_VERSION, Me, PASSWORD_MIN_LENGTH } from '@kladde/shared';
 import { api, deleteAvatar, uploadAvatar } from '../lib/api';
 import { useConfluence } from '../lib/confluence';
-import { Lang, locale, setLang, tl, useLang } from '../lib/i18n';
+import { Lang, locale, setLang, tl, useLang, type I18nKey } from '../lib/i18n';
 import { EDITOR_FONT_SIZES, setEditorFontSize, setInboxZero, setLigatures, useEditorFontSize, useInboxZero, useLigatures } from '../lib/prefs';
 import { setColorSchemeChoice, useColorSchemeChoice } from '../lib/theme';
 import { DEFAULT_PERCENT, MAX_PERCENT, MIN_PERCENT, setWidescreen, useWidescreen, WIDESCREEN_PRESETS } from '../lib/widescreen';
 import { useVault, vault } from '../data/vault';
-import { navigate } from '../lib/router';
+import { navigate, usePath } from '../lib/router';
 import { GitLabIcon, passkeysAvailable, useAuthProviders, useRedirectParam } from './Auth';
 import { Avatar } from './Avatar';
 import { Switch } from './Switch';
 import { AccentPicker } from './AccentPicker';
 import { DEMO } from '../demo/demoApi';
-import { FeaturesDialog, useFeatureCounts } from './FeaturesDialog';
+import { SettingsNav, useSettingsNavInPanel, type SettingsSection } from './SettingsNav';
 import { PageBody, PageHeader } from './PageHeader';
 
 function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
@@ -82,7 +72,7 @@ function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   };
 
   return (
-    <section className="card p-5 anim-fade-up">
+    <section className="border-b border-line py-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <button
           type="button"
@@ -100,7 +90,7 @@ function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
 
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-title-m text-strong">{tl(lang, 'settings.profileTitle')}</h2>
+            <h2 className="text-body-m font-medium text-text">{tl(lang, 'settings.profileTitle')}</h2>
             <span className="chip">{me.username}</span>
           </div>
           <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.profileHint')}</p>
@@ -143,7 +133,50 @@ function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   );
 }
 
-export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) => void; onLogout: () => void }) {
+/** One setting: title and description on the left, the control on the right (below it on narrow screens) */
+function SettingRow({ title, desc, htmlFor, children, stacked }: { title: ReactNode; desc?: ReactNode; htmlFor?: string; children?: ReactNode; stacked?: boolean }) {
+  return (
+    <div className={`flex gap-x-6 gap-y-3 border-b border-line py-4 ${stacked ? 'flex-col' : 'flex-col sm:flex-row sm:items-center'}`}>
+      <div className="min-w-0 flex-1">
+        {htmlFor ? (
+          <label htmlFor={htmlFor} className="cursor-pointer text-body-m font-medium text-text">
+            {title}
+          </label>
+        ) : (
+          <div className="text-body-m font-medium text-text">{title}</div>
+        )}
+        {desc && <div className="mt-0.5 text-body-s text-muted">{desc}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** A setting with a switch: the switch stays on the right on every screen */
+function SwitchRow({ id, title, desc, label, checked, onChange }: { id: string; title: string; desc: string; label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center gap-6 border-b border-line py-4">
+      <div className="min-w-0 flex-1">
+        <label htmlFor={id} className="cursor-pointer text-body-m font-medium text-text">
+          {title}
+        </label>
+        <div className="mt-0.5 text-body-s text-muted">{desc}</div>
+      </div>
+      <Switch id={id} checked={checked} label={label} onChange={onChange} />
+    </div>
+  );
+}
+
+/** Caption above a group of settings */
+function GroupLabel({ children }: { children: ReactNode }) {
+  return <h2 className="section-label pb-1 pt-7 first:pt-2">{children}</h2>;
+}
+
+/**
+ * Settings (Werkbank): one page per section (`/settings/account`, `appearance`, `editor`, `sync`), picked in the
+ * settings navigation. On phones (and with the side panel collapsed) `/settings` shows that navigation as a list.
+ */
+export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (me: Me) => void; onLogout: () => void; section: SettingsSection | null }) {
   // Loads the Confluence state once; hides the entry when the server has no Confluence (demo)
   useConfluence();
   useVault();
@@ -154,61 +187,33 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
   const ligatures = useLigatures();
   const editorFontSize = useEditorFontSize();
   const colorScheme = useColorSchemeChoice();
+  const inPanel = useSettingsNavInPanel();
+  const path = usePath();
   const [link, setLink] = useState<{ code: string; expiresAt: number } | null>(null);
   const [error, setError] = useState('');
   const linkUrl = link ? `${location.origin}/link/${link.code}` : '';
 
-  const templatesCount = vault.templates().length;
-  const navCards = [
-    ...(me.isAdmin
-      ? [
-          {
-            path: '/admin',
-            Icon: ShieldCheck,
-            title: tl(lang, 'settings.adminTitle'),
-            desc: tl(lang, 'settings.adminDesc'),
-          },
-        ]
-      : []),
-    ...(!me.standalone
-      ? [
-          {
-            path: '/settings/import',
-            Icon: FolderInput,
-            title: tl(lang, 'settings.importTitle'),
-            desc: tl(lang, 'settings.importDesc'),
-          },
-        ]
-      : []),
-    {
-      path: '/settings/templates',
-      Icon: LayoutTemplate,
-      title: tl(lang, 'settings.templatesTitle'),
-      desc: templatesCount ? tl(lang, 'settings.templatesDescCount', { n: templatesCount }) : tl(lang, 'settings.templatesDescEmpty'),
-    },
-    {
-      path: '/files',
-      Icon: Images,
-      title: tl(lang, 'settings.filesTitle'),
-      desc: tl(lang, 'settings.filesDesc'),
-    },
-    {
-      path: '/trash',
-      Icon: Trash2,
-      title: tl(lang, 'settings.trashTitle'),
-      desc: tl(lang, 'settings.trashDesc'),
-    },
-    ...(!DEMO
-      ? [
-          {
-            path: '/settings/export',
-            Icon: Archive,
-            title: tl(lang, 'accountExport.title'),
-            desc: tl(lang, 'accountExport.cardDesc'),
-          },
-        ]
-      : []),
-  ];
+  // The overview: the navigation as a list, where it is not in the side panel
+  if (!section || (!inPanel && path === '/settings')) {
+    return (
+      <div>
+        <PageHeader title={tl(lang, 'settings.title')} subtitle={me.username} />
+        <PageBody className="max-w-[760px] !mx-0">
+          <SettingsNav me={me} />
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
+            {!me.standalone ? (
+              <button className="btn-text text-red" onClick={onLogout}>
+                <LogOut size={16} /> {tl(lang, 'settings.logout')}
+              </button>
+            ) : (
+              <span className="text-body-s text-muted">Standalone Desktop</span>
+            )}
+            <span className="font-mono text-[11px] text-muted">Kladde {APP_VERSION}</span>
+          </div>
+        </PageBody>
+      </div>
+    );
+  }
 
   const linkTextParts = link
     ? tl(lang, 'settings.deviceLinkText', {
@@ -216,17 +221,37 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
       }).split(/(\{url\}|\{code\})/)
     : [];
 
+  const titles: Record<SettingsSection, [I18nKey, I18nKey]> = {
+    account: ['settings.navAccount', 'settings.navAccountDesc'],
+    appearance: ['settings.navAppearance', 'settings.navAppearanceDesc'],
+    editor: ['settings.navEditor', 'settings.navEditorDesc'],
+    sync: ['settings.navSync', 'settings.navSyncDesc'],
+  };
+  const [titleKey, descKey] = titles[section];
+
   return (
-    <div>
-      <PageHeader title={tl(lang, 'settings.title')} subtitle={me.username} />
-      <PageBody className="max-w-[960px] space-y-5 !mx-0">
-
-      <ProfileSection me={me} onMe={onMe} />
-
-      {!me.standalone && (
-        <section className="card p-5 anim-fade-up" data-security-section>
-          <h2 className="mb-4 text-title-m text-strong">{tl(lang, 'settings.securityTitle')}</h2>
-          <div className="divide-y divide-outline-variant [&>*:first-child]:pt-0 [&>*:last-child]:pb-0 [&>*]:py-5">
+    <div data-settings-section={section}>
+      <PageHeader
+        title={
+          <span className="flex items-center gap-1.5">
+            {!inPanel && (
+              <button className="btn-icon -ml-2 h-8 w-8" onClick={() => navigate('/settings')} title={tl(lang, 'settings.backToOverview')} aria-label={tl(lang, 'settings.backToOverview')}>
+                <ArrowLeft size={18} />
+              </button>
+            )}
+            {tl(lang, titleKey)}
+          </span>
+        }
+        subtitle={tl(lang, descKey)}
+      />
+      <PageBody className="max-w-[760px] !mx-0 !pt-2">
+        {section === 'account' && (
+          <>
+            <ProfileSection me={me} onMe={onMe} />
+            {!me.standalone && (
+              <section data-security-section>
+                <GroupLabel>{tl(lang, 'settings.securityTitle')}</GroupLabel>
+                <div className="divide-y divide-line [&>*]:py-4">
           <div>
             <h3 className="mb-1 text-sm font-medium">{tl(lang, 'settings.passkeysTitle', { username: me.username })}</h3>
             <p className="mb-3 text-sm text-on-surface-variant">{tl(lang, 'settings.passkeysDesc')}</p>
@@ -301,236 +326,160 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
 
             <PasswordSection me={me} onMe={onMe} />
             <GitLabSection me={me} onMe={onMe} />
-          </div>
-        </section>
-      )}
-
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-        {navCards.map(({ path, Icon, title, desc }) => (
-          <button
-            key={path}
-            type="button"
-            className="card flex h-full w-full min-w-0 items-center gap-3 px-3.5 py-3 text-left transition-colors hover:border-line2 hover:bg-raised anim-fade-up"
-            onClick={() => navigate(path)}
-          >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line2 bg-raised text-soft">
-              <Icon size={16} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="text-title-s text-strong">{title}</div>
-              <div className="line-clamp-2 text-body-m text-muted">{desc}</div>
-            </div>
-            <ChevronRight size={16} className="shrink-0 text-muted" />
-          </button>
-        ))}
-      </div>
-
-      {/* Layout, Language, Inbox Zero & Widescreen (Material 3) */}
-      <section className="card p-5 anim-fade-up">
-        <h2 className="mb-4 text-title-m text-strong">{tl(lang, 'settings.appearanceTitle')}</h2>
-
-        {/* Accent color (per account) */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2.5">
-            <Palette size={18} className="mt-0.5 shrink-0 text-muted" />
-            <div>
-              <div className="text-sm font-medium">{tl(lang, 'settings.accentTitle')}</div>
-              <div className="text-xs text-on-surface-variant">{tl(lang, 'settings.accentDesc')}</div>
-            </div>
-          </div>
-          <AccentPicker onMe={onMe} />
-        </div>
-
-        <hr className="my-5 border-outline-variant" />
-
-        {/* Color scheme selector */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2.5">
-            <SunMoon size={18} className="mt-0.5 shrink-0 text-muted" />
-            <div>
-              <div className="text-sm font-medium">{tl(lang, 'settings.colorSchemeTitle')}</div>
-              <div className="text-xs text-on-surface-variant">{tl(lang, 'settings.colorSchemeDesc')}</div>
-            </div>
-          </div>
-          <div className="segmented grid w-full grid-cols-3 sm:inline-flex sm:w-auto sm:shrink-0" role="group" aria-label={tl(lang, 'settings.colorSchemeTitle')}>
-            {(
-              [
-                ['dark', 'settings.colorSchemeDark'],
-                ['light', 'settings.colorSchemeLight'],
-                ['system', 'settings.colorSchemeSystem'],
-              ] as const
-            ).map(([choice, label]) => {
-              const active = colorScheme === choice;
-              return (
-                <button
-                  key={choice}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => setColorSchemeChoice(choice)}
-                  className="min-w-0"
-                >
-                  <span className="truncate">{tl(lang, label)}</span>
+                </div>
+              </section>
+            )}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
+              {!me.standalone ? (
+                <button className="btn-text -ml-2.5 text-red" onClick={onLogout}>
+                  <LogOut size={16} /> {tl(lang, 'settings.logout')}
                 </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <hr className="my-5 border-outline-variant" />
-
-        {/* Language selector (M3 Segmented Pill Button) */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2.5">
-            <Globe size={18} className="mt-0.5 shrink-0 text-muted" />
-            <div>
-              <div className="text-sm font-medium">{tl(lang, 'common.language')}</div>
-              <div className="text-xs text-on-surface-variant">{tl(lang, 'common.languageDesc')}</div>
+              ) : (
+                <span className="text-body-s text-muted">Standalone Desktop</span>
+              )}
+              <span className="font-mono text-[11px] text-muted">Kladde {APP_VERSION}</span>
             </div>
-          </div>
-          <div className="segmented max-w-full shrink-0" role="group" aria-label={tl(lang, 'common.language')}>
-            {(['de', 'en'] as Lang[]).map((code) => {
-              const active = lang === code;
-              const label = code === 'de' ? tl(lang, 'common.langDe') : tl(lang, 'common.langEn');
-              return (
-                <button
-                  key={code}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => setLang(code)}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <hr className="my-5 border-outline-variant" />
-
-        {/* Inbox Zero opt-in (M3 Switch) */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <Inbox size={18} className="mt-0.5 shrink-0 text-muted" />
-            <div className="min-w-0 flex-1">
-              <label htmlFor="inbox-zero-switch" className="cursor-pointer text-sm font-medium">
-                {tl(lang, 'settings.inboxZeroTitle')}
-              </label>
-              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.inboxZeroDesc')}</p>
-            </div>
-          </div>
-          <Switch
-            id="inbox-zero-switch"
-            checked={inboxZero}
-            label={tl(lang, 'settings.inboxZeroLabel')}
-            onChange={setInboxZero}
-          />
-        </div>
-
-        <hr className="my-5 border-outline-variant" />
-
-        {/* Editor font size (per device) */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2.5">
-            <TextFields size={18} className="mt-0.5 shrink-0 text-muted" />
-            <div>
-              <div className="text-sm font-medium">{tl(lang, 'settings.editorFontTitle')}</div>
-              <div className="text-xs text-on-surface-variant">{tl(lang, 'settings.editorFontDesc')}</div>
-            </div>
-          </div>
-          <div className="segmented max-w-full shrink-0" role="group" aria-label={tl(lang, 'settings.editorFontTitle')}>
-            {EDITOR_FONT_SIZES.map((size) => {
-              const active = editorFontSize === size;
-              return (
-                <button
-                  key={size}
-                  type="button"
-                  aria-pressed={active}
-                  aria-label={`${size} px`}
-                  title={`${size} px`}
-                  onClick={() => setEditorFontSize(size)}
-                  className="min-w-[2.5rem] tabular-nums"
-                  style={{ fontSize: `${Math.round(size * 0.8)}px` }}
-                >
-                  {size}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <hr className="my-5 border-outline-variant" />
-
-        {/* Ligatures in the editor (display only) */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <ArrowRight size={18} className="mt-0.5 shrink-0 text-muted" />
-            <div className="min-w-0 flex-1">
-              <label htmlFor="ligatures-switch" className="cursor-pointer text-sm font-medium">
-                {tl(lang, 'settings.ligaturesTitle')}
-              </label>
-              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.ligaturesDesc')}</p>
-            </div>
-          </div>
-          <Switch id="ligatures-switch" checked={ligatures} label={tl(lang, 'settings.ligaturesLabel')} onChange={setLigatures} />
-        </div>
-
-        <hr className="my-5 border-outline-variant" />
-
-        {/* Widescreen: one slider from 50 to 100 %, snapping to the presets */}
-        <div className="mb-3 flex items-center gap-2.5">
-          <Maximize2 size={18} className="mt-0.5 shrink-0 text-muted" />
-          <div className="min-w-0 flex-1">
-            <label htmlFor="widescreen-slider" className="text-sm font-medium">
-              {tl(lang, 'settings.widescreenTitle')}
-            </label>
-            <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.widescreenDesc')}</p>
-          </div>
-          <span className="shrink-0 text-title-m tabular-nums">{widescreen.percent} %</span>
-        </div>
-        <WidescreenSlider />
-        <div className="mt-3 flex items-start gap-2 rounded-xl bg-surface-container-high/60 px-3.5 py-2.5 text-xs text-on-surface-variant">
-          <Info size={15} className="mt-0.5 shrink-0 text-primary" />
-          <span>{tl(lang, 'settings.widescreenSmallScreenHint')}</span>
-        </div>
-      </section>
-
-      <FeaturesCard />
-
-      <section className="card p-5 anim-fade-up">
-        <h2 className="mb-1 font-medium">{me.standalone ? tl(lang, 'settings.standaloneTitle') : tl(lang, 'settings.syncTitle')}</h2>
-        <p className="text-sm text-on-surface-variant">
-          {me.standalone
-            ? tl(lang, 'settings.standaloneStats', {
-                notes: vault.list().length,
-                pending: vault.pendingCount(),
-              })
-            : tl(lang, 'settings.syncStats', {
-                notes: vault.list().length,
-                pending: vault.pendingCount(),
-                last: vault.lastSync
-                  ? tl(lang, 'settings.syncLast', { time: new Date(vault.lastSync).toLocaleTimeString(loc, { timeStyle: 'short' }) })
-                  : '',
-              })}
-        </p>
-        {me.standalone && me.dataDir && (
-          <div className="mt-3 space-y-1">
-            <div className="text-xs font-medium text-on-surface-variant">{tl(lang, 'settings.standaloneDataDir')}</div>
-            <code className="block rounded-xl border border-outline-variant bg-surface-container-high px-3 py-2 font-mono text-xs break-all text-on-surface">{me.dataDir}</code>
-          </div>
+          </>
         )}
-        <p className="mt-2 text-xs text-on-surface-variant">{me.standalone ? tl(lang, 'settings.standaloneNote') : tl(lang, 'settings.syncOfflineNote')}</p>
-      </section>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        {!me.standalone ? (
-          <button className="btn-ghost text-error" onClick={onLogout}>
-            <LogOut size={16} /> {tl(lang, 'settings.logout')}
-          </button>
-        ) : (
-          <span className="text-xs text-on-surface-variant">Standalone Desktop</span>
+        {section === 'appearance' && (
+          <>
+            <div className="border-b border-line py-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div className="text-body-m font-medium text-text">{tl(lang, 'settings.accentTitle')}</div>
+              </div>
+              <div className="mb-4 mt-0.5 text-body-s text-muted">{tl(lang, 'settings.accentDesc')}</div>
+              <AccentPicker onMe={onMe} />
+            </div>
+            <SettingRow title={tl(lang, 'settings.colorSchemeTitle')} desc={tl(lang, 'settings.colorSchemeDesc')}>
+              <div className="segmented grid w-full grid-cols-3 sm:inline-flex sm:w-auto sm:shrink-0" role="group" aria-label={tl(lang, 'settings.colorSchemeTitle')}>
+                {(
+                  [
+                    ['dark', 'settings.colorSchemeDark'],
+                    ['light', 'settings.colorSchemeLight'],
+                    ['system', 'settings.colorSchemeSystem'],
+                  ] as const
+                ).map(([choice, label]) => (
+                  <button key={choice} type="button" aria-pressed={colorScheme === choice} onClick={() => setColorSchemeChoice(choice)} className="min-w-0">
+                    <span className="truncate">{tl(lang, label)}</span>
+                  </button>
+                ))}
+              </div>
+            </SettingRow>
+            <SettingRow title={tl(lang, 'common.language')} desc={tl(lang, 'common.languageDesc')}>
+              <div className="segmented max-w-full shrink-0 self-start sm:self-auto" role="group" aria-label={tl(lang, 'common.language')}>
+                {(['de', 'en'] as Lang[]).map((code) => (
+                  <button key={code} type="button" aria-pressed={lang === code} onClick={() => setLang(code)}>
+                    {code === 'de' ? tl(lang, 'common.langDe') : tl(lang, 'common.langEn')}
+                  </button>
+                ))}
+              </div>
+            </SettingRow>
+            <div className="border-b border-line py-4">
+              <div className="mb-3 flex items-start gap-4">
+                <div className="min-w-0 flex-1">
+                  <label htmlFor="widescreen-slider" className="text-body-m font-medium text-text">
+                    {tl(lang, 'settings.widescreenTitle')}
+                  </label>
+                  <div className="mt-0.5 text-body-s text-muted">{tl(lang, 'settings.widescreenDesc')}</div>
+                </div>
+                <span className="shrink-0 font-mono text-body-m tabular-nums text-strong">{widescreen.percent} %</span>
+              </div>
+              <WidescreenSlider />
+              <p className="mt-3 flex items-start gap-2 text-body-s text-muted">
+                <Info size={14} className="mt-0.5 shrink-0" />
+                <span>{tl(lang, 'settings.widescreenSmallScreenHint')}</span>
+              </p>
+            </div>
+            <GroupLabel>{tl(lang, 'settings.workTitle')}</GroupLabel>
+            <SwitchRow
+              id="inbox-zero-switch"
+              title={tl(lang, 'settings.inboxZeroTitle')}
+              desc={tl(lang, 'settings.inboxZeroDesc')}
+              label={tl(lang, 'settings.inboxZeroLabel')}
+              checked={inboxZero}
+              onChange={setInboxZero}
+            />
+          </>
         )}
-        <span className="text-xs text-on-surface-variant">Kladde {APP_VERSION}</span>
-      </div>
+
+        {section === 'editor' && (
+          <>
+            <SettingRow title={tl(lang, 'settings.editorFontTitle')} desc={tl(lang, 'settings.editorFontDesc')}>
+              <div className="segmented max-w-full shrink-0 self-start sm:self-auto" role="group" aria-label={tl(lang, 'settings.editorFontTitle')}>
+                {EDITOR_FONT_SIZES.map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    aria-pressed={editorFontSize === size}
+                    aria-label={`${size} px`}
+                    title={`${size} px`}
+                    onClick={() => setEditorFontSize(size)}
+                    className="min-w-[2.5rem] tabular-nums"
+                    style={{ fontSize: `${Math.round(size * 0.8)}px` }}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </SettingRow>
+            <SwitchRow
+              id="ligatures-switch"
+              title={tl(lang, 'settings.ligaturesTitle')}
+              desc={tl(lang, 'settings.ligaturesDesc')}
+              label={tl(lang, 'settings.ligaturesLabel')}
+              checked={ligatures}
+              onChange={setLigatures}
+            />
+            <SettingRow title={tl(lang, 'settings.templatesTitle')} desc={tl(lang, 'settings.navTemplatesDesc')}>
+              <button className="btn-outlined self-start sm:self-auto" onClick={() => navigate('/settings/templates')}>
+                <LayoutTemplate size={16} /> {tl(lang, 'settings.templatesTitle')}
+              </button>
+            </SettingRow>
+          </>
+        )}
+
+        {section === 'sync' && (
+          <>
+            <SettingRow
+              title={me.standalone ? tl(lang, 'settings.standaloneTitle') : tl(lang, 'settings.syncTitle')}
+              desc={
+                <>
+                  {me.standalone
+                    ? tl(lang, 'settings.standaloneStats', { notes: vault.list().length, pending: vault.pendingCount() })
+                    : tl(lang, 'settings.syncStats', {
+                        notes: vault.list().length,
+                        pending: vault.pendingCount(),
+                        last: vault.lastSync ? tl(lang, 'settings.syncLast', { time: new Date(vault.lastSync).toLocaleTimeString(loc, { timeStyle: 'short' }) }) : '',
+                      })}
+                  <br />
+                  {me.standalone ? tl(lang, 'settings.standaloneNote') : tl(lang, 'settings.syncOfflineNote')}
+                </>
+              }
+            >
+              {!me.standalone && !DEMO && (
+                <button className="btn-outlined self-start sm:self-auto" onClick={() => vault.kick()}>
+                  <RefreshCw size={16} /> {tl(lang, 'cmd.syncNow')}
+                </button>
+              )}
+            </SettingRow>
+            {me.standalone && me.dataDir && (
+              <SettingRow title={tl(lang, 'settings.standaloneDataDir')} stacked>
+                <code className="block rounded-md border border-line2 bg-sunken px-3 py-2 font-mono text-xs break-all text-text">{me.dataDir}</code>
+              </SettingRow>
+            )}
+            <SettingRow title={tl(lang, 'settings.filesTitle')} desc={tl(lang, 'settings.filesDesc')}>
+              <button className="btn-outlined self-start sm:self-auto" onClick={() => navigate('/settings/files')}>
+                <Images size={16} /> {tl(lang, 'settings.filesTitle')}
+              </button>
+            </SettingRow>
+            <SettingRow title={tl(lang, 'settings.trashTitle')} desc={tl(lang, 'settings.trashDesc')}>
+              <button className="btn-outlined self-start sm:self-auto" onClick={() => navigate('/settings/trash')}>
+                <Trash2 size={16} /> {tl(lang, 'settings.trashTitle')}
+              </button>
+            </SettingRow>
+          </>
+        )}
       </PageBody>
     </div>
   );
@@ -758,33 +707,5 @@ function WidescreenSlider() {
         ))}
       </div>
     </div>
-  );
-}
-
-/** Entry to the features dialog: how many features are on and how many more there are */
-function FeaturesCard() {
-  const lang = useLang();
-  const { active, available } = useFeatureCounts();
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <button
-        type="button"
-        className="card flex w-full min-w-0 items-center gap-3 px-3.5 py-3 text-left transition-colors hover:border-line2 hover:bg-raised anim-fade-up"
-        onClick={() => setOpen(true)}
-        aria-haspopup="dialog"
-        data-open-features
-      >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line2 bg-raised text-soft">
-          <Extension size={16} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="text-title-s text-strong">{tl(lang, 'features.title')}</div>
-          <div className="text-body-m text-muted">{tl(lang, 'features.cardDesc', { active, available })}</div>
-        </div>
-        <ChevronRight size={16} className="shrink-0 text-muted" />
-      </button>
-      {open && <FeaturesDialog onClose={() => setOpen(false)} />}
-    </>
   );
 }

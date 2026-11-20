@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, lazy, Suspense, useContext, useEffect, useRef, useState } from 'react';
 import { useModal } from '../lib/modal';
 import { Bell, CalendarCheck, CalendarDays, CalendarMonth, FileText, Home, Inbox as InboxIcon, ListChecks, Menu, Network, PanelLeftClose, PanelLeftOpen, Pencil, Search as SearchIcon, Share2, Tags, Users, X } from '../lib/icons';
 import { openSearch, SearchDialogHost } from './SearchDialog';
@@ -23,6 +23,9 @@ import { locale, t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
 import { useReadOnly } from '../lib/readOnly';
 import { setFocusMode, useFocusMode } from '../lib/focus';
+import { isSettingsPath, useSettingsNavInPanel } from '../lib/settingsRoutes';
+
+const SettingsNav = lazy(() => import('./SettingsNav').then((m) => ({ default: m.SettingsNav })));
 
 /*
  * Shell of Kladde, Werkbank design (docs/DESIGN.md). Desktop (`nav:`): a top bar with the command field, a
@@ -212,6 +215,13 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
     if (focusMode && (!noteId || !features.focus.enabled)) setFocusMode(false);
   }, [focusMode, noteId, features.focus.enabled]);
 
+  const settingsNavInPanel = useSettingsNavInPanel();
+  const settingsRoute = isSettingsPath(path);
+  const hidePanelButton = (
+    <button type="button" onClick={toggleMaterialSidebarMode} className="btn-icon h-8 w-8" title={`${t('nav.hideSidePanel')} (Ctrl/⌘+\\)`} aria-label={t('nav.hideSidePanel')}>
+      <PanelLeftClose size={18} />
+    </button>
+  );
   const panelToggleLabel = panelOpen ? t('nav.hideSidePanel') : t('nav.showSidePanel');
   const PanelIcon = panelOpen ? PanelLeftClose : PanelLeftOpen;
 
@@ -294,18 +304,15 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
           </nav>
         )}
         {!focus && panelOpen && (
-          <aside aria-label={t('nav.folders')} className="relative hidden shrink-0 border-r border-line bg-panel nav:flex" style={{ width: sidebarWidth }}>
+          <aside aria-label={settingsRoute ? t('settings.title') : t('nav.folders')} className="relative hidden shrink-0 border-r border-line bg-panel nav:flex" style={{ width: sidebarWidth }}>
             <div className="flex min-h-0 w-full flex-col overflow-hidden">
-              <Sidebar
-                me={me}
-                isAdmin={isAdmin}
-                panel
-                headerAction={
-                  <button type="button" onClick={toggleMaterialSidebarMode} className="btn-icon h-8 w-8" title={`${t('nav.hideSidePanel')} (Ctrl/⌘+\\)`} aria-label={t('nav.hideSidePanel')}>
-                    <PanelLeftClose size={18} />
-                  </button>
-                }
-              />
+              {settingsRoute && settingsNavInPanel ? (
+                <Suspense fallback={null}>
+                  <SettingsNav me={me} panel headerAction={hidePanelButton} />
+                </Suspense>
+              ) : (
+                <Sidebar me={me} isAdmin={isAdmin} panel headerAction={hidePanelButton} />
+              )}
             </div>
             <SidebarResizeHandle />
           </aside>
