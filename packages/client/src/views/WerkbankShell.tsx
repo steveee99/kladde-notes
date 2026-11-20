@@ -16,6 +16,8 @@ import { QuickCapture } from './QuickCapture';
 import { folderOfRoute, newNote, openTodayDailyNote, ReadOnlyToggle, Sidebar, SyncBadge } from './Shell';
 import { Avatar } from './Avatar';
 import { AppLogo } from './AppLogo';
+import { NoteTabs } from './NoteTabs';
+import { buildCommands } from './commands';
 import { urgentTaskCount } from './TaskParts';
 import { locale, t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
@@ -230,7 +232,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
             className="mx-auto flex h-8 w-full max-w-[520px] items-center gap-2.5 rounded-md border border-line2 bg-bg px-3 text-left text-body-m text-muted outline-none transition-colors hover:border-edge focus-visible:border-acc"
           >
             <SearchIcon size={16} className="shrink-0" />
-            <span className="min-w-0 flex-1 truncate">{t('search.sidebarPlaceholder').replace(/\s*\(.*\)\s*$/, '')}</span>
+            <span className="min-w-0 flex-1 truncate">{t('palette.topBar')}</span>
             <kbd className="kbd">⌘K</kbd>
           </button>
           <div className="m3-status flex shrink-0 items-center gap-1">
@@ -342,6 +344,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
               <SyncBadge />
             </div>
           </header>
+          {!focus && <NoteTabs />}
           <div className="flex min-h-0 min-w-0 flex-1">
             <RightPaneHostContext.Provider value={rightHost}>
               <main className={`vt-main min-h-0 min-w-0 flex-1 overflow-y-auto bg-bg scrollbar-thin ${!noteId ? 'pb-24 nav:pb-16' : ''}`}>{children}</main>
@@ -393,7 +396,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
       )}
       {capture && <QuickCapture onClose={() => setCapture(false)} />}
       <Dialogs />
-      <SearchDialogHost />
+      <SearchDialogHost commands={() => buildCommands(path)} />
     </div>
   );
 }

@@ -175,3 +175,60 @@ test('the account export is built and downloaded once', async ({ page }) => {
   expect(file.suggestedFilename()).toMatch(/^kladde-\d{4}-\d{2}-\d{2}\.zip$/);
   await expect(page.getByRole('button', { name: 'Create export' })).toBeVisible();
 });
+
+test('the command palette runs commands and opens notes, tasks and notes to the side', async ({ page }) => {
+  const title = `Palette ${uid()}`;
+  const id = await seed(page.request, `${title}.md`, `Text\n\n- [ ] Palettenaufgabe ${title}\n`);
+  await open(page, id, title);
+  const palette = page.locator('[data-command-palette]');
+
+  // `>` lists only commands; Enter runs the selected one
+  await page.keyboard.press('ControlOrMeta+K');
+  await page.locator('[data-search-dialog-input]').fill('> tasks');
+  await expect(palette.locator('[data-command="go-tasks"]')).toBeVisible();
+  await expect(palette.getByRole('option')).toHaveCount(1);
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/tasks$/);
+  await expect(palette).toBeHidden();
+
+  // Without `>`: notes, matching open tasks and matching commands in one list
+  await page.keyboard.press('ControlOrMeta+K');
+  await page.locator('[data-search-dialog-input]').fill(title);
+  await expect(palette.getByRole('group', { name: 'Notes' }).getByRole('option')).toHaveCount(1);
+  await expect(palette.getByRole('group', { name: 'Tasks' }).getByText(`Palettenaufgabe ${title}`)).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(noteTitle(page).first()).toHaveValue(title);
+
+  // Ctrl/⌘+Enter opens a note next to the open one
+  const other = `Daneben ${uid()}`;
+  await seed(page.request, `${other}.md`, 'x');
+  await page.keyboard.press('ControlOrMeta+K');
+  await page.locator('[data-search-dialog-input]').fill(other);
+  await expect(palette.getByRole('group', { name: 'Notes' }).getByRole('option')).toHaveCount(1);
+  await page.keyboard.press('ControlOrMeta+Enter');
+  await expect(page.locator('section[data-pane="side"] textarea.note-title')).toHaveValue(other);
+  await expect(noteTitle(page).first()).toHaveValue(title);
+});
+
+test('opened notes get tabs that switch, close and remember their order', async ({ page }) => {
+  const a = `Tab A ${uid()}`;
+  const b = `Tab B ${uid()}`;
+  const idA = await seed(page.request, `${a}.md`, 'a');
+  const idB = await seed(page.request, `${b}.md`, 'b');
+  await open(page, idA, a);
+  await open(page, idB, b);
+  const tabs = page.getByRole('navigation', { name: 'Open notes' });
+  await expect(tabs.getByRole('link', { name: a })).toBeVisible();
+  await expect(tabs.getByRole('link', { name: b })).toHaveAttribute('aria-current', 'page');
+
+  // A click switches, the tabs survive a reload
+  await tabs.getByRole('link', { name: a }).click();
+  await expect(noteTitle(page).first()).toHaveValue(a);
+  await page.reload();
+  await expect(tabs.getByRole('link', { name: b })).toBeVisible();
+
+  // Closing the active tab opens its neighbour
+  await tabs.getByRole('button', { name: `Close tab: ${a}` }).click();
+  await expect(noteTitle(page).first()).toHaveValue(b);
+  await expect(tabs.getByRole('link', { name: a })).toHaveCount(0);
+});

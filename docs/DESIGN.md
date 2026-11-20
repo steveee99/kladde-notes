@@ -194,7 +194,14 @@ filled icons.
   read out with it). The active entry has a `--line` background and an accent icon. The rail never collapses.
 - **Folder panel:** `Sidebar` with `panel`: caption "Notes" with the count and the collapse button, the new-note split
   button, favorites and the folder tree with the groups. Resizable at its edge (`SidebarResizeHandle`).
+- **Tabs (38px):** every note opened in the main pane gets a tab (`views/NoteTabs.tsx`, state per device in
+  `lib/tabs.ts`, at most 15). Active tab: `--bg` with a 2px accent line on top; others `--muted` on `--panel`. ×
+  or a middle click closes (the neighbour opens), drag to reorder, `+` for a new note, Ctrl/⌘+Alt+PageDown/PageUp
+  switch. The tab row is a navigation landmark ("Open notes") with links, not an ARIA tablist.
 - **Main:** pages and notes on `--bg`, separated by lines; split view shows two notes side by side.
+- **Command palette (Ctrl/⌘+K):** `views/SearchDialog.tsx` with the commands from `views/commands.tsx`. Notes,
+  open tasks and commands in groups; `>` (or the "Commands" chip) shows only commands; Enter runs, Ctrl/⌘+Enter
+  opens a note in the side pane. 640px, `--bar`, 10px radius, the only element with a large shadow.
 - **Inspector:** the note's side panel (outline, tasks, links, comments), as before.
 - **Status bar (24px, mono 11px):** the sync state with a colored dot (green synced, amber syncing or pending, red
   error; a click syncs), the number of own notes and the version.
@@ -281,8 +288,7 @@ Dialogs keep the rules from CLAUDE.md (role, name, `useModal`).
 
 The mockups go further than the first implementation. Not built yet:
 
-- A command palette with commands and tasks next to the notes (today ⌘K opens the search).
-- Tabs for open notes, the breadcrumb above a note with a collapsed panel, a "show panel" button in the tab row.
+- The breadcrumb above a note with a collapsed panel and a "show panel" button in the tab row.
 - `seq`, word count and other people's activity in the status bar; presence avatars in the top bar.
 - The inspector's own shortcut, the settings "start collapsed" and "collapse automatically below 1280px".
 - Other people's avatars and cursors in their accent color (cursors still use the fixed set `--cursor-1…6`).
