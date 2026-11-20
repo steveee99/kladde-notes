@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY, SimulationLinkDatum, SimulationNodeDatum } from 'd3-force';
 import type { GraphEdge, GraphNode, GraphNoteKind, ParaRole } from '@kladde/shared';
 import { extractMeta, filterGraph, projectTitleOf, roleOfFolder, splitPath } from '@kladde/shared';
-import { Check, Filter, LocateFixed, X } from '../lib/icons';
+import { Filter, LocateFixed, X } from '../lib/icons';
 import { Dropdown } from './Dropdown';
 import { useVault, vault } from '../data/vault';
 import { navigate } from '../lib/router';
@@ -318,11 +318,10 @@ const KIND_CHIPS: [GraphNoteKind, I18nKey][] = [
   ['drawing', 'graph.kindDrawing'],
 ];
 
-/** A filter chip (M3): outlined, tonal with a check mark while selected */
+/** A filter chip: outlined, accent tinted while selected */
 function FilterChip({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" className={`chip ${selected ? 'pl-2' : ''}`} aria-pressed={selected} onClick={onClick}>
-      {selected && <Check size={18} className="shrink-0" />}
+    <button type="button" className="chip" aria-pressed={selected} onClick={onClick}>
       {children}
     </button>
   );
@@ -331,7 +330,7 @@ function FilterChip({ selected, onClick, children }: { selected: boolean; onClic
 function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <div className="text-label-l text-on-surface-variant">{label}</div>
+      <div className="section-label">{label}</div>
       <div className="flex flex-wrap items-center gap-2">{children}</div>
     </div>
   );
@@ -504,7 +503,7 @@ export function GraphView() {
           {bounds[1] > bounds[0] && (
             <div className="space-y-2 lg:col-span-2">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-label-l text-on-surface-variant">{t('graph.filterTime')}</span>
+                <span className="section-label">{t('graph.filterTime')}</span>
                 <div className="segmented ml-auto h-8" role="group" aria-label={t('graph.filterTime')}>
                   {(['created', 'updated'] as const).map((f) => (
                     <button

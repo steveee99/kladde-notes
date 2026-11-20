@@ -70,10 +70,10 @@ export function OAuthConsent({ me }: { me: Me }) {
         <p className="text-xs text-on-surface-variant">{tl(lang, 'oauth.redirectHint', { host: info.redirectHost })}</p>
       </div>
       <div className="flex gap-2">
-        <button className="btn-ghost flex-1 rounded-full border border-outline-variant" disabled={busy} onClick={() => answer(false)}>
+        <button className="btn-outlined flex-1" disabled={busy} onClick={() => answer(false)}>
           <X size={16} /> {tl(lang, 'oauth.deny')}
         </button>
-        <button className="btn-primary flex-1 rounded-full" disabled={busy} onClick={() => answer(true)}>
+        <button className="btn-primary flex-1" disabled={busy} onClick={() => answer(true)}>
           <Check size={16} /> {tl(lang, 'oauth.allow')}
         </button>
       </div>

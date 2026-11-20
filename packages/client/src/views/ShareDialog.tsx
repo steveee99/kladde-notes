@@ -139,7 +139,7 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose:
       style={vp ? { top: `${vp.top}px`, height: `${vp.height}px` } : { top: 0, bottom: 0 }}
     >
       <div className="fixed inset-0 bg-scrim/[0.32] anim-fade-in" onClick={onClose} />
-      <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="relative max-h-[min(90vh,100%)] w-full max-w-md overflow-y-auto rounded-t-3xl bg-surface-container-high px-6 pt-6 shadow-elevation-3 outline-none anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-3xl">
+      <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="relative max-h-[min(90vh,100%)] w-full max-w-md overflow-y-auto rounded-t-xl border border-line2 bg-panel px-5 pt-5 shadow-elevation-3 outline-none anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-xl">
         <div className="mb-4 flex items-center gap-2">
           <h2 id={titleId} className="min-w-0 flex-1 truncate text-headline-s">
             {isNote ? tl(lang, 'share.noteTitle') : tl(lang, 'share.folderTitle', { name: folderLeafDisplayName(target.folder, lang) })}
@@ -159,7 +159,7 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose:
           <div className="flex flex-1 flex-wrap items-center gap-2 sm:flex-nowrap">
             <input className="input min-w-0 flex-1 basis-32" placeholder={tl(lang, 'share.usernamePlaceholder')} value={username} onChange={(e) => setUsername(e.target.value)} />
             {isNote && <PermissionPicker folder={false} value={permissions} onChange={setPermissions} />}
-            <button className="btn-primary shrink-0 rounded-full px-4" disabled={!username.trim()} title={tl(lang, 'share.shareBtnTitle')}>
+            <button className="btn-primary shrink-0 px-4" disabled={!username.trim()} title={tl(lang, 'share.shareBtnTitle')}>
               <UserPlus size={16} />
             </button>
           </div>

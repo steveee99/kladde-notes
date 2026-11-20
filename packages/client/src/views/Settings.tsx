@@ -100,7 +100,7 @@ function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
 
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-medium">{tl(lang, 'settings.profileTitle')}</h2>
+            <h2 className="text-title-m text-strong">{tl(lang, 'settings.profileTitle')}</h2>
             <span className="chip">{me.username}</span>
           </div>
           <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.profileHint')}</p>
@@ -119,7 +119,7 @@ function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
                 type="button"
                 disabled={busy}
                 onClick={() => void handleRemove()}
-                className="btn-ghost rounded-full border border-outline-variant px-4 py-2 text-sm text-error hover:bg-error/10"
+                className="btn-outlined px-4 py-2 text-sm text-error hover:bg-error/10"
               >
                 <Trash2 size={15} /> {tl(lang, 'settings.profileRemove')}
               </button>
@@ -225,7 +225,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
 
       {!me.standalone && (
         <section className="card p-5 anim-fade-up" data-security-section>
-          <h2 className="mb-4 text-base font-medium">{tl(lang, 'settings.securityTitle')}</h2>
+          <h2 className="mb-4 text-title-m text-strong">{tl(lang, 'settings.securityTitle')}</h2>
           <div className="divide-y divide-outline-variant [&>*:first-child]:pt-0 [&>*:last-child]:pb-0 [&>*]:py-5">
           <div>
             <h3 className="mb-1 text-sm font-medium">{tl(lang, 'settings.passkeysTitle', { username: me.username })}</h3>
@@ -259,7 +259,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
             </ul>
             <div className="flex flex-wrap gap-2">
               <button
-                className="btn-ghost border border-outline-variant"
+                className="btn-outlined"
                 disabled={!passkeysAvailable()}
                 title={passkeysAvailable() ? undefined : tl(lang, 'settings.passkeyHttpsOnly')}
                 onClick={async () => {
@@ -275,7 +275,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
               >
                 <KeyRound size={16} /> {tl(lang, 'settings.passkeyAddHere')}
               </button>
-              <button className="btn-ghost border border-outline-variant" onClick={async () => setLink(await api('/auth/device-link', { method: 'POST', json: {} }))}>
+              <button className="btn-outlined" onClick={async () => setLink(await api('/auth/device-link', { method: 'POST', json: {} }))}>
                 <Smartphone size={16} /> {tl(lang, 'settings.deviceConnect')}
               </button>
             </div>
@@ -305,34 +305,34 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
         </section>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
         {navCards.map(({ path, Icon, title, desc }) => (
           <button
             key={path}
             type="button"
-            className="card flex h-full w-full min-w-0 items-center gap-3.5 p-4 text-left transition-colors hover:bg-surface-container hover:bg-surface-container-high/40 anim-fade-up"
+            className="card flex h-full w-full min-w-0 items-center gap-3 px-3.5 py-3 text-left transition-colors hover:border-line2 hover:bg-raised anim-fade-up"
             onClick={() => navigate(path)}
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary-container text-on-secondary-container">
-              <Icon size={20} />
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line2 bg-raised text-soft">
+              <Icon size={16} />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="font-medium">{title}</div>
-              <div className="text-sm text-on-surface-variant">{desc}</div>
+              <div className="text-title-s text-strong">{title}</div>
+              <div className="line-clamp-2 text-body-m text-muted">{desc}</div>
             </div>
-            <ChevronRight size={18} className="shrink-0 text-on-surface-variant" />
+            <ChevronRight size={16} className="shrink-0 text-muted" />
           </button>
         ))}
       </div>
 
       {/* Layout, Language, Inbox Zero & Widescreen (Material 3) */}
       <section className="card p-5 anim-fade-up">
-        <h2 className="mb-4 text-base font-medium">{tl(lang, 'settings.appearanceTitle')}</h2>
+        <h2 className="mb-4 text-title-m text-strong">{tl(lang, 'settings.appearanceTitle')}</h2>
 
         {/* Accent color (per account) */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2.5">
-            <Palette size={18} className="mt-0.5 shrink-0 text-primary" />
+            <Palette size={18} className="mt-0.5 shrink-0 text-muted" />
             <div>
               <div className="text-sm font-medium">{tl(lang, 'settings.accentTitle')}</div>
               <div className="text-xs text-on-surface-variant">{tl(lang, 'settings.accentDesc')}</div>
@@ -346,7 +346,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
         {/* Color scheme selector */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
-            <SunMoon size={18} className="mt-0.5 shrink-0 text-primary" />
+            <SunMoon size={18} className="mt-0.5 shrink-0 text-muted" />
             <div>
               <div className="text-sm font-medium">{tl(lang, 'settings.colorSchemeTitle')}</div>
               <div className="text-xs text-on-surface-variant">{tl(lang, 'settings.colorSchemeDesc')}</div>
@@ -381,7 +381,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
         {/* Language selector (M3 Segmented Pill Button) */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
-            <Globe size={18} className="mt-0.5 shrink-0 text-primary" />
+            <Globe size={18} className="mt-0.5 shrink-0 text-muted" />
             <div>
               <div className="text-sm font-medium">{tl(lang, 'common.language')}</div>
               <div className="text-xs text-on-surface-variant">{tl(lang, 'common.languageDesc')}</div>
@@ -410,7 +410,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
         {/* Inbox Zero opt-in (M3 Switch) */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <Inbox size={18} className="mt-0.5 shrink-0 text-primary" />
+            <Inbox size={18} className="mt-0.5 shrink-0 text-muted" />
             <div className="min-w-0 flex-1">
               <label htmlFor="inbox-zero-switch" className="cursor-pointer text-sm font-medium">
                 {tl(lang, 'settings.inboxZeroTitle')}
@@ -431,13 +431,13 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
         {/* Editor font size (per device) */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
-            <TextFields size={18} className="mt-0.5 shrink-0 text-primary" />
+            <TextFields size={18} className="mt-0.5 shrink-0 text-muted" />
             <div>
               <div className="text-sm font-medium">{tl(lang, 'settings.editorFontTitle')}</div>
               <div className="text-xs text-on-surface-variant">{tl(lang, 'settings.editorFontDesc')}</div>
             </div>
           </div>
-          <div className="inline-flex max-w-full flex-wrap rounded-full border border-outline-variant bg-surface-container-high p-1 shrink-0" role="group" aria-label={tl(lang, 'settings.editorFontTitle')}>
+          <div className="segmented max-w-full shrink-0" role="group" aria-label={tl(lang, 'settings.editorFontTitle')}>
             {EDITOR_FONT_SIZES.map((size) => {
               const active = editorFontSize === size;
               return (
@@ -448,9 +448,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
                   aria-label={`${size} px`}
                   title={`${size} px`}
                   onClick={() => setEditorFontSize(size)}
-                  className={`inline-flex min-w-[2.75rem] items-center justify-center rounded-full px-3 py-1.5 font-medium tabular-nums transition-colors ${
-                    active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
+                  className="min-w-[2.5rem] tabular-nums"
                   style={{ fontSize: `${Math.round(size * 0.8)}px` }}
                 >
                   {size}
@@ -465,7 +463,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
         {/* Ligatures in the editor (display only) */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <ArrowRight size={18} className="mt-0.5 shrink-0 text-primary" />
+            <ArrowRight size={18} className="mt-0.5 shrink-0 text-muted" />
             <div className="min-w-0 flex-1">
               <label htmlFor="ligatures-switch" className="cursor-pointer text-sm font-medium">
                 {tl(lang, 'settings.ligaturesTitle')}
@@ -480,7 +478,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
 
         {/* Widescreen: one slider from 50 to 100 %, snapping to the presets */}
         <div className="mb-3 flex items-center gap-2.5">
-          <Maximize2 size={18} className="mt-0.5 shrink-0 text-primary" />
+          <Maximize2 size={18} className="mt-0.5 shrink-0 text-muted" />
           <div className="min-w-0 flex-1">
             <label htmlFor="widescreen-slider" className="text-sm font-medium">
               {tl(lang, 'settings.widescreenTitle')}
@@ -564,7 +562,7 @@ function GitLabSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
       <div className="flex flex-wrap gap-2">
         {linked ? (
           <button
-            className="btn-ghost border border-outline-variant text-error"
+            className="btn-outlined text-error"
             disabled={!canUnlink}
             title={canUnlink ? undefined : tl(lang, 'settings.gitlabUnlinkBlocked')}
             onClick={async () => {
@@ -580,7 +578,7 @@ function GitLabSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
             <Trash2 size={16} /> {tl(lang, 'common.disconnect')}
           </button>
         ) : (
-          <a className="btn-ghost border border-outline-variant" href="/api/auth/gitlab/start?intent=link">
+          <a className="btn-outlined" href="/api/auth/gitlab/start?intent=link">
             <GitLabIcon size={16} /> {tl(lang, 'settings.gitlabLink', { name })}
           </a>
         )}
@@ -672,7 +670,7 @@ function PasswordSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
         </form>
       ) : (
         <div className="flex flex-wrap gap-2">
-          <button className="btn-ghost border border-outline-variant" onClick={() => setOpen(true)}>
+          <button className="btn-outlined" onClick={() => setOpen(true)}>
             <Lock size={16} /> {me.hasPassword ? tl(lang, 'settings.passwordChange') : tl(lang, 'settings.passwordSet')}
           </button>
           {me.hasPassword && (me.passkeys.length > 0 || !!me.externalLogins?.length) && (
@@ -772,19 +770,19 @@ function FeaturesCard() {
     <>
       <button
         type="button"
-        className="card flex w-full min-w-0 items-center gap-3.5 p-5 text-left transition-colors hover:bg-surface-container-high/40 anim-fade-up"
+        className="card flex w-full min-w-0 items-center gap-3 px-3.5 py-3 text-left transition-colors hover:border-line2 hover:bg-raised anim-fade-up"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         data-open-features
       >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary-container text-on-secondary-container">
-          <Extension size={20} />
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line2 bg-raised text-soft">
+          <Extension size={16} />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="font-medium">{tl(lang, 'features.title')}</div>
-          <div className="text-sm text-on-surface-variant">{tl(lang, 'features.cardDesc', { active, available })}</div>
+          <div className="text-title-s text-strong">{tl(lang, 'features.title')}</div>
+          <div className="text-body-m text-muted">{tl(lang, 'features.cardDesc', { active, available })}</div>
         </div>
-        <ChevronRight size={18} className="shrink-0 text-on-surface-variant" />
+        <ChevronRight size={16} className="shrink-0 text-muted" />
       </button>
       {open && <FeaturesDialog onClose={() => setOpen(false)} />}
     </>

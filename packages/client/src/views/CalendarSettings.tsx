@@ -70,14 +70,14 @@ export function CalendarSettingsView({ embedded }: { embedded?: boolean } = {}) 
       <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'calendar.intro')}</p>
 
       <section className="card space-y-3 p-5 anim-fade-up">
-        <h2 className="font-medium">{tl(lang, 'calendar.createTitle')}</h2>
+        <h2 className="text-title-m text-strong">{tl(lang, 'calendar.createTitle')}</h2>
         <p className="text-sm text-on-surface-variant">{tl(lang, 'calendar.createDesc')}</p>
         {created ? (
           <div className="space-y-2 rounded-2xl border border-primary/40 bg-secondary-container/40 p-3.5 anim-fade-up">
             <p className="text-sm font-medium">{tl(lang, 'calendar.createdTitle', { name: created.name })}</p>
             <CopyField value={created.url} label={tl(lang, 'calendar.copyUrl')} />
             <p className="text-xs text-on-surface-variant">{tl(lang, 'calendar.subscribeHint')}</p>
-            <button className="btn-ghost rounded-full px-4 text-sm" onClick={() => setCreated(null)}>
+            <button className="btn-ghost px-4 text-sm" onClick={() => setCreated(null)}>
               {tl(lang, 'common.done')}
             </button>
           </div>
@@ -115,7 +115,7 @@ export function CalendarSettingsView({ embedded }: { embedded?: boolean } = {}) 
                 options={[...CALENDAR_FEED_DAYS].sort((a, b) => a - b).map((d) => ({ value: String(d), label: tl(lang, 'import.days', { n: d }) }))}
               />
             </div>
-            <button className="btn-ghost rounded-full border border-outline-variant px-4" type="submit">
+            <button className="btn-outlined px-4" type="submit">
               <Plus size={16} /> {tl(lang, 'calendar.createBtn')}
             </button>
           </form>

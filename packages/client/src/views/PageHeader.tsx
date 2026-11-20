@@ -12,7 +12,7 @@ export function PageHeader({ title, subtitle, actions, children }: { title: Reac
           <h1 className="break-words text-title-l text-strong">{title}</h1>
           {subtitle && <p className="mt-0.5 text-body-m text-muted">{subtitle}</p>}
         </div>
-        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+        {actions && <div className="flex max-w-full flex-wrap items-center gap-2">{actions}</div>}
       </div>
       {children}
     </header>

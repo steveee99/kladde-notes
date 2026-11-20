@@ -23,9 +23,9 @@ export function NoteStats({ content, view, tick, lang }: { content: string; view
   ];
   if (stats.minutes) parts.push(t('stats.readingTime', { n: fmt(stats.minutes) }));
   return (
-    <div role="status" aria-live="off" className="note-stats flex min-w-0 items-center gap-2 text-label-s tabular-nums text-on-surface-variant sm:px-8">
+    <div role="status" aria-live="off" className="note-stats flex min-w-0 items-center gap-2 font-mono text-[11px] tabular-nums text-muted">
       {selected !== null && (
-        <span className="shrink-0 rounded-full bg-secondary-container px-2 py-0.5 text-on-secondary-container">
+        <span className="pill shrink-0 bg-acc-bg text-acc-hi">
           {t(selected === 1 ? 'stats.selectedOne' : 'stats.selected', { n: fmt(selected) })}
         </span>
       )}

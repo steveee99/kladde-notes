@@ -9,6 +9,7 @@ import { useVault, vault } from '../data/vault';
 import { locale, tl, useLang, type Lang } from '../lib/i18n';
 import { navigate } from '../lib/router';
 import { Avatar } from './Avatar';
+import { PageBody, PageHeader } from './PageHeader';
 
 const urlOf = (n: NotificationItem) => `/n/${n.noteId}${n.threadId ? `?thread=${encodeURIComponent(n.threadId)}` : n.line !== undefined ? `?line=${n.line + 1}` : ''}`;
 
@@ -25,18 +26,19 @@ export function NotificationsView() {
   const items = vault.notifications;
   const fmt = new Intl.DateTimeFormat(loc, { dateStyle: 'medium', timeStyle: 'short' });
   return (
-    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10" data-notifications>
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-3 anim-fade-up">
-        <div>
-          <h1 className="text-headline-m">{tl(lang, 'notices.title')}</h1>
-          <p className="mt-1 text-body-l text-on-surface-variant">{tl(lang, 'notices.unread', { n: vault.unreadNotifications })}</p>
-        </div>
-        {vault.unreadNotifications > 0 && (
-          <button className="btn-tonal" onClick={() => void vault.readNotifications()}>
-            <CheckCheck size={18} /> {tl(lang, 'notices.readAll')}
-          </button>
-        )}
-      </header>
+    <div data-notifications>
+      <PageHeader
+        title={tl(lang, 'notices.title')}
+        subtitle={tl(lang, 'notices.unread', { n: vault.unreadNotifications })}
+        actions={
+          vault.unreadNotifications > 0 && (
+            <button className="btn-tonal" onClick={() => void vault.readNotifications()}>
+              <CheckCheck size={16} /> {tl(lang, 'notices.readAll')}
+            </button>
+          )
+        }
+      />
+      <PageBody className="max-w-[960px] !mx-0">
       {items.length === 0 ? (
         <div className="card flex flex-col items-center gap-2 p-8 text-center text-sm text-on-surface-variant anim-fade-up">
           <Bell size={28} />
@@ -77,6 +79,7 @@ export function NotificationsView() {
           ))}
         </ul>
       )}
+      </PageBody>
     </div>
   );
 }

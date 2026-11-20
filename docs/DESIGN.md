@@ -252,7 +252,7 @@ The folder panel can be collapsed so the content gets the full width.
 | Command palette    | 640px, 110px from the top, `--bar`, 10px radius, shadow; input row with scope chips, grouped results (notes, tasks, commands) with icons and shortcuts, hint row at the bottom |
 | Avatar             | 26px circle, initial in 11px/600, in the person's accent                                      |
 | Segmented control  | 1px `--line2`, 6px radius; selected segment `--acc-bg` with `--acc-hi` text                  |
-| Switch             | 36×20 track; on: `--acc` track with `--on-acc` knob, off: `--line2` track with `--muted` knob |
+| Switch             | 36×20 track in a 24px tall target, 14px knob; on: `--acc` track with `--on-acc` knob, off: `--sunken` track with `--edge` line and `--muted` knob |
 | Accent swatch      | 36px circle (44px on phones) with the name below; selected: 2px ring in the color and a tick  |
 
 Dialogs keep the rules from CLAUDE.md (role, name, `useModal`).
@@ -293,5 +293,5 @@ The mockups go further than the first implementation. Not built yet:
 - The inspector's own shortcut, the settings "start collapsed" and "collapse automatically below 1280px".
 - Other people's avatars and cursors in their accent color (cursors still use the fixed set `--cursor-1…6`).
 - The density setting and the live preview next to the accent swatches.
-- Views that still set Material-era classes inline (rounded pills, `secondary-container`) are moved over step by step;
-  the role aliases keep them in the new colors meanwhile.
+- A few rarely used views (sign-in, Confluence, presentation) still carry Material-era spacing; the role aliases and
+  the shared components keep them in the new colors and shapes.

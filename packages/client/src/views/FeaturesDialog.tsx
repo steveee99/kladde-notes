@@ -483,7 +483,7 @@ export function FeaturesDialog({ onClose, initial }: { onClose: () => void; init
         aria-modal="true"
         aria-label={L('features.title')}
         data-features-dialog
-        className="relative flex h-[min(92dvh,100%)] w-full max-w-3xl flex-col overflow-hidden rounded-t-3xl bg-surface-container-high shadow-elevation-3 outline-none anim-sheet sm:h-[min(85vh,760px)] sm:rounded-3xl"
+        className="relative flex h-[min(92dvh,100%)] w-full max-w-3xl flex-col overflow-hidden rounded-t-xl border border-line2 bg-panel shadow-elevation-3 outline-none anim-sheet sm:h-[min(85vh,760px)] sm:rounded-xl"
       >
         <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-4 sm:px-6">
           {open ? (
@@ -897,7 +897,7 @@ function FolderPicker({
           />
           <button
             type="button"
-            className="btn-icon h-9 w-9 shrink-0 rounded-xl border border-outline-variant text-primary hover:bg-primary/10"
+            className="btn-icon h-9 w-9 shrink-0 border border-line2 text-primary hover:bg-primary/10"
             title={tl(lang, 'common.create')}
             aria-label={tl(lang, 'common.create')}
             onClick={() => void createFolder()}
@@ -906,7 +906,7 @@ function FolderPicker({
           </button>
           <button
             type="button"
-            className="btn-icon h-9 w-9 shrink-0 rounded-xl border border-outline-variant"
+            className="btn-icon h-9 w-9 shrink-0 border border-line2"
             title={tl(lang, 'common.cancel')}
             aria-label={tl(lang, 'common.cancel')}
             onClick={() => {
@@ -934,7 +934,7 @@ function FolderPicker({
           {!disabled && (
             <button
               type="button"
-              className="btn-icon h-10 w-10 shrink-0 rounded-xl border border-outline-variant"
+              className="btn-icon h-10 w-10 shrink-0 border border-line2"
               title={tl(lang, 'settings.newFolderBtnTitle')}
               aria-label={tl(lang, 'settings.newFolderBtnTitle')}
               onClick={() => setCreating(true)}

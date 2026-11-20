@@ -4,7 +4,7 @@
  * remembered per device.
  */
 import { useMemo, useState } from 'react';
-import { AlignJustify, AtSign, Check, Kanban, List, ListChecks } from '../lib/icons';
+import { AlignJustify, AtSign, Kanban, List, ListChecks } from '../lib/icons';
 import { mentionsUser, toDateString, type TaskStatus } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { TaskBuckets, TaskKanban, TaskQuickAdd, collectTasks, type TaskRow } from './TaskParts';
@@ -101,13 +101,13 @@ export function TasksView() {
         <div className="flex items-center gap-1">
           {prefs.layout === 'list' && (
             <button
-              className="btn-icon"
+              className="btn-icon h-8 w-8"
               aria-pressed={prefs.compact}
               onClick={() => setPrefs({ compact: !prefs.compact })}
               title={prefs.compact ? t('home.viewNormalTitle') : t('home.viewCompactTitle')}
               aria-label={prefs.compact ? t('home.viewNormal') : t('home.viewCompact')}
             >
-              {prefs.compact ? <List size={24} /> : <AlignJustify size={24} />}
+              {prefs.compact ? <List size={18} /> : <AlignJustify size={18} />}
             </button>
           )}
           <div role="group" aria-label={t('home.layoutAria')} className="segmented">
@@ -118,7 +118,7 @@ export function TasksView() {
               ] as const
             ).map(([id, Icon, key]) => (
               <button key={id} type="button" aria-pressed={prefs.layout === id} title={t(key)} aria-label={t(key)} onClick={() => setPrefs({ layout: id })}>
-                {prefs.layout === id ? <Check size={18} /> : <Icon size={18} />} <span className="hidden sm:inline">{t(key)}</span>
+                <Icon size={16} /> <span className="hidden sm:inline">{t(key)}</span>
               </button>
             ))}
           </div>
@@ -160,11 +160,10 @@ export function TasksView() {
         />
         {vault.features().mentions.enabled && !vault.standalone && (
           <button type="button" className="chip" aria-pressed={prefs.mine} onClick={() => setPrefs({ mine: !prefs.mine })} data-assigned-to-me>
-            {prefs.mine && <Check size={14} />}
             <AtSign size={14} /> {t('tasks.assignedToMe')}
           </button>
         )}
-        <label className="ml-auto flex items-center gap-3 text-body-m text-on-surface-variant">
+        <label className="ml-auto flex items-center gap-2 text-body-m text-muted">
           {t('tasks.showDone')}
           <Switch checked={prefs.showDone} label={t('tasks.showDone')} onChange={(v) => setPrefs({ showDone: v })} />
         </label>

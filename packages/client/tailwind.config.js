@@ -66,6 +66,9 @@ export default {
         'label-m': type(12, 16, 0, '500'),
         'label-s': type(11, 16, 0, '500'),
         caption: type(11, 16, 0.66, '500'),
+        // Tailwind's default sizes in older views follow the Werkbank scale (body-m / body-s)
+        xs: ['12px', { lineHeight: '16px' }],
+        sm: ['13px', { lineHeight: '20px' }],
       },
       // Tailwind radius names mapped onto the Werkbank shape scale (rounded = 4px pills, md 6px controls, lg 8px cards)
       borderRadius: {

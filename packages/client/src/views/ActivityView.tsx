@@ -10,6 +10,7 @@ import { useVault, vault } from '../data/vault';
 import { locale, tl, useLang, type I18nKey, type Lang } from '../lib/i18n';
 import { navigate } from '../lib/router';
 import { Avatar } from './Avatar';
+import { PageBody, PageHeader } from './PageHeader';
 
 export type ActivityScope = { group: string } | { owner: string; folder: string };
 
@@ -101,18 +102,23 @@ export function ActivityView({ scope }: { scope: ActivityScope }) {
   const back = () => ('group' in scope ? navigate(`/g/${encodeURIComponent(scope.group)}`) : navigate(scope.owner === vault.actorName ? `/f/${encodeURIComponent(scope.folder)}` : '/shared'));
 
   return (
-    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10" data-activity-view>
-      <div className="mb-6 flex items-center gap-2 anim-fade-up">
-        <button className="btn-icon -ml-2 shrink-0" onClick={back} title={tl(lang, 'common.back')} aria-label={tl(lang, 'common.back')}>
-          <ArrowLeft size={18} />
-        </button>
-        <div className="min-w-0">
-          <p className="flex items-center gap-1.5 truncate text-sm text-on-surface-variant">
+    <div data-activity-view>
+      <PageHeader
+        title={
+          <span className="flex items-center gap-1.5">
+            <button className="btn-icon -ml-2 h-8 w-8 shrink-0" onClick={back} title={tl(lang, 'common.back')} aria-label={tl(lang, 'common.back')}>
+              <ArrowLeft size={18} />
+            </button>
+            {tl(lang, 'activity.title')}
+          </span>
+        }
+        subtitle={
+          <span className="flex items-center gap-1.5 truncate">
             {'group' in scope ? <Users size={14} /> : <Folder size={14} />} {title}
-          </p>
-          <h1 className="text-headline-m">{tl(lang, 'activity.title')}</h1>
-        </div>
-      </div>
+          </span>
+        }
+      />
+      <PageBody className="max-w-[960px] !mx-0">
       {error ? (
         <p className="card p-6 text-sm text-on-surface-variant">{tl(lang, 'activity.unavailable')}</p>
       ) : entries === null ? (
@@ -160,6 +166,7 @@ export function ActivityView({ scope }: { scope: ActivityScope }) {
           ))}
         </div>
       )}
+      </PageBody>
     </div>
   );
 }

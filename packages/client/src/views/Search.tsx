@@ -6,6 +6,7 @@ import { tl, useLang } from '../lib/i18n';
 import { navigate } from '../lib/router';
 import { NoteCollection, ViewSwitch } from './NoteList';
 import { AttachmentHitList, useAttachmentSearch } from './AttachmentHits';
+import { PageBody } from './PageHeader';
 
 export function SearchView() {
   useVault();
@@ -26,24 +27,24 @@ export function SearchView() {
         .slice(0, 100)
     : [];
   return (
-    <div className="content-container px-4 py-6 sm:px-8 sm:py-10">
-      <div className="card mb-6 flex min-w-0 items-center gap-2 rounded-full px-4 anim-fade-up">
-        <SearchIcon size={18} className="shrink-0 text-on-surface-variant" />
+    <PageBody>
+      <div className="mb-4 flex h-10 min-w-0 items-center gap-2 rounded-md border border-line2 bg-panel px-3 focus-within:border-acc focus-within:shadow-[0_0_0_1px_rgb(var(--acc))]">
+        <SearchIcon size={16} className="shrink-0 text-muted" />
         <input
           autoFocus
           data-search-input
-          className="min-w-0 flex-1 bg-transparent py-3 text-base outline-none placeholder:text-on-surface-variant"
+          className="min-w-0 flex-1 bg-transparent text-body-l outline-none placeholder:text-muted"
           placeholder={tl(lang, 'search.placeholder')}
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
       </div>
       <div className="mb-3 flex items-center justify-between gap-2">
-        <p className="text-sm text-on-surface-variant">{terms.length > 0 ? tl(lang, 'search.resultsCount', { n: results.length }) : ''}</p>
+        <p className="text-body-m text-muted">{terms.length > 0 ? tl(lang, 'search.resultsCount', { n: results.length }) : ''}</p>
         <ViewSwitch />
       </div>
       <NoteCollection notes={results} cols="sm:grid-cols-2" />
       <AttachmentHitList hits={attachmentHits} onOpen={(id) => navigate(`/n/${id}`)} />
-    </div>
+    </PageBody>
   );
 }

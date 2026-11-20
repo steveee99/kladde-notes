@@ -32,7 +32,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="relative max-h-[min(90vh,100%)] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface-container-high px-6 pt-6 shadow-elevation-3 outline-none anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-3xl"
+        className="relative max-h-[min(90vh,100%)] w-full max-w-lg overflow-y-auto rounded-t-xl border border-line2 bg-panel px-5 pt-5 shadow-elevation-3 outline-none anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-xl"
       >
         <div className="mb-4 flex items-center gap-2">
           <h2 id={titleId} className="min-w-0 flex-1 truncate text-headline-s">
@@ -180,7 +180,7 @@ function NewNoteDialog({ folder, type, shared, group }: { folder?: string; type?
             .finally(() => setBusy(false));
         }}
       />
-      <button className="btn-primary w-full rounded-full py-2.5" disabled={busy} onClick={create}>
+      <button className="btn-primary w-full py-2.5" disabled={busy} onClick={create}>
         {busy ? <Loader2 size={16} className="animate-spin" /> : <CreateIcon size={16} />}{' '}
         {kind === 'pdf' ? tl(lang, 'dialogs.newNoteChoosePdf') : tl(lang, 'dialogs.newNoteCreate')}
       </button>
@@ -250,7 +250,7 @@ function ZettelDialog() {
           onChange={(e) => setSource(e.target.value)}
         />
       )}
-      <button className="btn-primary w-full rounded-full py-2.5" disabled={!title.trim()} onClick={create}>
+      <button className="btn-primary w-full py-2.5" disabled={!title.trim()} onClick={create}>
         <Lightbulb size={16} /> {tl(lang, 'dialogs.zettelCreate')}
       </button>
       <p className="mt-3 text-xs text-on-surface-variant">{tl(lang, 'dialogs.zettelIdHint')}</p>
@@ -308,7 +308,7 @@ function RecipeDialog({ initialUrl = '' }: { initialUrl?: string }) {
           onChange={(e) => (setUrl(e.target.value), setError(''))}
           onKeyDown={(e) => e.key === 'Enter' && run()}
         />
-        <button className="btn-ghost shrink-0 rounded-xl border border-outline-variant" onClick={paste} title={tl(lang, 'dialogs.recipePasteTitle')}>
+        <button className="btn-outlined shrink-0" onClick={paste} title={tl(lang, 'dialogs.recipePasteTitle')}>
           <ClipboardPaste size={16} />
         </button>
       </div>
@@ -321,7 +321,7 @@ function RecipeDialog({ initialUrl = '' }: { initialUrl?: string }) {
           </button>
         </p>
       )}
-      <button className="btn-primary w-full rounded-full py-2.5" disabled={!link || busy} onClick={run}>
+      <button className="btn-primary w-full py-2.5" disabled={!link || busy} onClick={run}>
         {busy ? <Loader2 size={16} className="animate-spin" /> : <ChefHat size={16} />} {busy ? tl(lang, 'dialogs.recipeImporting') : tl(lang, 'dialogs.recipeImport')}
       </button>
       <p className="mt-3 text-xs text-on-surface-variant">{tl(lang, 'dialogs.recipeHint', { folder: folderDisplayName(targetFolder, lang) })}</p>

@@ -110,7 +110,7 @@ export function ConfluenceDialog({ target, onClose }: { target: ConfluenceTarget
     body = (
       <div className="space-y-3">
         <p className="text-sm text-on-surface-variant">{tl(lang, 'confluence.notConnected')}</p>
-        <button className="btn-tonal rounded-full px-4" onClick={() => (onClose(), navigate('/settings/confluence'))}>
+        <button className="btn-tonal px-4" onClick={() => (onClose(), navigate('/settings/confluence'))}>
           <Settings size={16} /> {tl(lang, 'confluence.openSettings')}
         </button>
       </div>
@@ -138,21 +138,21 @@ export function ConfluenceDialog({ target, onClose }: { target: ConfluenceTarget
           )}
         </dl>
         {pageUrl && (
-          <a className="btn-text -ml-3 inline-flex rounded-full px-3" href={pageUrl} target="_blank" rel="noopener noreferrer">
+          <a className="btn-text -ml-3 inline-flex px-3" href={pageUrl} target="_blank" rel="noopener noreferrer">
             <ExternalLink size={16} /> {tl(lang, 'confluence.openPage')}
           </a>
         )}
         <div className="flex flex-wrap gap-2">
           {status === 'conflict' ? (
-            <button className="btn-primary rounded-full px-4" disabled={busy} onClick={() => void syncNow(true)}>
+            <button className="btn-primary px-4" disabled={busy} onClick={() => void syncNow(true)}>
               {tl(lang, 'confluence.overwrite')}
             </button>
           ) : (
-            <button className="btn-tonal rounded-full px-4" disabled={busy} onClick={() => void syncNow(status === 'error' && isNote)}>
+            <button className="btn-tonal px-4" disabled={busy} onClick={() => void syncNow(status === 'error' && isNote)}>
               <RefreshCw size={16} className={busy ? 'animate-spin' : ''} /> {tl(lang, 'confluence.syncNow')}
             </button>
           )}
-          <button className="btn-outlined rounded-full px-4 text-error" disabled={busy} onClick={stop}>
+          <button className="btn-outlined px-4 text-error" disabled={busy} onClick={stop}>
             {tl(lang, 'confluence.stop')}
           </button>
         </div>
@@ -180,7 +180,7 @@ export function ConfluenceDialog({ target, onClose }: { target: ConfluenceTarget
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative max-h-[min(90vh,100%)] w-full max-w-md overflow-y-auto rounded-t-3xl bg-surface-container-high px-6 pt-6 shadow-elevation-3 anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-3xl"
+        className="relative max-h-[min(90vh,100%)] w-full max-w-md overflow-y-auto rounded-t-xl border border-line2 bg-panel px-5 pt-5 shadow-elevation-3 anim-sheet [--pad-bottom:1.25rem] safe-bottom sm:rounded-xl"
       >
         <div className="mb-4 flex items-center gap-2">
           <Cloud size={20} className="shrink-0 text-primary" />
@@ -459,7 +459,7 @@ function SetupForm({ target, busy, onSubmit }: { target: ConfluenceTarget; busy:
         <Switch checked={trash} onChange={setTrash} label={tl(lang, 'note' in target ? 'confluence.trashNote' : 'confluence.trashFolder')} />
       </div>
       {error && <p className="text-sm text-error">{error}</p>}
-      <button className="btn-primary rounded-full px-5" disabled={busy || !space}>
+      <button className="btn-primary px-5" disabled={busy || !space}>
         <Cloud size={16} /> {tl(lang, 'confluence.start')}
       </button>
     </form>

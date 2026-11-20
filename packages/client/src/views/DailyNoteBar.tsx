@@ -326,8 +326,8 @@ export function DailyNoteEmptyView({ date }: { date?: string }) {
 
   if (!daily.enabled) {
     return (
-      <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
-        <div className="card max-w-lg space-y-4 p-6 anim-fade-up">
+      <div className="mx-auto w-full max-w-[1600px] px-4 py-5 nav:px-7">
+        <div className="card max-w-lg space-y-4 p-5 anim-fade-up">
           <div className="flex items-center gap-2 text-lg font-medium">
             <CalendarDays size={20} className="shrink-0 text-primary" />
             {tl(lang, 'daily.disabledTitle')}
@@ -346,7 +346,7 @@ export function DailyNoteEmptyView({ date }: { date?: string }) {
                 <FilePlus2 size={16} /> {tl(lang, 'daily.enableAndOpen')}
               </button>
             )}
-            <button className="btn-ghost border border-outline-variant" onClick={() => navigate('/settings')}>
+            <button className="btn-outlined" onClick={() => navigate('/settings')}>
               <Settings size={16} /> {tl(lang, 'daily.openSettings')}
             </button>
           </div>
@@ -365,9 +365,9 @@ export function DailyNoteEmptyView({ date }: { date?: string }) {
     .sort((a, b) => b.updatedAt - a.updatedAt);
 
   return (
-    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
+    <div className="mx-auto w-full max-w-[1600px] px-4 py-5 nav:px-7">
       <DailyNoteBar date={targetDate} />
-      <div className="card max-w-xl space-y-4 p-6 anim-fade-up">
+      <div className="card max-w-xl space-y-4 p-5 anim-fade-up">
         <div>
           <p className="text-title-s text-on-surface-variant">
             {tl(lang, 'daily.navLabel')} · {daily.folder ? folderDisplayName(daily.folder, lang) : tl(lang, 'common.topLevelPlain')}

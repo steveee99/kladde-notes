@@ -9,7 +9,6 @@ import {
   CheckSquare,
   ExternalLink,
   FileText,
-  Images,
   Loader2,
   Lock,
   Maximize2,
@@ -27,6 +26,7 @@ import { navigate } from '../lib/router';
 import { Sheet } from './Dialogs';
 import { PendingUploadsCard } from './PendingUploads';
 import { usePendingUploads } from '../data/uploads';
+import { PageBody, PageHeader } from './PageHeader';
 
 type FilterMode = 'all' | 'unused';
 
@@ -239,23 +239,17 @@ export function FilesView() {
   };
 
   return (
-    <div className="content-container space-y-5 px-4 py-6 sm:px-8 sm:py-10">
-      <PendingUploadsCard />
-      <header className="flex flex-wrap items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <h1 className="flex items-center gap-2.5 text-headline-m">
-            <Images size={24} className="text-primary" />
-            {tl(lang, 'files.title')}
-          </h1>
-          <p className="mt-1 text-sm text-on-surface-variant">
-            {tl(lang, 'files.summary', {
+    <div>
+      <PageHeader
+        title={tl(lang, 'files.title')}
+        subtitle={tl(lang, 'files.summary', {
               count: enriched.length,
               unit: enriched.length === 1 ? tl(lang, 'files.unitSingle') : tl(lang, 'files.unitPlural'),
               size: formatBytes(totalBytes),
               unused: unusedCount,
             })}
-          </p>
-        </div>
+        actions={
+          <>
         {!locked && (
           <button
             type="button"
@@ -269,6 +263,13 @@ export function FilesView() {
             <span className="hidden sm:inline">{tl(lang, 'files.upload')}</span>
           </button>
         )}
+        <button className="btn-outlined shrink-0" onClick={() => void load()} disabled={loading} title={tl(lang, 'files.refreshTitle')}>
+          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          <span className="hidden sm:inline">{tl(lang, 'files.refresh')}</span>
+        </button>
+          </>
+        }
+      />
         <input
           ref={uploadInput}
           type="file"
@@ -282,11 +283,8 @@ export function FilesView() {
             void uploadFiles(files);
           }}
         />
-        <button className="btn-ghost shrink-0 rounded-full border border-outline-variant px-4" onClick={() => void load()} disabled={loading} title={tl(lang, 'files.refreshTitle')}>
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          <span className="hidden sm:inline">{tl(lang, 'files.refresh')}</span>
-        </button>
-      </header>
+      <PageBody className="space-y-4">
+      <PendingUploadsCard />
 
       {storage && (
         <section className="card space-y-3 p-4" aria-label={tl(lang, 'storage.title')}>
@@ -314,7 +312,7 @@ export function FilesView() {
       {notice && (
         <div className="flex items-center justify-between gap-2 rounded-2xl bg-secondary-container/60 px-3.5 py-2.5 text-sm text-on-primary-container">
           <span>{notice}</span>
-          <button className="rounded-full p-1 hover:bg-primary/15" onClick={() => setNotice('')} aria-label={tl(lang, 'files.closeNotice')}>
+          <button className="rounded p-1 hover:bg-line" onClick={() => setNotice('')} aria-label={tl(lang, 'files.closeNotice')}>
             <X size={14} />
           </button>
         </div>
@@ -328,23 +326,19 @@ export function FilesView() {
               type="button"
               onClick={() => setFilter('all')}
               aria-pressed={filter === 'all'}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                filter === 'all' ? 'border-transparent bg-secondary-container text-on-secondary-container' : 'border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface'
-              }`}
+              className="chip h-8"
             >
               {tl(lang, 'files.filterAll')}
-              <span className="rounded-full bg-surface/40 px-1.5 py-0.5 text-xs tabular-nums">{enriched.length}</span>
+              <span className="font-mono text-[11px] tabular-nums opacity-80">{enriched.length}</span>
             </button>
             <button
               type="button"
               onClick={() => setFilter('unused')}
               aria-pressed={filter === 'unused'}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                filter === 'unused' ? 'border-transparent bg-secondary-container text-on-secondary-container' : 'border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface'
-              }`}
+              className="chip h-8"
             >
               {tl(lang, 'files.filterUnused')}
-              <span className="rounded-full bg-surface/40 px-1.5 py-0.5 text-xs tabular-nums">{unusedCount}</span>
+              <span className="font-mono text-[11px] tabular-nums opacity-80">{unusedCount}</span>
             </button>
           </div>
 
@@ -352,7 +346,7 @@ export function FilesView() {
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
             <input
               type="search"
-              className="input rounded-full py-1.5 pl-9 text-sm"
+              className="input py-1.5 pl-9 text-sm"
               placeholder={tl(lang, 'files.filterPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -364,7 +358,7 @@ export function FilesView() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              className="btn-ghost rounded-full border border-outline-variant px-3.5 text-xs sm:text-sm"
+              className="btn-outlined px-3.5 text-xs sm:text-sm"
               disabled={locked || visibleUnused.length === 0}
               onClick={toggleSelectAllUnused}
             >
@@ -372,7 +366,7 @@ export function FilesView() {
               {allVisibleUnusedSelected ? tl(lang, 'files.deselectVisible') : tl(lang, 'files.selectUnused', { n: visibleUnused.length })}
             </button>
             {selectedItems.length > 0 && (
-              <button type="button" className="btn-ghost rounded-full px-3 text-xs sm:text-sm" onClick={() => setSelected(new Set())}>
+              <button type="button" className="btn-ghost px-3 text-xs sm:text-sm" onClick={() => setSelected(new Set())}>
                 {tl(lang, 'files.clearSelection', { n: selectedItems.length })}
               </button>
             )}
@@ -382,7 +376,7 @@ export function FilesView() {
             type="button"
             disabled={locked || selectedItems.length === 0 || deleting}
             onClick={() => setConfirmOpen(true)}
-            className="btn shrink-0 rounded-full bg-error px-4 text-surface shadow-soft disabled:opacity-40"
+            className="btn shrink-0 border-red bg-red font-semibold text-bg disabled:opacity-40"
           >
             <Trash2 size={16} />
             {tl(lang, 'common.delete')}
@@ -573,12 +567,12 @@ export function FilesView() {
             ))}
           </ul>
           <div className="flex flex-wrap justify-end gap-2">
-            <button type="button" className="btn-ghost rounded-full px-4" disabled={deleting} onClick={() => setConfirmOpen(false)}>
+            <button type="button" className="btn-ghost px-4" disabled={deleting} onClick={() => setConfirmOpen(false)}>
               {tl(lang, 'common.cancel')}
             </button>
             <button
               type="button"
-              className="btn rounded-full bg-error px-4 text-surface shadow-soft"
+              className="btn border-red bg-red font-semibold text-bg"
               disabled={deleting}
               onClick={() => void confirmDelete()}
             >
@@ -594,7 +588,7 @@ export function FilesView() {
         createPortal(
           <div className="wz-lightbox anim-fade-in" onClick={() => setPreview(null)}>
             <div
-              className="flex max-h-[90vh] w-full max-w-3xl cursor-default flex-col gap-3 rounded-3xl bg-surface-container-low p-4 text-on-surface shadow-soft"
+              className="flex max-h-[90vh] w-full max-w-3xl cursor-default flex-col gap-3 rounded-lg border border-line2 bg-panel p-4 text-text shadow-elevation-3"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex flex-wrap items-center gap-2">
@@ -604,7 +598,7 @@ export function FilesView() {
                     {formatBytes(preview.size)} · {dateFmt.format(preview.createdAt)} · {preview.mime}
                   </div>
                 </div>
-                <a href={preview.url} target="_blank" rel="noopener noreferrer" className="btn-ghost shrink-0 rounded-full border border-outline-variant px-3 text-xs">
+                <a href={preview.url} target="_blank" rel="noopener noreferrer" className="btn-outlined shrink-0  px-3 text-xs">
                   <ExternalLink size={14} /> {tl(lang, 'common.open')}
                 </a>
                 <button type="button" className="btn-icon shrink-0" onClick={() => setPreview(null)} aria-label={tl(lang, 'files.closePreviewAria')}>
@@ -642,6 +636,7 @@ export function FilesView() {
           </div>,
           document.body
         )}
+      </PageBody>
     </div>
   );
 }

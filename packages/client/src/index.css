@@ -236,6 +236,13 @@ body {
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
 }
+/* Native checkboxes, radios and ranges in the accent color */
+input[type='checkbox'],
+input[type='radio'],
+input[type='range'],
+progress {
+  accent-color: rgb(var(--acc));
+}
 ::selection {
   background: rgb(var(--selection));
 }
@@ -460,7 +467,7 @@ body {
     outline-offset: 4px;
   }
   .chip {
-    @apply inline-flex min-h-7 items-center gap-1.5 rounded-full border border-line2 bg-transparent px-2.5 text-label-m text-soft;
+    @apply inline-flex min-h-7 items-center gap-1.5 rounded-md border border-line2 bg-transparent px-2.5 text-label-m text-soft;
   }
   button.chip,
   a.chip {
@@ -2528,46 +2535,52 @@ span.cm-checkbox {
 .anim-m3-menu {
   animation: m3-menu-in 160ms var(--ease) both;
 }
-/* Exposed dropdown menu field: a filled text field with a trailing arrow */
+/* Dropdown field: looks like a text field (.input) with a trailing arrow; open = accent border */
 .m3-select-field {
-  min-height: 48px;
-  border-radius: var(--shape-xs) var(--shape-xs) 0 0;
-  border: 0;
-  border-bottom: 1px solid rgb(var(--on-surface-variant));
-  background: rgb(var(--surface-container-highest));
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
+  min-height: 2.25rem;
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+}
+@media (min-width: 768px) and (hover: hover) {
+  .m3-select-field {
+    min-height: 2rem;
+  }
 }
 .m3-select-field[aria-expanded='true'] {
-  border-bottom-color: rgb(var(--primary));
-  box-shadow: inset 0 -1px 0 rgb(var(--primary));
+  border-color: rgb(var(--acc));
+  box-shadow: 0 0 0 1px rgb(var(--acc));
 }
-/* Menu (M3 Expressive): surface-container, large shape, elevation 2, items with medium shape */
+/* Menu: raised panel with a line, 8px radius, compact 32px rows (36px on touch) */
 .m3-menu {
   padding: 4px;
-  border-radius: var(--shape-lg);
-  background: rgb(var(--surface-container));
-  color: rgb(var(--on-surface));
+  border-radius: 8px;
+  border: 1px solid rgb(var(--line2));
+  background: rgb(var(--raised));
+  color: rgb(var(--text));
   box-shadow: var(--elevation-2);
   overflow-x: hidden;
 }
 .m3-menu-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 44px;
-  padding: 10px 12px;
-  border-radius: var(--shape-md);
-  font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 0.1px;
-  font-weight: 500;
+  gap: 10px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 450;
   cursor: pointer;
   user-select: none;
   transition: background-color var(--dur-short) var(--ease-standard), color var(--dur-short) var(--ease-standard);
 }
+@media (min-width: 768px) and (hover: hover) {
+  .m3-menu-item {
+    min-height: 32px;
+  }
+}
 .m3-menu-item svg {
-  color: rgb(var(--on-surface-variant));
+  color: rgb(var(--muted));
 }
 .m3-menu-item[aria-disabled='true'] {
   opacity: 0.38;
@@ -2575,20 +2588,21 @@ span.cm-checkbox {
 }
 .m3-menu-item:not([aria-selected='true']):not([aria-disabled='true'])[data-highlighted='true'],
 .m3-menu-item:not([aria-selected='true']):not([aria-disabled='true']):hover {
-  background: rgb(var(--on-surface) / var(--state-hover));
+  background: rgb(var(--line));
 }
 .m3-menu-item[aria-selected='true'] {
-  background: rgb(var(--secondary-container));
-  color: rgb(var(--on-secondary-container));
+  background: rgb(var(--acc-bg));
+  color: rgb(var(--acc-hi));
 }
 .m3-menu-item[aria-selected='true'] svg {
   color: inherit;
 }
 /* Popover / non-modal surfaces (rich tooltips, pickers): surface-container, large shape, elevation 2 */
 .m3-popover {
-  border-radius: var(--shape-lg);
-  background: rgb(var(--surface-container));
-  color: rgb(var(--on-surface));
+  border-radius: 8px;
+  border: 1px solid rgb(var(--line2));
+  background: rgb(var(--raised));
+  color: rgb(var(--text));
   box-shadow: var(--elevation-2);
 }
 /* Snackbar: inverse surface, extra-small shape, elevation 3 */

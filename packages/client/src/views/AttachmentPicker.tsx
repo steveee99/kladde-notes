@@ -61,7 +61,7 @@ export function AttachmentPicker({ onPick }: { onPick: (file: UploadedFile) => v
           <input
             type="search"
             autoFocus
-            className="input rounded-full py-1.5 pl-9 text-sm"
+            className="input py-1.5 pl-9 text-sm"
             placeholder={tl(lang, 'attach.search')}
             aria-label={tl(lang, 'attach.search')}
             value={query}

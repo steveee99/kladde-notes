@@ -25,11 +25,11 @@ function InboxItem({ note }: { note: LocalNote }) {
     void vault.remove(note.id).catch(() => setLeaving(false));
   };
   return (
-    <li className={`card flex flex-col gap-3 p-4 transition-all duration-300 sm:flex-row sm:items-center sm:justify-between ${leaving ? 'translate-x-8 opacity-0' : ''}`}>
+    <li className={`flex flex-col gap-2 px-3.5 py-3 transition-all duration-300 hover:bg-raised/50 sm:flex-row sm:items-center sm:justify-between sm:gap-4 ${leaving ? 'translate-x-8 opacity-0' : ''}`}>
       <button className="block min-w-0 flex-1 text-left" onClick={() => navigate(`/n/${note.id}`)}>
-        <div className="break-words font-medium">{name}</div>
-        {excerpt(note.content) && <div className="mt-1 line-clamp-3 break-words text-sm text-on-surface-variant">{excerpt(note.content, 240)}</div>}
-        <div className="mt-1 text-xs text-on-surface-variant">{new Date(note.createdAt).toLocaleString(locale(lang), { dateStyle: 'medium', timeStyle: 'short' })}</div>
+        <div className="break-words text-title-s text-strong">{name}</div>
+        {excerpt(note.content) && <div className="mt-0.5 line-clamp-2 break-words text-body-m text-soft">{excerpt(note.content, 240)}</div>}
+        <div className="mt-1 font-mono text-[11px] text-muted">{new Date(note.createdAt).toLocaleString(locale(lang), { dateStyle: 'medium', timeStyle: 'short' })}</div>
       </button>
       <div className="edit-only ml-auto flex max-w-full shrink-0 items-center justify-end gap-2">
         <ChipSelect
@@ -58,7 +58,7 @@ function InboxItem({ note }: { note: LocalNote }) {
           }}
           title={t('inbox.deleteTitle')}
           aria-label={t('inbox.deleteTitle')}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-error/15 hover:text-error"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-red-bg hover:text-red"
         >
           <Trash2 size={16} />
         </button>
@@ -92,12 +92,12 @@ export function InboxView() {
       <PageHeader title={t('inbox.title')} subtitle={subtitle} />
       <PageBody>
       {items.length === 0 ? (
-        <div className="card p-8 text-center anim-fade-in">
+        <div className="card p-6 text-center anim-fade-in">
           <p className="font-medium text-on-surface">{inboxZero ? t('inbox.emptyTitleZero') : t('inbox.emptyTitle')}</p>
           <p className="mt-1 text-sm text-on-surface-variant">{t('inbox.emptyBody')}</p>
         </div>
       ) : (
-        <ul className="stagger space-y-3">
+        <ul className="card stagger divide-y divide-line overflow-hidden">
           {items.map((n) => (
             <InboxItem key={n.id} note={n} />
           ))}

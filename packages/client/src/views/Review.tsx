@@ -5,6 +5,7 @@ import { locale, tl, useLang } from '../lib/i18n';
 import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
 import { openThisPeriod } from './PeriodicNoteBar';
+import { PageBody, PageHeader } from './PageHeader';
 
 export const REVIEW_KEY = 'lastReview';
 const WEEK = 7 * 86_400_000;
@@ -56,8 +57,8 @@ export function ReviewView() {
   const features = vault.features();
   if (!features.review.enabled) {
     return (
-      <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
-        <div className="card max-w-lg space-y-4 p-6 anim-fade-up">
+      <PageBody className="max-w-[960px] !mx-0">
+        <div className="card max-w-lg space-y-4 p-5 anim-fade-up">
           <div className="flex items-center gap-2 text-lg font-medium">
             <CalendarCheck size={20} className="shrink-0 text-primary" />
             {tl(lang, 'review.optInTitle')}
@@ -69,12 +70,12 @@ export function ReviewView() {
                 {tl(lang, 'review.enableBtn')}
               </button>
             )}
-            <button className="btn-ghost border border-outline-variant" onClick={() => navigate('/settings')}>
+            <button className="btn-outlined" onClick={() => navigate('/settings')}>
               <Settings size={16} /> {tl(lang, 'daily.openSettings')}
             </button>
           </div>
         </div>
-      </div>
+      </PageBody>
     );
   }
   const r = buildReview(vault.list().filter((n) => n.access === 'owner'), Date.now(), 30, vault.roleConfig(), {
@@ -83,35 +84,34 @@ export function ReviewView() {
   const ORPHANS_SHOWN = 24;
   const last = vault.setting<number>(REVIEW_KEY);
   return (
-    <div className="content-container space-y-4 px-4 py-6 sm:px-8 sm:py-10">
-      <div className="anim-fade-up">
-        <h1 className="text-headline-m">{tl(lang, 'review.title')}</h1>
-        <p className="mt-1 text-on-surface-variant">
-          {last ? tl(lang, 'review.lastDone', { date: new Date(last).toLocaleDateString(loc, { dateStyle: 'full' }) }) : tl(lang, 'review.neverDone')}
-        </p>
-      </div>
+    <div>
+      <PageHeader
+        title={tl(lang, 'review.title')}
+        subtitle={last ? tl(lang, 'review.lastDone', { date: new Date(last).toLocaleDateString(loc, { dateStyle: 'full' }) }) : tl(lang, 'review.neverDone')}
+      />
+      <PageBody className="max-w-[960px] space-y-4 !mx-0">
 
       {features.weekly.enabled && (
         <section className="card flex flex-wrap items-center gap-3 p-5 anim-fade-up" data-review-week>
           <CalendarRange size={18} className="shrink-0 text-primary" />
           <div className="min-w-0 flex-1">
-            <h2 className="font-medium">{tl(lang, 'review.weekNoteTitle')}</h2>
+            <h2 className="text-title-m text-strong">{tl(lang, 'review.weekNoteTitle')}</h2>
             <p className="text-sm text-on-surface-variant">{tl(lang, 'review.weekNoteHint')}</p>
           </div>
-          <button className="btn-tonal rounded-full px-4" disabled={locked && !vault.findPeriodicNote('week')} onClick={() => void openThisPeriod('week')}>
+          <button className="btn-tonal px-4" disabled={locked && !vault.findPeriodicNote('week')} onClick={() => void openThisPeriod('week')}>
             {tl(lang, vault.findPeriodicNote('week') ? 'review.weekNoteOpen' : 'review.weekNoteCreate')}
           </button>
         </section>
       )}
 
       <Section icon={Inbox} title={tl(lang, 'review.inboxTitle')} count={r.inbox.length} ok={tl(lang, 'review.inboxOk')}>
-        <button className="btn-primary rounded-full px-4" onClick={() => navigate('/inbox')}>
+        <button className="btn-primary px-4" onClick={() => navigate('/inbox')}>
           {tl(lang, 'review.inboxAction', { n: r.inbox.length })}
         </button>
       </Section>
 
       <Section icon={AlertTriangle} title={tl(lang, 'review.overdueTitle')} count={r.overdueTasks} ok={tl(lang, 'review.overdueOk')}>
-        <button className="btn-ghost rounded-full border border-outline-variant px-4" onClick={() => navigate('/')}>
+        <button className="btn-outlined px-4" onClick={() => navigate('/')}>
           {tl(lang, 'review.overdueAction')}
         </button>
       </Section>
@@ -157,7 +157,7 @@ export function ReviewView() {
       </Section>
 
       <button
-        className="btn-primary w-full rounded-full py-3"
+        className="btn-primary w-full py-3"
         onClick={() => {
           void vault.setSetting(REVIEW_KEY, Date.now());
           navigate('/');
@@ -165,6 +165,7 @@ export function ReviewView() {
       >
         <CalendarCheck size={18} /> {tl(lang, 'review.finishBtn')}
       </button>
+      </PageBody>
     </div>
   );
 }

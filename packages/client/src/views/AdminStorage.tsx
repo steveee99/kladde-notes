@@ -37,14 +37,14 @@ export function QuotaEditor({ id, usage, onChange, onError }: { id: string; usag
         <input className="input w-24 py-1" inputMode="decimal" value={mb} placeholder={usage.quota ? String(Math.round(usage.quota / 1024 / 1024)) : '∞'} onChange={(e) => setMb(e.target.value)} />
         <span>MB</span>
       </label>
-      <button type="submit" className="btn-ghost rounded-full border border-outline-variant px-3 py-1" disabled={busy || !valid}>
+      <button type="submit" className="btn-outlined px-3 py-1" disabled={busy || !valid}>
         {tl(lang, 'storage.setLimit')}
       </button>
-      <button type="button" className="btn-ghost rounded-full border border-outline-variant px-3 py-1" disabled={busy} onClick={() => void send(0)}>
+      <button type="button" className="btn-outlined px-3 py-1" disabled={busy} onClick={() => void send(0)}>
         {tl(lang, 'storage.setUnlimited')}
       </button>
       {usage.customQuota && (
-        <button type="button" className="btn-ghost rounded-full border border-outline-variant px-3 py-1" disabled={busy} onClick={() => void send(null)}>
+        <button type="button" className="btn-outlined px-3 py-1" disabled={busy} onClick={() => void send(null)}>
           {tl(lang, 'storage.useDefault')}
         </button>
       )}

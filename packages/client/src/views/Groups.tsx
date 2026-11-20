@@ -17,6 +17,7 @@ import { Avatar } from './Avatar';
 import { Sheet } from './Dialogs';
 import { Dropdown } from './Dropdown';
 import { NoteCollection } from './NoteList';
+import { PageBody, PageHeader } from './PageHeader';
 
 export const groupRoleLabel = (role: GroupRole) => t(`groups.role.${role}` as I18nKey);
 const roleHint = (role: GroupRole) => t(`groups.roleHint.${role}` as I18nKey);
@@ -48,18 +49,18 @@ export function GroupsView() {
     }
   };
   return (
-    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
-      <h1 className="mb-2 text-headline-m anim-fade-up">{t('groups.title')}</h1>
-      <p className="mb-6 max-w-2xl text-body-m text-on-surface-variant anim-fade-up">{t('groups.intro')}</p>
+    <div>
+      <PageHeader title={t('groups.title')} subtitle={t('groups.intro')} />
+      <PageBody className="max-w-[960px] !mx-0">
       {vault.groups.length === 0 ? (
-        <p className="mb-6 text-on-surface-variant">{t('groups.empty')}</p>
+        <p className="mb-4 text-body-m text-muted">{t('groups.empty')}</p>
       ) : (
-        <ul className="card mb-6 divide-y divide-outline-variant/60 p-1 anim-fade-up" data-groups-list>
+        <ul className="card mb-4 divide-y divide-line overflow-hidden anim-fade-up" data-groups-list>
           {vault.groups.map((g) => (
             <li key={g.id}>
               <button
                 type="button"
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-surface-container-high/60"
+                className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-body-m transition-colors hover:bg-raised"
                 onClick={() => navigate(groupPath(g.id))}
               >
                 <Users size={18} className="shrink-0 text-primary" />
@@ -72,7 +73,7 @@ export function GroupsView() {
           ))}
         </ul>
       )}
-      <div className="card edit-only flex flex-col gap-2 p-4 sm:flex-row anim-fade-up">
+      <div className="card edit-only flex flex-col gap-2 p-3 sm:flex-row anim-fade-up">
         <input
           className="input flex-1"
           placeholder={t('groups.namePlaceholder')}
@@ -87,6 +88,7 @@ export function GroupsView() {
         </button>
       </div>
       {error && <p className="mt-3 text-sm text-error">{error}</p>}
+      </PageBody>
     </div>
   );
 }
@@ -98,7 +100,7 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
   const group = vault.group(groupId);
   if (!group) {
     return (
-      <div className="content-container mx-auto px-4 py-16 text-center text-on-surface-variant sm:px-8">
+      <div className="px-4 py-16 text-center text-muted">
         <p>{t('groups.notFound')}</p>
         <button className="btn-text mt-4" onClick={() => navigate('/groups')}>
           {t('groups.title')}
@@ -113,15 +115,16 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
   const countIn = (f: string) => notes.filter((n) => splitPath(n.path).folder === f || splitPath(n.path).folder.startsWith(`${f}/`)).length;
   const parent = folder ? (folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) : '') : null;
   return (
-    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
-      <div className="mb-6 flex flex-wrap items-center gap-2 anim-fade-up">
-        <div className="min-w-0 flex-1 basis-40">
-          <p className="flex items-center gap-1.5 truncate text-sm text-on-surface-variant">
+    <div>
+      <PageHeader
+        title={folder ? folder.split('/').pop() : group.name}
+        subtitle={
+          <span className="flex items-center gap-1.5 truncate">
             <Users size={14} /> {[group.name, ...folder.split('/').slice(0, -1)].join('/')} · {groupRoleLabel(group.role)}
-          </p>
-          <h1 className="truncate text-headline-m">{folder ? folder.split('/').pop() : group.name}</h1>
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          </span>
+        }
+        actions={
+          <>
           {vault.features().favorites.enabled && (!folder || vault.groupFolders(groupId).includes(folder)) && (
             <button
               className={`btn-icon shrink-0 ${vault.isFavoriteGroupFolder(groupId, folder) ? 'text-primary' : ''}`}
@@ -147,14 +150,16 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
               <Plus size={18} /> {t('groups.newNote')}
             </button>
           )}
-        </div>
-      </div>
-      <ul className="card mb-6 divide-y divide-outline-variant/60 p-1 anim-fade-up">
+          </>
+        }
+      />
+      <PageBody>
+      <ul className="card mb-5 divide-y divide-line overflow-hidden anim-fade-up">
         {parent !== null && (
           <li>
             <button
               type="button"
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-on-surface-variant transition-colors hover:bg-surface-container-high/60 hover:text-on-surface"
+              className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-body-m text-muted transition-colors hover:bg-raised hover:text-text"
               onClick={() => navigate(groupPath(groupId, parent))}
             >
               <CornerLeftUp size={17} className="shrink-0" />
@@ -166,7 +171,7 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
           <li key={f}>
             <button
               type="button"
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-surface-container-high/60"
+              className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-body-m transition-colors hover:bg-raised"
               onClick={() => navigate(groupPath(groupId, f))}
             >
               <Folder size={17} className="shrink-0 text-primary" />
@@ -180,7 +185,7 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
           <li className="edit-only">
             <button
               type="button"
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-on-surface-variant transition-colors hover:bg-surface-container-high/60 hover:text-on-surface"
+              className="flex w-full items-center gap-3 px-3.5 py-2.5 text-body-m text-muted transition-colors hover:bg-raised hover:text-text"
               onClick={() => {
                 // A group folder exists through its notes: open it and create the first note there
                 const name = prompt(t('groups.newFolderPrompt'))?.trim().replace(/[\\/]/g, '-');
@@ -197,6 +202,7 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
       ) : (
         <NoteCollection notes={here} />
       )}
+      </PageBody>
     </div>
   );
 }
@@ -248,13 +254,13 @@ export function GroupManageView({ groupId }: { groupId: string }) {
   };
 
   const back = (
-    <button className="btn-icon -ml-2 shrink-0 rounded-full" onClick={() => navigate(groupPath(groupId))} title={t('groups.backToGroup')} aria-label={t('groups.backToGroup')}>
+    <button className="btn-icon -ml-2 h-8 w-8 shrink-0" onClick={() => navigate(groupPath(groupId))} title={t('groups.backToGroup')} aria-label={t('groups.backToGroup')}>
       <ArrowLeft size={18} />
     </button>
   );
   if (!details) {
     return (
-      <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
+      <div className="mx-auto w-full max-w-[1600px] px-4 py-5 nav:px-7">
         {back}
         {error ? <p className="mt-6 text-center text-on-surface-variant">{error}</p> : <Loader2 size={20} className="mx-auto mt-10 animate-spin text-on-surface-variant" />}
       </div>
@@ -276,18 +282,22 @@ export function GroupManageView({ groupId }: { groupId: string }) {
   ];
 
   return (
-    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
-      <div className="mb-6 flex items-center gap-2 anim-fade-up">
-        {back}
-        <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 truncate text-sm text-on-surface-variant">
+    <div>
+      <PageHeader
+        title={
+          <span className="flex items-center gap-1.5">
+            {back}
+            {t('groups.settingsTitle')}
+          </span>
+        }
+        subtitle={
+          <span className="flex items-center gap-1.5 truncate">
             <Users size={14} /> {details.name} · {groupRoleLabel(details.role)}
-          </p>
-          <h1 className="truncate text-headline-m">{t('groups.settingsTitle')}</h1>
-        </div>
-      </div>
-
-      <div className="space-y-6">
+          </span>
+        }
+      />
+      <PageBody className="max-w-[960px] !mx-0">
+      <div className="space-y-5">
         {owner && (
           <section className="card p-4 anim-fade-up">
             <label className="mb-1.5 block text-title-s" htmlFor="group-name">
@@ -504,6 +514,7 @@ export function GroupManageView({ groupId }: { groupId: string }) {
           </div>
         </Sheet>
       )}
+      </PageBody>
     </div>
   );
 }
@@ -581,7 +592,7 @@ export function MoveToGroupSheet({ noteIds, folder, label, onClose }: { noteIds:
           </div>
           <p className="rounded-2xl bg-surface-container px-3 py-2 text-xs text-on-surface-variant">{t('groups.moveWarning')}</p>
           {error && <p className="text-sm text-error">{error}</p>}
-          <button className="btn-primary w-full rounded-full py-2.5" disabled={busy || !groupId || noteIds.length === 0} onClick={() => void move()} autoFocus={!isCoarsePointer()}>
+          <button className="btn-primary w-full py-2.5" disabled={busy || !groupId || noteIds.length === 0} onClick={() => void move()} autoFocus={!isCoarsePointer()}>
             {busy ? <Loader2 size={16} className="animate-spin" /> : <FolderInput size={16} />} {t('groups.moveBtn')}
           </button>
         </div>

@@ -157,7 +157,7 @@ export default function ExcalidrawPanel({
         // On narrow canvases the toolbar fills the row; the menu has the same entry there
         renderTopRightUI={(isMobile) =>
           isMobile ? null : (
-          <button type="button" className="btn-icon rounded-full" onClick={() => setFullscreen((v) => !v)} title={toggleLabel} aria-label={toggleLabel}>
+          <button type="button" className="btn-icon" onClick={() => setFullscreen((v) => !v)} title={toggleLabel} aria-label={toggleLabel}>
             {fullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
           </button>
           )

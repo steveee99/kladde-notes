@@ -63,7 +63,7 @@ export function ShortcutsSettingsView({ embedded }: { embedded?: boolean } = {})
       <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'shortcuts.intro')}</p>
 
       <section className="card space-y-3 p-5 anim-fade-up">
-        <h2 className="font-medium">{tl(lang, 'shortcuts.serverTitle')}</h2>
+        <h2 className="text-title-m text-strong">{tl(lang, 'shortcuts.serverTitle')}</h2>
         <p className="text-sm text-on-surface-variant">{tl(lang, 'shortcuts.serverDesc')}</p>
         <CopyField value={apiBase} />
         {location.protocol === 'http:' && <p className="text-xs text-error">{tl(lang, 'shortcuts.insecureHint')}</p>}
@@ -73,7 +73,7 @@ export function ShortcutsSettingsView({ embedded }: { embedded?: boolean } = {})
       </section>
 
       <section className="card space-y-3 p-5 anim-fade-up">
-        <h2 className="font-medium">{tl(lang, 'shortcuts.createTitle')}</h2>
+        <h2 className="text-title-m text-strong">{tl(lang, 'shortcuts.createTitle')}</h2>
         <p className="text-sm text-on-surface-variant">{tl(lang, 'shortcuts.createDesc')}</p>
         {created ? (
           <div className="space-y-2 rounded-2xl border border-primary/40 bg-secondary-container/40 p-3.5 anim-fade-up">
@@ -81,7 +81,7 @@ export function ShortcutsSettingsView({ embedded }: { embedded?: boolean } = {})
             <CopyField value={created.secret} label={tl(lang, 'import.copyTokenTitle')} />
             <p className="text-xs text-on-surface-variant">{tl(lang, 'shortcuts.headerHint')}</p>
             <CopyField value={`Bearer ${created.secret}`} />
-            <button className="btn-ghost rounded-full px-4 text-sm" onClick={() => setCreated(null)}>
+            <button className="btn-ghost px-4 text-sm" onClick={() => setCreated(null)}>
               {tl(lang, 'common.done')}
             </button>
           </div>
@@ -104,7 +104,7 @@ export function ShortcutsSettingsView({ embedded }: { embedded?: boolean } = {})
                 options={[...SHORTCUT_TOKEN_DAYS].sort((a, b) => a - b).map((d) => ({ value: String(d), label: tl(lang, 'import.days', { n: d }) }))}
               />
             </div>
-            <button className="btn-ghost rounded-full border border-outline-variant px-4" type="submit">
+            <button className="btn-outlined px-4" type="submit">
               <Plus size={16} /> {tl(lang, 'import.tokenCreateBtn')}
             </button>
           </form>

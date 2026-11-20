@@ -141,7 +141,7 @@ function Toolbar({ view, lang }: { view: EditorView | null; lang: Lang }) {
       key={title}
       title={title}
       aria-label={title}
-      className="btn-icon shrink-0 rounded-full"
+      className="btn-icon shrink-0"
       onMouseDown={(e) => e.preventDefault()}
       onClick={fn}
     >
@@ -519,7 +519,7 @@ function NoteOverflowMenu({
       <button
         ref={triggerRef}
         type="button"
-        className="btn-icon rounded-full"
+        className="btn-icon"
         title={t('note.moreActionsTitle')}
         aria-label={t('note.moreActionsTitle')}
         aria-haspopup="menu"
@@ -612,7 +612,7 @@ function NoteOverflowMenu({
             {onAlign && (
               <div className="flex items-center gap-3 px-3 py-1.5" role="group" aria-label={t('note.alignMenu')}>
                 <span className="flex-1 text-sm text-on-surface">{t('note.alignMenu')}</span>
-                <div className="flex gap-0.5 rounded-full border border-outline-variant p-0.5">
+                <div className="flex gap-0.5 rounded-md border border-line2 p-0.5">
                   {NOTE_ALIGNS.map(({ value, icon: Icon, label }) => (
                     <button
                       key={value}
@@ -622,8 +622,8 @@ function NoteOverflowMenu({
                       title={t(label)}
                       aria-label={t(label)}
                       onClick={() => onAlign(value)}
-                      className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors ${
-                        align === value ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-low'
+                      className={`flex h-7 w-7 items-center justify-center rounded transition-colors ${
+                        align === value ? 'bg-acc-bg text-acc-hi' : 'text-muted hover:bg-line hover:text-text'
                       }`}
                     >
                       <Icon size={16} />
@@ -1458,7 +1458,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           {focus && (
             <button
               type="button"
-              className="focus-exit no-print btn-icon fixed right-4 top-[calc(env(safe-area-inset-top)+0.75rem)] z-30 rounded-full bg-surface-container-high"
+              className="focus-exit no-print btn-icon fixed right-4 top-[calc(env(safe-area-inset-top)+0.75rem)] z-30 bg-surface-container-high"
               onClick={() => setFocusMode(false)}
               title={t('focus.exit')}
               aria-label={t('focus.exit')}
@@ -1469,7 +1469,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           <div className={`no-print mb-3 items-center gap-2 text-sm text-on-surface-variant anim-fade-in ${focus ? 'hidden' : 'flex'}`}>
             {/* The second pane (#88) has its own back button in its header; this one would go back in the main pane */}
             {pane === 'main' && (
-              <button className="btn-icon -ml-2 shrink-0 rounded-full" onClick={() => history.back()} title={t('common.back')} aria-label={t('common.back')}>
+              <button className="btn-icon -ml-2 shrink-0" onClick={() => history.back()} title={t('common.back')} aria-label={t('common.back')}>
                 <ArrowLeft size={18} />
               </button>
             )}
@@ -1545,7 +1545,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               {commentsOn && !locked && (
                 <button
                   type="button"
-                  className="btn-icon rounded-full"
+                  className="btn-icon"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={startComment}
                   title={`${t('comments.add')} (${IS_APPLE ? '⌘' : lang === 'en' ? 'Ctrl' : 'Strg'}+Alt+C)`}
@@ -1559,7 +1559,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 type="button"
                 onClick={() => panel.setOpen(!splitOpen)}
                 aria-pressed={splitOpen}
-                className={`btn-icon rounded-full transition-colors ${splitOpen ? 'bg-secondary-container text-on-secondary-container' : ''}`}
+                className={`btn-icon transition-colors ${splitOpen ? 'bg-secondary-container text-on-secondary-container' : ''}`}
                 title={t('note.splitviewTitle')}
                 aria-label={t('note.splitviewTitle')}
               >

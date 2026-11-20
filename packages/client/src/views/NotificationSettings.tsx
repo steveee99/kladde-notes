@@ -145,7 +145,7 @@ export function NotificationSettingsView({ embedded }: { embedded?: boolean } = 
       <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'notify.intro')}</p>
 
       <section className="card space-y-4 p-5 anim-fade-up">
-        <h2 className="font-medium">{tl(lang, 'notify.thisDevice')}</h2>
+        <h2 className="text-title-m text-strong">{tl(lang, 'notify.thisDevice')}</h2>
         {support !== 'ok' ? (
           <p className="text-sm text-on-surface-variant">{tl(lang, support === 'ios-install' ? 'notify.iosInstall' : 'notify.unsupported')}</p>
         ) : (
@@ -204,7 +204,7 @@ export function NotificationSettingsView({ embedded }: { embedded?: boolean } = 
       </section>
 
       <section className="card space-y-2 p-5 anim-fade-up">
-        <h2 className="font-medium">{tl(lang, 'notify.howTitle')}</h2>
+        <h2 className="text-title-m text-strong">{tl(lang, 'notify.howTitle')}</h2>
         <p className="text-sm text-on-surface-variant">{tl(lang, 'notify.how')}</p>
         <code className="block rounded-lg bg-surface-container-high px-3 py-2 text-sm">- [ ] Zahnarzt anrufen 📅 2026-11-20 ⏰ 09:00</code>
       </section>
