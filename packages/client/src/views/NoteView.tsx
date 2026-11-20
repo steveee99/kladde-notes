@@ -21,6 +21,7 @@ import {
   Download,
   ExternalLink,
   FileCode,
+  FilePlus2,
   FileSpreadsheet,
   FileText,
   FileType2,
@@ -30,6 +31,7 @@ import {
   Heading,
   History,
   Image as ImageIcon,
+  Images,
   Link2,
   List,
   ListChecks,
@@ -93,7 +95,7 @@ import type { LocalNote } from '../data/db';
 import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
 import { Editor, insertAtLineStart, insertText, toggleCode, toggleWrap, wrapSelection } from '../editor/Editor';
-import { editorHost } from '../editor/host';
+import { attachmentMarkdown, editorHost } from '../editor/host';
 import { useOutline, type Outline } from '../editor/outline';
 import { OutlinePanel } from './OutlinePanel';
 import { NoteTasksPanel, useNoteTasks } from './NoteTasksPanel';
@@ -157,6 +159,7 @@ function Toolbar({ view, lang }: { view: EditorView | null; lang: Lang }) {
       {btn(Link2, `${t('note.toolbarWiki')} (${mod}+Shift+L)`, () => wrapSelection(view, '[[', ']]'))}
       {btn(Code, `${t('note.toolbarCode')} (${mod}+Shift+M)`, () => toggleCode(view))}
       {btn(ImageIcon, t('note.toolbarUpload'), () => file.current?.click())}
+      {btn(Images, t('note.toolbarAttachment'), () => editorHost.pickAttachment((f) => insertText(view, `\n${attachmentMarkdown(f)}\n`)))}
       {btn(Undo2, t('note.toolbarUndo'), () => undo(view))}
       <input
         ref={file}
@@ -357,6 +360,7 @@ function NoteOverflowMenu({
   onHistory,
   onMove,
   onMoveToGroup,
+  onDuplicate,
   onDelete,
   onCopy,
   favorite,
@@ -386,6 +390,8 @@ function NoteOverflowMenu({
   onMove: () => void;
   /** Own notes, when groups are available (#58) */
   onMoveToGroup?: () => void;
+  /** Where the user may create a note next to this one */
+  onDuplicate?: () => void;
   onDelete: () => void;
   onCopy: () => void;
   /** null: favorites are turned off */
@@ -799,6 +805,21 @@ function NoteOverflowMenu({
               >
                 <FolderInput size={16} className="shrink-0 text-on-surface-variant" />
                 <span>{t('common.move')}</span>
+              </button>
+            )}
+            {onDuplicate && (
+              <button
+                type="button"
+                role="menuitem"
+                data-duplicate-note
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-low"
+                onClick={() => {
+                  setOpen(false);
+                  onDuplicate();
+                }}
+              >
+                <FilePlus2 size={16} className="shrink-0 text-on-surface-variant" />
+                <span>{t('note.duplicateMenu')}</span>
               </button>
             )}
             {onMoveToGroup && (
@@ -1411,6 +1432,18 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
     if (closeSheet) panel.setOpen(false);
   };
 
+  // A copy lands next to the note: own notes, group notes the user writes, shared folders that allow new notes
+  const mayDuplicate =
+    !readOnly && (note.access === 'owner' || (noteGroup ? groupManager : !!vault.sharedFolderOf(note)?.canCreate));
+  const duplicateNote = async () => {
+    try {
+      const copy = await vault.duplicate(id);
+      navigate(`/n/${copy.id}`);
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
   const handleDelete = () => {
     if (confirm(t('note.deleteConfirm', { name: displayName }))) {
       void vault.remove(id);
@@ -1545,6 +1578,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 exportContent={note.versioning ? exportContent : undefined}
                 onMove={() => setMoving(true)}
                 onMoveToGroup={isOwner && !vault.standalone && !DEMO ? () => setMovingToGroup(true) : undefined}
+                onDuplicate={mayDuplicate ? () => void duplicateNote() : undefined}
                 onDelete={handleDelete}
                 onCopy={() => void copyMarkdown()}
                 favorite={features.favorites.enabled ? vault.isFavorite(id) : null}
@@ -1653,7 +1687,11 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             </div>
           )}
           {!showPdf && (
-            <div className="contents" data-note-align={align !== 'left' && !(sourceMode && !readOnly) ? align : undefined}>
+            // A line and room between the header (title, stats, PARA bar) and the text (not in focus mode, which hides
+            // the header), and room below the text before the footer
+            <div
+              className={`pb-12 ${focus ? '' : 'mt-4 border-t border-outline-variant pt-6 sm:mt-6 sm:pt-8 print:mt-0 print:border-0 print:pt-0'}`}
+              data-note-align={align !== 'left' && !(sourceMode && !readOnly) ? align : undefined}>
             <Editor
               docKey={id}
               value={note.content}
@@ -1678,7 +1716,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
 
           {/* Bottom links/graph overview remains visible when the right split pane is collapsed */}
           {!showPdf && !splitOpen && !focus && (backlinks.length > 0 || memoryBacklinks.length > 0 || mentions.length > 0 || local.nodes.length > 1) && (
-            <div className="no-print mb-10 space-y-6 border-t border-outline-variant pt-4">
+            <div className="no-print mb-24 space-y-6 border-t border-outline-variant pt-8">
               {memoryBacklinks.length > 0 && (
                 <section className="anim-fade-in" data-memory-backlinks>
                   <h2 className="mb-2 flex items-center gap-1.5 text-title-s text-on-surface-variant">

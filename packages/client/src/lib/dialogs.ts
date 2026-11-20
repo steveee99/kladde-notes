@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { SharedFolder } from '@kladde/shared';
 import type { NewNoteKind } from './newNote';
+import type { UploadedFile } from '../editor/host';
 
 /**
  * App-wide dialogs (new note of any kind, new Zettel, recipe import), opened from anywhere. A new note
@@ -11,6 +12,7 @@ export type DialogState =
   | { kind: 'zettel' }
   | { kind: 'recipe'; url?: string }
   | { kind: 'clip'; url?: string; title?: string; selection?: string }
+  | { kind: 'attachment'; onPick: (file: UploadedFile) => void }
   | null;
 
 let state: DialogState = null;

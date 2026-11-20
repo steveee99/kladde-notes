@@ -14,6 +14,7 @@ import {
   Cloud,
   CloudOff,
   Draw,
+  FilePlus2,
   FileText,
   FileType2,
   Folder,
@@ -79,6 +80,13 @@ import { groupPath } from './Groups';
 import { useItemMenu, type MenuAction } from './ContextMenu';
 import { openInSide, useSplitAvailable } from '../lib/panes';
 
+/** The own folder a route shows (`/f/<folder>`) or that holds the open own note; null elsewhere */
+export function folderOfRoute(path: string): string | null {
+  if (path.startsWith('/f/')) return decodeURIComponent(path.slice(3));
+  const note = path.startsWith('/n/') ? vault.get(decodeURIComponent(path.slice(3))) : undefined;
+  return note && note.access === 'owner' && !note.group ? splitPath(note.path).folder : null;
+}
+
 export function newNote(folder?: string) {
   openDialog({ kind: 'note', folder });
 }
@@ -103,7 +111,7 @@ function NewNoteButton({
 }: {
   zettel: boolean;
   recipe: boolean;
-  /** Where a new PDF note goes (null: the Inbox) */
+  /** The folder that is open (or holds the open note): new notes start there (null: the Inbox) */
   folder: string | null;
   onNavigate?: () => void;
 }) {
@@ -150,7 +158,7 @@ function NewNoteButton({
 
   return (
     <div ref={wrapRef} className="edit-only flex shrink-0 gap-0.5">
-      <button className="btn-primary min-w-0 flex-1 !rounded-r-md" onClick={() => run(() => newNote())}>
+      <button className="btn-primary min-w-0 flex-1 !rounded-r-md" onClick={() => run(() => newNote(folder ?? undefined))}>
         <Plus size={16} /> <span className="truncate">{t('nav.newNote')}</span>
       </button>
       <button
@@ -191,7 +199,7 @@ function NewNoteButton({
               items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
             }}
           >
-            {menuItem(FileText, t('nav.newNoteShort'), () => newNote())}
+            {menuItem(FileText, t('nav.newNoteShort'), () => newNote(folder ?? undefined))}
             {zettel && menuItem(Lightbulb, 'Zettel', newZettel, t('nav.zettelTitle'))}
             {menuItem(Globe, t('clip.kind'), () => openDialog({ kind: 'clip' }), t('clip.title'))}
             {recipe && menuItem(ChefHat, t('nav.recipe'), () => importRecipe(), t('quick.recipeTitle'))}
@@ -379,13 +387,28 @@ function SidebarNoteRow({
     openInSide(note.id);
     onNavigate?.();
   };
+  const locked = useReadOnly();
+  // Duplicate (a copy next to the note): own notes and group notes the user writes
+  const mayDuplicate = !locked && (note.access === 'owner' || vault.managesGroupNote(note));
+  const duplicate = () => {
+    vault.duplicate(note.id).then(
+      (copy) => {
+        navigate(`/n/${copy.id}`);
+        onNavigate?.();
+      },
+      (err: Error) => alert(err.message)
+    );
+  };
   const menu = useItemMenu(
-    split
-      ? [
-          { icon: FileText, label: t('split.open'), onSelect: openNote },
-          { icon: VerticalSplit, label: t('split.openSide'), onSelect: openSide },
-        ]
-      : [],
+    [
+      ...(split
+        ? [
+            { icon: FileText, label: t('split.open'), onSelect: openNote },
+            { icon: VerticalSplit, label: t('split.openSide'), onSelect: openSide },
+          ]
+        : []),
+      ...(mayDuplicate ? [{ icon: FilePlus2, label: t('note.duplicateMenu'), onSelect: duplicate }] : []),
+    ],
     t('nav.noteActions', { name })
   );
   return (
@@ -905,11 +928,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
   const dailyNote = features.daily.enabled ? vault.findDailyNote() : undefined;
   const dailyRouteActive = path === '/daily' || path.startsWith('/daily/') || (!!dailyNote && activeNoteId === dailyNote.id);
   const settingsActive = path === '/settings' || path.startsWith('/settings/');
-  const activeFolder = path.startsWith('/f/')
-    ? decodeURIComponent(path.slice(3))
-    : activeNote && activeNote.access === 'owner'
-      ? splitPath(activeNote.path).folder
-      : null;
+  const activeFolder = folderOfRoute(path);
 
   useEffect(() => {
     if (!revealRequest) return;

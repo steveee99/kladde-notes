@@ -505,6 +505,26 @@ class Vault {
   }
 
   /**
+   * Copies a note next to itself as "<name> (Copy)" (localized). Works for own notes, group notes the user may
+   * write and notes in a shared folder that allows new notes; a frontmatter `id` is left out so links keep
+   * resolving to the original.
+   */
+  async duplicate(id: string): Promise<LocalNote> {
+    if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    const note = this.notes.get(id);
+    if (!note || note.deleted) throw new Error(t('vault.duplicateMissing'));
+    const { folder, name } = splitPath(note.path);
+    const title = t('note.copyName', { name });
+    const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(note.content)?.[1];
+    const content = frontmatter && /^id:/im.test(frontmatter) ? setFrontmatter(note.content, { id: null }) : note.content;
+    if (note.group) return this.createInGroup(note.group, folder, title, content);
+    if (note.access === 'owner') return this.insert(folder, title, content);
+    const shared = this.sharedFolderOf(note);
+    if (!shared) throw new Error(t('vault.sharedNoCreate'));
+    return this.createShared(shared, title, content);
+  }
+
+  /**
    * Moves own notes into a group (online only): a single note lands in `target`, a whole `folder` keeps its name
    * and structure below it. Shares of the notes end; links between them keep working.
    */

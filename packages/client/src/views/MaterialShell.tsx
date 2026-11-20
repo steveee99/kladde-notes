@@ -13,7 +13,7 @@ import { NavBadge } from './NavBadge';
 import { reviewDue } from './Review';
 import { Dialogs } from './Dialogs';
 import { QuickCapture } from './QuickCapture';
-import { newNote, openTodayDailyNote, ReadOnlyToggle, Sidebar, SyncBadge } from './Shell';
+import { folderOfRoute, newNote, openTodayDailyNote, ReadOnlyToggle, Sidebar, SyncBadge } from './Shell';
 import { Avatar } from './Avatar';
 import { urgentTaskCount } from './TaskParts';
 import { t, useLang } from '../lib/i18n';
@@ -211,7 +211,7 @@ export function MaterialShell({ me, children, isAdmin }: { me: Me; children: Rea
             </button>
             <button
               className="edit-only state-layer mb-2 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary-container text-on-primary-container shadow-elevation-3 transition-[box-shadow,transform] duration-200 ease-spring hover:shadow-elevation-3 active:scale-95"
-              onClick={() => newNote()}
+              onClick={() => newNote(folderOfRoute(path) ?? undefined)}
               aria-label={t('nav.newNote')}
               title={t('nav.newNote')}
             >

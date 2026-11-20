@@ -4,6 +4,12 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Duplicate a note: "Duplicate" in a note's ⋮ menu and in the right-click menu of a note in the folder tree creates a copy next to it named "<name> (Copy)" ("(Kopie)" in German) and opens it. Works for own notes, group notes you may edit and folders shared with you that allow new notes; a frontmatter `id` is left out of the copy so links keep resolving to the original.
+- New: Link an attachment you already uploaded: "Insert existing attachment" in the editor toolbar and the slash command "Existing attachment" open a searchable list of your attachments (with previews); a new file can be uploaded from there too.
+- New: Upload attachments on the attachments page (images and PDFs, several at once); they show up as not yet used until a note links them.
+- Changed: The "New note" button (sidebar and rail) starts in the folder that is open or holds the open note instead of always the Inbox.
+- Changed: More room between a note's header (title, stats, PARA bar), its text and the links/graph below it.
+
 ## [2.13.0] – 2026-11-19
 
 - New: Math formulas (#85). Inline `$…$` and display `$$…$$` (on lines of their own, or `$$…$$` within a line) are rendered with KaTeX in the live preview and on public links; the line with the cursor shows the TeX source, a click on a display formula opens it for editing. Prices like "$5 and $10", `\$` and everything in code stay text. KaTeX and its fonts are bundled with the app (no CDN) and only loaded when a note shows a formula. The Word export writes real Word equations, the PDF export (also the slide PDF) the formulas as KaTeX draws them; the Confluence sync keeps the TeX as code. Slash commands `/math` (block) and inline formula.

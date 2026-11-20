@@ -9,7 +9,8 @@ import { vault } from './data/vault';
 import { uploads } from './data/uploads';
 import { recordVoice } from './views/VoiceRecorder';
 import { getLang } from './lib/i18n';
-import { editorHost } from './editor/host';
+import { editorHost, type UploadedFile } from './editor/host';
+import { openDialog } from './lib/dialogs';
 import { isReadOnly } from './lib/readOnly';
 import { Invite, LinkDevice, Login } from './views/Auth';
 import { PublicNote } from './views/Public';
@@ -96,6 +97,7 @@ Object.assign(editorHost, {
   // Offline (or on a network error) the file waits on this device and the note links it as kladde-pending:<id> (#28)
   upload: (file: File) => (vault.standalone ? uploadFile(file) : uploads.upload(file)),
   pendingUrl: (id: string) => uploads.objectUrl(id),
+  pickAttachment: (onPick: (file: UploadedFile) => void) => openDialog({ kind: 'attachment', onPick }),
   recordVoice,
 });
 
