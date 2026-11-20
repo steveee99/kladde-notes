@@ -4,7 +4,7 @@
  * (`standalone`): notes live in this browser's IndexedDB, sync accepts every change, and the trash is
  * kept in localStorage. Sharing, attachments, history and AI access need a server and say so.
  */
-import type { Me, PullResponse, PushChange, PushResult, SyncedNote, TrashEntry, TrashList } from '@kladde/shared';
+import { assignTicketNumber, numberedTicketId, type Me, type PullResponse, type PushChange, type PushResult, type SyncedNote, type TrashEntry, type TrashList } from '@kladde/shared';
 import { isAccent, normalizeAccent } from '@kladde/shared';
 import { t } from '../lib/i18n';
 
@@ -16,6 +16,7 @@ const TRASH_KEY = 'kladde_demo_trash';
 const RESTORED_KEY = 'kladde_demo_restored';
 const ACCENT_KEY = 'kladde_demo_accent';
 const demoAccent = () => normalizeAccent(read<unknown>(ACCENT_KEY, null));
+const TICKETS_KEY = 'kladde_demo_ticket_numbers';
 
 const ME: Me = {
   id: 'demo',
@@ -54,8 +55,16 @@ function write(key: string, value: unknown): void {
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 const unavailable = () => json({ error: t('demo.unavailable') }, 400);
 
+/** Ticket numbers as the server would give them: per project key, above every number seen */
+function numberTicket(content: string, counters: Record<string, number>): string {
+  const seen = numberedTicketId(content);
+  if (seen) counters[seen.key] = Math.max(counters[seen.key] ?? 0, seen.number);
+  return assignTicketNumber(content, (key) => (counters[key] = (counters[key] ?? 0) + 1)) ?? content;
+}
+
 function push(changes: PushChange[]): PushResult[] {
   const trash = read<DemoTrashEntry[]>(TRASH_KEY, []);
+  const counters = read<Record<string, number>>(TICKETS_KEY, {});
   const results = changes.map((c): PushResult => {
     if (c.deleted && c.baseVersion > 0 && !c.path.startsWith('.kladde/')) {
       const rest = trash.filter((e) => e.id !== c.id);
@@ -73,9 +82,11 @@ function push(changes: PushChange[]): PushResult[] {
       });
       trash.splice(0, trash.length, ...rest);
     }
-    return { id: c.id, status: 'ok', version: c.baseVersion + 1 };
+    const content = c.deleted ? c.content : numberTicket(c.content, counters);
+    return { id: c.id, status: 'ok', version: c.baseVersion + 1, ...(content !== c.content ? { content } : {}) };
   });
   write(TRASH_KEY, trash);
+  write(TICKETS_KEY, counters);
   return results;
 }
 

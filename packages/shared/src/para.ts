@@ -116,6 +116,10 @@ export interface FeatureSettings {
   database: {
     enabled: boolean;
   };
+  /** Tickets and milestones (opt-in): projects with ticket numbers, board, backlog and roadmap in own folders; groups switch it on for all members */
+  tickets: {
+    enabled: boolean;
+  };
   /** Presentation mode (#87): "Present" and the slide PDF in the note menu; otherwise `---` is just a rule */
   presentation: {
     enabled: boolean;
@@ -294,6 +298,7 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
     shortcuts: { enabled: optOutFlag(obj.shortcuts) },
     mcp: { enabled: optOutFlag(obj.mcp) },
     database: { enabled: optInFlag(obj.database) },
+    tickets: { enabled: optInFlag(obj.tickets) },
     presentation: { enabled: optInFlag(obj.presentation) },
     callouts: { enabled: optOutFlag(obj.callouts) },
     calendarView: { enabled: optOutFlag(obj.calendarView) },

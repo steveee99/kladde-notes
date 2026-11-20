@@ -45,6 +45,20 @@ import {
   type FeatureSettings,
   type GroupInfo,
   type SyncedNote,
+  isDatabasePath,
+  isMilestoneContent,
+  isTicketContent,
+  milestoneMeta,
+  milestoneProgress,
+  newTicketContent,
+  parseProject,
+  PRIORITIES,
+  setTicketFields,
+  statusCategory,
+  ticketMeta,
+  MILESTONE_FOLDER,
+  type Priority,
+  type ProjectConfig,
 } from '@kladde/shared';
 import { MAX_NOTE_BYTES, NoteStore } from '../NoteStore.js';
 import type { FileStore } from '../FileStore.js';
@@ -405,6 +419,115 @@ function createNote(ctx: ToolContext, opts: { title: string; content: string; fo
     ...(memory.warnings.length ? { warnings: memory.warnings } : {}),
   };
 }
+
+
+// ------------------------------------------------------------------ tickets
+
+interface ToolProject {
+  config: ProjectConfig;
+  /** Folder as the tools show it (group notes below the group's name) */
+  folder: string;
+  /** Folder inside its space */
+  realFolder: string;
+  group?: GroupInfo;
+  readOnly: boolean;
+}
+
+/** Projects in folders where tickets are on: own ones with the user's feature, group ones when the group switched it on */
+function projectsOf(ctx: ToolContext, notes = space(ctx)): ToolProject[] {
+  const own = featuresOf(ctx.notes, ctx.userId).tickets.enabled;
+  const groups = ctx.notes.groupsOf(ctx.userId);
+  const out: ToolProject[] = [];
+  for (const n of notes) {
+    if (!isDatabasePath(n.path)) continue;
+    const config = parseProject(n.content);
+    if (!config) continue;
+    const group = n.group ? groups.find((g) => g.id === n.group) : undefined;
+    if (group ? !group.features?.tickets : !own || n.access !== 'owner') continue;
+    out.push({ config, folder: splitPath(n.path).folder, realFolder: splitPath(n.realPath ?? n.path).folder, ...(group ? { group } : {}), readOnly: n.access === 'read' });
+  }
+  return out;
+}
+
+/** A project by its key or folder */
+function findProject(projects: ToolProject[], ref: string): ToolProject {
+  const r = ref.trim().replace(/\/+$/, '').toLowerCase();
+  const found = projects.filter((p) => p.config.key.toLowerCase() === r || p.folder.toLowerCase() === r);
+  if (found.length > 1) throw new ToolError(`Mehrere Projekte heißen „${ref}“: gib den Ordner an (${found.map((p) => p.folder).join(', ')}).`);
+  if (!found.length) {
+    if (!projects.length) throw new ToolError('Es gibt keine Projekte mit Tickets. Tickets müssen eingeschaltet sein (eigene Funktion „Tickets & Meilensteine“, in Gruppen von den Eigentümern).');
+    throw new ToolError(`Projekt „${ref}“ nicht gefunden. Projekte: ${projects.map((p) => `${p.config.key} (${p.folder})`).join(', ')}.`);
+  }
+  return found[0];
+}
+
+const ticketsIn = (notes: SpaceNote[], project: ToolProject) => notes.filter((n) => splitPath(n.path).folder === project.folder && isTicketContent(n.content));
+const milestonesIn = (notes: SpaceNote[], project: ToolProject) => notes.filter((n) => splitPath(n.path).folder === `${project.folder}/${MILESTONE_FOLDER}` && isMilestoneContent(n.content));
+
+function ticketSummary(n: SpaceNote, project: ToolProject) {
+  const m = ticketMeta(n.content);
+  return {
+    ticket: m.id,
+    note_id: n.id,
+    title: extractMeta(n.path, n.content).title,
+    path: n.path,
+    status: m.status,
+    category: statusCategory(project.config, m.status),
+    priority: m.priority,
+    milestone: m.milestone,
+    assignee: m.assignee,
+    estimate: m.estimate,
+    labels: m.labels,
+    docs: m.docs,
+    blocks: m.blocks,
+    version: n.version,
+  };
+}
+
+/** A ticket by its id (`KLD-118`), note id or title, within the projects where tickets are on */
+function findTicket(ctx: ToolContext, ref: string): { note: SpaceNote; project: ToolProject; notes: SpaceNote[] } {
+  const notes = space(ctx);
+  const projects = projectsOf(ctx, notes);
+  const wanted = ref.trim().toLowerCase();
+  for (const project of projects) {
+    for (const n of ticketsIn(notes, project)) {
+      if (n.id === ref || ticketMeta(n.content).id?.toLowerCase() === wanted || extractMeta(n.path, n.content).title.toLowerCase() === wanted) return { note: n, project, notes };
+    }
+  }
+  throw new ToolError(`Ticket „${ref}“ nicht gefunden. Suche es mit list_tickets.`);
+}
+
+const strList = (args: Record<string, unknown>, key: string): string[] | undefined => {
+  const v = args[key];
+  if (v === undefined || v === null) return undefined;
+  if (!Array.isArray(v) || v.some((x) => typeof x !== 'string')) throw new ToolError(`Parameter "${key}" muss eine Liste von Texten sein.`);
+  return (v as string[]).map((x) => x.trim()).filter(Boolean);
+};
+
+/** A status of the project, matched case-insensitively */
+function projectStatus(project: ToolProject, status: string | undefined): string | undefined {
+  if (status === undefined) return undefined;
+  const found = project.config.workflow.find((s) => s.toLowerCase() === status.trim().toLowerCase());
+  if (!found) throw new ToolError(`Unbekannter Status „${status}“. Erlaubt: ${project.config.workflow.join(', ')}.`);
+  return found;
+}
+
+function priorityArg(args: Record<string, unknown>): Priority | undefined {
+  const p = str(args, 'priority');
+  if (p === undefined) return undefined;
+  if (!(PRIORITIES as readonly string[]).includes(p)) throw new ToolError(`Priorität muss ${PRIORITIES.join(', ')} sein.`);
+  return p as Priority;
+}
+
+const ticketFieldsSchema: Record<string, JsonSchema> = {
+  status: { type: 'string', description: 'A status of the project workflow (see list_projects)' },
+  priority: { type: 'string', enum: [...PRIORITIES] },
+  milestone: { type: 'string', description: 'Title or id of a milestone of the project' },
+  assignee: { type: 'string', description: 'Username (without @); empty string removes it' },
+  estimate: { type: 'number', description: 'Story points' },
+  labels: { type: 'array', items: { type: 'string' } },
+  docs: { type: 'array', items: { type: 'string' }, description: 'Titles of documentation notes ([[links]] without brackets)' },
+};
 
 // ------------------------------------------------------------------ tools
 
@@ -978,6 +1101,166 @@ export const TOOLS: ToolDef[] = [
           .filter((n) => !onlyProblems || n.problems.length || n.stale)
           .map((n) => ({ ...n, problems: n.problems.map((p) => `${p.level === 'error' ? 'Fehler' : 'Hinweis'}: ${p.message}`) })),
       };
+    },
+  },
+  {
+    name: 'list_projects',
+    title: 'Projekte auflisten',
+    description:
+      'Lists the projects with tickets: folders with a ticket key (e.g. KLD), their workflow statuses (in order; `active` and `done` say which count as in progress and finished) and milestones with progress. Only projects where tickets are switched on appear.',
+    inputSchema: { type: 'object', properties: {} },
+    write: false,
+    run(_args, ctx) {
+      const notes = space(ctx);
+      return projectsOf(ctx, notes).map((p) => {
+        const tickets = ticketsIn(notes, p).map((n) => ticketMeta(n.content));
+        return {
+          key: p.config.key,
+          folder: p.folder,
+          ...(p.group ? { group: p.group.name, read_only: p.readOnly } : {}),
+          workflow: p.config.workflow,
+          active: p.config.active,
+          done: p.config.done,
+          require_docs: p.config.requireDocs,
+          open_tickets: tickets.filter((t) => statusCategory(p.config, t.status) !== 'done').length,
+          milestones: milestonesIn(notes, p).map((m) => {
+            const meta = milestoneMeta(m.content);
+            const title = extractMeta(m.path, m.content).title;
+            const mine = tickets.filter((t) => t.milestone && (t.milestone.toLowerCase() === title.toLowerCase() || t.milestone === meta.id));
+            const progress = milestoneProgress(meta, mine.map((t) => ({ category: statusCategory(p.config, t.status), estimate: t.estimate })), ctx.today ?? new Date());
+            return { title, id: meta.id, start: meta.start, due: meta.due, release: meta.release, ...progress };
+          }),
+        };
+      });
+    },
+  },
+  {
+    name: 'list_tickets',
+    title: 'Tickets auflisten',
+    description:
+      'Lists tickets, optionally of one project (key like "KLD" or its folder), with a status, milestone or assignee. `open_only` leaves out finished tickets. Each ticket has its id (e.g. KLD-118), status and its category (open/active/done), priority, milestone, assignee, estimate, labels and linked documentation.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string' },
+        status: { type: 'string' },
+        milestone: { type: 'string' },
+        assignee: { type: 'string', description: 'Username; "me" for the user' },
+        open_only: { type: 'boolean', default: false },
+      },
+    },
+    write: false,
+    run(args, ctx) {
+      const notes = space(ctx);
+      const projects = projectsOf(ctx, notes);
+      const ref = str(args, 'project');
+      const chosen = ref ? [findProject(projects, ref)] : projects;
+      const status = str(args, 'status')?.toLowerCase();
+      const milestone = str(args, 'milestone')?.toLowerCase();
+      let assignee = str(args, 'assignee')?.replace(/^@/, '').toLowerCase();
+      if (assignee === 'me') assignee = ctx.notes.usernameOf(ctx.userId)?.toLowerCase();
+      return chosen.flatMap((p) =>
+        ticketsIn(notes, p)
+          .map((n) => ticketSummary(n, p))
+          .filter((t) => (!status || t.status.toLowerCase() === status) && (!milestone || t.milestone?.toLowerCase() === milestone) && (!assignee || t.assignee?.toLowerCase() === assignee) && (args.open_only !== true || t.category !== 'done'))
+          .map((t) => ({ ...t, project: p.config.key }))
+      );
+    },
+  },
+  {
+    name: 'ticket_create',
+    title: 'Ticket anlegen',
+    description:
+      'Creates a ticket in a project (key like "KLD" or its folder). The server gives it the next number (e.g. KLD-119), returned as `ticket`. The description is Markdown; sub-tasks as "- [ ] text". Status defaults to the first of the workflow, priority to medium.',
+    inputSchema: {
+      type: 'object',
+      properties: { project: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' }, ...ticketFieldsSchema },
+      required: ['project', 'title'],
+    },
+    write: true,
+    run(args, ctx) {
+      const project = findProject(projectsOf(ctx), str(args, 'project', true)!);
+      if (project.readOnly) throw new ToolError(`In der Gruppe „${project.group?.name ?? ''}“ darfst du nur lesen.`);
+      const title = str(args, 'title', true)!.trim().slice(0, 200);
+      const estimate = args.estimate === undefined || args.estimate === null ? null : Number(args.estimate);
+      if (estimate !== null && !Number.isFinite(estimate)) throw new ToolError('Parameter "estimate" muss eine Zahl sein.');
+      const content = newTicketContent({
+        key: project.config.key,
+        status: projectStatus(project, str(args, 'status')) ?? project.config.workflow[0],
+        priority: priorityArg(args),
+        milestone: str(args, 'milestone') ?? null,
+        assignee: str(args, 'assignee')?.replace(/^@/, '') || null,
+        estimate,
+        labels: strList(args, 'labels'),
+        docs: strList(args, 'docs'),
+        description: str(args, 'description'),
+      });
+      const created = createNote(ctx, { title, content, folder: project.realFolder, ...(project.group ? { group: project.group.name } : {}) });
+      const note = space(ctx).find((n) => n.id === created.id);
+      return { ...created, ticket: note ? ticketMeta(note.content).id : null };
+    },
+  },
+  {
+    name: 'ticket_update',
+    title: 'Ticket ändern',
+    description:
+      'Changes fields of a ticket by its id (e.g. KLD-118): status, priority, milestone, assignee, estimate, labels, docs, blocks (ids of tickets this one blocks). Only the given fields change; an empty string or list removes a field. `comment` appends a line to the description. Use update_note to rewrite the description.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ticket: { type: 'string', description: 'Ticket id like KLD-118 (or the note id)' },
+        ...ticketFieldsSchema,
+        blocks: { type: 'array', items: { type: 'string' } },
+        comment: { type: 'string', description: 'Markdown appended to the ticket' },
+      },
+      required: ['ticket'],
+    },
+    write: true,
+    run(args, ctx) {
+      const { note, project } = findTicket(ctx, str(args, 'ticket', true)!);
+      const fields: Parameters<typeof setTicketFields>[1] = {};
+      if ('status' in args) fields.status = projectStatus(project, str(args, 'status')) ?? null;
+      if ('priority' in args) fields.priority = priorityArg(args) ?? null;
+      if ('milestone' in args) fields.milestone = str(args, 'milestone') ?? null;
+      if ('assignee' in args) fields.assignee = str(args, 'assignee')?.replace(/^@/, '') || null;
+      if ('estimate' in args) {
+        const e = args.estimate === null || args.estimate === '' ? null : Number(args.estimate);
+        if (e !== null && !Number.isFinite(e)) throw new ToolError('Parameter "estimate" muss eine Zahl sein.');
+        fields.estimate = e;
+      }
+      for (const key of ['labels', 'docs', 'blocks'] as const) if (key in args) fields[key] = strList(args, key) ?? [];
+      let content = setTicketFields(note.content, fields);
+      const comment = str(args, 'comment')?.trim();
+      if (comment) content = `${content.replace(/\s+$/, '')}\n\n${comment}\n`;
+      const saved = save(ctx, note, content);
+      return { ...saved, ...ticketSummary({ ...note, content, version: saved.version }, project) };
+    },
+  },
+  {
+    name: 'milestone_status',
+    title: 'Meilenstein-Stand',
+    description:
+      'Progress of a milestone by its title or id: finished and open tickets, story points, days left and whether it is at risk (time elapsed clearly ahead of progress, or overdue).',
+    inputSchema: { type: 'object', properties: { milestone: { type: 'string' }, project: { type: 'string' } }, required: ['milestone'] },
+    write: false,
+    run(args, ctx) {
+      const notes = space(ctx);
+      const projects = projectsOf(ctx, notes);
+      const ref = str(args, 'project');
+      const wanted = str(args, 'milestone', true)!.trim().toLowerCase();
+      for (const p of ref ? [findProject(projects, ref)] : projects) {
+        for (const m of milestonesIn(notes, p)) {
+          const meta = milestoneMeta(m.content);
+          const title = extractMeta(m.path, m.content).title;
+          if (title.toLowerCase() !== wanted && meta.id?.toLowerCase() !== wanted) continue;
+          const tickets = ticketsIn(notes, p)
+            .map((n) => ticketSummary(n, p))
+            .filter((t) => t.milestone && (t.milestone.toLowerCase() === title.toLowerCase() || (!!meta.id && t.milestone.toLowerCase() === meta.id.toLowerCase())));
+          const progress = milestoneProgress(meta, tickets, ctx.today ?? new Date());
+          return { project: p.config.key, title, ...meta, ...progress, tickets: tickets.map(({ ticket, title: t, status, category, assignee, estimate }) => ({ ticket, title: t, status, category, assignee, estimate })) };
+        }
+      }
+      throw new ToolError(`Meilenstein „${str(args, 'milestone')}“ nicht gefunden. Die Meilensteine stehen in list_projects.`);
     },
   },
 ];

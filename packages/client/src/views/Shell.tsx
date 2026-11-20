@@ -6,6 +6,7 @@ import {
   CalendarMonth,
   Globe,
   ListChecks,
+  Kanban,
   CalendarDays,
   CheckCircle2,
   ChefHat,
@@ -55,6 +56,7 @@ import { reviewDue } from './Review';
 import { urgentTaskCount } from './TaskParts';
 import { usePendingUploads } from '../data/uploads';
 import { useVault, vault } from '../data/vault';
+import { ticketsAnywhere } from '../data/tickets';
 import { openThisPeriod } from './PeriodicNoteBar';
 import { NewMark } from './ActivityView';
 import type { LocalNote } from '../data/db';
@@ -1143,6 +1145,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
                   onClick: () => void openTodayDailyNote().then(() => onNavigate?.()),
                 })}
               {navRow('tasks', ListChecks, t('nav.tasks'), { to: '/tasks', badge: <NavBadge tone="warn" count={urgentTasks} /> })}
+              {ticketsAnywhere() && navRow('projects', Kanban, t('nav.projects'), { to: '/projects' })}
               {features.calendarView.enabled && navRow('calendar', CalendarMonth, t('nav.calendar'), { to: '/calendar' })}
               {!vault.standalone &&
                 !DEMO &&

@@ -92,6 +92,9 @@ import {
   appendTaskLines,
   setTaskMeta,
   merge3,
+  newTicketContent,
+  parseProject,
+  type Database,
   canWriteInGroup,
   type NoteReleaseInfo,
   type ReleaseBump,
@@ -430,11 +433,17 @@ class Vault {
     if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
     // A new empty note in a database folder (#76) starts with the properties prefilled
     if (content === '' && folder) {
-      const dbNote = findDatabaseNote(folder, this.list().filter((n) => n.access === 'owner'));
+      const dbNote = findDatabaseNote(folder, this.list().filter((n) => n.access === 'owner' && !n.group));
       const db = dbNote && parseDatabase(dbNote.content);
-      if (db && !isDatabasePath(`${folder}/${title}.md`)) content = newDatabaseNoteContent(db, title);
+      if (db && !isDatabasePath(`${folder}/${title}.md`)) content = this.newRowContent(dbNote.content, db, title, this.features().tickets.enabled);
     }
     return this.insert(folder, title, content);
+  }
+
+  /** Content of a new empty note in a database folder: a ticket in a project where tickets are on, else the database's properties */
+  private newRowContent(dbContent: string, db: Database, title: string, ticketsOn: boolean): string {
+    const project = ticketsOn ? parseProject(dbContent) : null;
+    return project ? newTicketContent({ key: project.key, status: project.workflow[0] }) : newDatabaseNoteContent(db, title);
   }
 
   /** A note in a folder another user shares with this user: it belongs to them and lives in their space */
@@ -496,6 +505,12 @@ class Vault {
     if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
     const group = this.group(groupId);
     if (!group || !canWriteInGroup(group.role)) throw new Error(t('groups.noWrite'));
+    // A new empty note in a group database or project starts with its properties too
+    if (content === '' && folder && !isDatabasePath(`${folder}/${title}.md`)) {
+      const dbNote = findDatabaseNote(folder, this.groupNotes(groupId));
+      const db = dbNote && parseDatabase(dbNote.content);
+      if (db) content = this.newRowContent(dbNote.content, db, title, !!group.features?.tickets);
+    }
     const now = Date.now();
     const note: LocalNote = {
       id: newId(),
@@ -1478,6 +1493,7 @@ class Vault {
       shortcuts: { enabled: false },
       mcp: { enabled: false },
       database: { enabled: false },
+      tickets: { enabled: false },
       presentation: { enabled: false },
       callouts: { enabled: true },
       calendarView: { enabled: true },
@@ -1521,8 +1537,9 @@ class Vault {
         if (current.deleted && unchanged) {
           this.notes.delete(r.id);
           await this.db!.delete('notes', r.id);
-        } else if (unchanged) await this.put({ ...current, version: r.version, dirty: false });
-        // Edited again while the push was underway: the pushed state is the new base
+        } else if (unchanged) await this.put({ ...current, version: r.version, dirty: false, ...(r.content !== undefined ? { content: r.content } : {}) });
+        // Edited again while the push was underway: the pushed state is the new base (with what the server changed)
+        else if (r.content !== undefined) await this.put({ ...current, content: merge3(sent.content, current.content, r.content).text, version: r.version, dirty: true, base: r.content, basePath: sent.path });
         else await this.put({ ...current, version: r.version, dirty: true, base: sent.content, basePath: sent.path });
       } else if (r.status === 'conflict') {
         await this.resolveConflict(current, r.server);

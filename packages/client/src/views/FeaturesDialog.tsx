@@ -32,6 +32,7 @@ import {
   Smartphone,
   Star,
   Table2,
+  Kanban,
   Upload,
   X,
 } from '../lib/icons';
@@ -106,7 +107,7 @@ function useFeatures(lang: Lang): Feature[] {
   const server = !vault.standalone;
   const serverHint = L('features.serverHint');
 
-  const flag = (key: 'comments' | 'mentions' | 'activity' | 'calendarView' | 'heatmap' | 'review' | 'favorites' | 'icons' | 'writingStats' | 'database' | 'presentation' | 'callouts' | 'mcp' | 'notifications' | 'calendar' | 'shortcuts') => ({
+  const flag = (key: 'comments' | 'mentions' | 'activity' | 'calendarView' | 'heatmap' | 'review' | 'favorites' | 'icons' | 'writingStats' | 'database' | 'tickets' | 'presentation' | 'callouts' | 'mcp' | 'notifications' | 'calendar' | 'shortcuts') => ({
     active: features[key].enabled,
     setActive: (on: boolean) => save((f) => ({ ...f, [key]: { ...f[key], enabled: on } })),
   });
@@ -300,6 +301,15 @@ function useFeatures(lang: Lang): Feature[] {
       summary: L('features.sum.database'),
       details: L('features.databaseDesc'),
       ...flag('database'),
+    },
+    {
+      id: 'tickets',
+      Icon: Kanban,
+      title: L('features.ticketsTitle'),
+      summary: L('features.sum.tickets'),
+      details: L('features.ticketsDesc'),
+      hint: server ? L('features.ticketsGroupHint') : undefined,
+      ...flag('tickets'),
     },
     {
       id: 'presentation',

@@ -12,6 +12,15 @@ export function attachmentMarkdown(file: UploadedFile): string {
   return `${embed ? '!' : ''}[${name}](${file.url})`;
 }
 
+/** What a ticket chip shows */
+export interface TicketChip {
+  noteId: string;
+  title: string;
+  status: string;
+  category: 'open' | 'active' | 'done';
+  blocked: boolean;
+}
+
 /** What the editor widgets need from the app (set once by the app, read at render time) */
 export interface EditorHost {
   openWiki(title: string): void;
@@ -30,6 +39,10 @@ export interface EditorHost {
   /** People who can see the note, for @mentions (#69); empty when mentions are off */
   people(noteId: string): { username: string; avatarUrl?: string | null }[];
   autoLinkTargets(excludeId?: string): { name: string; target: string }[];
+  /** Project keys where tickets are on; ticket ids of these keys become status chips */
+  ticketKeys(): string[];
+  /** A ticket by its id (`KLD-118`), null when unknown */
+  ticket(id: string): TicketChip | null;
   upload(file: File): Promise<UploadedFile>;
   /** Opens the list of the user's attachments; `onPick` gets the chosen (or newly uploaded) one */
   pickAttachment(onPick: (file: UploadedFile) => void): void;
@@ -59,6 +72,8 @@ export const editorHost: EditorHost = {
   tags: () => [],
   people: () => [],
   autoLinkTargets: () => [],
+  ticketKeys: () => [],
+  ticket: () => null,
   upload: () => Promise.reject(new Error(t('editor.notAvailable'))),
   pickAttachment: () => {},
   pendingUrl: () => null,

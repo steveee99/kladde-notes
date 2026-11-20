@@ -107,7 +107,7 @@ Light scheme values (on the paper `--bg`; `--on-acc` is white for every preset):
 
 How it works:
 
-- The preset name (`shared/accent.ts`: `ACCENTS`, default `blue`) is stored in `users.accent` (migration 25), sent
+- The preset name (`shared/accent.ts`: `ACCENTS`, default `blue`) is stored in `users.accent` (migration 26), sent
   with the account (`Me.accent`) and changed with `PUT /api/me/accent`. The client (`lib/accent.ts`) caches it in
   `kladde_accent`, so the inline script in `index.html` sets it before the first paint, also offline.
 - The client sets `data-accent="green"` on `<html>` (next to `data-scheme`); the token values live in CSS as

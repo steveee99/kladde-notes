@@ -519,9 +519,26 @@ export const MIGRATIONS: Migration[] = [
   },
   {
     version: 25,
+    description: 'Tickets: ticket number counters per owner and project key, features groups switch on for all members',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE ticket_counters (
+          owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          key_mac TEXT NOT NULL,
+          value INTEGER NOT NULL,
+          PRIMARY KEY (owner_id, key_mac)
+        );
+        ALTER TABLE users ADD COLUMN group_features TEXT;
+      `);
+    },
+  },
+  {
+    version: 26,
     description: 'Accent color per account (Werkbank design)',
     up: (db) => {
-      db.exec('ALTER TABLE users ADD COLUMN accent TEXT');
+      // Guarded, so a database that already has the column (an early build of the design) migrates too
+      const cols = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
+      if (!cols.some((c) => c.name === 'accent')) db.exec('ALTER TABLE users ADD COLUMN accent TEXT');
     },
   },
 ];

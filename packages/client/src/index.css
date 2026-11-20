@@ -1673,6 +1673,52 @@ span.cm-checkbox {
   height: 100%;
   object-fit: cover;
 }
+/* Ticket ids: a chip with a dot in the color of the status category; finished tickets struck through */
+.cm-ticket-ref {
+  color: rgb(var(--primary));
+  font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  font-size: 0.9em;
+}
+.cm-ticket-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px 0 6px;
+  border-radius: var(--shape-xs);
+  vertical-align: baseline;
+  line-height: 1.5;
+  cursor: pointer;
+  color: rgb(var(--on-surface));
+  background: rgb(var(--surface-container-highest));
+}
+.cm-ticket-chip b {
+  font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  font-size: 0.85em;
+  font-weight: 600;
+}
+.cm-ticket-status {
+  font-size: 0.85em;
+  color: rgb(var(--on-surface-variant));
+}
+.cm-ticket-dot {
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 9999px;
+  background: rgb(var(--outline));
+}
+.cm-ticket-active .cm-ticket-dot {
+  background: rgb(var(--primary));
+}
+.cm-ticket-blocked .cm-ticket-dot {
+  background: rgb(var(--error));
+}
+.cm-ticket-done .cm-ticket-dot {
+  background: rgb(var(--ok));
+}
+.cm-ticket-done b {
+  text-decoration: line-through;
+  color: rgb(var(--on-surface-variant));
+}
 /* Query aggregates and groups (#77): footer rows, group headers with a count */
 .wz-table tfoot td,
 .wz-table .wz-group-foot td {

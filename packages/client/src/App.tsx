@@ -30,6 +30,8 @@ import { NotificationsView } from './views/NotificationsView';
 import { CalendarView } from './views/ActivityHeatmap';
 import { TasksView } from './views/TasksView';
 import { settingsSectionOf } from './lib/settingsRoutes';
+import { ProjectsView } from './views/ProjectsView';
+import { projectKeys, ticketById } from './data/tickets';
 
 // Pages that are opened now and then load on first use, so the app starts with a smaller bundle (#64).
 // The service worker caches them with everything else, so they work offline too.
@@ -96,6 +98,11 @@ Object.assign(editorHost, {
   tags: () => vault.tagCounts(),
   people: (noteId: string) => (vault.features().mentions.enabled ? vault.peopleOf(noteId) : []),
   autoLinkTargets: (excludeId?: string) => vault.links().autoLinkTargets(excludeId),
+  ticketKeys: () => projectKeys(),
+  ticket: (id: string) => {
+    const tk = ticketById(id);
+    return tk ? { noteId: tk.note.id, title: tk.title, status: tk.meta.status, category: tk.category, blocked: tk.blockedBy.length > 0 && tk.category !== 'done' } : null;
+  },
   // Offline (or on a network error) the file waits on this device and the note links it as kladde-pending:<id> (#28)
   upload: (file: File) => (vault.standalone ? uploadFile(file) : uploads.upload(file)),
   pendingUrl: (id: string) => uploads.objectUrl(id),
@@ -217,6 +224,7 @@ export function App() {
   // The web clipper bookmarklet: opens the clip dialog for the page it came from
   else if (path === '/clip') page = <ClipRoute key={location.search} />;
   else if (path === '/tasks') page = <TasksView />;
+  else if (path === '/projects') page = <ProjectsView />;
   else if (path === '/graph') page = <GraphView />;
   else if (path === '/tags') page = <TagsView />;
   else if (tagRoute) page = <TagsView key={tagRoute.tag} tag={tagRoute.tag} />;

@@ -1,5 +1,5 @@
 import { useState, useSyncExternalStore } from 'react';
-import { Activity as ActivityIcon, Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, LayoutGrid, List, Plus, Table2, Trash2, Users } from '../lib/icons';
+import { Activity as ActivityIcon, Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, Kanban, LayoutGrid, List, Plus, Table2, Trash2, Users } from '../lib/icons';
 import { PageBody, PageHeader } from './PageHeader';
 import { INBOX_FOLDER, archiveTarget, excerpt, extractMeta, findDatabaseNote, databaseFileName, inferPropertyKeys, isDatabasePath, newDatabaseContent, projectTitleOf, restoreTarget, splitPath } from '@kladde/shared';
 import type { SharedFolder } from '@kladde/shared';
@@ -14,6 +14,8 @@ import { activityPath, NewMark } from './ActivityView';
 import { Avatar } from './Avatar';
 import { MoveToGroupSheet } from './Groups';
 import { DatabaseView } from './DatabaseView';
+import { MakeProjectSheet, ProjectView } from './ProjectView';
+import { projectAt } from '../data/tickets';
 import { DEMO } from '../demo/demoApi';
 import { compareText, folderDisplayName, folderLeafDisplayName, locale, t, useLang, type I18nKey, type Lang } from '../lib/i18n';
 
@@ -332,6 +334,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
   const [sort, setSort] = useState<'updated' | 'title'>('updated');
   const [creating, setCreating] = useState(false);
   const [movingToGroup, setMovingToGroup] = useState(false);
+  const [makingProject, setMakingProject] = useState(false);
   const rc = vault.roleConfig();
   let notes = vault.list();
   // Group notes (#58) live in their group, not among the notes shared with me
@@ -346,7 +349,9 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
       : compareText(projectTitleOf(a.path, a.content, rc), projectTitleOf(b.path, b.content, rc), lang) ||
         compareText(a.path, b.path, lang)
   );
-  const dbNote = mode === 'folder' && folder ? findDatabaseNote(folder, vault.list().filter((n) => n.access === 'owner')) : null;
+  const dbNote = mode === 'folder' && folder ? findDatabaseNote(folder, vault.list().filter((n) => n.access === 'owner' && !n.group)) : null;
+  // A database that is a project shows board, backlog and roadmap when tickets are on
+  const project = dbNote && folder ? projectAt({}, folder) : undefined;
   const makeDatabase = () => {
     const keys = inferPropertyKeys(folder!, vault.list());
     void vault.create(folder!, databaseFileName(crypto.randomUUID()).replace(/\.md$/, ''), newDatabaseContent(keys)).catch((err: Error) => alert(err.message));
@@ -433,6 +438,11 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
               <Trash2 size={16} /> <span className="hidden sm:inline">{t('list.deleteFolderBtn')}</span>
             </button>
           )}
+          {mode === 'folder' && folder && !dbNote && features.tickets.enabled && !protectedFolders.has(folder) && (
+            <button className="edit-only btn-ghost shrink-0 phone:!px-2.5" title={t('tickets.makeProjectTitle')} onClick={() => setMakingProject(true)} data-make-project>
+              <Kanban size={16} /> <span className="hidden sm:inline">{t('tickets.makeProject')}</span>
+            </button>
+          )}
           {mode === 'folder' && folder && !dbNote && features.database.enabled && !protectedFolders.has(folder) && (
             <button className="edit-only btn-ghost shrink-0 phone:!px-2.5" title={t('db.makeTitle')} onClick={makeDatabase} data-make-database>
               <Table2 size={16} /> <span className="hidden sm:inline">{t('db.makeBtn')}</span>
@@ -472,11 +482,14 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
           )}
         </ul>
       )}
+      {makingProject && folder && <MakeProjectSheet space={{}} folder={folder} onClose={() => setMakingProject(false)} />}
       {movingToGroup && folder && (
         <MoveToGroupSheet noteIds={vault.notesOfFolder(folder).map((n) => n.id)} folder={folder} label={folderDisplayName(folder, lang)} onClose={() => setMovingToGroup(false)} />
       )}
       {mode === 'shared' ? (
         <SharedList notes={notes} />
+      ) : dbNote && project ? (
+        <ProjectView project={project} />
       ) : dbNote ? (
         <DatabaseView folder={folder!} dbNote={dbNote} />
       ) : notes.length === 0 ? (

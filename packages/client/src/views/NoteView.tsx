@@ -104,6 +104,8 @@ import { ShareDialog } from './ShareDialog';
 import { HistoryDialog } from './History';
 import { ParaBar } from './ParaBar';
 import { MemoryPanel } from './MemoryPanel';
+import { TicketBacklinks, TicketPanel } from './TicketPanel';
+import { ticketsDocumentedIn, type TicketInfo } from '../data/tickets';
 import { Graph, GraphLegend } from './Graph';
 import { Sheet } from './Dialogs';
 import { Avatar } from './Avatar';
@@ -934,7 +936,10 @@ function NoteInspectorPane({
   onJump,
   onClose,
   comments: commentsTab,
+  tickets = [],
 }: {
+  /** Tickets that document their work in this note */
+  tickets?: TicketInfo[];
   noteId: string;
   outline: Outline;
   tasks: Task[];
@@ -956,7 +961,7 @@ function NoteInspectorPane({
   const tabs: { id: NoteSplitTab; label: string; Icon: typeof ListTree; count?: number }[] = [
     { id: 'toc', label: t('note.tabToc'), Icon: ListTree, count: outline.headings.length || undefined },
     { id: 'tasks', label: t('note.tabTasks'), Icon: ListChecks, count: tasks.length ? tasks.filter((tk) => !tk.done).length || undefined : undefined },
-    { id: 'links', label: t('note.tabLinks'), Icon: Link2, count: backlinks.length + mentions.length || undefined },
+    { id: 'links', label: t('note.tabLinks'), Icon: Link2, count: backlinks.length + mentions.length + tickets.length || undefined },
     { id: 'graph', label: t('note.tabGraph'), Icon: Network, count: local.nodes.length > 1 ? local.nodes.length - 1 : undefined },
     ...(commentsTab ? [{ id: 'comments' as const, label: t('comments.tab'), Icon: MessageSquare, count: commentsTab.count || undefined }] : []),
   ];
@@ -1011,6 +1016,12 @@ function NoteInspectorPane({
 
         {shown === 'links' && (
           <div className="space-y-4">
+            {tickets.length > 0 && (
+              <>
+                <TicketBacklinks tickets={tickets} item={`${item} !flex items-center`} />
+                <hr className="border-0 border-t border-outline-variant" />
+              </>
+            )}
             <section>
               <h3 className="mb-2 px-2 text-title-s text-on-surface-variant">{t('note.backlinksTitle', { n: backlinks.length })}</h3>
               {backlinks.length === 0 ? (
@@ -1389,7 +1400,10 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const allBacklinks = index.backlinks(id).map((b) => vault.get(b)!).filter(Boolean);
   // Links from the AI memory (#94) get their own section under the user's own notes
   const inMemory = vault.isMemoryNote(note);
-  const backlinks = inMemory ? allBacklinks : allBacklinks.filter((b) => !vault.isMemoryNote(b));
+  // Tickets that document their work here get their own section instead of plain backlinks
+  const ticketLinks = ticketsDocumentedIn(id);
+  const ticketIds = new Set(ticketLinks.map((tk) => tk.note.id));
+  const backlinks = (inMemory ? allBacklinks : allBacklinks.filter((b) => !vault.isMemoryNote(b))).filter((b) => !ticketIds.has(b.id));
   const memoryBacklinks = inMemory ? [] : allBacklinks.filter((b) => vault.isMemoryNote(b));
   const mentions = index.unlinkedMentions(id).map((m) => vault.get(m)!).filter((n) => n && n.access !== 'read');
   const local = index.localGraph(id, graphDepth);
@@ -1656,6 +1670,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             </div>
           )}
           {!focus && vault.isMemoryNote(note) && <MemoryPanel note={note} readOnly={readOnly} />}
+          {!focus && <TicketPanel noteId={id} readOnly={readOnly} />}
           {/* "Edit as text" and fullscreen live inside the canvas, so the drawing gets the room */}
           {showDrawing && (
             <Suspense fallback={<div className="flex min-h-[60vh] flex-1 items-center justify-center text-sm text-on-surface-variant">{t('common.loading')}</div>}>
@@ -1715,8 +1730,13 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           )}
 
           {/* Bottom links/graph overview remains visible when the right split pane is collapsed */}
-          {!showPdf && !splitOpen && !focus && (backlinks.length > 0 || memoryBacklinks.length > 0 || mentions.length > 0 || local.nodes.length > 1) && (
+          {!showPdf && !splitOpen && !focus && (backlinks.length > 0 || memoryBacklinks.length > 0 || mentions.length > 0 || ticketLinks.length > 0 || local.nodes.length > 1) && (
             <div className="no-print mb-24 space-y-6 border-t border-outline-variant pt-8">
+              {ticketLinks.length > 0 && (
+                <div className="anim-fade-in">
+                  <TicketBacklinks tickets={ticketLinks} />
+                </div>
+              )}
               {memoryBacklinks.length > 0 && (
                 <section className="anim-fade-in" data-memory-backlinks>
                   <h2 className="mb-2 flex items-center gap-1.5 text-title-s text-on-surface-variant">
@@ -1800,6 +1820,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               canEdit={!readOnly && !showPdf}
               backlinks={backlinks}
               mentions={mentions}
+              tickets={ticketLinks}
               local={local}
               tab={splitTab}
               setTab={panel.setTab}
