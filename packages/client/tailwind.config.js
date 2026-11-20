@@ -45,6 +45,7 @@ export default {
       fontFamily: {
         sans: ['var(--font-sans)'],
         mono: ['var(--font-mono)'],
+        serif: ['var(--font-serif)'],
       },
       // Werkbank type scale (docs/DESIGN.md): dense, Inter, no extra letter spacing
       fontSize: {

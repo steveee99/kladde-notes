@@ -92,9 +92,9 @@ export function InboxView() {
       <PageHeader title={t('inbox.title')} subtitle={subtitle} />
       <PageBody>
       {items.length === 0 ? (
-        <div className="card p-6 text-center anim-fade-in">
-          <p className="font-medium text-on-surface">{inboxZero ? t('inbox.emptyTitleZero') : t('inbox.emptyTitle')}</p>
-          <p className="mt-1 text-sm text-on-surface-variant">{t('inbox.emptyBody')}</p>
+        <div className="empty-sheet anim-fade-in">
+          <p className="empty-title">{inboxZero ? t('inbox.emptyTitleZero') : t('inbox.emptyTitle')}</p>
+          <p className="mt-1">{t('inbox.emptyBody')}</p>
         </div>
       ) : (
         <ul className="card stagger divide-y divide-line overflow-hidden">

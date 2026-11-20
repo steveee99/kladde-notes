@@ -158,12 +158,12 @@ function NewNoteButton({
 
   return (
     <div ref={wrapRef} className="edit-only flex shrink-0 gap-0.5">
-      <button className="btn-primary min-w-0 flex-1 !rounded-r-md" onClick={() => run(() => newNote(folder ?? undefined))}>
+      <button className="btn-tonal min-w-0 flex-1 !rounded-r-md" onClick={() => run(() => newNote(folder ?? undefined))}>
         <Plus size={16} /> <span className="truncate">{t('nav.newNote')}</span>
       </button>
       <button
         type="button"
-        className="btn-primary !rounded-l-md !px-2.5"
+        className="btn-tonal !rounded-l-md !px-2.5"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={t('nav.newNoteMore')}
@@ -272,7 +272,8 @@ export function SyncBadge({ compact, status }: { compact?: boolean; status?: boo
         title={DEMO ? t('demo.badgeTitle') : `${fullLabel} — ${t('common.syncAction')}`}
         className={`flex min-w-0 items-center gap-1.5 rounded px-1 outline-none hover:bg-raised focus-visible:ring-2 focus-visible:ring-acc ${tone}`}
       >
-        <span aria-hidden className={`h-1.5 w-1.5 shrink-0 rounded-full bg-current ${state === 'syncing' ? 'animate-pulse' : ''}`} />
+        {/* The dot sends out a ring while syncing and once more when the state changes (key) */}
+        <span key={state} aria-hidden className="sync-dot h-1.5 w-1.5 shrink-0 rounded-full bg-current" data-state={state} />
         <span className="truncate">{text}</span>
       </button>
     );
@@ -1088,8 +1089,8 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
       ) : (
       <div className="flex min-w-0 shrink-0 items-center gap-2.5">
         {headerAction}
-        <AppLogo size={32} />
-        <span className="min-w-0 flex-1 truncate text-title-l text-on-surface">Kladde</span>
+        <AppLogo size={28} />
+        <span className="font-display min-w-0 flex-1 truncate text-[22px] leading-7">Kladde</span>
         <button
           type="button"
           onClick={() => nav('/')}

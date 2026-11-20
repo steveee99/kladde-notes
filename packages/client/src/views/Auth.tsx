@@ -133,7 +133,7 @@ export function Frame({ title, subtitle, children }: { title: string; subtitle: 
             ))}
           </div>
         </div>
-        <h1 className="text-headline-m">{title}</h1>
+        <h1 className="font-display text-[26px] leading-8">{title}</h1>
         <p className="mt-1 mb-6 text-sm text-on-surface-variant">{subtitle}</p>
         {children}
       </div>

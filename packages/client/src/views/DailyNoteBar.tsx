@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowDownToLine, CalendarDays, ChevronLeft, ChevronRight, FilePlus2, FileText, ListTodo, Settings } from '../lib/icons';
+import { ArrowDownToLine, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, FilePlus2, FileText, ListTodo, Settings } from '../lib/icons';
 import {
   createDailyDateExtractor,
   isValidDateString,
@@ -372,7 +372,7 @@ export function DailyNoteEmptyView({ date }: { date?: string }) {
           <p className="text-title-s text-on-surface-variant">
             {tl(lang, 'daily.navLabel')} · {daily.folder ? folderDisplayName(daily.folder, lang) : tl(lang, 'common.topLevelPlain')}
           </p>
-          <h1 className="mt-1 text-headline-m capitalize">{longDateFmt.format(parseDate(targetDate))}</h1>
+          <h1 className="font-display mt-1 text-[26px] leading-8 capitalize">{longDateFmt.format(parseDate(targetDate))}</h1>
         </div>
         <p className="text-sm text-on-surface-variant">{tl(lang, 'daily.emptyForDay')}</p>
         {!locked && (
@@ -507,7 +507,11 @@ export function DailyCarryOver({ noteId, date }: { noteId: string; date: string 
                   >
                     {dayFmt.format(parseDate(tk.date))}
                   </button>
-                  {tk.due && tk.due !== tk.date && <span className="tabular-nums">📅 {tk.due}</span>}
+                  {tk.due && tk.due !== tk.date && (
+                    <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+                      <CalendarClock size={12} /> {tk.due}
+                    </span>
+                  )}
                 </div>
               </div>
               <button

@@ -232,7 +232,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
         <header className="hidden h-12 shrink-0 items-center gap-3 border-b border-line bg-bar pl-2 pr-3 [--pad-top:0px] safe-top nav:flex">
           <button type="button" onClick={() => navigate('/')} className="flex shrink-0 items-center gap-2 rounded-md px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-acc" title={t('nav.home')}>
             <AppLogo size={22} />
-            <span className="text-title-s text-text">Kladde</span>
+            <span className="font-display text-[19px] leading-6">Kladde</span>
           </button>
           <button
             type="button"
@@ -342,7 +342,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
             <button className="btn-icon shrink-0" onClick={() => setDrawer(true)} aria-label={t('nav.openMenu')}>
               <Menu size={22} />
             </button>
-            <span className="min-w-0 truncate pl-1 text-title-m">Kladde</span>
+            <span className="font-display min-w-0 truncate pl-1 text-[21px] leading-7">Kladde</span>
             <div className="m3-status ml-auto flex shrink-0 items-center gap-0.5 pr-1">
               <button type="button" className="btn-icon shrink-0 sm:hidden" onClick={openSearch} aria-label={t('common.search')} title={t('common.search')}>
                 <SearchIcon size={22} />
@@ -388,7 +388,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
       {!focus && (
         <footer aria-label={t('nav.statusBar')} className="m3-status hidden h-6 shrink-0 items-center gap-4 border-t border-line bg-bar px-2.5 font-mono text-[11px] text-muted nav:flex">
           <SyncBadge status />
-          <span>{t('nav.noteCount', { n: ownNotes.toLocaleString(locale(lang)) })}</span>
+          <span key={ownNotes} className="num-tick">{t('nav.noteCount', { n: ownNotes.toLocaleString(locale(lang)) })}</span>
           <span className="ml-auto">v{APP_VERSION}</span>
         </footer>
       )}

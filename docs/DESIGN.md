@@ -12,17 +12,20 @@ Rule 4 in [CLAUDE.md](../CLAUDE.md) is the short version for contributors.
 
 Kladde is a tool for people with large vaults who write, link and plan every day. Werkbank treats it like that:
 
-- **Dense, calm, dark.** Graphite surfaces, small type, thin lines instead of filled surfaces and shadows. Much of
-  the vault fits on the screen at once.
+- **Dense, calm, dark.** Warm slate surfaces, small type, thin lines instead of filled surfaces and shadows. Much of
+  the vault fits on the screen at once. The light scheme is paper and ink: a cream page, near-black text.
+- **A notebook, not a dashboard.** A "Kladde" is a rough notebook. Titles are set in a book serif, the home page reads
+  like a day sheet, sections are open (a heading over a line, no boxes), and a few notebook marks (dot grid, margin
+  line, the notebook logo) give it a face. They are used sparingly; the text stays the product.
 - **One accent, chosen by each user.** The accent color marks what matters right now: the selection, the primary
-  action, links, the user's own cursor. Everything else is grey. The default is blue; every user can pick another one
+  action, links, the user's own cursor. Everything else is grey. The default is ink blue; every user can pick another one
   (see [Accent color](#accent-color)).
 - **Keyboard first.** ⌘K opens the command palette from everywhere; shortcuts are shown next to the commands
   (`<kbd>`), and every action has one.
 - **State is visible.** A status bar shows sync, `seq`, word count and who else is working. Presence (avatars, remote
   cursors) appears where it happens.
-- **Text is the product.** The editor gets a narrow, readable column (max. 760px) and the most contrast. Chrome steps
-  back.
+- **Text is the product.** The editor gets the full width of the content area and the most contrast; focus mode
+  narrows it to a reading column. Chrome steps back.
 
 ## Colors
 
@@ -33,73 +36,74 @@ onto these tokens so older views keep working; new code uses the Werkbank names.
 
 ### Surfaces and lines
 
-| Token        | Value     | Use                                                        |
-| ------------ | --------- | ---------------------------------------------------------- |
-| `--bg`       | `#0E0F11` | Page, editor, main content                                 |
-| `--panel`    | `#121417` | Side panels (tree, inspector), cards                       |
-| `--bar`      | `#15171A` | Top bar, rail, status bar, phone bars, dialogs             |
-| `--raised`   | `#1C1F23` | Buttons, inline code, inputs on panels                     |
-| `--line`     | `#262A30` | Dividers, card borders, selected row in a list             |
-| `--line2`    | `#2D3239` | Borders of controls (buttons, chips, search field, `kbd`)  |
+| Token        | Dark      | Light     | Use                                                        |
+| ------------ | --------- | --------- | ---------------------------------------------------------- |
+| `--bg`        | `#131210` | `#FBF9F4` | Page, editor, main content |
+| `--panel`     | `#171614` | `#F5F2EB` | Side panels (tree, inspector), cards |
+| `--bar`       | `#1B1917` | `#F0EDE5` | Top bar, rail, status bar, phone bars, dialogs |
+| `--raised`    | `#22201D` | `#EAE6DD` | Buttons, inline code, inputs on panels |
+| `--line`      | `#2D2A26` | `#E2DDD3` | Dividers, card borders, selected row in a list |
+| `--line2`     | `#36332E` | `#D2CCC0` | Borders of controls (buttons, chips, search field, `kbd`) |
 
 ### Text
 
-| Token      | Value     | Contrast on `--bg` | Use                                              |
-| ---------- | --------- | ------------------ | ------------------------------------------------ |
-| `--strong` | `#F2F4F6` | 17.4 : 1           | Headings, note titles                            |
-| `--text`   | `#E6E8EB` | 15.6 : 1           | Default text, list entries                       |
-| `--body`   | `#D5D9DF` | 13.5 : 1           | Running text in the editor (a little softer)     |
-| `--soft`   | `#C3C8CF` | 11.4 : 1           | Secondary entries in the tree                    |
-| `--muted`  | `#9AA1AB` | 7.4 : 1            | Meta data, captions, icons, placeholders         |
-| `--faint`  | `#7D848E` | 5.1 : 1            | Completed tasks (with line-through)              |
+| Token      | Dark      | on `--bg` | Light     | on `--bg` | Use                                          |
+| ---------- | --------- | --------- | --------- | --------- | -------------------------------------------- |
+| `--strong` | `#F4F1EC` | 16.6 : 1 | `#171512` | 17.3 : 1 | Headings, note titles |
+| `--text` | `#E9E5DE` | 14.9 : 1 | `#211F1C` | 15.6 : 1 | Default text, list entries |
+| `--body` | `#DAD5CD` | 12.8 : 1 | `#302D28` | 13.0 : 1 | Running text in the editor (a little softer) |
+| `--soft` | `#C7C1B8` | 10.5 : 1 | `#44403A` | 9.8 : 1 | Secondary entries in the tree |
+| `--muted` | `#A29B91` | 6.8 : 1 | `#645F57` | 6.0 : 1 | Meta data, captions, icons, placeholders |
+| `--faint` | `#888279` | 4.9 : 1 | `#706A62` | 5.1 : 1 | Completed tasks (with line-through) |
 
 ### Accent
 
 The accent is a set of five tokens. Components only use these tokens, never a fixed accent value, so changing the
 accent changes the whole interface at once.
 
-| Token        | Default (blue) | Use                                                                      |
+| Token        | Default (ink)  | Use                                                                      |
 | ------------ | -------------- | ------------------------------------------------------------------------ |
-| `--acc`      | `#5B9BFF`      | Active rail entry and icons, primary button, links, done checkboxes, own cursor and avatar, focus ring |
-| `--acc-hi`   | `#A8C8FF`      | Text on `--acc-bg` (selected chips and segments), values in code         |
-| `--acc-bg`   | `#14243D`      | Background of selected chips and segments                                |
-| `--acc-line` | `#2D4E80`      | Underline of `[[links]]`, border of selected chips                       |
-| `--on-acc`   | `#08111F`      | Text and icons on a filled accent (primary button, checkbox tick)        |
+| `--acc`      | `#7C9BF7`      | Active rail entry and icons, primary button, links, done checkboxes, own cursor and avatar, focus ring |
+| `--acc-hi`   | `#BACAFB`      | Text on `--acc-bg` (selected chips and segments), values in code         |
+| `--acc-bg`   | `#1B213C`      | Background of selected chips and segments                                |
+| `--acc-line` | `#364680`      | Underline of `[[links]]`, border of selected chips                       |
+| `--on-acc`   | `#0A0E22`      | Text and icons on a filled accent (primary button, checkbox tick)        |
 
 ### Accent color
 
 Every user picks an accent color in *Settings › Appearance*. The choice belongs to the **account** and follows the
-user to all devices (unlike the color scheme, which stays per device). New accounts get **blue**.
+user to all devices (unlike the color scheme, which stays per device). New accounts get **ink** (the preset `blue`,
+shown as "Tinte": the blue of fountain pen ink).
 
 There is a fixed set of presets instead of a free color picker, because every preset is checked for contrast in both
 schemes:
 
 | Preset            | `--acc`   | `--acc-hi` | `--acc-bg` | `--acc-line` | `--on-acc` | `--acc` on `--bg` | `--on-acc` on `--acc` |
 | ----------------- | --------- | ---------- | ---------- | ------------ | ---------- | ----------------- | --------------------- |
-| `blue` (default)  | `#5B9BFF` | `#A8C8FF`  | `#14243D`  | `#2D4E80`    | `#08111F`  | 6.9 : 1           | 6.8 : 1               |
-| `amber`           | `#E8B04A` | `#F5CB78`  | `#3A2E14`  | `#6B5320`    | `#1A1408`  | 9.8 : 1           | 9.4 : 1               |
-| `green`           | `#4FC385` | `#9BE3B8`  | `#12301F`  | `#2A5C3E`    | `#06170D`  | 8.7 : 1           | 8.3 : 1               |
-| `teal`            | `#3EC1C4` | `#95E2E3`  | `#0F2E30`  | `#265B5D`    | `#041616`  | 8.8 : 1           | 8.5 : 1               |
-| `violet`          | `#A98BFF` | `#CDBDFF`  | `#241B3F`  | `#46387A`    | `#130C26`  | 7.1 : 1           | 7.1 : 1               |
-| `pink`            | `#F27BB0` | `#F9B5D3`  | `#3A1729`  | `#6E2E4D`    | `#22081A`  | 7.5 : 1           | 7.4 : 1               |
-| `coral`           | `#F2876B` | `#F8B9A7`  | `#3A1D15`  | `#6E3828`    | `#220C05`  | 7.7 : 1           | 7.5 : 1               |
-| `graphite`        | `#C3C8CF` | `#E6E8EB`  | `#262A30`  | `#4A5059`    | `#0E0F11`  | 11.4 : 1          | 11.4 : 1              |
+| `blue` (ink, default) | `#7C9BF7` | `#BACAFB` | `#1B213C` | `#364680` | `#0A0E22` | 7.0 : 1 | 7.2 : 1 |
+| `amber` | `#E8B04A` | `#F5CB78` | `#3A2E14` | `#6B5320` | `#1A1408` | 9.6 : 1 | 9.4 : 1 |
+| `green` | `#4FC385` | `#9BE3B8` | `#12301F` | `#2A5C3E` | `#06170D` | 8.4 : 1 | 8.3 : 1 |
+| `teal` | `#3EC1C4` | `#95E2E3` | `#0F2E30` | `#265B5D` | `#041616` | 8.6 : 1 | 8.5 : 1 |
+| `violet` | `#A98BFF` | `#CDBDFF` | `#241B3F` | `#46387A` | `#130C26` | 7.0 : 1 | 7.1 : 1 |
+| `pink` | `#F27BB0` | `#F9B5D3` | `#3A1729` | `#6E2E4D` | `#22081A` | 7.3 : 1 | 7.4 : 1 |
+| `coral` | `#F2876B` | `#F8B9A7` | `#3A1D15` | `#6E3828` | `#220C05` | 7.5 : 1 | 7.5 : 1 |
+| `graphite` | `#C7C1B8` | `#E9E5DE` | `#2D2A26` | `#544F48` | `#131210` | 10.5 : 1 | 10.5 : 1 |
 
-`--acc-hi` on `--acc-bg` is at least 9.1 : 1 for every preset; `--acc` on `--line` (active rail entry) at least
-5.2 : 1. The settings show the presets as Blau, Bernstein, Grün, Türkis, Violett, Rosa, Koralle and Graphit (German UI).
+`--acc-hi` on `--acc-bg` is at least 8.6 : 1 for every preset; `--acc` on `--line` (active rail entry) at least
+5.3 : 1. The settings show the presets as Tinte, Bernstein, Grün, Türkis, Violett, Rosa, Koralle and Graphit (German UI).
 
-Light scheme values (text and fill on white; `--on-acc` is white for every preset):
+Light scheme values (on the paper `--bg`; `--on-acc` is white for every preset):
 
-| Preset     | `--acc`   | `--acc-hi` | `--acc-bg` | `--acc-line` | `--acc` on white | white on `--acc` |
-| ---------- | --------- | ---------- | ---------- | ------------ | ---------------- | ---------------- |
-| `blue`     | `#2160D8` | `#1A4FB3`  | `#E6EEFC`  | `#9DB9EE`    | 5.6 : 1          | 5.6 : 1          |
-| `amber`    | `#8F5D00` | `#7A4F00`  | `#FFF1D6`  | `#E3C27D`    | 5.6 : 1          | 5.6 : 1          |
-| `green`    | `#1C7C4A` | `#17673D`  | `#E3F4EA`  | `#93CDAE`    | 5.2 : 1          | 5.2 : 1          |
-| `teal`     | `#0B7276` | `#095E61`  | `#E0F4F4`  | `#8FCFD0`    | 5.6 : 1          | 5.6 : 1          |
-| `violet`   | `#6B46D9` | `#5734BC`  | `#EFEAFE`  | `#B9A6F2`    | 6.0 : 1          | 6.0 : 1          |
-| `pink`     | `#C02A6F` | `#A3215D`  | `#FCE8F1`  | `#EBA2C3`    | 5.5 : 1          | 5.5 : 1          |
-| `coral`    | `#C2410C` | `#A3360A`  | `#FDEBE4`  | `#F0AE93`    | 5.2 : 1          | 5.2 : 1          |
-| `graphite` | `#3D434B` | `#1A1D21`  | `#ECEEF1`  | `#A9AFB7`    | 10.0 : 1         | 10.0 : 1         |
+| Preset     | `--acc`   | `--acc-hi` | `--acc-bg` | `--acc-line` | `--acc` on `--bg` | white on `--acc` |
+| ---------- | --------- | ---------- | ---------- | ------------ | ----------------- | ---------------- |
+| `blue` | `#2642BA` | `#1E349C` | `#E7EBFA` | `#A0AFE8` | 7.8 : 1 | 8.2 : 1 |
+| `amber` | `#8F5D00` | `#7A4F00` | `#FFF1D6` | `#E3C27D` | 5.3 : 1 | 5.6 : 1 |
+| `green` | `#187042` | `#17673D` | `#E3F4EA` | `#93CDAE` | 5.8 : 1 | 6.1 : 1 |
+| `teal` | `#0A6A6E` | `#095E61` | `#E0F4F4` | `#8FCFD0` | 6.0 : 1 | 6.4 : 1 |
+| `violet` | `#6B46D9` | `#5734BC` | `#EFEAFE` | `#B9A6F2` | 5.7 : 1 | 6.0 : 1 |
+| `pink` | `#B22666` | `#A3215D` | `#FCE8F1` | `#EBA2C3` | 5.9 : 1 | 6.2 : 1 |
+| `coral` | `#B03A0A` | `#A3360A` | `#FDEBE4` | `#F0AE93` | 5.8 : 1 | 6.1 : 1 |
+| `graphite` | `#44403A` | `#211F1C` | `#EAE6DD` | `#B0A99D` | 9.8 : 1 | 10.3 : 1 |
 
 How it works:
 
@@ -138,24 +142,45 @@ Rules:
 
 ## Typography
 
-Two families, both self-hosted through `@fontsource` (the CSP allows no font CDN):
+Three families with fixed roles, all self-hosted through `@fontsource-variable` (the CSP allows no font CDN):
 
-- **Inter** (variable) for the interface and text.
-- **JetBrains Mono** for everything machine-like: counts, `seq`, dates in lists, tags, frontmatter values, queries,
-  code, keyboard shortcuts, the status bar.
+- **Newsreader** (variable, with optical sizes; `--font-serif`, Tailwind `font-serif`, the classes `.font-display`,
+  `.panel-title`, `.note-title`) for the voice of the page: note titles, the editor's h1–h3, page titles, the date on
+  Home and the day sheet, section headings (`Panel`), empty states and the wordmark. Weight 520–560, slightly
+  tightened. h4–h6 stay in Inter: they mark structure, not voice.
+- **Inter** (variable) for the interface and running text: lists, tree, buttons, editor body.
+- **JetBrains Mono** for everything machine-like: counts, `seq`, dates and times in lists, the week number, tags,
+  frontmatter values, queries, code, keyboard shortcuts, the status bar.
 
-| Style       | Size / line height | Weight | Use                                              |
-| ----------- | ------------------ | ------ | ------------------------------------------------ |
-| `title-xl`  | 30 / 36            | 600    | Note title in the editor (26 on phones)          |
-| `title-l`   | 20 / 28            | 600    | Page headings (Home, Tasks, Graph)               |
-| `title-m`   | 18 / 26            | 600    | H2 in notes                                      |
-| `body-l`    | 15 / 26 (1.7)      | 400    | Editor text (15.5 on phones)                     |
-| `body-m`    | 13 / 20            | 400    | Interface default: lists, tree, buttons          |
-| `body-s`    | 12 / 18            | 400    | Meta lines below list entries                    |
-| `label`     | 11 / 16, +0.06em, uppercase | 400 | Section captions ("TODAY", "BACKLINKS")   |
-| `mono-s`    | 11–12.5            | 400    | Numbers, tags, `kbd`, status bar                 |
+| Style          | Family     | Size / line height | Weight | Use                                              |
+| -------------- | ---------- | ------------------ | ------ | ------------------------------------------------ |
+| note title     | Newsreader | 36 / 44 (30 phones)| 560    | Title of the open note                           |
+| display        | Newsreader | 38 / 44 (30 phones)| 560    | Home date (`PageHeader display`)                 |
+| page title     | Newsreader | 23 / 32            | 560    | `PageHeader` title (Tasks, Inbox, Settings …)    |
+| section        | Newsreader | 18 / 24            | 560    | `Panel` heading (Aufgaben, Inbox on Home)        |
+| h1 / h2 / h3   | Newsreader | 2 / 1.55 / 1.25 em | 560    | Headings in notes                                |
+| `body-l`       | Inter      | 15 / 26 (1.7)      | 400    | Editor text (15.5 on phones)                     |
+| `body-m`       | Inter      | 13 / 20            | 400    | Interface default: lists, tree, buttons          |
+| `body-s`       | Inter      | 12 / 18            | 400    | Meta lines below list entries                    |
+| `.section-label` | Inter    | 12 / 16            | 600    | Small captions in sentence case ("Backlinks"); no uppercase |
+| mono           | JetBrains  | 11–12.5            | 400    | Numbers, tags, `kbd`, status bar                 |
 
-Numbers in tables and counters use the mono font so columns line up.
+Numbers in tables and counters use the mono font so columns line up. Captions are written in sentence case; letter
+spaced uppercase labels are not used.
+
+## Character
+
+The notebook marks, each in one place only:
+
+- **Dot grid** (`.paper-dots`): behind the Home header, fading out towards the text. `.paper-grid` fills the knowledge
+  graph, `.empty-sheet` sits behind empty states (a serif line, a muted hint, the dots fading out at the edges).
+- **Margin line** (`.note-sheet`): two thin lines in `--acc-line` left of the note text on the desktop, like the ruled
+  margin of an exercise book. Not on phones, not in focus mode, not in print.
+- **Logo** (`views/AppLogo.tsx`, `public/icons/icon.svg`): a notebook with a darker spine, an elastic band and a
+  label, drawn in the accent, next to the wordmark "Kladde" in Newsreader. The app icons (PNG) are the same drawing
+  on a slate tile.
+- **One filled button per page.** Filled accent is reserved for the page's main action (on Home and lists: Capture).
+  Buttons that are always there ("New note" in the side panel, "Open daily note") are tonal.
 
 ## Shape, spacing, depth
 
@@ -165,8 +190,10 @@ Numbers in tables and counters use the mono font so columns line up.
   36×40.
 - **Lines, not shadows:** areas are separated by 1px `--line` borders. Shadows only for floating layers (command
   palette, menus, FAB): `0 24px 60px rgb(0 0 0 / .55)`. A modal dims the page with `rgb(5 6 8 / .62)`.
-- **Motion:** short and functional (120–160ms ease-out for menus and the palette); no decorative animation;
-  `prefers-reduced-motion` turns it off.
+- **Motion:** short and functional (120–160ms ease-out for menus and the palette). Three small motions carry a
+  meaning: the tick of a task draws itself when it is done (`check-draw`), the sync dot in the status bar sends out a
+  ring while syncing and once when the state changes (`.sync-dot`), and a changed count rolls in (`.num-tick`, nav
+  badges, task buckets, note count). No decorative animation; `prefers-reduced-motion` turns it all off.
 
 ## Icons
 

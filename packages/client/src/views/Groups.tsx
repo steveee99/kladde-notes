@@ -198,7 +198,7 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
         )}
       </ul>
       {here.length === 0 ? (
-        <div className="py-16 text-center text-on-surface-variant anim-fade-in">{t('groups.emptyFolder')}</div>
+        <div className="empty-sheet anim-fade-in"><p className="empty-title">{t('groups.emptyFolder')}</p></div>
       ) : (
         <NoteCollection notes={here} />
       )}

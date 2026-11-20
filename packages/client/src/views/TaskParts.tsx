@@ -506,8 +506,8 @@ export function TaskBuckets({ tasks, compact, done = [] }: { tasks: TaskRow[]; c
         if (!list.length) return null;
         return (
           <div key={b.id} className="anim-fade-up">
-            <h3 className={`flex items-center gap-2 px-3.5 pb-1 pt-3 text-caption uppercase ${b.tone}`}>
-              {t(b.labelKey)} <span className="font-mono text-muted">{list.length}</span>
+            <h3 className={`flex items-center gap-2 px-3.5 pb-1 pt-3 text-label-m font-semibold ${b.tone}`}>
+              {t(b.labelKey)} <span key={list.length} className="num-tick font-mono text-muted">{list.length}</span>
             </h3>
             <TaskRows tasks={list} compact={compact} className="stagger flex flex-col border-y border-line" />
           </div>
@@ -515,7 +515,7 @@ export function TaskBuckets({ tasks, compact, done = [] }: { tasks: TaskRow[]; c
       })}
       {done.length > 0 && (
         <div className="anim-fade-up">
-          <h3 className="flex items-center gap-2 px-3.5 pb-1 pt-3 text-caption uppercase text-green">
+          <h3 className="flex items-center gap-2 px-3.5 pb-1 pt-3 text-label-m font-semibold text-green">
             {t('task.status.done')} <span className="font-mono text-muted">{done.length}</span>
           </h3>
           <TaskRows tasks={done} compact={compact} className="flex flex-col border-y border-line" />

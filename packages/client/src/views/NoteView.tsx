@@ -1629,7 +1629,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           <textarea
             ref={titleRef}
             rows={1}
-            className="note-title mb-2 block w-full resize-none overflow-hidden break-words bg-transparent text-headline-l outline-none placeholder:text-on-surface-variant print:hidden"
+            className="note-title mb-2 block w-full resize-none overflow-hidden break-words bg-transparent text-[30px] leading-[38px] outline-none placeholder:text-on-surface-variant nav:text-[36px] nav:leading-[44px] print:hidden"
             value={title}
             readOnly={!canRename}
             placeholder={t('note.titlePlaceholder')}
@@ -1643,7 +1643,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               }
             }}
           />
-          <h1 className="mb-3 hidden break-words text-headline-l print:block">{title || displayName}</h1>
+          <h1 className="font-display mb-3 hidden break-words text-headline-l print:block">{title || displayName}</h1>
           {/* Word count sits under the title instead of a bar over the content */}
           {!showPdf && features.writingStats.enabled && (
             <div className="no-print -mt-1 mb-2">
@@ -1690,7 +1690,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             // A line and room between the header (title, stats, PARA bar) and the text (not in focus mode, which hides
             // the header), and room below the text before the footer
             <div
-              className={`pb-12 ${focus ? '' : 'mt-4 border-t border-outline-variant pt-6 sm:mt-6 sm:pt-8 print:mt-0 print:border-0 print:pt-0'}`}
+              className={`pb-12 ${focus ? '' : 'note-sheet mt-4 border-t border-outline-variant pt-6 sm:mt-6 sm:pt-8 print:mt-0 print:border-0 print:pt-0'}`}
               data-note-align={align !== 'left' && !(sourceMode && !readOnly) ? align : undefined}>
             <Editor
               docKey={id}

@@ -14,7 +14,10 @@ export function NavBadge({ count = 0, tone = 'muted', dot, className = '' }: { c
         tone === 'warn' ? 'bg-acc font-semibold text-on-acc' : tone === 'plain' ? 'font-medium text-muted' : 'bg-acc-bg font-semibold text-acc-hi'
       } ${className}`}
     >
-      {count > 99 ? '99+' : count}
+      {/* A new count rolls in (key), see .num-tick */}
+      <span key={count} className="num-tick inline-block">
+        {count > 99 ? '99+' : count}
+      </span>
     </span>
   );
 }

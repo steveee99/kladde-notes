@@ -177,7 +177,7 @@ export function TasksView() {
         <div className="card overflow-hidden pb-1">
           <TaskQuickAdd />
           {filtered.length === 0 ? (
-            <p className="px-3.5 py-10 text-center text-body-m text-muted">{all.length ? t('tasks.emptyFiltered') : t('tasks.empty')}</p>
+            <div className="empty-sheet"><p className="empty-title">{all.length ? t('tasks.emptyFiltered') : t('tasks.empty')}</p></div>
           ) : (
             <TaskBuckets tasks={open} done={done} compact={prefs.compact} />
           )}

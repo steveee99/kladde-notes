@@ -411,7 +411,7 @@ export function DatabaseView({ folder, dbNote }: { folder: string; dbNote: Local
         </datalist>
       )}
       {rows.length === 0 ? (
-        <div className="py-10 text-center text-on-surface-variant">{t('db.empty')}</div>
+        <div className="empty-sheet"><p className="empty-title">{t('db.empty')}</p></div>
       ) : view.type === 'board' ? (
         <BoardView db={db} view={view} rows={rows} canEdit={canEdit} />
       ) : view.type === 'gallery' ? (

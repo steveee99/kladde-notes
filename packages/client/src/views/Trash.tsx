@@ -185,7 +185,7 @@ export function TrashView() {
           <Loader2 size={20} className="animate-spin" />
         </div>
       ) : groups.length === 0 && !error ? (
-        <p className="py-10 text-center text-on-surface-variant">{t('trash.empty')}</p>
+        <div className="empty-sheet"><p className="empty-title">{t('trash.empty')}</p></div>
       ) : (
         <ul className="card divide-y divide-outline-variant/60 p-1 anim-fade-up">
           {groups.map((g) => {

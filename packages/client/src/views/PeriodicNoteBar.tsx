@@ -128,7 +128,7 @@ export function PeriodicEmptyView({ kind, date }: { kind: PeriodKind; date?: str
             {tl(lang, kind === 'week' ? 'periodic.weekLabel' : 'periodic.monthLabel')} ·{' '}
             {settings.folder ? folderDisplayName(settings.folder, lang) : tl(lang, 'common.topLevelPlain')}
           </p>
-          <h1 className="mt-1 text-headline-m capitalize">{title}</h1>
+          <h1 className="font-display mt-1 text-[26px] leading-8 capitalize">{title}</h1>
         </div>
         <p className="text-sm text-on-surface-variant">
           {tl(lang, settings.enabled ? (kind === 'week' ? 'periodic.emptyWeek' : 'periodic.emptyMonth') : kind === 'week' ? 'periodic.weekOff' : 'periodic.monthOff')}

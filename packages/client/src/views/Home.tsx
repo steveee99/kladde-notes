@@ -119,8 +119,13 @@ export function HomeView() {
   return (
     <div>
       <PageHeader
+        display
         title={<span className="capitalize">{dateTitle}</span>}
-        subtitle={`${t('home.weekShort', { n: isoWeek(new Date()) })} · ${openCountText}`}
+        subtitle={
+          <>
+            <span className="font-mono text-[12px] text-soft">{t('home.weekShort', { n: isoWeek(new Date()) })}</span> · {openCountText}
+          </>
+        }
         actions={
           <>
             {reviewDue() && (
@@ -129,14 +134,14 @@ export function HomeView() {
               </button>
             )}
             {showDailyBtn && (
-              <button type="button" className="btn-primary" title={t('daily.todayBtn')} onClick={() => void vault.openDailyNote().then((n) => navigate(`/n/${n.id}`))}>
+              <button type="button" className="btn-tonal" title={t('daily.todayBtn')} onClick={() => void vault.openDailyNote().then((n) => navigate(`/n/${n.id}`))}>
                 <CalendarDays size={16} /> {t('home.dailyOpen')}
               </button>
             )}
           </>
         }
       />
-      <PageBody className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+      <PageBody className="grid grid-cols-1 items-start gap-x-8 gap-y-7 pb-24 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
         <Panel
           labelId="home-tasks-heading"
           label={t('home.tasksTitle')}
@@ -167,7 +172,7 @@ export function HomeView() {
           )}
         </Panel>
 
-        <div className="flex min-w-0 flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-7">
           {inboxNotes.length > 0 && (
             <Panel
               labelId="home-inbox-heading"

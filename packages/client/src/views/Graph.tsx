@@ -265,7 +265,7 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: ViewNo
   }, [JSON.stringify(nodes.map((n) => [n.id, n.title, n.folder, n.links, !!n.orphan])), JSON.stringify(edges), roleConfigKey, focusId, height]);
 
   return (
-    <div ref={wrapRef} className="relative w-full touch-none select-none overflow-hidden rounded-lg border border-outline-variant bg-surface-container-low">
+    <div ref={wrapRef} className="paper-grid relative w-full touch-none select-none overflow-hidden rounded-lg border border-outline-variant bg-surface-container-low">
       <canvas ref={canvasRef} className="block cursor-grab" />
       {hoverTitle && <div className="pointer-events-none absolute left-3 top-3 max-w-[calc(100%-1.5rem)] truncate rounded bg-inverse-surface px-2 py-1 text-body-s text-inverse-on-surface anim-fade-in">{hoverTitle}</div>}
     </div>

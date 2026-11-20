@@ -114,10 +114,10 @@ export function ActivityHeatmap({ embedded = false }: { embedded?: boolean }) {
     data.activeDays === 1 ? tl(lang, 'heatmap.activeDaySingle') : tl(lang, 'heatmap.activeDays', { n: data.activeDays });
 
   return (
-    <section className="card p-4 sm:p-5 anim-fade-up" aria-label={tl(lang, 'heatmap.regionAria')}>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="flex min-w-0 flex-1 basis-40 items-center gap-2">
-          <h2 className="section-label truncate">{tl(lang, 'heatmap.title')}</h2>
+    <section className={embedded ? 'min-w-0 anim-fade-up' : 'card p-4 sm:p-5 anim-fade-up'} aria-label={tl(lang, 'heatmap.regionAria')}>
+      <div className={`flex flex-wrap items-center gap-2 ${embedded ? 'mb-3 min-h-10 border-b border-line px-3.5 pb-1' : 'mb-3'}`}>
+        <div className="flex min-w-0 flex-1 basis-40 items-baseline gap-2">
+          <h2 className={embedded ? 'panel-title truncate' : 'section-label truncate'}>{tl(lang, 'heatmap.title')}</h2>
           <span className="shrink-0 font-mono text-[11px] text-muted">· {activeBadgeText}</span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -142,7 +142,7 @@ export function ActivityHeatmap({ embedded = false }: { embedded?: boolean }) {
         </div>
       </div>
 
-      <div ref={scrollRef} className="overflow-x-auto pb-1 scrollbar-thin" onMouseLeave={() => setInspectCell(null)}>
+      <div ref={scrollRef} className={`overflow-x-auto pb-1 scrollbar-thin ${embedded ? 'px-3.5' : ''}`} onMouseLeave={() => setInspectCell(null)}>
         <div className="inline-flex min-w-max items-start gap-2">
           <div
             className="flex shrink-0 flex-col pt-[20px] text-on-surface-variant select-none"

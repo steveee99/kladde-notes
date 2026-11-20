@@ -4,6 +4,13 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- Changed: Kladde looks like a notebook rather than a generic dashboard. Note titles, headings in notes, page titles and section headings are set in the serif Newsreader (self-hosted), next to Inter for the interface and JetBrains Mono for numbers and dates. The dark scheme uses warm slate greys instead of cool graphite, the light scheme is paper and ink (a cream page, near-black text), and the default accent is an ink blue ("Ink"/"Tinte"; the other accents stay, all rechecked for contrast).
+- Changed: Home reads like a day sheet: the date large in the serif on a fading dot grid, tasks, inbox, activity and projects as open sections with a heading over a line instead of boxed cards. Captions are written in sentence case instead of spaced capitals, and each page has at most one filled accent button ("New note" in the side panel and "Open daily note" are now tonal).
+- Changed: New logo and app icon (a notebook with an elastic band, drawn in your accent), a thin double margin line left of the note text on the desktop, dotted backgrounds for the graph and for empty pages.
+- Changed: Due dates, repeats and times in the editor show the same symbols as the task lists instead of emoji (📅 🔁 ⏰); the text stays as written.
+- Changed: Small motions: the tick of a task draws itself, the sync dot in the status bar pulses while syncing, changed counts roll in. They are off with "reduce motion".
+- Changed: The welcome note of a new space is titled "Willkommen bei Kladde" ("Welcome to Kladde") and no longer repeats its title as a heading.
+
 - Changed: Notes always use the full width of the content area; the "Widescreen (content width)" slider in the settings is gone.
 - Changed: The folder panel is organized in sections like the settings: Favorites, Folders and Groups each have a heading with the entries below; groups are no longer listed inside the folder tree.
 - Changed: Navigation badges (urgent tasks, inbox, notifications) use your accent color.

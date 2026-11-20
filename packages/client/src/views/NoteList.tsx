@@ -309,7 +309,7 @@ function SharedList({ notes }: { notes: LocalNote[] }) {
     if (f && byFolder.has(f)) byFolder.get(f)!.push(n);
     else single.push(n);
   }
-  if (!notes.length && !vault.sharedFolders.length) return <div className="py-16 text-center text-on-surface-variant anim-fade-in">{t('list.emptyShared')}</div>;
+  if (!notes.length && !vault.sharedFolders.length) return <div className="empty-sheet anim-fade-in"><p className="empty-title">{t('list.emptyShared')}</p></div>;
   return (
     <div className="space-y-8">
       {[...byFolder].map(([f, list]) => (
@@ -480,7 +480,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
       ) : dbNote ? (
         <DatabaseView folder={folder!} dbNote={dbNote} />
       ) : notes.length === 0 ? (
-        <div className="py-16 text-center text-on-surface-variant anim-fade-in">{t('list.emptyFolder')}</div>
+        <div className="empty-sheet anim-fade-in"><p className="empty-title">{t('list.emptyFolder')}</p></div>
       ) : (
         <NoteCollection notes={notes} />
       )}
