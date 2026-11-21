@@ -15,6 +15,7 @@ import { parseTasks } from './tasks.js';
 import { splitPath } from './markdown.js';
 import { readFrontmatterYaml, setFrontmatterValues, type YamlMap, type YamlValue } from './yaml.js';
 import { DATABASE_PREFIX, linkTarget } from './database.js';
+import { automationsValue, parseAutomations, parseTransitions, transitionsValue, type Automation, type Transitions } from './workflow.js';
 
 export const TICKET_TYPE = 'ticket';
 export const MILESTONE_TYPE = 'milestone';
@@ -42,6 +43,10 @@ export interface ProjectConfig {
   done: string[];
   /** Ask for documentation before a ticket is finished, and mark finished tickets without any */
   requireDocs: boolean;
+  /** Allowed status changes; null allows every change (workflow.ts) */
+  transitions: Transitions;
+  /** Rules that change tickets when something happens (automations.ts) */
+  automations: Automation[];
 }
 
 export interface TicketMeta {
@@ -117,13 +122,25 @@ export function parseProject(dbContent: string): ProjectConfig | null {
   let done = inWf(list(p.done));
   if (!done.length) done = [wf[wf.length - 1]];
   const active = inWf(list(p.active)).filter((a) => !done.some((d) => d.toLowerCase() === a.toLowerCase()));
-  return { key, workflow: wf, active, done, requireDocs: /^(true|yes|ja|1)$/i.test(str(p.requireDocs)) };
+  return {
+    key,
+    workflow: wf,
+    active,
+    done,
+    requireDocs: /^(true|yes|ja|1)$/i.test(str(p.requireDocs)),
+    transitions: parseTransitions(p.transitions, wf),
+    automations: parseAutomations(p.automations),
+  };
 }
 
 /** Writes the project settings into a database note, keeping everything else */
 export function writeProject(dbContent: string, project: ProjectConfig): string {
   const value: YamlMap = { key: project.key, workflow: project.workflow, active: project.active, done: project.done };
   if (project.requireDocs) value.requireDocs = 'true';
+  const transitions = transitionsValue(project.transitions, project.workflow);
+  if (transitions) value.transitions = transitions;
+  const automations = automationsValue(project.automations);
+  if (automations) value.automations = automations;
   return setFrontmatterValues(dbContent, { project: value });
 }
 

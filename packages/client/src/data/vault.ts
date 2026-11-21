@@ -649,6 +649,29 @@ class Vault {
    * Renames a tag (and the tags nested below it) in all own notes; onto an existing tag this merges them.
    * Like `relink`, every changed note is a normal synced edit. Returns the number of changed notes.
    */
+  /** New contents for many notes at once: one IndexedDB transaction and one emit (#64); returns how many changed */
+  async updateContents(changes: { id: string; content: string }[]): Promise<number> {
+    if (isReadOnly()) return 0;
+    const now = Date.now();
+    const written: LocalNote[] = [];
+    for (const c of changes) {
+      const before = this.notes.get(c.id);
+      if (!before || before.deleted || before.access === 'read' || before.content === c.content) continue;
+      let note: LocalNote = { ...before, content: c.content, updatedAt: now, dirty: true };
+      if (note.base === undefined && note.version > 0 && !before.dirty) note = { ...note, base: before.content, basePath: before.path };
+      this.notes.set(note.id, note);
+      written.push(note);
+    }
+    if (!written.length) return 0;
+    this.emit();
+    if (this.db) {
+      const tx = this.db.transaction('notes', 'readwrite');
+      await Promise.all([...written.map((n) => tx.store.put(n)), tx.done]);
+    }
+    this.schedule();
+    return written.length;
+  }
+
   async renameTag(from: string, to: string): Promise<number> {
     if (isReadOnly()) return 0;
     let changed = 0;

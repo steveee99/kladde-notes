@@ -28,6 +28,8 @@ import { importRouters } from './import/router.js';
 import { ShortcutTokenStore, shortcutsRouters } from './shortcuts/router.js';
 import { CalendarFeedStore } from './calendar/CalendarFeedStore.js';
 import { calendarRouters } from './calendar/router.js';
+import { ticketHookRouters } from './hooks/router.js';
+import { TicketHookStore } from './hooks/TicketHookStore.js';
 import { PushStore } from './push/PushStore.js';
 import { pushRouter } from './push/router.js';
 import { inQuietHours, localClock, runReminders, vapidSubject } from './push/reminders.js';
@@ -329,9 +331,13 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     app.use('/api/shortcuts', shortcuts.bearerRouter);
     app.use('/api/shortcut-tokens', shortcuts.accountRouter);
     // Calendar feeds: the feed is read by calendar apps through its secret address (no cookies)
+    const ticketHooks = ticketHookRouters({ users, notes, hooks: new TicketHookStore(opts.db, cipher), audit, publicUrl: opts.publicUrl });
     const calendar = calendarRouters({ users, notes, feeds: new CalendarFeedStore(opts.db, cipher), audit, publicUrl: opts.publicUrl });
     app.use('/api/calendar', calendar.feedRouter);
     app.use('/api/calendar-feeds', calendar.accountRouter);
+    // Ticket workflows: GitLab/GitHub deliver merge request events through the hook's secret address (no cookies)
+    app.use('/api/hooks', ticketHooks.receiver);
+    app.use('/api/ticket-hooks', ticketHooks.accountRouter);
     // Web Push reminders (the standalone desktop app has no service worker)
     app.use('/api/push', pushRouter({ users, notes, store: push!, subject: pushSubject }));
   }

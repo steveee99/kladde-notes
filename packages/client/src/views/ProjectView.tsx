@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { PRIORITIES, cleanProjectKey, rankBetween, roadmapOffset, roadmapWeeks, splitPath, type Priority, type ProjectConfig } from '@kladde/shared';
+import { PRIORITIES, cleanProjectKey, rankBetween, roadmapOffset, roadmapWeeks, splitPath, type Priority } from '@kladde/shared';
 import { vault, useVault } from '../data/vault';
 import {
   assignees,
@@ -9,9 +9,10 @@ import {
   createTicket,
   milestonesOf,
   projects as allProjects,
-  saveProject,
   ticketsOf,
   updateTicket,
+  allowedStatusesOf,
+  canMoveTo,
   type MilestoneInfo,
   type ProjectInfo,
   type TicketInfo,
@@ -25,6 +26,7 @@ import { Sheet } from './Dialogs';
 import { Dropdown, type DropdownOption } from './Dropdown';
 import { Avatar } from './Avatar';
 import { Switch } from './Switch';
+import { ProjectSettingsDialog } from './ProjectSettings';
 
 type Tab = 'board' | 'backlog' | 'roadmap';
 const DRAG = 'application/x-kladde-ticket';
@@ -92,6 +94,7 @@ function TicketCard({ tk, canEdit }: { tk: TicketInfo; canEdit: boolean }) {
       onKeyDown={(e) => e.key === 'Enter' && navigate(`/n/${tk.note.id}`)}
       className={`wz-card space-y-2 outline-none focus-visible:ring-2 focus-visible:ring-acc ${tk.category === 'done' ? 'opacity-75' : ''} ${blocked ? '!border-dashed !border-error' : ''}`}
       data-ticket={tk.meta.id ?? ''}
+      data-ticket-note={tk.note.id}
     >
       <div className="flex items-start gap-1.5 font-medium leading-snug text-text">
         {blocked && <Ban size={16} className="mt-0.5 shrink-0 text-red" />}
@@ -113,6 +116,8 @@ function TicketCard({ tk, canEdit }: { tk: TicketInfo; canEdit: boolean }) {
 
 function BoardTab({ project, tickets, canEdit }: { project: ProjectInfo; tickets: TicketInfo[]; canEdit: boolean }) {
   const [over, setOver] = useState<string | null>(null);
+  // The dragged ticket: lanes the workflow does not allow for it take no drop
+  const [dragging, setDragging] = useState<TicketInfo | null>(null);
   const [allDone, setAllDone] = useState(false);
   const statuses = [...project.config.workflow];
   for (const tk of tickets) if (tk.meta.status && !statuses.some((s) => s.toLowerCase() === tk.meta.status.toLowerCase())) statuses.push(tk.meta.status);
@@ -121,17 +126,27 @@ function BoardTab({ project, tickets, canEdit }: { project: ProjectInfo; tickets
   if (noStatus.length) lanes[0].rows.push(...noStatus);
   const doneSet = new Set(project.config.done.map((d) => d.toLowerCase()));
   return (
-    <div className="wz-kanban scrollbar-thin anim-fade-up" data-project-board>
+    <div
+      className="wz-kanban scrollbar-thin anim-fade-up"
+      data-project-board
+      onDragStartCapture={(e) => {
+        const id = (e.target as HTMLElement).closest<HTMLElement>('[data-ticket-note]')?.dataset.ticketNote;
+        setDragging(tickets.find((x) => x.note.id === id) ?? null);
+      }}
+      onDragEndCapture={() => setDragging(null)}
+    >
       {lanes.map((lane) => {
         const done = doneSet.has(lane.status.toLowerCase());
         const shown = done && !allDone ? lane.rows.slice(0, 5) : lane.rows;
+        const closed = !!dragging && !canMoveTo(dragging, lane.status);
         return (
           <section
             key={lane.status}
             aria-label={lane.status}
-            className={`wz-lane min-w-[14rem] ${over === lane.status ? 'over' : ''}`}
+            className={`wz-lane min-w-[14rem] ${over === lane.status ? 'over' : ''} ${closed ? 'closed' : ''}`}
+            title={closed ? t('workflow.laneClosed', { from: dragging!.meta.status, to: lane.status }) : undefined}
             onDragOver={(e) => {
-              if (!canEdit || !e.dataTransfer.types.includes(DRAG)) return;
+              if (!canEdit || closed || !e.dataTransfer.types.includes(DRAG)) return;
               e.preventDefault();
               setOver(lane.status);
             }}
@@ -139,7 +154,8 @@ function BoardTab({ project, tickets, canEdit }: { project: ProjectInfo; tickets
             onDrop={(e) => {
               setOver(null);
               const tk = tickets.find((x) => x.note.id === e.dataTransfer.getData(DRAG));
-              if (!tk || !canEdit) return;
+              setDragging(null);
+              if (!tk || !canEdit || !canMoveTo(tk, lane.status)) return;
               e.preventDefault();
               if (tk.meta.status !== lane.status) void updateTicket(tk, { status: lane.status });
             }}
@@ -164,7 +180,7 @@ function BoardTab({ project, tickets, canEdit }: { project: ProjectInfo; tickets
   );
 }
 
-function BacklogTab({ project, tickets, milestones, canEdit }: { project: ProjectInfo; tickets: TicketInfo[]; milestones: MilestoneInfo[]; canEdit: boolean }) {
+function BacklogTab({ tickets, milestones, canEdit }: { tickets: TicketInfo[]; milestones: MilestoneInfo[]; canEdit: boolean }) {
   const [showDone, setShowDone] = useState(false);
   const [overGroup, setOverGroup] = useState<string | null>(null);
   const shown = tickets.filter((tk) => showDone || tk.category !== 'done');
@@ -172,7 +188,7 @@ function BacklogTab({ project, tickets, milestones, canEdit }: { project: Projec
     ...milestones.filter((m) => m.progress.done < m.progress.total || showDone || !m.progress.total).map((m) => ({ key: m.note.id, title: m.title, milestone: m, rows: shown.filter((tk) => tk.milestone === m).sort(byRank) })),
     { key: '', title: t('tickets.noMilestone'), milestone: null, rows: shown.filter((tk) => !tk.milestone).sort(byRank) },
   ];
-  const statusOptions: DropdownOption[] = project.config.workflow.map((s) => ({ value: s, label: s }));
+  const statusOptionsOf = (tk: TicketInfo): DropdownOption[] => allowedStatusesOf(tk).map((s) => ({ value: s, label: s }));
   const points = (rows: TicketInfo[]) => rows.reduce((s, tk) => s + (tk.meta.estimate ?? 0), 0);
 
   /** Drops a ticket before `target` (or at the end of the group) and moves it into the group's milestone */
@@ -262,7 +278,7 @@ function BacklogTab({ project, tickets, milestones, canEdit }: { project: Projec
                   </td>
                   <td className="px-2 py-1">
                     {canEdit ? (
-                      <Dropdown variant="ghost" className="!min-h-0 !py-1" aria-label={t('tickets.statusOf', { ticket: tk.title })} value={tk.meta.status} options={statusOptions} onChange={(s) => void updateTicket(tk, { status: s })} />
+                      <Dropdown variant="ghost" className="!min-h-0 !py-1" aria-label={t('tickets.statusOf', { ticket: tk.title })} value={tk.meta.status} options={statusOptionsOf(tk)} onChange={(s) => void updateTicket(tk, { status: s })} />
                     ) : (
                       <StatusBadge tk={tk} />
                     )}
@@ -535,88 +551,6 @@ function MilestoneSheet({ project, onClose }: { project: ProjectInfo; onClose: (
   );
 }
 
-const splitList = (s: string) => [...new Set(s.split(',').map((x) => x.trim()).filter(Boolean))];
-
-function ProjectSettingsSheet({ project, onClose }: { project: ProjectInfo; onClose: () => void }) {
-  const c = project.config;
-  const [key, setKey] = useState(c.key);
-  const [workflow, setWorkflow] = useState(c.workflow.join(', '));
-  const [active, setActive] = useState<string[]>(c.active);
-  const [done, setDone] = useState<string[]>(c.done);
-  const [requireDocs, setRequireDocs] = useState(c.requireDocs);
-  const [error, setError] = useState('');
-  const statuses = splitList(workflow);
-  const toggle = (list: string[], set: (l: string[]) => void, s: string) => set(list.includes(s) ? list.filter((x) => x !== s) : [...list, s]);
-  const save = async () => {
-    const clean = cleanProjectKey(key);
-    if (!clean) return setError(t('tickets.keyInvalid'));
-    if (statuses.length < 2) return setError(t('tickets.workflowTooShort'));
-    const next: ProjectConfig = {
-      key: clean,
-      workflow: statuses,
-      active: active.filter((s) => statuses.includes(s) && !done.includes(s)),
-      done: done.filter((s) => statuses.includes(s)).length ? done.filter((s) => statuses.includes(s)) : [statuses[statuses.length - 1]],
-      requireDocs,
-    };
-    try {
-      await saveProject(project, next);
-      onClose();
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  };
-  return (
-    <Sheet title={t('tickets.projectSettings')} onClose={onClose}>
-      <div className="space-y-4 pb-2">
-        <label className="block text-label-l text-muted">
-          {t('tickets.key')}
-          <input className="input mt-1 font-mono uppercase" value={key} maxLength={10} onChange={(e) => setKey(e.target.value)} />
-          <span className="mt-1 block text-body-s">{t('tickets.keyChangeHint')}</span>
-        </label>
-        <label className="block text-label-l text-muted">
-          {t('tickets.workflow')}
-          <input className="input mt-1" value={workflow} onChange={(e) => setWorkflow(e.target.value)} />
-          <span className="mt-1 block text-body-s">{t('tickets.workflowHint')}</span>
-        </label>
-        <div>
-          <div className="mb-1 text-label-l text-muted">{t('tickets.activeStatuses')}</div>
-          <div className="flex flex-wrap gap-1.5">
-            {statuses.map((s) => (
-              <button key={s} type="button" className={`chip ${active.includes(s) ? 'bg-acc-bg text-acc-hi' : ''}`} aria-pressed={active.includes(s)} onClick={() => toggle(active, setActive, s)}>
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="mb-1 text-label-l text-muted">{t('tickets.doneStatuses')}</div>
-          <div className="flex flex-wrap gap-1.5">
-            {statuses.map((s) => (
-              <button key={s} type="button" className={`chip ${done.includes(s) ? 'bg-acc-bg text-acc-hi' : ''}`} aria-pressed={done.includes(s)} onClick={() => toggle(done, setDone, s)}>
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-        <label className="flex items-center justify-between gap-3 text-body-l">
-          {t('tickets.requireDocs')}
-          <Switch id="project-require-docs" checked={requireDocs} label={t('tickets.requireDocs')} onChange={setRequireDocs} />
-        </label>
-        <p className="text-body-s text-muted">{t('tickets.requireDocsHint')}</p>
-        {error && <p className="text-sm text-red">{error}</p>}
-        <div className="flex justify-end gap-2">
-          <button className="btn-text" onClick={onClose}>
-            {t('common.cancel')}
-          </button>
-          <button className="btn-primary" onClick={() => void save()}>
-            {t('common.save')}
-          </button>
-        </div>
-      </div>
-    </Sheet>
-  );
-}
-
 /** "Make project": turns the folder into a project with a key (suggested from the folder's name) */
 export function MakeProjectSheet({ space, folder, onClose }: { space: TicketSpace; folder: string; onClose: () => void }) {
   const [key, setKey] = useState(() => cleanProjectKey(folder.split('/').pop()?.replace(/^\d+\s*/, '') ?? '') ?? '');
@@ -788,13 +722,13 @@ export function ProjectView({ project }: { project: ProjectInfo }) {
       ) : tab === 'board' ? (
         <BoardTab project={project} tickets={tickets} canEdit={canEdit} />
       ) : tab === 'backlog' ? (
-        <BacklogTab project={project} tickets={tickets} milestones={milestones} canEdit={canEdit} />
+        <BacklogTab tickets={tickets} milestones={milestones} canEdit={canEdit} />
       ) : (
         <RoadmapTab milestones={milestones} tickets={all} onNewMilestone={() => setSheet('milestone')} canEdit={canEdit} />
       )}
       {sheet === 'ticket' && <NewTicketSheet project={project} onClose={() => setSheet(null)} milestone={milestoneFilter && milestoneFilter !== '-' ? milestoneFilter : current?.note.id} />}
       {sheet === 'milestone' && <MilestoneSheet project={project} onClose={() => setSheet(null)} />}
-      {sheet === 'settings' && <ProjectSettingsSheet project={project} onClose={() => setSheet(null)} />}
+      {sheet === 'settings' && <ProjectSettingsDialog project={project} onClose={() => setSheet(null)} />}
     </section>
   );
 }

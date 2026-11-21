@@ -189,8 +189,11 @@ export interface TrashConflict {
 }
 
 export type PushResult =
-  /** `content` is set when the server changed the text on arrival (a ticket got its number) */
-  | { id: string; status: 'ok'; version: number; content?: string }
+  /**
+   * `content` is set when the server changed the text on arrival (a ticket got its number, a status change the
+   * project's transitions do not allow was undone: `rejectedStatus`, automations ran: `automations` (their names))
+   */
+  | { id: string; status: 'ok'; version: number; content?: string; rejectedStatus?: string; automations?: string[] }
   /** Someone changed the note in between: the client keeps `server` and saves its own text as a copy */
   | { id: string; status: 'conflict'; server: SyncedNote }
   | { id: string; status: 'forbidden' };
@@ -475,6 +478,26 @@ export interface CalendarFeedOptions {
   showTitles: boolean;
   /** Language of the placeholder title */
   lang: 'de' | 'en';
+}
+
+/** Where merge request events come from */
+export type TicketHookProvider = 'gitlab' | 'github';
+
+/**
+ * A webhook of a ticket project (`POST /api/hooks/<id>`): GitLab or GitHub report merge/pull requests, and the
+ * project's automations react to them on the tickets named in the title, branch or description
+ */
+export interface TicketHook {
+  id: string;
+  provider: TicketHookProvider;
+  name: string;
+  /** User name of who created it; changes run as this person */
+  createdBy: string;
+  createdAt: number;
+  /** Full address to enter at GitLab/GitHub */
+  url: string;
+  /** The last delivery: when, what happened and whether it worked */
+  last: { at: number; ok: boolean; summary: string } | null;
 }
 
 /** A calendar feed (`/api/calendar/<token>.ics`) with the user's own tasks that have a due date */

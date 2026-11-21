@@ -4,6 +4,13 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Ticket workflows. The project settings open in a dialog that uses the whole window, with sections for General, Statuses, Transitions, Automations and Git integration; nothing has to be written in the frontmatter any more.
+- New: Statuses are edited as a list: rename (the project's tickets move along), reorder, add and remove them and set their category (open, in progress, done).
+- New: Transitions. "Enforce the order" decides which status may follow which, set in a matrix or with the presets "Forward only" and "Step by step, forward and back". The board only takes drops on allowed columns, the status menus only offer allowed statuses, `ticket_update` (MCP) names the allowed ones, and the server undoes a change that is not allowed (also one typed into the note) while keeping the rest of the text.
+- New: Automations ("when … then …"): when a ticket is created, its status changes (from/to), all its sub-tasks are done, or a merge request is opened, merged or closed, Kladde sets the status, priority or assignee (also the person who caused it), adds or removes a label or appends a comment with placeholders such as `{{mr.url}}`. Rules can be limited to statuses and labels, switched off, reordered and started from templates ("Merge sets the status", "Assign on start", …); a rule may skip the transitions. They run on the server, so they also apply to changes from other devices and AI assistants.
+- New: GitLab and GitHub webhooks per project (`/api/hooks/<id>`, secret token or HMAC signature). Merge requests and pull requests that name a ticket (`KLD-12` in the title, branch or description) run the merge request automations, e.g. "merged → Implemented". The settings show the address and the secret once, setup steps for both providers and the result of the last delivery. Not available in the desktop app without a server.
+- Changed: The features browser in the settings is larger (up to 1152px wide and nearly the full window height, three columns of features on wide screens).
+
 ## [2.14.0] – 2026-11-21
 
 - Changed: Kladde looks like a notebook rather than a generic dashboard. Note titles, headings in notes, page titles and section headings are set in the serif Newsreader (self-hosted), next to Inter for the interface and JetBrains Mono for numbers and dates. The dark scheme uses warm slate greys instead of cool graphite, the light scheme is paper and ink (a cream page, near-black text), and the default accent is an ink blue ("Ink"/"Tinte"; the other accents stay, all rechecked for contrast).

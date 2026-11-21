@@ -26,6 +26,9 @@ import {
   ticketMeta,
   writeProject,
   canWriteInGroup,
+  allowedStatuses,
+  type TicketHook,
+  type TicketHookProvider,
   type MilestoneMeta,
   type MilestoneProgress,
   type Priority,
@@ -37,6 +40,7 @@ import { vault } from './vault';
 import type { LocalNote } from './db';
 import { compareText, getLang, t } from '../lib/i18n';
 import { isReadOnly } from '../lib/readOnly';
+import { api } from '../lib/api';
 
 /** Where a note lives: the own space or a group */
 export type TicketSpace = { group?: string };
@@ -291,14 +295,39 @@ export async function createProject(space: TicketSpace, folder: string, key: str
   return createIn(space, folder, databaseFileName(crypto.randomUUID()).replace(/\.md$/, ''), newProjectContent(key, getLang(), requireDocs));
 }
 
-/** Saves the project settings (key, workflow, documentation rule); the status options of the board follow */
-export async function saveProject(project: ProjectInfo, config: ProjectConfig): Promise<void> {
+/**
+ * Saves the project settings (key, workflow, transitions, automations, documentation rule); the status options of
+ * the board follow. `renamed` (old → new status) moves the project's tickets to the new names as well.
+ */
+export async function saveProject(project: ProjectInfo, config: ProjectConfig, renamed: Record<string, string> = {}): Promise<void> {
   guard();
   let content = writeProject(project.dbNote.content, config);
   // The status property of the database offers the workflow
   content = content.replace(/(- name: status\n\s+type: select\n\s+options: )\[[^\]\n]*\]/i, (_m, head: string) => `${head}[${config.workflow.map((s) => (/[,[\]"':#]/.test(s) ? JSON.stringify(s) : s)).join(', ')}]`);
   await vault.update(project.dbNote.id, { content });
+  const renames = new Map(Object.entries(renamed).filter(([from, to]) => from !== to).map(([from, to]) => [from.toLowerCase(), to]));
+  if (!renames.size) return;
+  const changes: { id: string; content: string }[] = [];
+  for (const tk of ticketsOf(project)) {
+    const to = renames.get(tk.meta.status.toLowerCase());
+    const note = to ? vault.get(tk.note.id) : undefined;
+    if (to && note) changes.push({ id: note.id, content: setTicketFields(note.content, { status: to }) });
+  }
+  await vault.updateContents(changes);
 }
+
+/** Statuses a ticket can move to now (its own first in workflow order); all of them without transitions */
+export const allowedStatusesOf = (ticket: TicketInfo): string[] => allowedStatuses(ticket.project.config, ticket.meta.status);
+
+/** Whether the workflow lets the ticket move to `status` */
+export const canMoveTo = (ticket: TicketInfo, status: string): boolean => allowedStatusesOf(ticket).some((s) => s.toLowerCase() === status.toLowerCase());
+
+// ------------------------------------------------------------------ webhooks (GitLab / GitHub)
+
+export const listTicketHooks = (project: ProjectInfo) => api<TicketHook[]>(`/ticket-hooks/${encodeURIComponent(project.id)}`);
+export const createTicketHook = (project: ProjectInfo, provider: TicketHookProvider, name: string) =>
+  api<{ hook: TicketHook; secret: string }>(`/ticket-hooks/${encodeURIComponent(project.id)}`, { method: 'POST', json: { provider, name } });
+export const removeTicketHook = (project: ProjectInfo, id: string) => api<TicketHook[]>(`/ticket-hooks/${encodeURIComponent(project.id)}/${encodeURIComponent(id)}`, { method: 'DELETE' });
 
 export interface TicketDraft {
   title: string;
@@ -340,6 +369,11 @@ export async function createMilestone(project: ProjectInfo, m: { title: string; 
 /** Changes ticket fields. Finishing a ticket without documentation asks first when the project wants it */
 export async function updateTicket(ticket: TicketInfo, fields: Parameters<typeof setTicketFields>[1]): Promise<boolean> {
   if (fields.status !== undefined && fields.status !== null) {
+    // The server would undo it anyway; the menus only offer allowed statuses
+    if (!canMoveTo(ticket, String(fields.status))) {
+      alert(t('workflow.notAllowed', { from: ticket.meta.status, to: String(fields.status) }));
+      return false;
+    }
     const next = statusCategory(ticket.project.config, String(fields.status));
     const docs = fields.docs !== undefined ? (fields.docs as string[]).length : ticket.docIds.length;
     if (next === 'done' && ticket.category !== 'done' && ticket.project.config.requireDocs && !docs && !confirm(t('tickets.docsRequiredConfirm', { ticket: ticket.meta.id ?? ticket.title }))) return false;

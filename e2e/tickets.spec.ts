@@ -104,3 +104,61 @@ test('group projects follow the group switch for every member', async ({ page, o
   await ben.goto('/projects');
   await expect(ben.locator(`[data-project-link="${key}"]`)).toBeVisible();
 });
+
+test('workflow: enforced order, a rule from a template and a GitLab webhook that moves the ticket', async ({ page }) => {
+  await enableFeature(page, 'tickets');
+  const folder = `Flow ${uid()}`;
+  const key = `W${letters()}`;
+  await seed(page.request, [{ path: `${folder}/Readme.md`, content: 'About the project' }]);
+  await page.goto(`/f/${encodeURIComponent(folder)}`);
+  await page.locator('[data-make-project]').click();
+  await page.locator('[data-project-key]').fill(key);
+  await page.getByRole('button', { name: 'Create project' }).click();
+  const project = page.locator(`[data-project="${key}"]`);
+  await expect(project).toBeVisible();
+  const [ticketId] = await seed(page.request, [{ path: `${folder}/Login.md`, content: `---\ntype: ticket\nid: ${key}-?\nstatus: Open\npriority: medium\n---\n` }]);
+
+  // Settings use the whole window: order forward only, plus the "merge sets the status" rule
+  await project.getByRole('button', { name: 'Project settings' }).click();
+  const dialog = page.locator('[data-project-settings]');
+  await expect(dialog).toBeVisible();
+  const box = await dialog.boundingBox();
+  const viewport = page.viewportSize()!;
+  expect(box!.width).toBeGreaterThan(viewport.width * 0.85);
+  await dialog.locator('[data-section="transitions"]').click();
+  await dialog.getByRole('switch', { name: 'Enforce the order' }).click();
+  await dialog.locator('[data-preset="forward"]').click();
+  await expect(dialog.getByRole('checkbox', { name: 'Allow Open → Done' })).toHaveAttribute('aria-checked', 'false');
+  await expect(dialog.getByRole('checkbox', { name: 'Allow Open → In progress' })).toHaveAttribute('aria-checked', 'true');
+  await dialog.locator('[data-section="automations"]').click();
+  await dialog.locator('[data-template="merge"]').click();
+  await expect(dialog.locator('[data-rule-editor]')).toContainText('a merge request is merged');
+  await dialog.locator('[data-save-project]').click();
+  await expect(dialog).toBeHidden();
+
+  // The ticket menu offers only the next status
+  await page.goto(`/n/${ticketId}`);
+  const panel = page.locator('[data-ticket-panel]');
+  await panel.getByRole('combobox', { name: 'Status' }).click();
+  await expect(page.getByRole('option', { name: 'In progress', exact: true })).toBeVisible();
+  await expect(page.getByRole('option', { name: 'Done', exact: true })).toHaveCount(0);
+  await page.getByRole('option', { name: 'In progress', exact: true }).click();
+  await expect.poll(async () => (await serverNote(page.request, ticketId))?.content ?? '').toContain('status: In progress');
+
+  // A webhook for GitLab; a merge naming the ticket in its branch finishes it (the rule may skip Review)
+  await page.goto(`/f/${encodeURIComponent(folder)}`);
+  await project.getByRole('button', { name: 'Project settings' }).click();
+  await dialog.locator('[data-section="git"]').click();
+  await dialog.locator('[data-create-hook]').click();
+  const created = dialog.locator('[data-hook-created]');
+  await expect(created).toBeVisible();
+  const url = await created.getByRole('textbox', { name: 'Address (URL)' }).inputValue();
+  const secret = await created.getByRole('textbox', { name: 'Secret token' }).inputValue();
+  const res = await page.request.post(url, {
+    headers: { 'X-Gitlab-Event': 'Merge Request Hook', 'X-Gitlab-Token': secret, 'Content-Type': 'application/json' },
+    data: { object_kind: 'merge_request', user: { username: 'dev' }, object_attributes: { action: 'merge', iid: 7, title: 'Login form', source_branch: `feature/${key.toLowerCase()}-1-login`, url: 'https://git.example/mr/7', description: '' } },
+  });
+  expect(res.status()).toBe(200);
+  await expect.poll(async () => (await serverNote(page.request, ticketId))?.content ?? '').toContain('status: Done');
+  expect((await serverNote(page.request, ticketId))?.content).toContain('Merged: https://git.example/mr/7');
+});

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { PRIORITIES, type Priority } from '@kladde/shared';
 import { vault, useVault } from '../data/vault';
-import { assignees, byRank, createReleaseNotes, milestoneOfNote, milestonesOf, ticketOfNote, ticketsOf, updateTicket, type MilestoneInfo, type TicketInfo } from '../data/tickets';
+import { allowedStatusesOf, assignees, byRank, createReleaseNotes, milestoneOfNote, milestonesOf, ticketOfNote, ticketsOf, updateTicket, type MilestoneInfo, type TicketInfo } from '../data/tickets';
 import { navigate } from '../lib/router';
 import { t, useLang } from '../lib/i18n';
 import { AddLink, AlertTriangle, Ban, CheckCircle2, Clock, FileText, Flag, NewReleases, Person, Plus, Tags, Ticket, X } from '../lib/icons';
@@ -79,7 +79,7 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
           t('tickets.colStatus'),
           CheckCircle2,
           canEdit ? (
-            <Dropdown variant="chip" aria-label={t('tickets.colStatus')} value={tk.meta.status} options={tk.project.config.workflow.map((s) => ({ value: s, label: s }))} onChange={(s) => set({ status: s })} />
+            <Dropdown variant="chip" aria-label={t('tickets.colStatus')} value={tk.meta.status} options={allowedStatusesOf(tk).map((s) => ({ value: s, label: s }))} onChange={(s) => set({ status: s })} />
           ) : (
             <StatusBadge tk={tk} />
           )

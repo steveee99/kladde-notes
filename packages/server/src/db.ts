@@ -541,6 +541,24 @@ export const MIGRATIONS: Migration[] = [
       if (!cols.some((c) => c.name === 'accent')) db.exec('ALTER TABLE users ADD COLUMN accent TEXT');
     },
   },
+  {
+    version: 27,
+    description: 'Ticket workflows: webhooks of GitLab/GitHub that run the automations of a project',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE ticket_hooks (
+          id TEXT PRIMARY KEY,
+          note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+          created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          provider TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          last_at INTEGER,
+          payload BLOB NOT NULL
+        );
+        CREATE INDEX ticket_hooks_note ON ticket_hooks(note_id);
+      `);
+    },
+  },
 ];
 
 /** The schema version this build migrates to */

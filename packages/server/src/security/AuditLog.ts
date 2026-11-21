@@ -19,6 +19,8 @@ export type AuditEvent =
   | 'import_token_revoked'
   | 'calendar_feed_created'
   | 'calendar_feed_revoked'
+  | 'ticket_hook_created'
+  | 'ticket_hook_removed'
   | 'shortcut_token_created'
   | 'shortcut_token_revoked'
   | 'confluence_connected'

@@ -1910,6 +1910,11 @@ span.cm-checkbox {
   border-color: rgb(var(--primary));
   background: rgb(var(--primary) / 0.08);
 }
+/* While dragging: a lane the workflow does not allow for the ticket */
+.wz-lane.closed {
+  opacity: 0.45;
+  border-style: dashed;
+}
 .wz-lane-head {
   display: flex;
   justify-content: space-between;
