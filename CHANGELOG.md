@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.16.0] – 2026-11-21
+
 - New: Catppuccin Mocha as a third color scheme (Settings → Appearance → Color scheme, also in the command palette). The accent presets map onto Mocha's colors.
 - New: Code themes for code blocks, chosen per device: Kladde (follows the accent), Catppuccin (Mocha/Latte), GitHub and One, each with a dark and a light variant that follows the color scheme.
 - Changed: Code blocks are more compact: a slim header with the language and the copy button, a thin border and no empty space above and below the code.
