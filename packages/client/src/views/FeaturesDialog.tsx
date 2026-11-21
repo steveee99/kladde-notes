@@ -484,7 +484,7 @@ export function FeaturesDialog({ onClose, initial }: { onClose: () => void; init
   const L = (key: I18nKey, vars?: Record<string, string | number>) => tl(lang, key, vars);
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4 lg:p-6">
       <div className="fixed inset-0 bg-scrim/[0.32] anim-fade-in" onClick={onClose} />
       <div
         ref={ref}
@@ -493,7 +493,7 @@ export function FeaturesDialog({ onClose, initial }: { onClose: () => void; init
         aria-modal="true"
         aria-label={L('features.title')}
         data-features-dialog
-        className="relative flex h-[min(92dvh,100%)] w-full max-w-3xl flex-col overflow-hidden rounded-t-xl border border-line2 bg-panel shadow-elevation-3 outline-none anim-sheet sm:h-[min(85vh,760px)] sm:rounded-xl"
+        className="relative flex h-[min(94dvh,100%)] w-full max-w-6xl flex-col overflow-hidden rounded-t-xl border border-line2 bg-panel shadow-elevation-3 outline-none anim-sheet sm:h-[min(92vh,1080px)] sm:rounded-xl"
       >
         <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-4 sm:px-6">
           {open ? (
@@ -542,7 +542,7 @@ export function FeaturesDialog({ onClose, initial }: { onClose: () => void; init
               {shown.length === 0 ? (
                 <p className="py-16 text-center text-sm text-on-surface-variant">{tab === 'active' ? L('features.emptyActive') : L('features.emptyAvailable')}</p>
               ) : (
-                <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
                   {shown.map((f) => (
                     <li key={f.id}>
                       <FeatureCard feature={f} disabled={busy || locked} onOpen={() => show(f.id)} onActivate={() => void toggle(f, true).then(() => show(f.id, f.settings ? 'settings' : 'overview'))} />
@@ -670,7 +670,7 @@ function FeatureDetail({
       )}
       <div role={hasSettings ? 'tabpanel' : undefined} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 safe-bottom [--pad-bottom:1rem] sm:px-6" data-feature-detail={f.id}>
         {current === 'overview' ? (
-          <div className="space-y-4">
+          <div className="mx-auto max-w-4xl space-y-4">
             <FeatureArt id={f.id} className="aspect-[16/9] w-full rounded-2xl sm:aspect-[16/7]" />
             <div className="flex flex-wrap items-center gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary-container text-on-secondary-container">
@@ -716,7 +716,7 @@ function FeatureDetail({
               </p>
             }
           >
-            <div className="space-y-4">{f.settings!()}</div>
+            <div className="mx-auto max-w-4xl space-y-4">{f.settings!()}</div>
           </Suspense>
         )}
         {error && <p className="mt-3 text-sm text-error">{error}</p>}

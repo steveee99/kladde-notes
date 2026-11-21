@@ -56,6 +56,8 @@ import {
   setTicketFields,
   statusCategory,
   ticketMeta,
+  allowedStatuses,
+  canTransition,
   MILESTONE_FOLDER,
   type Priority,
   type ProjectConfig,
@@ -246,6 +248,11 @@ function checkSize(content: string): void {
 
 /** Saves through the normal sync path: next seq, live ping to the user's devices, export mirror */
 function save(ctx: ToolContext, note: SpaceNote, content: string) {
+  return saveWithContent(ctx, note, content).saved;
+}
+
+/** Saves and also returns the text as stored (the server numbers tickets and runs their automations) */
+function saveWithContent(ctx: ToolContext, note: SpaceNote, content: string) {
   writable(note);
   const memory = memoryWrite(ctx, note.realPath === undefined && note.access === 'owner' ? note.path : null, note.content, content);
   content = memory.content;
@@ -256,7 +263,14 @@ function save(ctx: ToolContext, note: SpaceNote, content: string) {
   if (result.status === 'conflict') throw new ToolError('Die Notiz wurde gerade geändert. Lies sie erneut und versuche es noch einmal.');
   if (result.status !== 'ok') throw new ToolError('Die Notiz konnte nicht gespeichert werden.');
   memory.after();
-  return { id: note.id, path: note.path, version: result.version, ...(memory.warnings.length ? { warnings: memory.warnings } : {}) };
+  const saved = {
+    id: note.id,
+    path: note.path,
+    version: result.version,
+    ...(memory.warnings.length ? { warnings: memory.warnings } : {}),
+    ...(result.automations ? { automations: result.automations } : {}),
+  };
+  return { saved, content: result.content ?? content };
 }
 
 // ------------------------------------------------------------------ AI memory (#94)
@@ -1107,7 +1121,7 @@ export const TOOLS: ToolDef[] = [
     name: 'list_projects',
     title: 'Projekte auflisten',
     description:
-      'Lists the projects with tickets: folders with a ticket key (e.g. KLD), their workflow statuses (in order; `active` and `done` say which count as in progress and finished) and milestones with progress. Only projects where tickets are switched on appear.',
+      'Lists the projects with tickets: folders with a ticket key (e.g. KLD), their workflow statuses (in order; `active` and `done` say which count as in progress and finished), `transitions` (which status may follow which; missing means any change is allowed), active `automations` (rules that change tickets by themselves, e.g. when a merge request is merged) and milestones with progress. Only projects where tickets are switched on appear.',
     inputSchema: { type: 'object', properties: {} },
     write: false,
     run(_args, ctx) {
@@ -1122,6 +1136,11 @@ export const TOOLS: ToolDef[] = [
           active: p.config.active,
           done: p.config.done,
           require_docs: p.config.requireDocs,
+          // Allowed status changes (missing: every change is allowed) and the rules that change tickets on their own
+          ...(p.config.transitions ? { transitions: p.config.transitions } : {}),
+          ...(p.config.automations.length
+            ? { automations: p.config.automations.filter((a) => a.enabled).map((a) => ({ name: a.name || a.id, on: a.trigger, actions: a.actions.map((x) => `${x.type}${x.value ? `: ${x.value}` : ''}`) })) }
+            : {}),
           open_tickets: tickets.filter((t) => statusCategory(p.config, t.status) !== 'done').length,
           milestones: milestonesIn(notes, p).map((m) => {
             const meta = milestoneMeta(m.content);
@@ -1219,7 +1238,14 @@ export const TOOLS: ToolDef[] = [
     run(args, ctx) {
       const { note, project } = findTicket(ctx, str(args, 'ticket', true)!);
       const fields: Parameters<typeof setTicketFields>[1] = {};
-      if ('status' in args) fields.status = projectStatus(project, str(args, 'status')) ?? null;
+      if ('status' in args) {
+        fields.status = projectStatus(project, str(args, 'status')) ?? null;
+        const current = ticketMeta(note.content).status;
+        if (fields.status && !canTransition(project.config, current, fields.status)) {
+          const allowed = allowedStatuses(project.config, current).filter((s) => s.toLowerCase() !== current.toLowerCase());
+          throw new ToolError(`Der Workflow erlaubt nicht „${current}“ → „${fields.status}“. Von „${current}“ geht es nur nach: ${allowed.join(', ') || '(keinem anderen Status)'}.`);
+        }
+      }
       if ('priority' in args) fields.priority = priorityArg(args) ?? null;
       if ('milestone' in args) fields.milestone = str(args, 'milestone') ?? null;
       if ('assignee' in args) fields.assignee = str(args, 'assignee')?.replace(/^@/, '') || null;
@@ -1232,8 +1258,8 @@ export const TOOLS: ToolDef[] = [
       let content = setTicketFields(note.content, fields);
       const comment = str(args, 'comment')?.trim();
       if (comment) content = `${content.replace(/\s+$/, '')}\n\n${comment}\n`;
-      const saved = save(ctx, note, content);
-      return { ...saved, ...ticketSummary({ ...note, content, version: saved.version }, project) };
+      const { saved, content: stored } = saveWithContent(ctx, note, content);
+      return { ...saved, ...ticketSummary({ ...note, content: stored, version: saved.version }, project) };
     },
   },
   {

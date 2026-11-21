@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, assignTicketNumber, contentHash, embedsOf, extractMeta, numberedTicketId, parseGroupFeatures, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, splitPath } from '@kladde/shared';
+import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, assignTicketNumber, canTransition, isDatabasePath, isTicketContent, parseProject, runAutomations, setTicketFields, subtaskProgress, ticketEvents, ticketMeta, workflowStatus, type ProjectConfig, contentHash, embedsOf, extractMeta, numberedTicketId, parseGroupFeatures, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, splitPath } from '@kladde/shared';
 import { DataCipher, randomToken } from './crypto.js';
 import { transaction } from './db.js';
 
@@ -249,6 +249,70 @@ export class NoteStore {
     if (row && row.value >= id.number) return;
     const value = Math.max(id.number, row ? row.value : this.highestTicketNumber(ownerId, id.key));
     this.db.prepare('INSERT INTO ticket_counters (owner_id, key_mac, value) VALUES (?, ?, ?) ON CONFLICT(owner_id, key_mac) DO UPDATE SET value = excluded.value').run(ownerId, mac, value);
+  }
+
+  // ------------------------------------------------------------------ ticket workflows
+
+  /** Projects (database notes with a `project` block) per owner and folder; dropped when a database note changes */
+  private projectCache = new Map<string, Map<string, { id: string; config: ProjectConfig }>>();
+  /** Last workflow status of a ticket, so typing a status by hand (unknown values in between) is still checked */
+  private lastStatus = new Map<string, string>();
+
+  private projectsOf(ownerId: string): Map<string, { id: string; config: ProjectConfig }> {
+    let found = this.projectCache.get(ownerId);
+    if (found) return found;
+    found = new Map();
+    const rows = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND deleted = 0 ORDER BY created_at, id').all(ownerId) as unknown as NoteRow[];
+    for (const r of rows) {
+      const p = this.payload(r);
+      if (!isDatabasePath(p.path)) continue;
+      const config = parseProject(p.content);
+      const folder = splitPath(p.path).folder;
+      if (config && !found.has(folder)) found.set(folder, { id: r.id, config });
+    }
+    this.projectCache.set(ownerId, found);
+    return found;
+  }
+
+  /** The project of a database note (live), with its folder and owner */
+  projectOf(noteId: string): { ownerId: string; folder: string; config: ProjectConfig } | null {
+    const row = ID_PATTERN.test(noteId) ? this.getRow(noteId) : undefined;
+    if (!row || row.deleted) return null;
+    const p = this.payload(row);
+    const config = isDatabasePath(p.path) ? parseProject(p.content) : null;
+    return config ? { ownerId: row.owner_id, folder: splitPath(p.path).folder, config } : null;
+  }
+
+  /**
+   * A ticket arrives: a status change the project's transitions do not allow is undone (unless the change comes
+   * from an automation, `trusted`), then the project's automations run for creation, status change and finished
+   * sub-tasks. Other notes and tickets outside projects stay as they are.
+   */
+  private applyWorkflow(ownerId: string, noteId: string, path: string, previous: string | null, content: string, actorId: string, trusted: boolean): { content: string; rejectedStatus?: string; automations?: string[] } {
+    if (!isTicketContent(content)) {
+      this.lastStatus.delete(noteId);
+      return { content };
+    }
+    const project = this.projectsOf(ownerId).get(splitPath(path).folder)?.config;
+    if (!project) return { content };
+    const before = previous !== null && isTicketContent(previous) ? ticketMeta(previous) : null;
+    const from = before ? (workflowStatus(project.workflow, before.status) ?? this.lastStatus.get(noteId) ?? before.status) : null;
+    let status = ticketMeta(content).status;
+    let rejectedStatus: string | undefined;
+    const to = workflowStatus(project.workflow, status);
+    if (from !== null && to && !trusted && !canTransition(project, from, to)) {
+      content = setTicketFields(content, { status: from });
+      rejectedStatus = to;
+      status = from;
+    }
+    // A status outside the workflow (typed half-way) is no change yet
+    const next = workflowStatus(project.workflow, status) ?? from ?? status;
+    const events = ticketEvents(before && from !== null ? { status: from, progress: subtaskProgress(previous!) } : null, { status: next, progress: subtaskProgress(content) });
+    const run = runAutomations(project, content, events, { actor: this.usernameOf(actorId) ?? undefined });
+    content = run.content;
+    const final = workflowStatus(project.workflow, ticketMeta(content).status);
+    if (final) this.lastStatus.set(noteId, final);
+    return { content, ...(rejectedStatus ? { rejectedStatus } : {}), ...(run.applied.length ? { automations: run.applied.map((a) => a.name || a.id) } : {}) };
   }
 
   /** Numbers a provisional ticket (`KLD-?`) of `ownerId`; the content unchanged when it is none */
@@ -509,7 +573,8 @@ export class NoteStore {
     return !!row && !row.deleted && !!this.accessOf(userId, row);
   }
 
-  push(userId: string, changes: PushChange[]): PushResult[] {
+  /** `trusted`: the changes come from an automation that already followed (or may skip) the transitions */
+  push(userId: string, changes: PushChange[], opts: { trusted?: boolean } = {}): PushResult[] {
     const events: NoteChangeEvent[] = [];
     // Only needed when the caller creates or moves own notes; decrypted once per push
     let cached: FolderShare[] | undefined;
@@ -536,7 +601,14 @@ export class NoteStore {
             if (!grant || change.deleted) return { id: change.id, status: 'forbidden' };
             ownerId = grant;
           }
-          if (!change.deleted) content = this.numberTicket(ownerId, content);
+          let flow: Omit<ReturnType<NoteStore['applyWorkflow']>, 'content'> = {};
+          if (!change.deleted) {
+            content = this.numberTicket(ownerId, content);
+            if (isDatabasePath(path)) this.projectCache.delete(ownerId);
+            const { content: next, ...rest } = this.applyWorkflow(ownerId, change.id, path, null, content, userId, !!opts.trusted);
+            content = next;
+            flow = rest;
+          }
           const seq = this.nextSeq();
           const createdAt = Math.min(Number(change.createdAt) || now, now);
           this.db
@@ -547,7 +619,7 @@ export class NoteStore {
           const added = change.deleted ? [] : this.applyFolderShares(ownerId, change.id, path, seq, shares);
           const members = ownerId === userId ? [] : (this.db.prepare('SELECT user_id FROM group_members WHERE group_id = ?').all(ownerId) as { user_id: string }[]).map((m) => m.user_id);
           events.push({ noteId: change.id, ownerId, audience: [...new Set([ownerId, userId, ...added, ...members])], path, previousPath: null, content, deleted: !!change.deleted, actorId: userId, previousContent: '' });
-          return { id: change.id, status: 'ok', version: 1, ...(content !== sent ? { content } : {}) };
+          return { id: change.id, status: 'ok', version: 1, ...(content !== sent ? { content } : {}), ...flow };
         }
         const access = this.accessOf(userId, row);
         if (access !== 'owner' && access !== 'write') return { id: change.id, status: 'forbidden' };
@@ -562,7 +634,14 @@ export class NoteStore {
         // Only the owner moves or renames a note: it lives in their space. Deleting also needs the folder share's permission
         const path = manager ? cleanPath(change.path) : old.path;
         const deleted = !!change.deleted;
-        if (!deleted) content = this.numberTicket(row.owner_id, content);
+        if (isDatabasePath(path) || isDatabasePath(old.path)) this.projectCache.delete(row.owner_id);
+        let flow: Omit<ReturnType<NoteStore['applyWorkflow']>, 'content'> = {};
+        if (!deleted) {
+          content = this.numberTicket(row.owner_id, content);
+          const { content: next, ...rest } = this.applyWorkflow(row.owner_id, row.id, path, old.content, content, userId, !!opts.trusted);
+          content = next;
+          flow = rest;
+        }
         const seq = this.nextSeq();
         this.db
           .prepare('UPDATE notes SET version = version + 1, seq = ?, updated_at = ?, deleted = ?, payload = ? WHERE id = ?')
@@ -575,7 +654,7 @@ export class NoteStore {
         if (deleted) this.dropShares(row.id, seq);
         else if (access === 'owner' && path !== old.path) audience.push(...this.applyFolderShares(userId, row.id, path, seq, folderShares()));
         events.push({ noteId: row.id, ownerId: row.owner_id, audience: [...new Set(audience)], path, previousPath: old.path, content: deleted ? content : this.published(row.id, content), deleted, actorId: userId, previousContent: old.content });
-        return { id: change.id, status: 'ok', version: row.version + 1, ...(content !== sent ? { content } : {}) };
+        return { id: change.id, status: 'ok', version: row.version + 1, ...(content !== sent ? { content } : {}), ...flow };
       })
     );
     for (const e of events) this.onChange(e);
@@ -696,6 +775,8 @@ export class NoteStore {
    * note) or gets a free name next to it (`rename`, used for a whole folder).
    */
   restore(userId: string, noteIds: string[], opts: { path?: unknown; rename?: boolean } = {}): { id: string; path: string }[] {
+    // Projects may appear or move with these notes
+    this.projectCache.clear();
     const events: NoteChangeEvent[] = [];
     const restored = transaction(this.db, () => {
       // Paths per owner: a group's trash (#58) restores into the group's space
@@ -1165,6 +1246,8 @@ export class NoteStore {
    * Returns the new paths and the moved contents (their attachments may move along).
    */
   moveToGroup(userId: string, groupId: string, req: Partial<GroupMoveRequest>): { moved: { id: string; path: string }[]; contents: string[] } {
+    // Projects may appear or move with these notes
+    this.projectCache.clear();
     if (!canWriteInGroup(this.groupRole(groupId, userId))) throw new Error('forbidden');
     const ids = Array.isArray(req.noteIds) ? [...new Set(req.noteIds.filter((id): id is string => typeof id === 'string' && ID_PATTERN.test(id)))] : [];
     if (!ids.length || ids.length > 5000) throw new Error('invalid');
@@ -1209,6 +1292,8 @@ export class NoteStore {
    * must be removed from the file store before. Returns the former members (they pull the revocations).
    */
   deleteGroup(userId: string, groupId: string): string[] {
+    // Projects may appear or move with these notes
+    this.projectCache.clear();
     if (this.groupRole(groupId, userId) !== 'owner') throw new Error('forbidden');
     return transaction(this.db, () => {
       const members = (this.db.prepare('SELECT user_id FROM group_members WHERE group_id = ?').all(groupId) as { user_id: string }[]).map((m) => m.user_id);

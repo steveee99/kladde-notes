@@ -28,7 +28,7 @@ describe('projects', () => {
   it('creates a database note that is a project with board and backlog', () => {
     const content = newProjectContent('KLD');
     const project = parseProject(content)!;
-    expect(project).toEqual({ key: 'KLD', workflow: ['Offen', 'In Arbeit', 'Review', 'Erledigt'], active: ['In Arbeit', 'Review'], done: ['Erledigt'], requireDocs: false });
+    expect(project).toEqual({ key: 'KLD', workflow: ['Offen', 'In Arbeit', 'Review', 'Erledigt'], active: ['In Arbeit', 'Review'], done: ['Erledigt'], requireDocs: false, transitions: null, automations: [] });
     const db = parseDatabase(content)!;
     expect(db.properties.map((p) => p.name)).toEqual(['status', 'priority', 'milestone', 'assignee', 'estimate', 'labels']);
     expect(db.views.map((v) => v.type)).toEqual(['board', 'table']);
