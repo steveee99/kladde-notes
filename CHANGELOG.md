@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.14.0] – 2026-11-21
+
 - Changed: Kladde looks like a notebook rather than a generic dashboard. Note titles, headings in notes, page titles and section headings are set in the serif Newsreader (self-hosted), next to Inter for the interface and JetBrains Mono for numbers and dates. The dark scheme uses warm slate greys instead of cool graphite, the light scheme is paper and ink (a cream page, near-black text), and the default accent is an ink blue ("Ink"/"Tinte"; the other accents stay, all rechecked for contrast).
 - Changed: Home reads like a day sheet: the date large in the serif on a fading dot grid, tasks, inbox, activity and projects as open sections with a heading over a line instead of boxed cards. Captions are written in sentence case instead of spaced capitals, and each page has at most one filled accent button ("New note" in the side panel and "Open daily note" are now tonal).
 - Changed: New logo and app icon (a notebook with an elastic band, drawn in your accent), a thin double margin line left of the note text on the desktop, dotted backgrounds for the graph and for empty pages.
