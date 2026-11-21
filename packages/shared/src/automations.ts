@@ -140,7 +140,7 @@ export function runAutomations(project: AutomationProject, content: string, even
             };
             const text = fillCommentPlaceholders(action.value, vars).trim();
             if (!text) break;
-            run.content = `${run.content.replace(/\s+$/, '')}\n\n${text}\n`;
+            run.content = `${run.content.trimEnd()}\n\n${text}\n`;
             did = true;
             break;
           }

@@ -102,7 +102,12 @@ export function ticketHookRouters(opts: TicketHookOptions): { receiver: express.
 
   const accountRouter = express.Router();
   accountRouter.use(requireUser(users, opts.standaloneUser), express.json({ limit: '16kb' }));
-  const baseUrl = (req: express.Request) => (opts.publicUrl ?? `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  const baseUrl = (req: express.Request) => {
+    // Trailing slashes off without a regex (the host header comes from the client)
+    let url = opts.publicUrl ?? `${req.protocol}://${req.get('host')}`;
+    while (url.endsWith('/')) url = url.slice(0, -1);
+    return url;
+  };
   const managed = (req: express.Request, res: express.Response): string | null => {
     const noteId = String(req.params.project ?? '');
     if (!notes.manages(req.user!.id, noteId) || !notes.projectOf(noteId)) {
