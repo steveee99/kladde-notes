@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.17.0] – 2026-11-21
+
 - New: Milestones have a status: Planned, Active, Done or Cancelled. Without one set by hand it follows the tickets (nothing started: planned; all finished: done), so an empty milestone shows "Planned". Closing a milestone while tickets are open shows how many are left; done and cancelled milestones are no longer "at risk".
 - New: Dependencies between milestones ("Blocked by …" and "Blocks …" in the milestone, frontmatter `blockedBy`/`blocks`). The roadmap shows what a milestone waits for and warns when it starts before the milestone it waits for ends.
 - New: Tickets can be marked "Blocked by …" on themselves (frontmatter `blockedBy`, also in `ticket_update` over MCP), not only "Blocks …" on the other ticket. Finished blockers stay listed as done; removing a relation clears it on both tickets.
