@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.15.0] – 2026-11-21
+
 - New: Ticket workflows. The project settings open in a dialog that uses the whole window, with sections for General, Statuses, Transitions, Automations and Git integration; nothing has to be written in the frontmatter any more.
 - New: Statuses are edited as a list: rename (the project's tickets move along), reorder, add and remove them and set their category (open, in progress, done).
 - New: Transitions. "Enforce the order" decides which status may follow which, set in a matrix or with the presets "Forward only" and "Step by step, forward and back". The board only takes drops on allowed columns, the status menus only offer allowed statuses, `ticket_update` (MCP) names the allowed ones, and the server undoes a change that is not allowed (also one typed into the note) while keeping the rest of the text.
