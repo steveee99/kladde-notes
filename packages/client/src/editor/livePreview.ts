@@ -422,13 +422,16 @@ function build(state: EditorState): DecorationSet {
             blockWidget(node, Decoration.replace({ widget: new DiagramWidget(langInfo, body, lang), block: true }));
             return false;
           }
+          // Rendered (cursor outside): the opening fence becomes a slim header, a closing fence a thin bottom edge
+          const closing = !editing && /^\s*(```|~~~)\s*$/.test(lastLine.text) && lastLine.number > firstLine.number;
           for (let l = firstLine.number; l <= lastLine.number; l++) {
-            const cls = `cm-codeblock${l === firstLine.number ? ' cm-codeblock-first' : ''}${l === lastLine.number ? ' cm-codeblock-last' : ''}`;
+            let cls = 'cm-codeblock';
+            if (l === firstLine.number) cls += editing ? ' cm-codeblock-first' : ' cm-codeblock-first cm-codeblock-head';
+            if (l === lastLine.number) cls += closing ? ' cm-codeblock-last cm-codeblock-foot' : ' cm-codeblock-last';
             decos.push(line(cls).range(doc.line(l).from));
           }
           if (!editing) {
             replace(firstLine.from, firstLine.to, Decoration.replace({ widget: new CodeHeaderWidget(langInfo, body, lang) }));
-            const closing = /^\s*(```|~~~)\s*$/.test(lastLine.text) && lastLine.number > firstLine.number;
             if (closing) replace(lastLine.from, lastLine.to);
           }
           return false;

@@ -20,6 +20,7 @@ import { useConfluence } from '../lib/confluence';
 import { Lang, locale, setLang, tl, useLang, type I18nKey } from '../lib/i18n';
 import { EDITOR_FONT_SIZES, setEditorFontSize, setInboxZero, setLigatures, useEditorFontSize, useInboxZero, useLigatures } from '../lib/prefs';
 import { setColorSchemeChoice, useColorSchemeChoice } from '../lib/theme';
+import { CODE_THEMES, setCodeTheme, useCodeTheme } from '../lib/codeTheme';
 import { useVault, vault } from '../data/vault';
 import { navigate, usePath } from '../lib/router';
 import { GitLabIcon, passkeysAvailable, useAuthProviders, useRedirectParam } from './Auth';
@@ -184,6 +185,7 @@ export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (m
   const ligatures = useLigatures();
   const editorFontSize = useEditorFontSize();
   const colorScheme = useColorSchemeChoice();
+  const codeTheme = useCodeTheme();
   const inPanel = useSettingsNavInPanel();
   const path = usePath();
   const [link, setLink] = useState<{ code: string; expiresAt: number } | null>(null);
@@ -349,16 +351,26 @@ export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (m
               <AccentPicker onMe={onMe} />
             </div>
             <SettingRow title={tl(lang, 'settings.colorSchemeTitle')} desc={tl(lang, 'settings.colorSchemeDesc')}>
-              <div className="segmented grid w-full grid-cols-3 sm:inline-flex sm:w-auto sm:shrink-0" role="group" aria-label={tl(lang, 'settings.colorSchemeTitle')}>
+              <div className="segmented grid w-full grid-cols-4 sm:inline-flex sm:w-auto sm:shrink-0" role="group" aria-label={tl(lang, 'settings.colorSchemeTitle')}>
                 {(
                   [
                     ['dark', 'settings.colorSchemeDark'],
+                    ['mocha', 'settings.colorSchemeMocha'],
                     ['light', 'settings.colorSchemeLight'],
                     ['system', 'settings.colorSchemeSystem'],
                   ] as const
                 ).map(([choice, label]) => (
                   <button key={choice} type="button" aria-pressed={colorScheme === choice} onClick={() => setColorSchemeChoice(choice)} className="min-w-0">
                     <span className="truncate">{tl(lang, label)}</span>
+                  </button>
+                ))}
+              </div>
+            </SettingRow>
+            <SettingRow title={tl(lang, 'settings.codeThemeTitle')} desc={tl(lang, 'settings.codeThemeDesc')}>
+              <div className="segmented grid w-full grid-cols-2 min-[420px]:grid-cols-4 sm:inline-flex sm:w-auto sm:shrink-0" role="group" aria-label={tl(lang, 'settings.codeThemeTitle')}>
+                {CODE_THEMES.map((theme) => (
+                  <button key={theme} type="button" aria-pressed={codeTheme === theme} onClick={() => setCodeTheme(theme)} className="min-w-0" data-code-theme-choice={theme}>
+                    <span className="truncate">{tl(lang, `settings.codeTheme.${theme}`)}</span>
                   </button>
                 ))}
               </div>

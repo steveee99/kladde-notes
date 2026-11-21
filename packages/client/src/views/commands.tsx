@@ -72,6 +72,7 @@ export function buildCommands(path: string): Command[] {
     { id: 'side-panel', label: t('cmd.toggleSidePanel'), icon: i(<PanelLeftClose size={16} />), hint: 'Ctrl/⌘+\\', keywords: 'sidebar ordner folder', run: toggleMaterialSidebarMode },
     scheme !== 'dark' && { id: 'scheme-dark', label: t('cmd.schemeDark'), icon: i(<SunMoon size={16} />), keywords: 'theme dark mode', run: () => setColorSchemeChoice('dark') },
     scheme !== 'light' && { id: 'scheme-light', label: t('cmd.schemeLight'), icon: i(<SunMoon size={16} />), keywords: 'theme light mode', run: () => setColorSchemeChoice('light') },
+    scheme !== 'mocha' && { id: 'scheme-mocha', label: t('cmd.schemeMocha'), icon: i(<SunMoon size={16} />), keywords: 'theme catppuccin dark', run: () => setColorSchemeChoice('mocha') },
     scheme !== 'system' && { id: 'scheme-system', label: t('cmd.schemeSystem'), icon: i(<SunMoon size={16} />), keywords: 'theme auto', run: () => setColorSchemeChoice('system') },
     {
       id: 'read-only',

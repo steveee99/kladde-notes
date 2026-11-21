@@ -19,7 +19,7 @@
     <meta name="referrer" content="no-referrer" />
     <title>Kladde</title>
     <script>
-      // Language, Werkbank theme, color scheme and accent, editor font size and content width percentage before first paint
+      // Language, Werkbank theme, color scheme (and Mocha palette), code theme and accent, editor font size and content width percentage before first paint
       try {
         var lang = localStorage.getItem('kladde_lang');
         if (lang === 'en' || lang === 'de') document.documentElement.lang = lang;
@@ -29,7 +29,10 @@
       try {
         var cs = localStorage.getItem('kladde_color_scheme');
         if (cs === 'light') scheme = 'light';
+        else if (cs === 'mocha') document.documentElement.dataset.palette = 'mocha';
         else if (cs === 'system' && window.matchMedia('(prefers-color-scheme: light)').matches) scheme = 'light';
+        var ct = localStorage.getItem('kladde_code_theme');
+        if (ct === 'catppuccin' || ct === 'github' || ct === 'one') document.documentElement.dataset.codeTheme = ct;
         var acc = localStorage.getItem('kladde_accent');
         if (acc && /^[a-z]{3,12}$/.test(acc)) document.documentElement.dataset.accent = acc;
         var fs = Number(localStorage.getItem('kladde_editor_font_size'));
