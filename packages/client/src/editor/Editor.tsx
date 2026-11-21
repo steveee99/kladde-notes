@@ -13,7 +13,7 @@ import { calloutsFacet, hidePropertiesFacet, livePreview, noteIdFacet, previewAl
 import { configureEmbeds } from './embed';
 import { embedResolverFacet, type EmbedResolver } from './embedContext';
 import { statusTaskList } from './taskStatus';
-import { useLigatures } from '../lib/prefs';
+import { useCodeBlockPrefs, useLigatures } from '../lib/prefs';
 import { sourceHighlight } from './sourceHighlight';
 import { editorHost } from './host';
 import { merge3, tagBeforeCursor, textChanges } from '@kladde/shared';
@@ -291,6 +291,9 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   const locked = readOnly || lockedEverywhere;
   const lang = useLang();
   const ligatures = useLigatures();
+  // Line numbers and folding of code blocks are part of the decorations; copy button and language work through CSS
+  const codePrefs = useCodeBlockPrefs();
+  const codeStamp = codePrefs.collapseAfter * 10_000_000 + (codePrefs.lineNumbers ? 500_000_000 : 0);
   const lockConf = useRef(new Compartment());
   const placeholderConf = useRef(new Compartment());
   const previewConf = useRef(new Compartment());
@@ -469,8 +472,8 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   }, [value]);
 
   useEffect(() => {
-    view.current?.dispatch({ effects: refreshEffect.of(stamp + (lang === 'en' ? 1_000_000 : 0) + (ligatures ? 0 : 2_000_000)) });
-  }, [stamp, lang, ligatures]);
+    view.current?.dispatch({ effects: refreshEffect.of(stamp + (lang === 'en' ? 1_000_000 : 0) + (ligatures ? 0 : 2_000_000) + codeStamp) });
+  }, [stamp, lang, ligatures, codeStamp]);
 
   return <div ref={host} className="wz-editor" />;
 }

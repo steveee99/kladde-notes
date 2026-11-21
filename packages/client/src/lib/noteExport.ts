@@ -478,12 +478,23 @@ export async function exportNoteAsWord(title: string, content: string): Promise<
           }
         }
         const codeLines = block.code.split('\n');
+        // File name from `title="…"` (codeInfo.ts) as a caption above the block
+        if (block.title) {
+          children.push(
+            new Paragraph({
+              shading: { type: ShadingType.SOLID, color: 'E6E3DC', fill: 'E6E3DC' },
+              indent: { left: 160, right: 160 },
+              spacing: { before: 80, after: 0 },
+              children: [new TextRun({ text: block.title, font: 'Courier New', size: 17, color: '5A574F' })],
+            })
+          );
+        }
         for (let idx = 0; idx < codeLines.length; idx++) {
           children.push(
             new Paragraph({
               shading: { type: ShadingType.SOLID, color: 'F3F2EE', fill: 'F3F2EE' },
               indent: { left: 160, right: 160 },
-              spacing: { before: idx === 0 ? 80 : 0, after: idx === codeLines.length - 1 ? 160 : 20 },
+              spacing: { before: idx === 0 && !block.title ? 80 : 0, after: idx === codeLines.length - 1 ? 160 : 20 },
               children: [new TextRun({ text: codeLines[idx] || ' ', font: 'Courier New', size: 19 })],
             })
           );
@@ -1059,6 +1070,15 @@ function drawPdfBlocks(f: PdfFrame, blocks: ExportBlock[]) {
           }
         }
         const codeSize = 9 * s;
+        if (block.title) {
+          // File name from `title="…"` (codeInfo.ts) as a caption above the block
+          ensureSpace(f, 30 * s);
+          pdf.setFont('courier', 'normal');
+          pdf.setFontSize(8 * s);
+          pdf.setTextColor(90, 87, 79);
+          pdf.text(pdfSafeText(block.title), marginX + 2 * s, f.y + 8 * s);
+          f.y += 12 * s;
+        }
         pdf.setFont('courier', 'normal');
         pdf.setFontSize(codeSize);
         const codeLines: string[] = [];

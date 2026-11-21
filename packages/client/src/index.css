@@ -877,7 +877,59 @@ html[data-readonly] .edit-only {
   font-size: 11.5px;
   color: rgb(var(--code-muted));
 }
-.cm-code-header button svg { width: 14px; height: 14px; }
+.cm-code-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgb(var(--code-fg));
+}
+.cm-code-actions { display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.cm-code-actions .cm-code-lang { padding: 0 6px; }
+/* Code block settings (lib/prefs.ts, attributes on <html>) */
+[data-code-copy='off'] .cm-code-copy,
+[data-code-lang='off'] .cm-code-lang { display: none; }
+/* Nothing left in the header: no header, only a thin top edge */
+[data-code-copy='off'][data-code-lang='off'] .cm-codeblock-head:not(:has(.cm-code-header-titled, .cm-code-fold)) {
+  font-size: 4px;
+  line-height: 4px;
+  padding-top: 4px !important;
+}
+[data-code-copy='off'][data-code-lang='off'] .cm-codeblock-head:not(:has(.cm-code-header-titled, .cm-code-fold)) .cm-code-header { display: none; }
+/* Line numbers (CodeLineNumberWidget, only on numbered blocks): in the flow inside the line's left padding, so
+   wrapped lines keep a hanging indent */
+.cm-codeblock.cm-code-numbered { padding-left: calc(14px + 3.2em) !important; }
+.cm-code-ln {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 3.2em;
+  margin-left: -3.2em;
+  padding-right: 1em;
+  text-align: right;
+  color: rgb(var(--code-muted) / 0.8);
+  user-select: none;
+}
+/* Highlighted lines ({3-4} in the info string) */
+.cm-codeblock.cm-code-hl {
+  background: linear-gradient(rgb(var(--acc) / 0.13), rgb(var(--acc) / 0.13)), rgb(var(--codeblock-bg));
+  box-shadow: inset 2px 0 0 rgb(var(--acc));
+}
+/* The folded rest of a long block */
+.cm-code-more {
+  background: rgb(var(--codeblock-bg));
+  border-inline: 1px solid rgb(var(--codeblock-line));
+  padding: 2px 8px 0;
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+.cm-code-more button {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 4px;
+  color: rgb(var(--acc-hi));
+}
+.cm-code-more button:hover,
+.cm-code-more button:focus-visible { background: rgb(var(--codeblock-line)); }
 .cm-code-header button:hover,
 .cm-code-header button:focus-visible {
   background: rgb(var(--codeblock-line));

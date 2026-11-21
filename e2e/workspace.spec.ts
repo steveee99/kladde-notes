@@ -90,6 +90,40 @@ test('a click on a query result opens the note, editing goes through the button'
   await expect(page).toHaveURL(new RegExp(`/n/${target}`));
 });
 
+test('code blocks show a file name, highlighted lines, line numbers and fold long blocks per the settings', async ({ page }) => {
+  const title = `Code ${uid()}`;
+  const long = Array.from({ length: 25 }, (_, i) => `x${i + 1}();`).join('\n');
+  const id = await seed(page.request, `${title}.md`, `Vorher\n\n\`\`\`ts title="src/a.ts" {2} showLineNumbers=5\nconst a = 1;\nconst b = 2;\n\`\`\`\n\n\`\`\`js\n${long}\n\`\`\`\n\nNachher\n`);
+  // Only the first load: later loads keep what the settings page changes
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('kladde_code_blocks')) localStorage.setItem('kladde_code_blocks', JSON.stringify({ lineNumbers: false, copy: true, language: true, collapseAfter: 10 }));
+  });
+  await open(page, id, title);
+  const first = page.locator('.cm-code-header').first();
+  await expect(first.locator('.cm-code-title')).toHaveText('src/a.ts');
+  await expect(first.locator('.cm-code-lang')).toHaveText('ts');
+  // The block turns line numbers on for itself, starting at 5; line 2 is highlighted
+  await expect(page.locator('.cm-code-ln')).toHaveText(['5', '6']);
+  await expect(page.locator('.cm-code-hl')).toHaveText(/const b = 2;/);
+  // The long block shows 10 lines and folds the rest
+  await expect(page.locator('.cm-line', { hasText: 'x10();' })).toBeVisible();
+  await expect(page.locator('.cm-line', { hasText: 'x11();' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Show 15 more lines' }).click();
+  await expect(page.locator('.cm-line', { hasText: 'x25();' })).toBeVisible();
+  await page.getByRole('button', { name: 'Collapse code block' }).click();
+  await expect(page.locator('.cm-line', { hasText: 'x25();' })).toHaveCount(0);
+  // Settings: line numbers for all blocks, no copy button
+  await page.goto('/settings/editor');
+  await page.getByRole('switch', { name: 'Line numbers' }).click();
+  await page.getByRole('switch', { name: 'Copy button' }).click();
+  await open(page, id, title);
+  await expect(page.locator('.cm-code-ln').first()).toHaveText('5');
+  await expect(page.locator('.cm-code-ln', { hasText: /^1$/ })).toHaveCount(1);
+  await expect(page.locator('.cm-code-copy').first()).toBeHidden();
+  const axe = await new AxeBuilder({ page }).include('.cm-content').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(axe.violations.map((v) => v.id)).toEqual([]);
+});
+
 test('formulas render with KaTeX and show their source on the cursor line', async ({ page }) => {
   const title = `Formel ${uid()}`;
   const id = await seed(page.request, `${title}.md`, 'Energie $E = mc^2$ ist bekannt.\n\n$$\n\\frac{a}{b}\n$$\n\nKostet $5 und $10.\n');

@@ -2,12 +2,15 @@ import { EditorState, Extension, Facet, Range, StateEffect, StateField } from '@
 import { Decoration, DecorationSet, EditorView, WidgetType } from '@codemirror/view';
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
-import { findMath, ticketIdPattern, type MathSpan, MENTION_RE, mentionName, CALLOUT_TONES, calloutTypeTitle, escapeRegExp, isKnownCalloutType, parseCalloutLine, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, type NoteHeading, type ReleaseField } from '@kladde/shared';
+import { findMath, isHighlightedLine, parseCodeInfo, ticketIdPattern, type MathSpan, MENTION_RE, mentionName, CALLOUT_TONES, calloutTypeTitle, escapeRegExp, isKnownCalloutType, parseCalloutLine, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, type NoteHeading, type ReleaseField } from '@kladde/shared';
 import { getLang, tl } from '../lib/i18n';
 import {
   AutoLinkWidget,
   CalloutHeadWidget,
   toggleCalloutEffect,
+  toggleCodeFoldEffect,
+  CodeFoldWidget,
+  CodeLineNumberWidget,
   CarouselWidget,
   CheckboxWidget,
   CodeHeaderWidget,
@@ -33,7 +36,7 @@ import { editorHost } from './host';
 import { embedContext } from './embedContext';
 import { embedWidgetFor } from './embed';
 import { markerStatus } from './taskStatus';
-import { getLigatures } from '../lib/prefs';
+import { CODE_COLLAPSE_FALLBACK, getCodeBlockPrefs, getLigatures } from '../lib/prefs';
 import { releaseFacet, ReleaseFieldWidget, releaseRenderOptions } from './releases';
 import { MathWidget } from './math';
 
@@ -84,6 +87,22 @@ const calloutFoldField = StateField.define<Set<number>>({
     if (tr.docChanged && value.size) next = new Set([...value].map((p) => tr.changes.mapPos(p, 1)));
     for (const e of tr.effects) {
       if (!e.is(toggleCalloutEffect)) continue;
+      if (next === value) next = new Set(value);
+      if (next.has(e.value)) next.delete(e.value);
+      else next.add(e.value);
+    }
+    return next;
+  },
+});
+
+/** Long code blocks the reader unfolded, by the start of their opening fence (only in the view) */
+const codeFoldField = StateField.define<Set<number>>({
+  create: () => new Set(),
+  update(value, tr) {
+    let next = value;
+    if (tr.docChanged && value.size) next = new Set([...value].map((p) => tr.changes.mapPos(p, 1)));
+    for (const e of tr.effects) {
+      if (!e.is(toggleCodeFoldEffect)) continue;
       if (next === value) next = new Set(value);
       if (next.has(e.value)) next.delete(e.value);
       else next.add(e.value);
@@ -158,6 +177,7 @@ const LIGATURES: Record<string, string> = { '<->': '↔', '<=>': '⇔', '->': '�
 const LIGATURE_RE = /(?<![<>=!-])(?:<->|<=>|->|<-|=>|<=|>=|!=)(?![<>=-])|(?<!\.)\.\.\.(?!\.)/g;
 const mark = (cls: string) => Decoration.mark({ class: cls });
 const line = (cls: string) => Decoration.line({ class: cls });
+const noSpellcheck = Decoration.line({ attributes: { spellcheck: 'false' } });
 
 function build(state: EditorState): DecorationSet {
   const doc = state.doc;
@@ -166,6 +186,8 @@ function build(state: EditorState): DecorationSet {
   const stamp = state.field(stampField);
   const lang = getLang();
   const ligatures = getLigatures();
+  const codeBlocks = getCodeBlockPrefs();
+  const codeFolds = state.field(codeFoldField);
   // Inside an embed the editor is read-only, but its tasks may still be ticked (written to the source note)
   const embedSource = state.facet(embedContext).source;
   const tasksLocked = state.readOnly && !embedSource?.canWrite;
@@ -402,7 +424,8 @@ function build(state: EditorState): DecorationSet {
         }
         case 'FencedCode': {
           const info = node.getChild('CodeInfo');
-          const langInfo = info ? doc.sliceString(info.from, info.to).trim().toLowerCase() : '';
+          const codeInfo = parseCodeInfo(info ? doc.sliceString(info.from, info.to) : '');
+          const langInfo = codeInfo.lang;
           const firstLine = doc.lineAt(node.from);
           const lastLine = doc.lineAt(node.to);
           const body = firstLine.number < lastLine.number ? doc.sliceString(firstLine.to + 1, lastLine.number > firstLine.number + 1 ? doc.line(lastLine.number - 1).to : firstLine.to + 1) : '';
@@ -423,15 +446,38 @@ function build(state: EditorState): DecorationSet {
             return false;
           }
           // Rendered (cursor outside): the opening fence becomes a slim header, a closing fence a thin bottom edge
-          const closing = !editing && /^\s*(```|~~~)\s*$/.test(lastLine.text) && lastLine.number > firstLine.number;
+          const closing = /^\s*(```|~~~)\s*$/.test(lastLine.text) && lastLine.number > firstLine.number;
+          const bodyFirst = firstLine.number + 1;
+          const bodyLast = closing ? lastLine.number - 1 : lastLine.number;
+          const bodyCount = Math.max(0, bodyLast - bodyFirst + 1);
+          // Folding long blocks: the setting, or `collapse`/`noCollapse` in the info string
+          const foldAt = codeInfo.collapse === false ? 0 : codeBlocks.collapseAfter || (codeInfo.collapse ? CODE_COLLAPSE_FALLBACK : 0);
+          const foldable = !editing && foldAt > 0 && bodyCount > foldAt + 1;
+          const folded = foldable && !codeFolds.has(firstLine.from);
+          const visibleLast = folded ? bodyFirst + foldAt - 1 : lastLine.number;
+          const numbered = codeInfo.lineNumbers ?? codeBlocks.lineNumbers;
+          // Code is not prose: no spell checking (Chrome also paints its markers over the line numbers)
           for (let l = firstLine.number; l <= lastLine.number; l++) {
+            if (l > visibleLast && l <= bodyLast) continue;
+            decos.push(noSpellcheck.range(doc.line(l).from));
             let cls = 'cm-codeblock';
             if (l === firstLine.number) cls += editing ? ' cm-codeblock-first' : ' cm-codeblock-first cm-codeblock-head';
-            if (l === lastLine.number) cls += closing ? ' cm-codeblock-last cm-codeblock-foot' : ' cm-codeblock-last';
-            decos.push(line(cls).range(doc.line(l).from));
+            if (l === lastLine.number) cls += closing && !editing ? ' cm-codeblock-last cm-codeblock-foot' : ' cm-codeblock-last';
+            const n = l - bodyFirst + 1;
+            if (l >= bodyFirst && l <= bodyLast) {
+              if (isHighlightedLine(codeInfo, n)) cls += ' cm-code-hl';
+              if (numbered) cls += ' cm-code-numbered';
+              decos.push(line(cls).range(doc.line(l).from));
+              if (numbered) decos.push(Decoration.widget({ widget: new CodeLineNumberWidget(codeInfo.lineStart + n - 1), side: -1 }).range(doc.line(l).from));
+            } else decos.push(line(cls).range(doc.line(l).from));
           }
           if (!editing) {
-            replace(firstLine.from, firstLine.to, Decoration.replace({ widget: new CodeHeaderWidget(langInfo, body, lang) }));
+            replace(firstLine.from, firstLine.to, Decoration.replace({ widget: new CodeHeaderWidget(langInfo, body, lang, codeInfo.title, foldable ? folded : null, firstLine.from) }));
+            if (folded) {
+              const from = doc.line(visibleLast + 1).from;
+              const to = doc.line(bodyLast).to;
+              replace(from, to, Decoration.replace({ widget: new CodeFoldWidget(bodyLast - visibleLast, firstLine.from, lang), block: true }));
+            }
             if (closing) replace(lastLine.from, lastLine.to);
           }
           return false;
@@ -599,7 +645,7 @@ function build(state: EditorState): DecorationSet {
 const previewField = StateField.define<DecorationSet>({
   create: (state) => build(state),
   update(value, tr) {
-    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(refreshEffect) || e.is(focusEffect) || e.is(toggleCalloutEffect)) || syntaxTree(tr.state) !== syntaxTree(tr.startState) || tr.state.readOnly !== tr.startState.readOnly) {
+    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(refreshEffect) || e.is(focusEffect) || e.is(toggleCalloutEffect) || e.is(toggleCodeFoldEffect)) || syntaxTree(tr.state) !== syntaxTree(tr.startState) || tr.state.readOnly !== tr.startState.readOnly) {
       return build(tr.state);
     }
     return value;
@@ -612,6 +658,7 @@ export function livePreview(): Extension {
     focusField,
     stampField,
     calloutFoldField,
+    codeFoldField,
     previewField,
     EditorView.domEventHandlers({
       focus: (_e, view) => {
