@@ -1,10 +1,11 @@
+import type { ReactNode } from 'react';
 /**
  * Calendar view (#72): month, week and agenda of the tasks by due date (with their reminder time), the daily notes
  * and notes with a date property. Dragging a task to another day changes its due date (a normal edit of its line,
  * synced like any other); a click on a day opens or creates its daily note. Filters like the task page.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Check, ChevronLeft, ChevronRight, FileText } from '../lib/icons';
+import { CalendarDays, ChevronLeft, ChevronRight, FileText } from '../lib/icons';
 import {
   calendarDays,
   calendarEntries,
@@ -27,6 +28,7 @@ import { navigate } from '../lib/router';
 import { collectTasks, TaskMeta, type TaskRow } from './TaskParts';
 import { Dropdown } from './Dropdown';
 import { Switch } from './Switch';
+import { PageBody, PageHeader } from './PageHeader';
 
 type Status = 'all' | 'open' | 'doing' | 'blocked';
 
@@ -95,7 +97,7 @@ function title(mode: CalendarMode, days: string[], lang: Lang): string {
   return new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'short', year: 'numeric' }).formatRange(parseDate(days[0]), parseDate(days[days.length - 1]));
 }
 
-export function CalendarPlanner() {
+export function CalendarPlanner({ children }: { children?: ReactNode }) {
   const version = useVault();
   const lang = useLang();
   const loc = locale(lang);
@@ -200,33 +202,25 @@ export function CalendarPlanner() {
   const weekdays = weekdaysShort(lang);
 
   const header = (
-    <>
-      <header className="mb-4 flex flex-wrap items-end justify-between gap-3 anim-fade-up">
-        <h1 className="text-headline-m">{tl(lang, 'planner.title')}</h1>
-        <div role="group" aria-label={tl(lang, 'planner.modeAria')} className="segmented">
-          {(['month', 'week', 'agenda'] as const).map((m) => (
-            <button key={m} type="button" aria-pressed={prefs.mode === m} onClick={() => setPrefs({ mode: m })}>
-              {prefs.mode === m && <Check size={18} />} {tl(lang, `planner.mode.${m}`)}
-            </button>
-          ))}
-        </div>
-      </header>
-      <div className="mb-3 flex flex-wrap items-center gap-2 anim-fade-up">
-        <div className="inline-flex items-center overflow-hidden rounded-xl border border-outline-variant bg-surface-container-low">
-          <button type="button" className="btn-icon h-10 w-10 rounded-none" aria-label={tl(lang, 'planner.prev')} title={tl(lang, 'planner.prev')} onClick={() => step(-1)}>
+    <PageHeader
+      title={tl(lang, 'planner.title')}
+      actions={
+        <>
+        <div className="inline-flex h-9 items-center overflow-hidden rounded-md border border-line2 nav:h-8">
+          <button type="button" className="btn-icon h-full w-8 rounded-none" aria-label={tl(lang, 'planner.prev')} title={tl(lang, 'planner.prev')} onClick={() => step(-1)}>
             <ChevronLeft size={18} />
           </button>
-          <span className="min-w-0 px-2 text-sm font-medium capitalize" aria-live="polite" data-calendar-title>
+          <span className="min-w-[9rem] px-1 text-center text-label-l capitalize text-text" aria-live="polite" data-calendar-title>
             {title(prefs.mode, days, lang)}
           </span>
-          <button type="button" className="btn-icon h-10 w-10 rounded-none" aria-label={tl(lang, 'planner.next')} title={tl(lang, 'planner.next')} onClick={() => step(1)}>
+          <button type="button" className="btn-icon h-full w-8 rounded-none" aria-label={tl(lang, 'planner.next')} title={tl(lang, 'planner.next')} onClick={() => step(1)}>
             <ChevronRight size={18} />
           </button>
         </div>
         {!days.includes(today) && (
           <button
             type="button"
-            className="chip h-10 px-3 text-primary"
+            className="btn-outlined"
             onClick={() => {
               setAnchor(today);
               setSelected(today);
@@ -235,8 +229,17 @@ export function CalendarPlanner() {
             {tl(lang, 'daily.todayChip')}
           </button>
         )}
-      </div>
-      <div className="mb-4 flex flex-wrap items-center gap-2 anim-fade-up">
+        <div role="group" aria-label={tl(lang, 'planner.modeAria')} className="segmented">
+          {(['month', 'week', 'agenda'] as const).map((m) => (
+            <button key={m} type="button" aria-pressed={prefs.mode === m} onClick={() => setPrefs({ mode: m })}>
+              {tl(lang, `planner.mode.${m}`)}
+            </button>
+          ))}
+        </div>
+        </>
+      }
+    >
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <Dropdown
           variant="chip"
           value={prefs.status}
@@ -265,16 +268,16 @@ export function CalendarPlanner() {
             options={[{ value: '*', label: tl(lang, 'planner.tagAll') }, ...tags.map((x) => ({ value: x, label: `#${x}` }))]}
           />
         )}
-        <label className="flex items-center gap-2 text-body-m text-on-surface-variant sm:ml-auto">
+        <label className="flex items-center gap-2 text-body-m text-muted sm:ml-auto">
           {tl(lang, 'planner.showNotes')}
           <Switch checked={prefs.showNotes} label={tl(lang, 'planner.showNotes')} onChange={(v) => setPrefs({ showNotes: v })} />
         </label>
-        <label className="flex items-center gap-2 text-body-m text-on-surface-variant">
+        <label className="flex items-center gap-2 text-body-m text-muted">
           {tl(lang, 'tasks.showDone')}
           <Switch checked={prefs.showDone} label={tl(lang, 'tasks.showDone')} onChange={(v) => setPrefs({ showDone: v })} />
         </label>
       </div>
-    </>
+    </PageHeader>
   );
 
   const list = (date: string, opts: { limit?: number; meta?: boolean; wrap?: boolean } = {}) => {
@@ -433,8 +436,13 @@ export function CalendarPlanner() {
   return (
     <div data-calendar-view>
       {header}
-      {body}
-      {!locked && !phone && <p className="mt-3 text-xs text-on-surface-variant anim-fade-up">{tl(lang, 'planner.dragHint')}</p>}
+      <PageBody className="space-y-5">
+        <div>
+          {body}
+          {!locked && !phone && <p className="mt-2 text-caption normal-case text-muted">{tl(lang, 'planner.dragHint')}</p>}
+        </div>
+        {children}
+      </PageBody>
     </div>
   );
 }

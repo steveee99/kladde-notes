@@ -29,7 +29,8 @@ const cipher = new DataCipher(crypto.randomBytes(32));
 const users = new UserStore(db);
 const notes = new NoteStore(db, cipher);
 const storage = new StorageStore(db, null);
-const root = users.createUser('root', true);
+// The first account becomes admin on its own
+const root = users.createUser('root');
 const ben = users.createUser('ben');
 const rootCookie = `kladde_session=${users.createSession(root.id)}`;
 const benCookie = `kladde_session=${users.createSession(ben.id)}`;

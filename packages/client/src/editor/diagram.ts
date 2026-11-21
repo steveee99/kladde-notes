@@ -17,7 +17,7 @@ let counter = 0;
 const cache = new Map<string, { svg?: string; error?: string }>();
 
 const isDark = () => document.documentElement.dataset.scheme !== 'light';
-const themeKey = () => `${document.documentElement.dataset.theme ?? 'material'}-${isDark() ? 'dark' : 'light'}-${document.documentElement.dataset.tone ?? 'default'}`;
+const themeKey = () => `${document.documentElement.dataset.theme ?? 'werkbank'}-${isDark() ? 'dark' : 'light'}-${document.documentElement.dataset.accent ?? 'blue'}`;
 
 /** "R G B" variable → #rrggbb (Mermaid's color math needs hex) */
 function cssColor(name: string): string {
@@ -183,7 +183,7 @@ if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined') 
     document.querySelectorAll<HTMLElement>('.wz-diagram[data-kind][data-src]').forEach((el) => {
       drawDiagram(el, el.dataset.kind as DiagramKind, el.dataset.src ?? '');
     });
-  }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-scheme', 'data-tone'] });
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-scheme', 'data-accent'] });
 }
 
 /** Full-screen view for large diagrams */

@@ -116,7 +116,7 @@ import { setLocalGraphDepth, setSourceMode, useLocalGraphDepth, useSourceMode, t
 import { activePane, usePane, usePanePanel } from '../lib/panes';
 import { isCoarsePointer } from '../lib/viewport';
 import { useModal } from '../lib/modal';
-import { useRightPaneHost } from './MaterialShell';
+import { useRightPaneHost } from './WerkbankShell';
 import { IconPickerDialog } from './IconPicker';
 import { DailyCarryOver, DailyNoteBar } from './DailyNoteBar';
 import { PeriodicNoteBar } from './PeriodicNoteBar';
@@ -143,7 +143,7 @@ function Toolbar({ view, lang }: { view: EditorView | null; lang: Lang }) {
       key={title}
       title={title}
       aria-label={title}
-      className="btn-icon shrink-0 rounded-full"
+      className="btn-icon shrink-0"
       onMouseDown={(e) => e.preventDefault()}
       onClick={fn}
     >
@@ -521,7 +521,7 @@ function NoteOverflowMenu({
       <button
         ref={triggerRef}
         type="button"
-        className="btn-icon rounded-full"
+        className="btn-icon"
         title={t('note.moreActionsTitle')}
         aria-label={t('note.moreActionsTitle')}
         aria-haspopup="menu"
@@ -614,7 +614,7 @@ function NoteOverflowMenu({
             {onAlign && (
               <div className="flex items-center gap-3 px-3 py-1.5" role="group" aria-label={t('note.alignMenu')}>
                 <span className="flex-1 text-sm text-on-surface">{t('note.alignMenu')}</span>
-                <div className="flex gap-0.5 rounded-full border border-outline-variant p-0.5">
+                <div className="flex gap-0.5 rounded-md border border-line2 p-0.5">
                   {NOTE_ALIGNS.map(({ value, icon: Icon, label }) => (
                     <button
                       key={value}
@@ -624,8 +624,8 @@ function NoteOverflowMenu({
                       title={t(label)}
                       aria-label={t(label)}
                       onClick={() => onAlign(value)}
-                      className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors ${
-                        align === value ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-low'
+                      className={`flex h-7 w-7 items-center justify-center rounded transition-colors ${
+                        align === value ? 'bg-acc-bg text-acc-hi' : 'text-muted hover:bg-line hover:text-text'
                       }`}
                     >
                       <Icon size={16} />
@@ -1468,11 +1468,11 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   return (
     <div className="flex h-full min-h-0 flex-col print:block print:h-auto print:overflow-visible">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto scrollbar-thin print:block print:h-auto print:overflow-visible">
-        <div className={`content-container mx-auto w-full flex-1 px-4 pt-4 sm:px-8 sm:pt-8 ${showPdf ? 'flex flex-col' : ''} ${focus ? 'focus-container' : ''}`}>
+        <div className={`content-container mx-auto w-full flex-1 px-4 pt-4 nav:px-7 nav:pt-5 ${showPdf ? 'flex flex-col' : ''} ${focus ? 'focus-container' : ''}`}>
           {focus && (
             <button
               type="button"
-              className="focus-exit no-print btn-icon fixed right-4 top-[calc(env(safe-area-inset-top)+0.75rem)] z-30 rounded-full bg-surface-container-high"
+              className="focus-exit no-print btn-icon fixed right-4 top-[calc(env(safe-area-inset-top)+0.75rem)] z-30 bg-surface-container-high"
               onClick={() => setFocusMode(false)}
               title={t('focus.exit')}
               aria-label={t('focus.exit')}
@@ -1483,7 +1483,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           <div className={`no-print mb-3 items-center gap-2 text-sm text-on-surface-variant anim-fade-in ${focus ? 'hidden' : 'flex'}`}>
             {/* The second pane (#88) has its own back button in its header; this one would go back in the main pane */}
             {pane === 'main' && (
-              <button className="btn-icon -ml-2 shrink-0 rounded-full" onClick={() => history.back()} title={t('common.back')} aria-label={t('common.back')}>
+              <button className="btn-icon -ml-2 shrink-0" onClick={() => history.back()} title={t('common.back')} aria-label={t('common.back')}>
                 <ArrowLeft size={18} />
               </button>
             )}
@@ -1492,11 +1492,11 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             <MobileBreadcrumbMenu folderSegments={folderSegments} lang={lang} group={noteGroup} />
 
             {/* Desktop: full folder path breadcrumbs */}
-            <nav aria-label={t('note.breadcrumbAria')} className="hidden min-w-0 flex-1 flex-wrap items-center gap-1 md:flex">
+            <nav aria-label={t('note.breadcrumbAria')} className="hidden min-w-0 flex-1 flex-wrap items-center gap-0.5 font-mono text-[11.5px] md:flex">
               <button
                 type="button"
                 onClick={() => navigate(noteGroup ? groupPath(noteGroup.id) : '/notes')}
-                className="truncate rounded-lg px-1.5 py-0.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+                className="truncate rounded px-1 py-0.5 text-muted transition-colors hover:bg-raised hover:text-text"
               >
                 {noteGroup ? noteGroup.name : t('note.breadcrumbRoot')}
               </button>
@@ -1505,19 +1505,19 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 const label = i === 0 && !noteGroup ? folderDisplayName(seg, lang) : seg;
                 return (
                   <Fragment key={segPath}>
-                    <ChevronRight size={14} className="shrink-0 opacity-60" />
+                    <span aria-hidden className="text-faint">/</span>
                     <button
                       type="button"
                       onClick={() => navigate(noteGroup ? groupPath(noteGroup.id, segPath) : `/f/${encodeURIComponent(segPath)}`)}
-                      className="truncate rounded-lg px-1.5 py-0.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+                      className="truncate rounded px-1 py-0.5 text-muted transition-colors hover:bg-raised hover:text-text"
                     >
                       {label}
                     </button>
                   </Fragment>
                 );
               })}
-              <ChevronRight size={14} className="shrink-0 opacity-60" />
-              <span className="truncate px-1 font-medium text-on-surface/85">{isProjectHome ? name : title || displayName}</span>
+              <span aria-hidden className="text-faint">/</span>
+              <span className="truncate px-1 text-acc-hi">{isProjectHome ? name : title || displayName}</span>
               {note.access !== 'owner' && (
                 <span className="chip ml-1 shrink-0" data-note-owner-chip>
                   {noteGroup ? <Users size={14} /> : <Avatar name={note.owner ?? ''} avatarUrl={note.ownerAvatar} size="xs" />} {note.owner} · {accessLabel}
@@ -1559,7 +1559,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               {commentsOn && !locked && (
                 <button
                   type="button"
-                  className="btn-icon rounded-full"
+                  className="btn-icon"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={startComment}
                   title={`${t('comments.add')} (${IS_APPLE ? '⌘' : lang === 'en' ? 'Ctrl' : 'Strg'}+Alt+C)`}
@@ -1573,7 +1573,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 type="button"
                 onClick={() => panel.setOpen(!splitOpen)}
                 aria-pressed={splitOpen}
-                className={`btn-icon rounded-full transition-colors ${splitOpen ? 'bg-secondary-container text-on-secondary-container' : ''}`}
+                className={`btn-icon transition-colors ${splitOpen ? 'bg-secondary-container text-on-secondary-container' : ''}`}
                 title={t('note.splitviewTitle')}
                 aria-label={t('note.splitviewTitle')}
               >
@@ -1643,7 +1643,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           <textarea
             ref={titleRef}
             rows={1}
-            className="note-title mb-2 block w-full resize-none overflow-hidden break-words bg-transparent text-headline-l outline-none placeholder:text-on-surface-variant print:hidden"
+            className="note-title mb-2 block w-full resize-none overflow-hidden break-words bg-transparent text-[30px] leading-[38px] outline-none placeholder:text-on-surface-variant nav:text-[36px] nav:leading-[44px] print:hidden"
             value={title}
             readOnly={!canRename}
             placeholder={t('note.titlePlaceholder')}
@@ -1657,7 +1657,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               }
             }}
           />
-          <h1 className="mb-3 hidden break-words text-headline-l print:block">{title || displayName}</h1>
+          <h1 className="font-display mb-3 hidden break-words text-headline-l print:block">{title || displayName}</h1>
           {/* Word count sits under the title instead of a bar over the content */}
           {!showPdf && features.writingStats.enabled && (
             <div className="no-print -mt-1 mb-2">
@@ -1705,7 +1705,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             // A line and room between the header (title, stats, PARA bar) and the text (not in focus mode, which hides
             // the header), and room below the text before the footer
             <div
-              className={`pb-12 ${focus ? '' : 'mt-4 border-t border-outline-variant pt-6 sm:mt-6 sm:pt-8 print:mt-0 print:border-0 print:pt-0'}`}
+              className={`pb-12 ${focus ? '' : 'note-sheet mt-4 border-t border-outline-variant pt-6 sm:mt-6 sm:pt-8 print:mt-0 print:border-0 print:pt-0'}`}
               data-note-align={align !== 'left' && !(sourceMode && !readOnly) ? align : undefined}>
             <Editor
               docKey={id}

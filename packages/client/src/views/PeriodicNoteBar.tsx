@@ -120,15 +120,15 @@ export function PeriodicEmptyView({ kind, date }: { kind: PeriodKind; date?: str
     navigate(`/n/${note.id}`, true);
   };
   return (
-    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
+    <div className="mx-auto w-full max-w-[1600px] px-4 py-5 nav:px-7">
       {settings.enabled && <PeriodicNoteBar kind={kind} date={target} />}
-      <div className="card max-w-xl space-y-4 p-6 anim-fade-up">
+      <div className="card max-w-xl space-y-4 p-5 anim-fade-up">
         <div>
           <p className="text-title-s text-on-surface-variant">
             {tl(lang, kind === 'week' ? 'periodic.weekLabel' : 'periodic.monthLabel')} ·{' '}
             {settings.folder ? folderDisplayName(settings.folder, lang) : tl(lang, 'common.topLevelPlain')}
           </p>
-          <h1 className="mt-1 text-headline-m capitalize">{title}</h1>
+          <h1 className="font-display mt-1 text-[26px] leading-8 capitalize">{title}</h1>
         </div>
         <p className="text-sm text-on-surface-variant">
           {tl(lang, settings.enabled ? (kind === 'week' ? 'periodic.emptyWeek' : 'periodic.emptyMonth') : kind === 'week' ? 'periodic.weekOff' : 'periodic.monthOff')}
@@ -140,7 +140,7 @@ export function PeriodicEmptyView({ kind, date }: { kind: PeriodKind; date?: str
             </button>
           )}
           {!settings.enabled && (
-            <button className="btn-ghost border border-outline-variant" onClick={() => navigate('/settings')}>
+            <button className="btn-outlined" onClick={() => navigate('/settings')}>
               <Settings size={16} /> {tl(lang, 'daily.openSettings')}
             </button>
           )}

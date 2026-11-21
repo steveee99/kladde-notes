@@ -8,16 +8,16 @@ import { AddLink, AlertTriangle, Ban, CheckCircle2, Clock, FileText, Flag, NewRe
 import { Dropdown } from './Dropdown';
 import { DocTargets, MilestoneBanner, NewTicketSheet, PriorityIcon, StatusBadge, formatDay, priorityLabel } from './ProjectView';
 
-const label = 'flex items-center gap-1.5 text-label-l text-on-surface-variant';
+const label = 'flex items-center gap-1.5 text-label-l text-muted';
 
 /** One linked note in the side lists: opens it; writers can remove the link */
 function LinkRow({ title, sub, Icon, onOpen, onRemove, tone = '' }: { title: string; sub?: string; Icon: typeof FileText; onOpen?: () => void; onRemove?: () => void; tone?: string }) {
   return (
-    <li className="flex items-center gap-2 rounded-lg bg-surface-container px-2.5 py-1.5">
-      <Icon size={16} className={`shrink-0 ${tone || 'text-on-surface-variant'}`} />
+    <li className="flex items-center gap-2 rounded-md border border-line px-2.5 py-1.5">
+      <Icon size={16} className={`shrink-0 ${tone || 'text-muted'}`} />
       <button className="min-w-0 flex-1 text-left disabled:cursor-default" disabled={!onOpen} onClick={onOpen}>
         <span className="block truncate font-medium">{title}</span>
-        {sub && <span className="block truncate text-label-m text-on-surface-variant">{sub}</span>}
+        {sub && <span className="block truncate text-label-m text-muted">{sub}</span>}
       </button>
       {onRemove && (
         <button className="btn-icon !h-8 !w-8 shrink-0" onClick={onRemove} aria-label={t('tickets.removeLink', { title })} title={t('tickets.removeLink', { title })}>
@@ -60,21 +60,21 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
     </>
   );
   return (
-    <section className="no-print mb-3 space-y-3 rounded-2xl bg-surface-container-low p-3 anim-fade-in" aria-label={t('tickets.ticketLabel', { ticket: tk.meta.id ?? '' })} data-ticket-panel>
+    <section className="no-print mb-3 space-y-3 rounded-lg border border-line bg-panel p-3 anim-fade-in" aria-label={t('tickets.ticketLabel', { ticket: tk.meta.id ?? '' })} data-ticket-panel>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-lg bg-secondary-container px-2.5 py-1 font-mono text-label-l text-on-secondary-container" data-ticket-id>
+        <span className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line2 bg-raised px-2 font-mono text-label-m text-strong" data-ticket-id>
           <Ticket size={16} /> {tk.meta.id ?? `${tk.project.config.key}-?`}
         </span>
         {tk.meta.provisional && <span className="chip">{t('tickets.notSynced')}</span>}
         <StatusBadge tk={tk} />
-        <button className="text-label-l text-primary hover:underline" onClick={() => navigate(tk.project.group ? `/g/${encodeURIComponent(tk.project.group)}/${encodeURIComponent(tk.project.folder)}` : `/f/${encodeURIComponent(tk.project.folder)}`)}>
+        <button className="text-label-l text-acc hover:underline" onClick={() => navigate(tk.project.group ? `/g/${encodeURIComponent(tk.project.group)}/${encodeURIComponent(tk.project.folder)}` : `/f/${encodeURIComponent(tk.project.folder)}`)}>
           {t('tickets.toProject', { key: tk.project.config.key })}
         </button>
         {tk.progress.total > 0 && (
-          <span className="ml-auto text-label-l text-on-surface-variant">{t('tickets.subtasks', { done: tk.progress.done, total: tk.progress.total })}</span>
+          <span className="ml-auto text-label-l text-muted">{t('tickets.subtasks', { done: tk.progress.done, total: tk.progress.total })}</span>
         )}
       </div>
-      <dl className="grid grid-cols-[minmax(6rem,auto)_minmax(0,1fr)] items-center gap-x-3 gap-y-2 rounded-xl bg-surface-container px-3 py-2.5 text-sm">
+      <dl className="grid grid-cols-[minmax(6rem,auto)_minmax(0,1fr)] items-center gap-x-3 gap-y-2 rounded-md border border-line bg-bg px-3 py-2.5 text-body-m">
         {field(
           t('tickets.colStatus'),
           CheckCircle2,
@@ -103,7 +103,7 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
               {tk.milestone.title}
             </button>
           ) : (
-            <span className="text-on-surface-variant">{tk.meta.milestone ?? t('tickets.noMilestone')}</span>
+            <span className="text-muted">{tk.meta.milestone ?? t('tickets.noMilestone')}</span>
           )
         )}
         {field(
@@ -153,7 +153,7 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
           Tags,
           <>
             {tk.meta.labels.map((l) => (
-              <span key={l} className="inline-flex items-center gap-0.5 rounded bg-surface-container-highest px-1.5 text-label-m">
+              <span key={l} className="inline-flex items-center gap-0.5 pill bg-raised text-soft">
                 {l}
                 {canEdit && (
                   <button aria-label={t('tickets.removeLabel', { label: l })} onClick={() => set({ labels: tk.meta.labels.filter((x) => x !== l) })}>
@@ -177,17 +177,17 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
         )}
       </dl>
       {tk.progress.total > 0 && (
-        <div className="h-1 overflow-hidden rounded-full bg-surface-container-highest" aria-hidden>
-          <div className="h-full bg-primary" style={{ width: `${Math.round((tk.progress.done / tk.progress.total) * 100)}%` }} />
+        <div className="h-1 overflow-hidden rounded-full bg-line" aria-hidden>
+          <div className="h-full bg-acc" style={{ width: `${Math.round((tk.progress.done / tk.progress.total) * 100)}%` }} />
         </div>
       )}
       <div className="grid gap-3 md:grid-cols-2">
         <div>
-          <h3 className="mb-1.5 flex items-center gap-1.5 text-label-l uppercase tracking-wide text-on-surface-variant">
+          <h3 className="mb-1.5 flex items-center gap-1.5 text-label-m font-semibold text-muted">
             <FileText size={14} /> {t('tickets.docs', { n: docNotes.length })}
           </h3>
           {tk.docsMissing && (
-            <p className="mb-2 flex items-start gap-1.5 rounded-xl bg-warn-container px-2.5 py-2 text-body-s text-on-warn-container">
+            <p className="mb-2 flex items-start gap-1.5 rounded-md bg-amber-bg px-2.5 py-2 text-body-s text-amber-hi">
               <AlertTriangle size={14} className="mt-0.5 shrink-0" /> {t('tickets.docsMissing')}
             </p>
           )}
@@ -203,7 +203,7 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
               />
             ))}
             {unresolved.map((d) => (
-              <LinkRow key={d} title={d} sub={t('tickets.docMissingNote')} Icon={FileText} tone="text-warn" onRemove={canEdit ? () => set({ docs: tk.meta.docs.filter((x) => x !== d) }) : undefined} />
+              <LinkRow key={d} title={d} sub={t('tickets.docMissingNote')} Icon={FileText} tone="text-amber" onRemove={canEdit ? () => set({ docs: tk.meta.docs.filter((x) => x !== d) }) : undefined} />
             ))}
           </ul>
           {canEdit && (
@@ -225,12 +225,12 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
           )}
         </div>
         <div>
-          <h3 className="mb-1.5 flex items-center gap-1.5 text-label-l uppercase tracking-wide text-on-surface-variant">
+          <h3 className="mb-1.5 flex items-center gap-1.5 text-label-m font-semibold text-muted">
             <Ban size={14} /> {t('tickets.relations')}
           </h3>
           <ul className="space-y-1">
             {tk.blockedBy.map((b) => (
-              <LinkRow key={b.note.id} title={t('tickets.blockedByOne', { ticket: b.meta.id ?? b.title })} sub={b.title} Icon={Ban} tone="text-error" onOpen={() => navigate(`/n/${b.note.id}`)} />
+              <LinkRow key={b.note.id} title={t('tickets.blockedByOne', { ticket: b.meta.id ?? b.title })} sub={b.title} Icon={Ban} tone="text-red" onOpen={() => navigate(`/n/${b.note.id}`)} />
             ))}
             {tk.blocking.map((b) => (
               <LinkRow
@@ -242,7 +242,7 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
                 onRemove={canEdit ? () => set({ blocks: tk.meta.blocks.filter((x) => x.toUpperCase() !== (b.meta.id ?? '').toUpperCase() && x.toLowerCase() !== b.title.toLowerCase()) }) : undefined}
               />
             ))}
-            {!tk.blockedBy.length && !tk.blocking.length && <li className="px-1 text-body-s text-on-surface-variant">{t('tickets.noRelations')}</li>}
+            {!tk.blockedBy.length && !tk.blocking.length && <li className="px-1 text-body-s text-muted">{t('tickets.noRelations')}</li>}
           </ul>
           {canEdit && others.length > 0 && (
             <div className="mt-1.5">
@@ -274,35 +274,35 @@ function MilestoneHeader({ m, readOnly }: { m: MilestoneInfo; readOnly: boolean 
     { title: t('tickets.catDone'), rows: m.tickets.filter((tk) => tk.category === 'done') },
   ].map((g) => ({ ...g, rows: g.rows.sort(byRank) }));
   const date = (key: 'start' | 'due', value: string | null) => (
-    <label className="text-label-l text-on-surface-variant">
+    <label className="text-label-l text-muted">
       {t(key === 'start' ? 'tickets.start' : 'tickets.due')}
       {canEdit ? (
         <input type="date" className="input mt-1 !min-h-0 !py-1" value={value ?? ''} onChange={(e) => void vault.setFrontmatter(m.note.id, { [key]: e.target.value || null })} />
       ) : (
-        <span className="block text-body-m text-on-surface">{value ? formatDay(value) : '–'}</span>
+        <span className="block text-body-m text-text">{value ? formatDay(value) : '–'}</span>
       )}
     </label>
   );
   return (
-    <section className="no-print mb-3 space-y-3 rounded-2xl bg-surface-container-low p-3 anim-fade-in" aria-label={t('tickets.milestoneLabel', { title: m.title })} data-milestone-panel>
+    <section className="no-print mb-3 space-y-3 rounded-lg border border-line bg-panel p-3 anim-fade-in" aria-label={t('tickets.milestoneLabel', { title: m.title })} data-milestone-panel>
       <MilestoneBanner m={m} />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {date('start', m.meta.start)}
         {date('due', m.meta.due)}
-        <div className="text-label-l text-on-surface-variant">
+        <div className="text-label-l text-muted">
           {t('tickets.release')}
-          <span className="block text-body-m text-on-surface">{m.meta.release ?? '–'}</span>
+          <span className="block text-body-m text-text">{m.meta.release ?? '–'}</span>
         </div>
-        <div className="text-label-l text-on-surface-variant">
+        <div className="text-label-l text-muted">
           {t('tickets.points')}
-          <span className="block text-body-m tabular-nums text-on-surface">{m.progress.points ? `${m.progress.donePoints} / ${m.progress.points}` : '–'}</span>
+          <span className="block text-body-m tabular-nums text-text">{m.progress.points ? `${m.progress.donePoints} / ${m.progress.points}` : '–'}</span>
         </div>
       </div>
       {m.meta.goal && <p className="text-body-m">{m.meta.goal}</p>}
       <div className="grid gap-3 md:grid-cols-3">
         {groups.map((g) => (
           <div key={g.title}>
-            <h3 className="mb-1.5 text-label-l uppercase tracking-wide text-on-surface-variant">
+            <h3 className="mb-1.5 text-label-m font-semibold text-muted">
               {g.title} · {g.rows.length}
             </h3>
             <ul className="space-y-1">
@@ -362,16 +362,16 @@ export function TicketBacklinks({ tickets, item }: { tickets: TicketInfo[]; item
   const open = tickets.filter((tk) => tk.category !== 'done').length;
   return (
     <section data-ticket-backlinks>
-      <h3 className="mb-2 flex items-center gap-1.5 px-2 text-title-s text-on-surface-variant">
+      <h3 className="section-label mb-2 flex items-center gap-1.5 px-1">
         <Ticket size={16} /> {t('tickets.backlinksTitle', { n: tickets.length, open })}
       </h3>
       <ul className="space-y-1">
         {sorted.map((tk) => (
           <li key={tk.note.id}>
-            <button className={item ?? 'state-layer flex w-full items-center gap-2 rounded-lg bg-surface-container px-3 py-2 text-left'} onClick={() => navigate(`/n/${tk.note.id}`)}>
+            <button className={item ?? 'state-layer flex w-full items-center gap-2 rounded-md border border-line px-3 py-2 text-left'} onClick={() => navigate(`/n/${tk.note.id}`)}>
               <span className="flex w-full items-center gap-2">
-                <span className={`font-mono text-label-m ${tk.category === 'done' ? 'text-on-surface-variant line-through' : 'text-on-surface-variant'}`}>{tk.meta.id ?? `${tk.project.config.key}-?`}</span>
-                <span className="min-w-0 flex-1 truncate text-body-l text-on-surface">{tk.title}</span>
+                <span className={`font-mono text-label-m ${tk.category === 'done' ? 'text-muted line-through' : 'text-muted'}`}>{tk.meta.id ?? `${tk.project.config.key}-?`}</span>
+                <span className="min-w-0 flex-1 truncate text-body-l text-text">{tk.title}</span>
                 <StatusBadge tk={tk} />
               </span>
             </button>

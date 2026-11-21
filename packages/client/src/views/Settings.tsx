@@ -1,44 +1,34 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
 import {
-  ArrowRight,
+  ArrowLeft,
+  RefreshCw,
   Camera,
-  Check,
-  ChevronRight,
-  FolderInput,
-  Globe,
   Images,
-  Inbox,
-  Info,
   KeyRound,
   LayoutTemplate,
   Loader2,
   Lock,
   LogOut,
-  Maximize2,
-  ShieldCheck,
   Smartphone,
-  SunMoon,
   Trash2,
-  Archive,
   Upload,
-  TextFields,
-  Extension,
 } from '../lib/icons';
 import { APP_VERSION, Me, PASSWORD_MIN_LENGTH } from '@kladde/shared';
 import { api, deleteAvatar, uploadAvatar } from '../lib/api';
 import { useConfluence } from '../lib/confluence';
-import { Lang, locale, setLang, tl, useLang } from '../lib/i18n';
+import { Lang, locale, setLang, tl, useLang, type I18nKey } from '../lib/i18n';
 import { EDITOR_FONT_SIZES, setEditorFontSize, setInboxZero, setLigatures, useEditorFontSize, useInboxZero, useLigatures } from '../lib/prefs';
 import { setColorSchemeChoice, useColorSchemeChoice } from '../lib/theme';
-import { DEFAULT_PERCENT, MAX_PERCENT, MIN_PERCENT, setWidescreen, useWidescreen, WIDESCREEN_PRESETS } from '../lib/widescreen';
 import { useVault, vault } from '../data/vault';
-import { navigate } from '../lib/router';
+import { navigate, usePath } from '../lib/router';
 import { GitLabIcon, passkeysAvailable, useAuthProviders, useRedirectParam } from './Auth';
 import { Avatar } from './Avatar';
 import { Switch } from './Switch';
+import { AccentPicker } from './AccentPicker';
 import { DEMO } from '../demo/demoApi';
-import { FeaturesDialog, useFeatureCounts } from './FeaturesDialog';
+import { SettingsNav, useSettingsNavInPanel, type SettingsSection } from './SettingsNav';
+import { PageBody, PageHeader } from './PageHeader';
 
 function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   const lang = useLang();
@@ -80,7 +70,7 @@ function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   };
 
   return (
-    <section className="card p-5 anim-fade-up">
+    <section className="border-b border-line py-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <button
           type="button"
@@ -98,7 +88,7 @@ function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
 
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-medium">{tl(lang, 'settings.profileTitle')}</h2>
+            <h2 className="text-body-m font-medium text-text">{tl(lang, 'settings.profileTitle')}</h2>
             <span className="chip">{me.username}</span>
           </div>
           <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.profileHint')}</p>
@@ -117,7 +107,7 @@ function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
                 type="button"
                 disabled={busy}
                 onClick={() => void handleRemove()}
-                className="btn-ghost rounded-full border border-outline-variant px-4 py-2 text-sm text-error hover:bg-error/10"
+                className="btn-outlined px-4 py-2 text-sm text-error hover:bg-error/10"
               >
                 <Trash2 size={15} /> {tl(lang, 'settings.profileRemove')}
               </button>
@@ -141,72 +131,86 @@ function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   );
 }
 
-export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) => void; onLogout: () => void }) {
+/** One setting: title and description on the left, the control on the right (below it on narrow screens) */
+function SettingRow({ title, desc, htmlFor, children, stacked }: { title: ReactNode; desc?: ReactNode; htmlFor?: string; children?: ReactNode; stacked?: boolean }) {
+  return (
+    <div className={`flex gap-x-6 gap-y-3 border-b border-line py-4 ${stacked ? 'flex-col' : 'flex-col sm:flex-row sm:items-center'}`}>
+      <div className="min-w-0 flex-1">
+        {htmlFor ? (
+          <label htmlFor={htmlFor} className="cursor-pointer text-body-m font-medium text-text">
+            {title}
+          </label>
+        ) : (
+          <div className="text-body-m font-medium text-text">{title}</div>
+        )}
+        {desc && <div className="mt-0.5 text-body-s text-muted">{desc}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** A setting with a switch: the switch stays on the right on every screen */
+function SwitchRow({ id, title, desc, label, checked, onChange }: { id: string; title: string; desc: string; label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center gap-6 border-b border-line py-4">
+      <div className="min-w-0 flex-1">
+        <label htmlFor={id} className="cursor-pointer text-body-m font-medium text-text">
+          {title}
+        </label>
+        <div className="mt-0.5 text-body-s text-muted">{desc}</div>
+      </div>
+      <Switch id={id} checked={checked} label={label} onChange={onChange} />
+    </div>
+  );
+}
+
+/** Caption above a group of settings */
+function GroupLabel({ children }: { children: ReactNode }) {
+  return <h2 className="section-label pb-1 pt-7 first:pt-2">{children}</h2>;
+}
+
+/**
+ * Settings (Werkbank): one page per section (`/settings/account`, `appearance`, `editor`, `sync`), picked in the
+ * settings navigation. On phones (and with the side panel collapsed) `/settings` shows that navigation as a list.
+ */
+export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (me: Me) => void; onLogout: () => void; section: SettingsSection | null }) {
   // Loads the Confluence state once; hides the entry when the server has no Confluence (demo)
   useConfluence();
   useVault();
   const lang = useLang();
   const loc = locale(lang);
-  const widescreen = useWidescreen();
   const inboxZero = useInboxZero();
   const ligatures = useLigatures();
   const editorFontSize = useEditorFontSize();
   const colorScheme = useColorSchemeChoice();
+  const inPanel = useSettingsNavInPanel();
+  const path = usePath();
   const [link, setLink] = useState<{ code: string; expiresAt: number } | null>(null);
   const [error, setError] = useState('');
   const linkUrl = link ? `${location.origin}/link/${link.code}` : '';
 
-  const templatesCount = vault.templates().length;
-  const navCards = [
-    ...(me.isAdmin
-      ? [
-          {
-            path: '/admin',
-            Icon: ShieldCheck,
-            title: tl(lang, 'settings.adminTitle'),
-            desc: tl(lang, 'settings.adminDesc'),
-          },
-        ]
-      : []),
-    ...(!me.standalone
-      ? [
-          {
-            path: '/settings/import',
-            Icon: FolderInput,
-            title: tl(lang, 'settings.importTitle'),
-            desc: tl(lang, 'settings.importDesc'),
-          },
-        ]
-      : []),
-    {
-      path: '/settings/templates',
-      Icon: LayoutTemplate,
-      title: tl(lang, 'settings.templatesTitle'),
-      desc: templatesCount ? tl(lang, 'settings.templatesDescCount', { n: templatesCount }) : tl(lang, 'settings.templatesDescEmpty'),
-    },
-    {
-      path: '/files',
-      Icon: Images,
-      title: tl(lang, 'settings.filesTitle'),
-      desc: tl(lang, 'settings.filesDesc'),
-    },
-    {
-      path: '/trash',
-      Icon: Trash2,
-      title: tl(lang, 'settings.trashTitle'),
-      desc: tl(lang, 'settings.trashDesc'),
-    },
-    ...(!DEMO
-      ? [
-          {
-            path: '/settings/export',
-            Icon: Archive,
-            title: tl(lang, 'accountExport.title'),
-            desc: tl(lang, 'accountExport.cardDesc'),
-          },
-        ]
-      : []),
-  ];
+  // The overview: the navigation as a list, where it is not in the side panel
+  if (!section || (!inPanel && path === '/settings')) {
+    return (
+      <div>
+        <PageHeader title={tl(lang, 'settings.title')} subtitle={me.username} />
+        <PageBody className="max-w-[760px] !mx-0">
+          <SettingsNav me={me} />
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
+            {!me.standalone ? (
+              <button className="btn-text text-red" onClick={onLogout}>
+                <LogOut size={16} /> {tl(lang, 'settings.logout')}
+              </button>
+            ) : (
+              <span className="text-body-s text-muted">Standalone Desktop</span>
+            )}
+            <span className="font-mono text-[11px] text-muted">Kladde {APP_VERSION}</span>
+          </div>
+        </PageBody>
+      </div>
+    );
+  }
 
   const linkTextParts = link
     ? tl(lang, 'settings.deviceLinkText', {
@@ -214,16 +218,37 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
       }).split(/(\{url\}|\{code\})/)
     : [];
 
+  const titles: Record<SettingsSection, [I18nKey, I18nKey]> = {
+    account: ['settings.navAccount', 'settings.navAccountDesc'],
+    appearance: ['settings.navAppearance', 'settings.navAppearanceDesc'],
+    editor: ['settings.navEditor', 'settings.navEditorDesc'],
+    sync: ['settings.navSync', 'settings.navSyncDesc'],
+  };
+  const [titleKey, descKey] = titles[section];
+
   return (
-    <div className="content-container space-y-6 px-4 py-6 sm:px-8 sm:py-10">
-      <h1 className="text-headline-m anim-fade-up">{tl(lang, 'settings.title')}</h1>
-
-      <ProfileSection me={me} onMe={onMe} />
-
-      {!me.standalone && (
-        <section className="card p-5 anim-fade-up" data-security-section>
-          <h2 className="mb-4 text-base font-medium">{tl(lang, 'settings.securityTitle')}</h2>
-          <div className="divide-y divide-outline-variant [&>*:first-child]:pt-0 [&>*:last-child]:pb-0 [&>*]:py-5">
+    <div data-settings-section={section}>
+      <PageHeader
+        title={
+          <span className="flex items-center gap-1.5">
+            {!inPanel && (
+              <button className="btn-icon -ml-2 h-8 w-8" onClick={() => navigate('/settings')} title={tl(lang, 'settings.backToOverview')} aria-label={tl(lang, 'settings.backToOverview')}>
+                <ArrowLeft size={18} />
+              </button>
+            )}
+            {tl(lang, titleKey)}
+          </span>
+        }
+        subtitle={tl(lang, descKey)}
+      />
+      <PageBody className="max-w-[760px] !mx-0 !pt-2">
+        {section === 'account' && (
+          <>
+            <ProfileSection me={me} onMe={onMe} />
+            {!me.standalone && (
+              <section data-security-section>
+                <GroupLabel>{tl(lang, 'settings.securityTitle')}</GroupLabel>
+                <div className="divide-y divide-line [&>*]:py-4">
           <div>
             <h3 className="mb-1 text-sm font-medium">{tl(lang, 'settings.passkeysTitle', { username: me.username })}</h3>
             <p className="mb-3 text-sm text-on-surface-variant">{tl(lang, 'settings.passkeysDesc')}</p>
@@ -256,7 +281,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
             </ul>
             <div className="flex flex-wrap gap-2">
               <button
-                className="btn-ghost border border-outline-variant"
+                className="btn-outlined"
                 disabled={!passkeysAvailable()}
                 title={passkeysAvailable() ? undefined : tl(lang, 'settings.passkeyHttpsOnly')}
                 onClick={async () => {
@@ -272,7 +297,7 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
               >
                 <KeyRound size={16} /> {tl(lang, 'settings.passkeyAddHere')}
               </button>
-              <button className="btn-ghost border border-outline-variant" onClick={async () => setLink(await api('/auth/device-link', { method: 'POST', json: {} }))}>
+              <button className="btn-outlined" onClick={async () => setLink(await api('/auth/device-link', { method: 'POST', json: {} }))}>
                 <Smartphone size={16} /> {tl(lang, 'settings.deviceConnect')}
               </button>
             </div>
@@ -298,232 +323,145 @@ export function SettingsView({ me, onMe, onLogout }: { me: Me; onMe: (me: Me) =>
 
             <PasswordSection me={me} onMe={onMe} />
             <GitLabSection me={me} onMe={onMe} />
-          </div>
-        </section>
-      )}
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {navCards.map(({ path, Icon, title, desc }) => (
-          <button
-            key={path}
-            type="button"
-            className="card flex h-full w-full min-w-0 items-center gap-3.5 p-4 text-left transition-colors hover:bg-surface-container hover:bg-surface-container-high/40 anim-fade-up"
-            onClick={() => navigate(path)}
-          >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary-container text-on-secondary-container">
-              <Icon size={20} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="font-medium">{title}</div>
-              <div className="text-sm text-on-surface-variant">{desc}</div>
-            </div>
-            <ChevronRight size={18} className="shrink-0 text-on-surface-variant" />
-          </button>
-        ))}
-      </div>
-
-      {/* Layout, Language, Inbox Zero & Widescreen (Material 3) */}
-      <section className="card p-5 anim-fade-up">
-        <h2 className="mb-4 text-base font-medium">{tl(lang, 'settings.appearanceTitle')}</h2>
-
-        {/* Color scheme selector (M3 Segmented Pill Button) */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2.5">
-            <SunMoon size={18} className="mt-0.5 shrink-0 text-primary" />
-            <div>
-              <div className="text-sm font-medium">{tl(lang, 'settings.colorSchemeTitle')}</div>
-              <div className="text-xs text-on-surface-variant">{tl(lang, 'settings.colorSchemeDesc')}</div>
-            </div>
-          </div>
-          <div className="grid w-full grid-cols-4 rounded-full border border-outline-variant bg-surface-container-high p-1 sm:inline-flex sm:w-auto sm:shrink-0" role="group" aria-label={tl(lang, 'settings.colorSchemeTitle')}>
-            {(
-              [
-                ['dark', 'settings.colorSchemeDark'],
-                ['darker', 'settings.colorSchemeDarker'],
-                ['light', 'settings.colorSchemeLight'],
-                ['system', 'settings.colorSchemeSystem'],
-              ] as const
-            ).map(([choice, label]) => {
-              const active = colorScheme === choice;
-              return (
-                <button
-                  key={choice}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => setColorSchemeChoice(choice)}
-                  className={`inline-flex min-w-0 items-center justify-center gap-1 rounded-full px-1.5 py-1.5 text-sm font-medium transition-colors sm:gap-1.5 sm:px-4 ${
-                    active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
-                >
-                  {active && <Check size={14} strokeWidth={2.5} className="hidden shrink-0 min-[400px]:block" />}
-                  <span className="truncate">{tl(lang, label)}</span>
+                </div>
+              </section>
+            )}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
+              {!me.standalone ? (
+                <button className="btn-text -ml-2.5 text-red" onClick={onLogout}>
+                  <LogOut size={16} /> {tl(lang, 'settings.logout')}
                 </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <hr className="my-5 border-outline-variant" />
-
-        {/* Language selector (M3 Segmented Pill Button) */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2.5">
-            <Globe size={18} className="mt-0.5 shrink-0 text-primary" />
-            <div>
-              <div className="text-sm font-medium">{tl(lang, 'common.language')}</div>
-              <div className="text-xs text-on-surface-variant">{tl(lang, 'common.languageDesc')}</div>
+              ) : (
+                <span className="text-body-s text-muted">Standalone Desktop</span>
+              )}
+              <span className="font-mono text-[11px] text-muted">Kladde {APP_VERSION}</span>
             </div>
-          </div>
-          <div className="inline-flex max-w-full flex-wrap rounded-full border border-outline-variant bg-surface-container-high p-1 shrink-0" role="group" aria-label={tl(lang, 'common.language')}>
-            {(['de', 'en'] as Lang[]).map((code) => {
-              const active = lang === code;
-              const label = code === 'de' ? tl(lang, 'common.langDe') : tl(lang, 'common.langEn');
-              return (
-                <button
-                  key={code}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => setLang(code)}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                    active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
-                >
-                  {active && <Check size={14} strokeWidth={2.5} />}
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <hr className="my-5 border-outline-variant" />
-
-        {/* Inbox Zero opt-in (M3 Switch) */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <Inbox size={18} className="mt-0.5 shrink-0 text-primary" />
-            <div className="min-w-0 flex-1">
-              <label htmlFor="inbox-zero-switch" className="cursor-pointer text-sm font-medium">
-                {tl(lang, 'settings.inboxZeroTitle')}
-              </label>
-              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.inboxZeroDesc')}</p>
-            </div>
-          </div>
-          <Switch
-            id="inbox-zero-switch"
-            checked={inboxZero}
-            label={tl(lang, 'settings.inboxZeroLabel')}
-            onChange={setInboxZero}
-          />
-        </div>
-
-        <hr className="my-5 border-outline-variant" />
-
-        {/* Editor font size (per device) */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2.5">
-            <TextFields size={18} className="mt-0.5 shrink-0 text-primary" />
-            <div>
-              <div className="text-sm font-medium">{tl(lang, 'settings.editorFontTitle')}</div>
-              <div className="text-xs text-on-surface-variant">{tl(lang, 'settings.editorFontDesc')}</div>
-            </div>
-          </div>
-          <div className="inline-flex max-w-full flex-wrap rounded-full border border-outline-variant bg-surface-container-high p-1 shrink-0" role="group" aria-label={tl(lang, 'settings.editorFontTitle')}>
-            {EDITOR_FONT_SIZES.map((size) => {
-              const active = editorFontSize === size;
-              return (
-                <button
-                  key={size}
-                  type="button"
-                  aria-pressed={active}
-                  aria-label={`${size} px`}
-                  title={`${size} px`}
-                  onClick={() => setEditorFontSize(size)}
-                  className={`inline-flex min-w-[2.75rem] items-center justify-center rounded-full px-3 py-1.5 font-medium tabular-nums transition-colors ${
-                    active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
-                  style={{ fontSize: `${Math.round(size * 0.8)}px` }}
-                >
-                  {size}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <hr className="my-5 border-outline-variant" />
-
-        {/* Ligatures in the editor (display only) */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <ArrowRight size={18} className="mt-0.5 shrink-0 text-primary" />
-            <div className="min-w-0 flex-1">
-              <label htmlFor="ligatures-switch" className="cursor-pointer text-sm font-medium">
-                {tl(lang, 'settings.ligaturesTitle')}
-              </label>
-              <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.ligaturesDesc')}</p>
-            </div>
-          </div>
-          <Switch id="ligatures-switch" checked={ligatures} label={tl(lang, 'settings.ligaturesLabel')} onChange={setLigatures} />
-        </div>
-
-        <hr className="my-5 border-outline-variant" />
-
-        {/* Widescreen: one slider from 50 to 100 %, snapping to the presets */}
-        <div className="mb-3 flex items-center gap-2.5">
-          <Maximize2 size={18} className="mt-0.5 shrink-0 text-primary" />
-          <div className="min-w-0 flex-1">
-            <label htmlFor="widescreen-slider" className="text-sm font-medium">
-              {tl(lang, 'settings.widescreenTitle')}
-            </label>
-            <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.widescreenDesc')}</p>
-          </div>
-          <span className="shrink-0 text-title-m tabular-nums">{widescreen.percent} %</span>
-        </div>
-        <WidescreenSlider />
-        <div className="mt-3 flex items-start gap-2 rounded-xl bg-surface-container-high/60 px-3.5 py-2.5 text-xs text-on-surface-variant">
-          <Info size={15} className="mt-0.5 shrink-0 text-primary" />
-          <span>{tl(lang, 'settings.widescreenSmallScreenHint')}</span>
-        </div>
-      </section>
-
-      <FeaturesCard />
-
-      <section className="card p-5 anim-fade-up">
-        <h2 className="mb-1 font-medium">{me.standalone ? tl(lang, 'settings.standaloneTitle') : tl(lang, 'settings.syncTitle')}</h2>
-        <p className="text-sm text-on-surface-variant">
-          {me.standalone
-            ? tl(lang, 'settings.standaloneStats', {
-                notes: vault.list().length,
-                pending: vault.pendingCount(),
-              })
-            : tl(lang, 'settings.syncStats', {
-                notes: vault.list().length,
-                pending: vault.pendingCount(),
-                last: vault.lastSync
-                  ? tl(lang, 'settings.syncLast', { time: new Date(vault.lastSync).toLocaleTimeString(loc, { timeStyle: 'short' }) })
-                  : '',
-              })}
-        </p>
-        {me.standalone && me.dataDir && (
-          <div className="mt-3 space-y-1">
-            <div className="text-xs font-medium text-on-surface-variant">{tl(lang, 'settings.standaloneDataDir')}</div>
-            <code className="block rounded-xl border border-outline-variant bg-surface-container-high px-3 py-2 font-mono text-xs break-all text-on-surface">{me.dataDir}</code>
-          </div>
+          </>
         )}
-        <p className="mt-2 text-xs text-on-surface-variant">{me.standalone ? tl(lang, 'settings.standaloneNote') : tl(lang, 'settings.syncOfflineNote')}</p>
-      </section>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        {!me.standalone ? (
-          <button className="btn-ghost text-error" onClick={onLogout}>
-            <LogOut size={16} /> {tl(lang, 'settings.logout')}
-          </button>
-        ) : (
-          <span className="text-xs text-on-surface-variant">Standalone Desktop</span>
+        {section === 'appearance' && (
+          <>
+            <div className="border-b border-line py-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div className="text-body-m font-medium text-text">{tl(lang, 'settings.accentTitle')}</div>
+              </div>
+              <div className="mb-4 mt-0.5 text-body-s text-muted">{tl(lang, 'settings.accentDesc')}</div>
+              <AccentPicker onMe={onMe} />
+            </div>
+            <SettingRow title={tl(lang, 'settings.colorSchemeTitle')} desc={tl(lang, 'settings.colorSchemeDesc')}>
+              <div className="segmented grid w-full grid-cols-3 sm:inline-flex sm:w-auto sm:shrink-0" role="group" aria-label={tl(lang, 'settings.colorSchemeTitle')}>
+                {(
+                  [
+                    ['dark', 'settings.colorSchemeDark'],
+                    ['light', 'settings.colorSchemeLight'],
+                    ['system', 'settings.colorSchemeSystem'],
+                  ] as const
+                ).map(([choice, label]) => (
+                  <button key={choice} type="button" aria-pressed={colorScheme === choice} onClick={() => setColorSchemeChoice(choice)} className="min-w-0">
+                    <span className="truncate">{tl(lang, label)}</span>
+                  </button>
+                ))}
+              </div>
+            </SettingRow>
+            <SettingRow title={tl(lang, 'common.language')} desc={tl(lang, 'common.languageDesc')}>
+              <div className="segmented max-w-full shrink-0 self-start sm:self-auto" role="group" aria-label={tl(lang, 'common.language')}>
+                {(['de', 'en'] as Lang[]).map((code) => (
+                  <button key={code} type="button" aria-pressed={lang === code} onClick={() => setLang(code)}>
+                    {code === 'de' ? tl(lang, 'common.langDe') : tl(lang, 'common.langEn')}
+                  </button>
+                ))}
+              </div>
+            </SettingRow>
+            <GroupLabel>{tl(lang, 'settings.workTitle')}</GroupLabel>
+            <SwitchRow
+              id="inbox-zero-switch"
+              title={tl(lang, 'settings.inboxZeroTitle')}
+              desc={tl(lang, 'settings.inboxZeroDesc')}
+              label={tl(lang, 'settings.inboxZeroLabel')}
+              checked={inboxZero}
+              onChange={setInboxZero}
+            />
+          </>
         )}
-        <span className="text-xs text-on-surface-variant">Kladde {APP_VERSION}</span>
-      </div>
+
+        {section === 'editor' && (
+          <>
+            <SettingRow title={tl(lang, 'settings.editorFontTitle')} desc={tl(lang, 'settings.editorFontDesc')}>
+              <div className="segmented max-w-full shrink-0 self-start sm:self-auto" role="group" aria-label={tl(lang, 'settings.editorFontTitle')}>
+                {EDITOR_FONT_SIZES.map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    aria-pressed={editorFontSize === size}
+                    aria-label={`${size} px`}
+                    title={`${size} px`}
+                    onClick={() => setEditorFontSize(size)}
+                    className="min-w-[2.5rem] tabular-nums"
+                    style={{ fontSize: `${Math.round(size * 0.8)}px` }}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </SettingRow>
+            <SwitchRow
+              id="ligatures-switch"
+              title={tl(lang, 'settings.ligaturesTitle')}
+              desc={tl(lang, 'settings.ligaturesDesc')}
+              label={tl(lang, 'settings.ligaturesLabel')}
+              checked={ligatures}
+              onChange={setLigatures}
+            />
+            <SettingRow title={tl(lang, 'settings.templatesTitle')} desc={tl(lang, 'settings.navTemplatesDesc')}>
+              <button className="btn-outlined self-start sm:self-auto" onClick={() => navigate('/settings/templates')}>
+                <LayoutTemplate size={16} /> {tl(lang, 'settings.templatesTitle')}
+              </button>
+            </SettingRow>
+          </>
+        )}
+
+        {section === 'sync' && (
+          <>
+            <SettingRow
+              title={me.standalone ? tl(lang, 'settings.standaloneTitle') : tl(lang, 'settings.syncTitle')}
+              desc={
+                <>
+                  {me.standalone
+                    ? tl(lang, 'settings.standaloneStats', { notes: vault.list().length, pending: vault.pendingCount() })
+                    : tl(lang, 'settings.syncStats', {
+                        notes: vault.list().length,
+                        pending: vault.pendingCount(),
+                        last: vault.lastSync ? tl(lang, 'settings.syncLast', { time: new Date(vault.lastSync).toLocaleTimeString(loc, { timeStyle: 'short' }) }) : '',
+                      })}
+                  <br />
+                  {me.standalone ? tl(lang, 'settings.standaloneNote') : tl(lang, 'settings.syncOfflineNote')}
+                </>
+              }
+            >
+              {!me.standalone && !DEMO && (
+                <button className="btn-outlined self-start sm:self-auto" onClick={() => vault.kick()}>
+                  <RefreshCw size={16} /> {tl(lang, 'cmd.syncNow')}
+                </button>
+              )}
+            </SettingRow>
+            {me.standalone && me.dataDir && (
+              <SettingRow title={tl(lang, 'settings.standaloneDataDir')} stacked>
+                <code className="block rounded-md border border-line2 bg-sunken px-3 py-2 font-mono text-xs break-all text-text">{me.dataDir}</code>
+              </SettingRow>
+            )}
+            <SettingRow title={tl(lang, 'settings.filesTitle')} desc={tl(lang, 'settings.filesDesc')}>
+              <button className="btn-outlined self-start sm:self-auto" onClick={() => navigate('/settings/files')}>
+                <Images size={16} /> {tl(lang, 'settings.filesTitle')}
+              </button>
+            </SettingRow>
+            <SettingRow title={tl(lang, 'settings.trashTitle')} desc={tl(lang, 'settings.trashDesc')}>
+              <button className="btn-outlined self-start sm:self-auto" onClick={() => navigate('/settings/trash')}>
+                <Trash2 size={16} /> {tl(lang, 'settings.trashTitle')}
+              </button>
+            </SettingRow>
+          </>
+        )}
+      </PageBody>
     </div>
   );
 }
@@ -554,7 +492,7 @@ function GitLabSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
       <div className="flex flex-wrap gap-2">
         {linked ? (
           <button
-            className="btn-ghost border border-outline-variant text-error"
+            className="btn-outlined text-error"
             disabled={!canUnlink}
             title={canUnlink ? undefined : tl(lang, 'settings.gitlabUnlinkBlocked')}
             onClick={async () => {
@@ -570,7 +508,7 @@ function GitLabSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
             <Trash2 size={16} /> {tl(lang, 'common.disconnect')}
           </button>
         ) : (
-          <a className="btn-ghost border border-outline-variant" href="/api/auth/gitlab/start?intent=link">
+          <a className="btn-outlined" href="/api/auth/gitlab/start?intent=link">
             <GitLabIcon size={16} /> {tl(lang, 'settings.gitlabLink', { name })}
           </a>
         )}
@@ -662,7 +600,7 @@ function PasswordSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
         </form>
       ) : (
         <div className="flex flex-wrap gap-2">
-          <button className="btn-ghost border border-outline-variant" onClick={() => setOpen(true)}>
+          <button className="btn-outlined" onClick={() => setOpen(true)}>
             <Lock size={16} /> {me.hasPassword ? tl(lang, 'settings.passwordChange') : tl(lang, 'settings.passwordSet')}
           </button>
           {me.hasPassword && (me.passkeys.length > 0 || !!me.externalLogins?.length) && (
@@ -689,94 +627,3 @@ function PasswordSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
 }
 
 /** Snap distance (percent points) around the presets */
-const WIDESCREEN_SNAP = 4;
-
-/** Slider for the content width: 50–100 %, snaps to the presets and marks them with dots */
-function WidescreenSlider() {
-  const lang = useLang();
-  const { percent } = useWidescreen();
-  const pos = (v: number) => ((v - MIN_PERCENT) / (MAX_PERCENT - MIN_PERCENT)) * 100;
-  const set = (raw: number) => {
-    const snap = WIDESCREEN_PRESETS.find((p) => Math.abs(p - raw) <= WIDESCREEN_SNAP);
-    const next = snap ?? raw;
-    setWidescreen({ percent: next, custom: !(WIDESCREEN_PRESETS as readonly number[]).includes(next) });
-  };
-  return (
-    <div className="px-1">
-      <div className="relative h-6">
-        {/* Track, active part and preset dots, drawn under the native thumb */}
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-secondary-container">
-          <div className="h-full rounded-full bg-primary" style={{ width: `calc(10px + (100% - 20px) * ${pos(percent) / 100})` }} />
-        </div>
-        <div aria-hidden className="pointer-events-none absolute inset-x-[10px] top-1/2 -translate-y-1/2">
-          {WIDESCREEN_PRESETS.map((p) => (
-            <span
-              key={p}
-              className={`absolute top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full ${p <= percent ? 'bg-on-primary' : 'bg-primary'}`}
-              style={{ left: `${pos(p)}%` }}
-            />
-          ))}
-        </div>
-        <input
-          id="widescreen-slider"
-          type="range"
-          min={MIN_PERCENT}
-          max={MAX_PERCENT}
-          step={1}
-          value={percent}
-          list="widescreen-presets"
-          onChange={(e) => set(Number(e.target.value))}
-          aria-valuetext={`${percent} %`}
-          aria-label={tl(lang, 'settings.widescreenSliderAria')}
-          className="m3-slider relative w-full"
-        />
-        <datalist id="widescreen-presets">
-          {WIDESCREEN_PRESETS.map((p) => (
-            <option key={p} value={p} />
-          ))}
-        </datalist>
-      </div>
-      <div className="relative mx-[10px] mt-1 h-4 text-[11px] text-on-surface-variant tabular-nums">
-        {WIDESCREEN_PRESETS.map((p) => (
-          <button
-            key={p}
-            type="button"
-            onClick={() => set(p)}
-            className={`absolute -translate-x-1/2 whitespace-nowrap hover:text-on-surface ${p === percent ? 'font-semibold text-on-surface' : ''}`}
-            style={{ left: `${pos(p)}%` }}
-          >
-            {p} %{p === DEFAULT_PERCENT ? ` · ${tl(lang, 'settings.widescreenDefaultTag')}` : ''}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** Entry to the features dialog: how many features are on and how many more there are */
-function FeaturesCard() {
-  const lang = useLang();
-  const { active, available } = useFeatureCounts();
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <button
-        type="button"
-        className="card flex w-full min-w-0 items-center gap-3.5 p-5 text-left transition-colors hover:bg-surface-container-high/40 anim-fade-up"
-        onClick={() => setOpen(true)}
-        aria-haspopup="dialog"
-        data-open-features
-      >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary-container text-on-secondary-container">
-          <Extension size={20} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="font-medium">{tl(lang, 'features.title')}</div>
-          <div className="text-sm text-on-surface-variant">{tl(lang, 'features.cardDesc', { active, available })}</div>
-        </div>
-        <ChevronRight size={18} className="shrink-0 text-on-surface-variant" />
-      </button>
-      {open && <FeaturesDialog onClose={() => setOpen(false)} />}
-    </>
-  );
-}

@@ -52,7 +52,7 @@ export function PublicNote({ token }: { token: string }) {
         )}
         <ExportMenu title={title} slides={slides} content={note.versioning ? fillReleasePlaceholders(note.content, note.releases ?? [], releaseRenderOptions(lang)) : note.content} />
       </div>
-      <h1 className="mb-4 break-words text-headline-l">{title}</h1>
+      <h1 className="font-display mb-4 break-words text-[34px] leading-tight">{title}</h1>
       {drawing !== null ? (
         <Suspense fallback={<div className="p-8 text-center text-on-surface-variant">{tl(lang, 'common.loading')}</div>}>
           <ExcalidrawPanel scene={drawing} readOnly lang={lang} />

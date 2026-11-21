@@ -225,6 +225,8 @@ export interface Me {
   externalLogins?: { provider: string; username: string; createdAt: number }[];
   /** URL of the user's profile picture, if uploaded */
   avatarUrl?: string | null;
+  /** Accent color of the Werkbank design, chosen per account (`ACCENTS` in accent.ts; default 'blue') */
+  accent?: string;
   /** True when running in single-user desktop/standalone mode (no auth, invites, sharing or admin area) */
   standalone?: boolean;
   /** Local data directory path shown in standalone diagnostics/settings */

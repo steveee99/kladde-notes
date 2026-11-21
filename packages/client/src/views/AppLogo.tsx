@@ -1,22 +1,16 @@
 /**
- * The Kladde mark (document with a check) as a tonal M3 tile: primary-container behind the symbol in
- * on-primary-container, so it follows the colour scheme like the "New note" button. The cut-outs use
- * the tile colour, so the symbol needs no background of its own (unlike `public/icons/icon.svg`).
+ * The Kladde mark: a notebook (a "Kladde") with a darker spine, an elastic band and a label, drawn in the accent.
+ * Band and label use --on-acc, so the mark follows the user's accent and both color schemes. The app icon in
+ * `public/icons/icon.svg` is the same drawing on a dark tile.
  */
-export function AppLogo({ size = 48 }: { size?: number }) {
-  const glyph = Math.round(size * 0.6);
+export function AppLogo({ size = 24 }: { size?: number }) {
   return (
-    <span
-      aria-hidden
-      className="inline-flex shrink-0 items-center justify-center rounded-2xl bg-primary-container text-on-primary-container"
-      style={{ width: size, height: size }}
-    >
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="112 114 284 308" width={glyph} height={glyph}>
-        <path d="M150 128h168l64 64v192a24 24 0 0 1-24 24H150a24 24 0 0 1-24-24V152a24 24 0 0 1 24-24z" fill="currentColor" />
-        <path d="M318 128v48a16 16 0 0 0 16 16h48" fill="rgb(var(--primary-container))" fillOpacity=".35" />
-        <path d="M176 262l34 34 70-74" fill="none" stroke="rgb(var(--primary-container))" strokeWidth="30" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M176 352h160" stroke="rgb(var(--primary-container))" strokeWidth="26" strokeLinecap="round" opacity=".7" />
-      </svg>
-    </span>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" focusable="false" className="shrink-0 text-acc">
+      <rect x="4.5" y="2.5" width="15" height="19" rx="2.5" fill="currentColor" />
+      <path d="M8 2.5H7A2.5 2.5 0 0 0 4.5 5v14A2.5 2.5 0 0 0 7 21.5h1z" fill="rgb(var(--on-acc))" fillOpacity=".28" />
+      <rect x="15.4" y="2.5" width="1.7" height="19" fill="rgb(var(--on-acc))" fillOpacity=".55" />
+      <rect x="9.6" y="7" width="4.4" height="1.6" rx=".8" fill="rgb(var(--on-acc))" fillOpacity=".8" />
+      <rect x="9.6" y="10.2" width="2.8" height="1.6" rx=".8" fill="rgb(var(--on-acc))" fillOpacity=".8" />
+    </svg>
   );
 }

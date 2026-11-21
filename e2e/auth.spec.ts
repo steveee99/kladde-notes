@@ -16,7 +16,7 @@ test.describe('sign-in', () => {
 
     await page.getByPlaceholder('Password').fill(E2E_PASSWORD);
     await page.getByRole('button', { name: 'Sign in with password' }).click();
-    await expect(page.getByRole('heading', { level: 1 })).toContainText(/Good morning|Hello|Good evening/); // the greeting depends on the time of day
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(/Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday/); // Home is titled with today's date
     const me = await page.request.get('/api/auth/me');
     expect((await me.json()).username).toBe('cara');
   });

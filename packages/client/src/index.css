@@ -3,176 +3,196 @@
 @tailwind utilities;
 
 /*
- * Material 3 color roles (scheme "Tonal Spot", source color #0B57D0), generated with
- * @material/material-color-utilities. Colors are "R G B" triplets so Tailwind can add alpha
- * (bg-primary/20); the Tailwind color names are the role names (bg-surface-container, text-on-surface-variant).
- * Dark is the default color scheme; the light values follow below.
+ * Werkbank design (docs/DESIGN.md). Colors are "R G B" triplets so Tailwind can add alpha (bg-acc/20).
+ * The Werkbank tokens come first (--bg, --panel, --text, --acc, …); the Material 3 role names below them
+ * (--surface, --primary, …) are aliases onto these tokens so older views keep working. Dark is the default
+ * scheme; the light values follow below. The accent (--acc*) is the user's choice (data-accent, lib/accent.ts).
  */
 :root,
-[data-theme='material'] {
-  --primary: 178 197 255;
-  --on-primary: 23 46 96;
-  --primary-container: 48 69 120;
-  --on-primary-container: 218 226 255;
-  --secondary: 192 198 221;
-  --on-secondary: 42 48 66;
-  --secondary-container: 64 70 89;
-  --on-secondary-container: 220 226 249;
-  --tertiary: 225 187 221;
-  --on-tertiary: 65 39 65;
-  --tertiary-container: 90 61 89;
-  --on-tertiary-container: 254 215 249;
-  --error: 255 180 171;
-  --on-error: 105 0 5;
-  --error-container: 147 0 10;
-  --on-error-container: 255 218 214;
-  --surface: 18 19 24;
-  --surface-dim: 18 19 24;
-  --surface-bright: 56 57 63;
-  --surface-container-lowest: 13 14 19;
-  --surface-container-low: 26 27 33;
-  --surface-container: 30 31 37;
-  --surface-container-high: 40 42 47;
-  --surface-container-highest: 51 52 58;
-  --on-surface: 226 226 233;
-  --on-surface-variant: 197 198 208;
-  --outline: 143 144 154;
-  --outline-variant: 69 70 79;
-  --inverse-surface: 226 226 233;
-  --inverse-on-surface: 47 48 54;
-  --inverse-primary: 73 93 146;
+[data-theme='werkbank'] {
+  /* Surfaces and lines */
+  --bg: 19 18 16;
+  --panel: 23 22 20;
+  --bar: 27 25 23;
+  --raised: 34 32 29;
+  --line: 45 42 38;
+  --line2: 54 51 46;
+  --sunken: 14 13 12;
+  /* Text */
+  --strong: 244 241 236;
+  --text: 233 229 222;
+  --body: 218 213 205;
+  --soft: 199 193 184;
+  --muted: 162 155 145;
+  --faint: 136 130 121;
+  /* Borders that carry meaning (checkboxes, outlined controls): 3:1 */
+  --edge: 106 101 93;
+  /* Accent, default ink blue (lib/accent.ts sets data-accent for the other presets) */
+  --acc: 124 155 247;
+  --acc-hi: 186 202 251;
+  --acc-bg: 27 33 60;
+  --acc-line: 54 70 128;
+  --on-acc: 10 14 34;
+  /* States: the same for everyone, they do not follow the accent */
+  --amber: 232 176 74;
+  --amber-hi: 245 203 120;
+  --amber-bg: 58 46 20;
+  --red: 240 138 126;
+  --red-bg: 58 27 24;
+  --violet: 195 166 255;
+  --violet-bg: 42 33 64;
+  --green: 127 199 154;
+  --green-bg: 22 48 31;
+
+  /* Material 3 role names as aliases onto the Werkbank tokens */
+  --primary: var(--acc);
+  --on-primary: var(--on-acc);
+  --primary-container: var(--acc-bg);
+  --on-primary-container: var(--acc-hi);
+  --secondary: var(--soft);
+  --on-secondary: var(--bg);
+  --secondary-container: var(--line);
+  --on-secondary-container: var(--text);
+  --tertiary: var(--violet);
+  --on-tertiary: 26 16 48;
+  --tertiary-container: var(--violet-bg);
+  --on-tertiary-container: var(--violet);
+  --error: var(--red);
+  --on-error: 42 10 6;
+  --error-container: var(--red-bg);
+  --on-error-container: var(--red);
+  --surface: var(--bg);
+  --surface-dim: var(--bg);
+  --surface-bright: var(--line2);
+  --surface-container-lowest: var(--sunken);
+  --surface-container-low: var(--panel);
+  --surface-container: var(--bar);
+  --surface-container-high: var(--raised);
+  --surface-container-highest: var(--line);
+  --on-surface: var(--text);
+  --on-surface-variant: var(--muted);
+  --outline: var(--edge);
+  --outline-variant: var(--line2);
+  --inverse-surface: var(--text);
+  --inverse-on-surface: var(--bar);
+  --inverse-primary: var(--acc-line);
   --scrim: 0 0 0;
-  /* Custom colors (harmonized with the source color): done / success and warning */
-  --ok: 118 218 161;
-  --on-ok: 0 57 32;
-  --ok-container: 0 82 49;
-  --on-ok-container: 146 247 188;
-  --warn: 255 183 127;
-  --on-warn: 78 38 0;
-  --warn-container: 110 57 0;
-  --on-warn-container: 255 220 195;
+  --ok: var(--green);
+  --on-ok: 10 31 18;
+  --ok-container: var(--green-bg);
+  --on-ok-container: var(--green);
+  --warn: var(--amber);
+  --on-warn: 26 20 8;
+  --warn-container: var(--amber-bg);
+  --on-warn-container: var(--amber-hi);
   /* Editor surfaces */
-  --code-bg: 13 14 19;
-  --inline-code-bg: 51 52 58;
-  --selection: 178 197 255 / 0.26;
-  /* Shape scale (M3): extra-small 4, small 8, medium 12, large 16, extra-large 28, full */
+  --code-bg: var(--panel);
+  --inline-code-bg: var(--raised);
+  --selection: var(--acc) / 0.28;
+  /* Shape scale: pills 4, controls 6, cards 8, dialogs 10, FAB 14 */
   --shape-xs: 4px;
-  --shape-sm: 8px;
-  --shape-md: 12px;
-  --shape-lg: 16px;
-  --shape-xl: 28px;
-  --radius: var(--shape-lg);
-  /* Elevation (M3 levels 1-3); surfaces show depth through their container color, shadows only on floating elements */
-  --elevation-1: 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 3px 1px rgb(0 0 0 / 0.15);
-  --elevation-2: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 6px 2px rgb(0 0 0 / 0.15);
-  --elevation-3: 0 1px 3px rgb(0 0 0 / 0.3), 0 4px 8px 3px rgb(0 0 0 / 0.15);
+  --shape-sm: 6px;
+  --shape-md: 8px;
+  --shape-lg: 10px;
+  --shape-xl: 14px;
+  --radius: var(--shape-md);
+  /* Lines, not shadows: only floating layers (menus, dialogs, FAB) get a shadow */
+  --elevation-1: 0 1px 2px rgb(0 0 0 / 0.35);
+  --elevation-2: 0 8px 20px rgb(0 0 0 / 0.4);
+  --elevation-3: 0 24px 60px rgb(0 0 0 / 0.55);
   --shadow: var(--elevation-1);
-  /* Motion (M3 easing and duration tokens) */
-  --ease: cubic-bezier(0.05, 0.7, 0.1, 1); /* emphasized decelerate */
+  /* Motion: short and functional */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1); /* M3 Expressive spatial spring, used sparingly */
-  --dur: 250ms; /* medium1 */
-  --dur-short: 150ms; /* short3 */
+  --ease-spring: cubic-bezier(0.2, 0, 0, 1);
+  --dur: 160ms;
+  --dur-short: 120ms;
   /* State layer opacities */
-  --state-hover: 0.08;
+  --state-hover: 0.06;
   --state-focus: 0.1;
   --state-press: 0.1;
-  --font-sans: 'Roboto Flex Variable', Roboto, system-ui, sans-serif;
-  --content-width: 80%;
+  --font-sans: 'Inter Variable', Inter, system-ui, sans-serif;
+  /* Titles and headings: a reading serif with optical sizes; Inter for the interface, mono for numbers */
+  --font-serif: 'Newsreader Variable', Newsreader, 'Iowan Old Style', Georgia, serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, Menlo, monospace;
   /* Other people's cursors in the editor (one color per person) */
-  --cursor-1: 239 108 0;
-  --cursor-2: 0 150 136;
-  --cursor-3: 156 39 176;
-  --cursor-4: 216 27 96;
-  --cursor-5: 30 136 229;
-  --cursor-6: 104 159 56;
+  --cursor-1: 111 214 207;
+  --cursor-2: 195 166 255;
+  --cursor-3: 242 143 184;
+  --cursor-4: 232 176 74;
+  --cursor-5: 127 199 154;
+  --cursor-6: 242 135 107;
   color-scheme: dark;
 }
 
-/*
- * Material 3 light color scheme (Einstellungen → Farbschema). Same design, only the colors change;
- * <html data-scheme> is set by lib/theme.ts and the inline script in index.html.
- */
-[data-theme='material'][data-scheme='light'] {
-  --primary: 73 93 146;
-  --on-primary: 255 255 255;
-  --primary-container: 218 226 255;
-  --on-primary-container: 48 69 120;
-  --secondary: 88 94 113;
-  --on-secondary: 255 255 255;
-  --secondary-container: 220 226 249;
-  --on-secondary-container: 64 70 89;
-  --tertiary: 115 84 113;
+/* Light scheme (Settings → Appearance → Color scheme); <html data-scheme> is set by lib/theme.ts and index.html */
+[data-theme='werkbank'][data-scheme='light'] {
+  --bg: 251 249 244;
+  --panel: 245 242 235;
+  --bar: 240 237 229;
+  --raised: 234 230 221;
+  --line: 226 221 211;
+  --line2: 210 204 192;
+  --sunken: 253 252 249;
+  --strong: 23 21 18;
+  --text: 33 31 28;
+  --body: 48 45 40;
+  --soft: 68 64 58;
+  --muted: 100 95 87;
+  --faint: 112 106 98;
+  --edge: 143 136 125;
+  --acc: 38 66 186;
+  --acc-hi: 30 52 156;
+  --acc-bg: 231 235 250;
+  --acc-line: 160 175 232;
+  --on-acc: 255 255 255;
+  --amber: 138 88 0;
+  --amber-hi: 138 88 0;
+  --amber-bg: 255 243 214;
+  --red: 180 35 24;
+  --red-bg: 253 236 234;
+  --violet: 105 65 198;
+  --violet-bg: 241 235 255;
+  --green: 26 116 68;
+  --green-bg: 229 244 235;
   --on-tertiary: 255 255 255;
-  --tertiary-container: 254 215 249;
-  --on-tertiary-container: 90 61 89;
-  --error: 186 26 26;
   --on-error: 255 255 255;
-  --error-container: 255 218 214;
-  --on-error-container: 147 0 10;
-  --surface: 250 248 255;
-  --surface-dim: 218 217 224;
-  --surface-bright: 250 248 255;
-  --surface-container-lowest: 255 255 255;
-  --surface-container-low: 244 243 250;
-  --surface-container: 238 237 244;
-  --surface-container-high: 232 231 239;
-  --surface-container-highest: 226 226 233;
-  --on-surface: 26 27 33;
-  --on-surface-variant: 69 70 79;
-  --outline: 117 119 128;
-  --outline-variant: 197 198 208;
-  --inverse-surface: 47 48 54;
-  --inverse-on-surface: 241 240 247;
-  --inverse-primary: 178 197 255;
-  --scrim: 0 0 0;
-  --ok: 0 109 67;
   --on-ok: 255 255 255;
-  --ok-container: 146 247 188;
-  --on-ok-container: 0 33 17;
-  --warn: 145 76 0;
   --on-warn: 255 255 255;
-  --warn-container: 255 220 195;
-  --on-warn-container: 47 21 0;
-  --code-bg: 238 237 244;
-  --inline-code-bg: 226 226 233;
-  --selection: 73 93 146 / 0.2;
-  /* Darker cursor tones so they stand out on the light background */
-  --cursor-1: 230 81 0;
-  --cursor-2: 0 137 123;
-  --cursor-6: 85 139 47;
+  --on-secondary: 255 255 255;
+  --inverse-surface: 48 45 40;
+  --inverse-on-surface: 240 237 229;
+  --selection: var(--acc) / 0.2;
+  --elevation-1: 0 1px 2px rgb(40 32 20 / 0.08);
+  --elevation-2: 0 8px 20px rgb(40 32 20 / 0.12);
+  --elevation-3: 0 24px 60px rgb(40 32 20 / 0.18);
+  --cursor-1: 13 148 136;
+  --cursor-2: 124 77 220;
+  --cursor-3: 192 42 111;
+  --cursor-4: 161 98 7;
+  --cursor-5: 26 116 68;
+  --cursor-6: 194 65 12;
   color-scheme: light;
 }
 
 /*
- * "Darker" (Einstellungen → Farbschema): the dark scheme with neutral dark grey surfaces instead of the
- * blue-tinted ones, close to black. Only the neutral roles change (surfaces, outlines, secondary for the
- * selected states); primary, tertiary, error and the custom colors stay the dark scheme's accents.
- * <html data-tone="darker"> is set by lib/theme.ts and the inline script in index.html; data-scheme stays "dark".
+ * Accent presets (lib/accent.ts, docs/DESIGN.md). Blue is the default above; each preset has a dark and a
+ * light value set, all checked for WCAG AA against the surfaces they sit on.
  */
-[data-theme='material'][data-scheme='dark'][data-tone='darker'] {
-  --primary-container: 40 48 68;
-  --secondary: 200 200 200;
-  --on-secondary: 47 47 47;
-  --secondary-container: 46 46 46;
-  --on-secondary-container: 228 228 228;
-  --surface: 8 8 8;
-  --surface-dim: 8 8 8;
-  --surface-bright: 38 38 38;
-  --surface-container-lowest: 4 4 4;
-  --surface-container-low: 13 13 13;
-  --surface-container: 17 17 17;
-  --surface-container-high: 24 24 24;
-  --surface-container-highest: 32 32 32;
-  --on-surface: 228 228 228;
-  --on-surface-variant: 198 198 198;
-  --outline: 142 142 142;
-  --outline-variant: 52 52 52;
-  --inverse-surface: 228 228 228;
-  --inverse-on-surface: 32 32 32;
-  --code-bg: 4 4 4;
-  --inline-code-bg: 32 32 32;
-}
+[data-theme='werkbank'][data-accent='amber'] { --acc: 232 176 74; --acc-hi: 245 203 120; --acc-bg: 58 46 20; --acc-line: 107 83 32; --on-acc: 26 20 8; }
+[data-theme='werkbank'][data-accent='green'] { --acc: 79 195 133; --acc-hi: 155 227 184; --acc-bg: 18 48 31; --acc-line: 42 92 62; --on-acc: 6 23 13; }
+[data-theme='werkbank'][data-accent='teal'] { --acc: 62 193 196; --acc-hi: 149 226 227; --acc-bg: 15 46 48; --acc-line: 38 91 93; --on-acc: 4 22 22; }
+[data-theme='werkbank'][data-accent='violet'] { --acc: 169 139 255; --acc-hi: 205 189 255; --acc-bg: 36 27 63; --acc-line: 70 56 122; --on-acc: 19 12 38; }
+[data-theme='werkbank'][data-accent='pink'] { --acc: 242 123 176; --acc-hi: 249 181 211; --acc-bg: 58 23 41; --acc-line: 110 46 77; --on-acc: 34 8 26; }
+[data-theme='werkbank'][data-accent='coral'] { --acc: 242 135 107; --acc-hi: 248 185 167; --acc-bg: 58 29 21; --acc-line: 110 56 40; --on-acc: 34 12 5; }
+[data-theme='werkbank'][data-accent='graphite'] { --acc: 199 193 184; --acc-hi: 233 229 222; --acc-bg: 45 42 38; --acc-line: 84 79 72; --on-acc: 19 18 16; }
+[data-theme='werkbank'][data-scheme='light'][data-accent='amber'] { --acc: 143 93 0; --acc-hi: 122 79 0; --acc-bg: 255 241 214; --acc-line: 227 194 125; --on-acc: 255 255 255; }
+[data-theme='werkbank'][data-scheme='light'][data-accent='green'] { --acc: 24 112 66; --acc-hi: 23 103 61; --acc-bg: 227 244 234; --acc-line: 147 205 174; --on-acc: 255 255 255; }
+[data-theme='werkbank'][data-scheme='light'][data-accent='teal'] { --acc: 10 106 110; --acc-hi: 9 94 97; --acc-bg: 224 244 244; --acc-line: 143 207 208; --on-acc: 255 255 255; }
+[data-theme='werkbank'][data-scheme='light'][data-accent='violet'] { --acc: 107 70 217; --acc-hi: 87 52 188; --acc-bg: 239 234 254; --acc-line: 185 166 242; --on-acc: 255 255 255; }
+[data-theme='werkbank'][data-scheme='light'][data-accent='pink'] { --acc: 178 38 102; --acc-hi: 163 33 93; --acc-bg: 252 232 241; --acc-line: 235 162 195; --on-acc: 255 255 255; }
+[data-theme='werkbank'][data-scheme='light'][data-accent='coral'] { --acc: 176 58 10; --acc-hi: 163 54 10; --acc-bg: 253 235 228; --acc-line: 240 174 147; --on-acc: 255 255 255; }
+[data-theme='werkbank'][data-scheme='light'][data-accent='graphite'] { --acc: 68 64 58; --acc-hi: 33 31 28; --acc-bg: 234 230 221; --acc-line: 176 169 157; --on-acc: 255 255 255; }
 
 /*
  * The document itself never scrolls: iOS scrolls the window when the keyboard opens and, in the
@@ -216,6 +236,13 @@ html.short-viewport {
 body {
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
+}
+/* Native checkboxes, radios and ranges in the accent color */
+input[type='checkbox'],
+input[type='radio'],
+input[type='range'],
+progress {
+  accent-color: rgb(var(--acc));
 }
 ::selection {
   background: rgb(var(--selection));
@@ -337,66 +364,66 @@ body {
 
 @layer components {
   /*
-   * Material 3 components. Every interactive element gets a state layer: a currentColor overlay at the M3
-   * opacities (hover 8 %, focus and press 10 %) drawn as a background image over the container color.
+   * Werkbank components (docs/DESIGN.md). Every interactive element gets a state layer: a currentColor
+   * overlay (hover 6 %, focus and press 10 %) drawn as a background image over the container color.
    */
   .state-layer {
-    transition: background-color var(--dur-short) var(--ease-standard), box-shadow var(--dur-short) var(--ease-standard), color var(--dur-short) var(--ease-standard);
+    transition: background-color var(--dur-short) var(--ease-standard), box-shadow var(--dur-short) var(--ease-standard), color var(--dur-short) var(--ease-standard), border-color var(--dur-short) var(--ease-standard);
   }
   .state-layer:hover:not(:disabled) {
-    background-image: linear-gradient(color-mix(in srgb, currentColor 8%, transparent), color-mix(in srgb, currentColor 8%, transparent));
+    background-image: linear-gradient(color-mix(in srgb, currentColor 6%, transparent), color-mix(in srgb, currentColor 6%, transparent));
   }
   .state-layer:focus-visible,
   .state-layer:active:not(:disabled) {
     background-image: linear-gradient(color-mix(in srgb, currentColor 10%, transparent), color-mix(in srgb, currentColor 10%, transparent));
   }
-  /* Common button: 40 dp, full-round, Label Large */
+  /* Button: 32px, 6px radius, 1px line, label 13px */
   .btn {
-    @apply state-layer inline-flex h-10 shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-full px-6 text-label-l outline-none disabled:pointer-events-none disabled:opacity-[0.38] focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface;
+    @apply state-layer inline-flex h-9 shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-md border border-transparent px-3.5 text-label-l outline-none disabled:pointer-events-none disabled:opacity-[0.38] focus-visible:ring-2 focus-visible:ring-acc focus-visible:ring-offset-2 focus-visible:ring-offset-bg nav:h-8;
   }
   .btn:has(> svg:first-child) {
-    padding-left: 1rem;
+    padding-left: 0.625rem;
   }
-  /* Filled button */
+  /* Primary button: filled with the accent, one per view */
   .btn-primary {
-    @apply btn bg-primary text-on-primary hover:shadow-elevation-1;
+    @apply btn border-acc bg-acc font-semibold text-on-acc;
   }
-  /* Filled tonal button */
+  /* Secondary button: raised surface with a line */
   .btn-tonal {
-    @apply btn bg-secondary-container text-on-secondary-container hover:shadow-elevation-1;
+    @apply btn border-line2 bg-raised text-text;
   }
   /* Outlined button */
   .btn-outlined {
-    @apply btn border border-outline-variant text-on-surface-variant;
+    @apply btn border-line2 text-text;
   }
   /* Text button (btn-ghost is the historical name) */
   .btn-ghost,
   .btn-text {
-    @apply btn px-3 text-primary;
+    @apply btn px-2.5 text-acc;
   }
   .btn-ghost:has(> svg:first-child),
   .btn-text:has(> svg:first-child) {
-    padding-left: 0.75rem;
-    padding-right: 1rem;
+    padding-left: 0.5rem;
+    padding-right: 0.75rem;
   }
-  /* Standard icon button: 40 dp target, 24 dp icon area */
+  /* Icon button: 40px target, muted icon */
   .btn-icon {
-    @apply state-layer inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-on-surface-variant outline-none disabled:pointer-events-none disabled:opacity-[0.38] focus-visible:ring-2 focus-visible:ring-primary;
+    @apply state-layer inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-muted outline-none hover:text-text disabled:pointer-events-none disabled:opacity-[0.38] focus-visible:ring-2 focus-visible:ring-acc;
   }
   .btn-icon[aria-pressed='true'],
   .btn-icon[aria-selected='true'] {
-    @apply bg-secondary-container text-on-secondary-container;
+    @apply bg-line text-acc;
   }
-  /* Filled text field */
+  /* Text field: 34px look, 1px line, accent border on focus */
   .input {
-    @apply w-full rounded-t-[var(--shape-xs)] rounded-b-none border-0 border-b border-on-surface-variant bg-surface-container-highest px-4 py-3 text-body-l text-on-surface placeholder:text-on-surface-variant/80 outline-none transition-[border-color,box-shadow] duration-150 hover:border-on-surface focus:border-primary focus:shadow-[inset_0_-1px_0_rgb(var(--primary))] disabled:opacity-[0.38];
+    @apply w-full rounded-md border border-line2 bg-panel px-3 py-2 text-body-l text-text placeholder:text-muted outline-none transition-[border-color,box-shadow] duration-150 hover:border-edge focus:border-acc focus:shadow-[0_0_0_1px_rgb(var(--acc))] disabled:opacity-[0.38] nav:text-body-m;
   }
   textarea.input {
-    @apply rounded-[var(--shape-xs)];
+    @apply rounded-md;
   }
   /* Card (filled, M3 medium shape); the transparent border keeps hover:border-* utilities working */
   .card {
-    @apply rounded-lg border border-transparent bg-surface-container-low;
+    @apply rounded-lg border border-line bg-panel;
   }
   /* Chip: 32 dp, small shape, outlined (assist / filter / input chips); selected filter chips are tonal */
   /* M3 slider: the native track stays transparent, the component draws track, fill and preset dots below the 20px thumb */
@@ -441,7 +468,7 @@ body {
     outline-offset: 4px;
   }
   .chip {
-    @apply inline-flex min-h-8 items-center gap-2 rounded-sm border border-outline-variant bg-transparent px-3 text-label-l text-on-surface-variant;
+    @apply inline-flex min-h-7 items-center gap-1.5 rounded-md border border-line2 bg-transparent px-2.5 text-label-m text-soft;
   }
   button.chip,
   a.chip {
@@ -450,36 +477,70 @@ body {
   .chip[aria-pressed='true'],
   .chip[aria-selected='true'],
   .chip[aria-checked='true'] {
-    @apply border-transparent bg-secondary-container text-on-secondary-container;
+    @apply border-acc-line bg-acc-bg text-acc-hi;
   }
   /* Segmented button (wrap the buttons in .segmented, mark the chosen one with aria-pressed) */
   .segmented {
-    @apply inline-flex h-10 overflow-hidden rounded-full border border-outline;
+    @apply inline-flex h-9 overflow-hidden rounded-md border border-line2 nav:h-8;
   }
   .segmented > button {
-    @apply state-layer inline-flex items-center justify-center gap-2 px-4 text-label-l text-on-surface outline-none focus-visible:bg-on-surface/10;
+    @apply state-layer inline-flex items-center justify-center gap-1.5 px-3 text-label-l text-soft outline-none focus-visible:bg-text/10;
   }
   .segmented > button + button {
-    @apply border-l border-outline;
+    @apply border-l border-line2;
   }
   .segmented > button[aria-pressed='true'],
   .segmented > button[aria-selected='true'] {
-    @apply bg-secondary-container text-on-secondary-container;
+    @apply bg-acc-bg text-acc-hi;
   }
-  /* Section heading inside a page (M3 Title Small in the primary color, no uppercase) */
+  /* Section caption: 12px semibold, muted, in sentence case (Today, Backlinks) */
   .section-label {
-    @apply text-title-s text-primary;
+    @apply text-label-m font-semibold text-muted;
   }
+  /* Heading of a page section (Panel): the serif at 18px, no box around the section */
+  .panel-title {
+    font-family: var(--font-serif);
+    font-optical-sizing: auto;
+    font-size: 18px;
+    line-height: 24px;
+    font-weight: 560;
+    letter-spacing: -0.01em;
+    color: rgb(var(--strong));
+  }
+  /* Keyboard shortcut */
+  .kbd {
+    @apply inline-flex h-5 items-center rounded border border-line2 bg-bar px-1.5 font-mono text-[11px] leading-none text-muted;
+  }
+  /* State pill: foreground on its own dark background */
+  .pill {
+    @apply inline-flex h-[19px] items-center rounded px-1.5 text-[11.5px] leading-none;
+  }
+  /* Accent swatches in Settings → Appearance: each shows its preset in the current scheme */
+  .accent-swatch {
+    background: rgb(var(--swatch));
+    color: rgb(var(--swatch-on));
+    --tw-ring-color: rgb(var(--swatch));
+  }
+  .accent-swatch[data-swatch='blue'] { --swatch: 124 155 247; --swatch-on: 10 14 34; }
+  .accent-swatch[data-swatch='amber'] { --swatch: 232 176 74; --swatch-on: 26 20 8; }
+  .accent-swatch[data-swatch='green'] { --swatch: 79 195 133; --swatch-on: 6 23 13; }
+  .accent-swatch[data-swatch='teal'] { --swatch: 62 193 196; --swatch-on: 4 22 22; }
+  .accent-swatch[data-swatch='violet'] { --swatch: 169 139 255; --swatch-on: 19 12 38; }
+  .accent-swatch[data-swatch='pink'] { --swatch: 242 123 176; --swatch-on: 34 8 26; }
+  .accent-swatch[data-swatch='coral'] { --swatch: 242 135 107; --swatch-on: 34 12 5; }
+  .accent-swatch[data-swatch='graphite'] { --swatch: 199 193 184; --swatch-on: 19 18 16; }
+  [data-scheme='light'] .accent-swatch { --swatch-on: 255 255 255; }
+  [data-scheme='light'] .accent-swatch[data-swatch='blue'] { --swatch: 38 66 186; }
+  [data-scheme='light'] .accent-swatch[data-swatch='amber'] { --swatch: 143 93 0; }
+  [data-scheme='light'] .accent-swatch[data-swatch='green'] { --swatch: 24 112 66; }
+  [data-scheme='light'] .accent-swatch[data-swatch='teal'] { --swatch: 10 106 110; }
+  [data-scheme='light'] .accent-swatch[data-swatch='violet'] { --swatch: 107 70 217; }
+  [data-scheme='light'] .accent-swatch[data-swatch='pink'] { --swatch: 178 38 102; }
+  [data-scheme='light'] .accent-swatch[data-swatch='coral'] { --swatch: 176 58 10; }
+  [data-scheme='light'] .accent-swatch[data-swatch='graphite'] { --swatch: 68 64 58; }
+  /* Notes use the whole width of the content area (no width setting) */
   .content-container {
     width: 100%;
-    max-width: var(--content-width, 80%);
-    margin-left: auto;
-    margin-right: auto;
-  }
-  @media (max-width: 799px) {
-    .content-container {
-      max-width: 100%;
-    }
   }
   /* Focus mode: centered text with a comfortable line length (about 70 characters) */
   .content-container.focus-container {
@@ -613,7 +674,7 @@ html[data-readonly] .edit-only {
 .cm-em { font-style: italic; }
 .cm-strike { text-decoration: line-through; color: rgb(var(--on-surface-variant)); }
 .cm-inline-code {
-  font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.88em;
   background: rgb(var(--inline-code-bg));
   color: rgb(var(--on-primary-container));
@@ -622,7 +683,7 @@ html[data-readonly] .edit-only {
   padding: 0.08em 0.42em;
 }
 .cm-codeblock {
-  font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.86em;
   line-height: 1.6;
   background: rgb(var(--code-bg));
@@ -1615,7 +1676,7 @@ span.cm-checkbox {
 /* Ticket ids: a chip with a dot in the color of the status category; finished tickets struck through */
 .cm-ticket-ref {
   color: rgb(var(--primary));
-  font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.9em;
 }
 .cm-ticket-chip {
@@ -1627,11 +1688,12 @@ span.cm-checkbox {
   vertical-align: baseline;
   line-height: 1.5;
   cursor: pointer;
-  color: rgb(var(--on-surface));
-  background: rgb(var(--surface-container-highest));
+  color: rgb(var(--text));
+  background: rgb(var(--raised));
+  box-shadow: inset 0 0 0 1px rgb(var(--line2));
 }
 .cm-ticket-chip b {
-  font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85em;
   font-weight: 600;
 }
@@ -1876,8 +1938,8 @@ span.cm-checkbox {
   background: rgb(var(--surface-container-highest));
   box-shadow: var(--elevation-1);
 }
-[data-theme='material'][data-scheme='light'] .wz-card,
-[data-theme='material'][data-scheme='light'] .card.board-card {
+[data-theme='werkbank'][data-scheme='light'] .wz-card,
+[data-theme='werkbank'][data-scheme='light'] .card.board-card {
   background: rgb(var(--surface-container-lowest));
 }
 .wz-card:hover,
@@ -2059,17 +2121,23 @@ span.cm-checkbox {
   max-height: 3rem;
   opacity: 1;
   margin-top: 0.25rem;
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+  border-width: 1px;
 }
 .drop-zone-root {
   max-height: 0;
   opacity: 0;
   overflow: hidden;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-width: 0;
   transition: all 200ms var(--ease);
 }
 
 /* Frontmatter */
 .cm-frontmatter {
-  font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85em;
   color: rgb(var(--on-surface-variant));
   background: rgb(var(--code-bg));
@@ -2208,89 +2276,150 @@ span.cm-checkbox {
   max-height: 90vh;
 }
 
-/* ------------------------------------------------------------------ Material 3 component details */
+/* ------------------------------------------------------------------ Werkbank component details */
 /*
  * The base components (.btn*, .input, .card, .chip, .segmented) live in @layer components above. This
- * section gives the editor and the shared widgets their M3 shapes: the floating toolbar (M3 Expressive),
- * 18 dp checkboxes in the primary color, small-shape chips and tags, and menus/tooltips at elevation 2.
+ * section gives the editor and the shared widgets their Werkbank shapes: the floating toolbar as a bar with a
+ * line, 15px checkboxes in the accent, small pills for dates and tags, and menus/tooltips with a shadow.
  */
-/* Floating toolbar (M3 Expressive): surface-container-high, full-round, elevation 3 */
-[data-theme='material'] .note-toolbar {
-  @apply bottom-4 mx-auto mb-4 w-max max-w-[calc(100%-2rem)] shrink-0 gap-1 rounded-full border-0 bg-surface-container-high p-2 text-on-surface-variant;
-  box-shadow: var(--elevation-3);
+/* Floating formatting toolbar: bar surface, 1px line, 10px radius */
+[data-theme='werkbank'] .note-toolbar {
+  @apply bottom-4 mx-auto mb-4 w-max max-w-[calc(100%-2rem)] shrink-0 gap-0.5 rounded-2xl border border-line2 bg-bar p-1 text-muted;
+  box-shadow: var(--elevation-2);
 }
-[data-theme='material'] .note-toolbar .btn-icon svg {
-  width: 24px;
-  height: 24px;
+[data-theme='werkbank'] .note-toolbar .btn-icon svg {
+  width: 20px;
+  height: 20px;
 }
 @media (max-width: 639px) {
-  [data-theme='material'] .note-toolbar .btn-icon svg {
+  [data-theme='werkbank'] .note-toolbar .btn-icon svg {
     width: 20px;
     height: 20px;
   }
-  [data-theme='material'] .note-toolbar {
+  [data-theme='werkbank'] .note-toolbar {
     max-width: calc(100% - 1rem);
     gap: 2px;
     padding: 4px 6px;
   }
-  [data-theme='material'] .note-toolbar .btn-icon {
+  [data-theme='werkbank'] .note-toolbar .btn-icon {
     width: 34px;
     height: 36px;
   }
 }
 @media (max-width: 399px) {
-  [data-theme='material'] .note-toolbar {
+  [data-theme='werkbank'] .note-toolbar {
     max-width: calc(100% - 0.75rem);
     gap: 1px;
     padding: 4px;
   }
-  [data-theme='material'] .note-toolbar .btn-icon {
+  [data-theme='werkbank'] .note-toolbar .btn-icon {
     width: 31px;
     height: 34px;
   }
 }
 @media (max-width: 359px) {
-  [data-theme='material'] .note-toolbar .btn-icon {
+  [data-theme='werkbank'] .note-toolbar .btn-icon {
     width: 28px;
     height: 34px;
   }
 }
-/* Headings: Headline/Title styles of the M3 type scale, regular weight */
-[data-theme='material'] .note-title {
-  font-weight: 400;
-  letter-spacing: 0;
+/*
+ * Headings: note titles, the editor's h1–h3 and page titles are set in the serif (Newsreader, optical sizes),
+ * the interface stays in Inter. h4–h6 stay sans to mark structure rather than voice.
+ */
+[data-theme='werkbank'] .note-title,
+[data-theme='werkbank'] .font-display {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  font-weight: 560;
+  letter-spacing: -0.012em;
+  color: rgb(var(--strong));
 }
-[data-theme='material'] .cm-h1,
-[data-theme='material'] .cm-h2,
-[data-theme='material'] .cm-h3 {
-  font-weight: 400;
-  letter-spacing: 0;
+[data-theme='werkbank'] .cm-h1,
+[data-theme='werkbank'] .cm-h2,
+[data-theme='werkbank'] .cm-h3 {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  font-weight: 560;
+  letter-spacing: -0.01em;
+  color: rgb(var(--strong));
 }
-[data-theme='material'] main h1 {
-  font-weight: 400;
-  letter-spacing: 0;
+[data-theme='werkbank'] .cm-h1 { font-size: 2em; line-height: 1.2; }
+[data-theme='werkbank'] .cm-h2 { font-size: 1.55em; line-height: 1.25; }
+[data-theme='werkbank'] .cm-h3 { font-size: 1.25em; line-height: 1.3; }
+[data-theme='werkbank'] main h1 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
-/* Checkbox (M3): 18 dp, 2 dp outline in on-surface-variant, filled with primary when selected */
-[data-theme='material'] .cm-checkbox {
-  border-radius: 2px;
-  border-color: rgb(var(--on-surface-variant));
+/* Checkbox: 1.5px border that reaches 3:1, filled with the accent when done */
+[data-theme='werkbank'] .cm-checkbox {
+  border-radius: 4px;
+  border-color: rgb(var(--edge));
 }
-[data-theme='material'] .cm-checkbox:checked,
-[data-theme='material'] .cm-checkbox[data-status='done'] {
+[data-theme='werkbank'] .cm-checkbox:checked,
+[data-theme='werkbank'] .cm-checkbox[data-status='done'] {
   border-color: rgb(var(--primary));
   background-color: rgb(var(--primary));
 }
-[data-theme='material'] .cm-checkbox[data-status='doing'] {
+[data-theme='werkbank'] .cm-checkbox:checked::after,
+[data-theme='werkbank'] .cm-checkbox[data-status='done']::after {
+  border-color: rgb(var(--on-acc));
+}
+[data-theme='werkbank'] .cm-checkbox[data-status='doing'] {
   border-color: rgb(var(--primary));
 }
-[data-theme='material'] .cm-checkbox[data-status='blocked'] {
+[data-theme='werkbank'] .cm-checkbox[data-status='blocked'] {
   border-color: rgb(var(--warn));
 }
-[data-theme='material'] .cm-due,
-[data-theme='material'] .cm-tag {
-  border-radius: var(--shape-sm);
+/* Dates as pills: planned violet, today amber, overdue red; tags in mono */
+[data-theme='werkbank'] .cm-due {
+  /* Only the editor widget (data-kind) draws the symbol itself; task lists put an icon inside */
+  --due-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath d='M197.69-100q-23.53 0-40.61-17.08T140-157.69v-579.23q0-23.53 17.08-40.61t40.61-17.08h73.85v-44.93q0-10.52 6.85-17.8 6.85-7.27 17.83-7.27 10.97 0 18.34 7.27 7.36 7.28 7.36 17.8v44.93h317.69v-45.59q0-10.63 6.74-17.52 6.74-6.89 17.44-6.89 10.71 0 17.88 6.97 7.17 6.98 7.17 17.33v45.7h73.47q23.53 0 40.61 17.08T820-736.92v194.46q0 9.66-6.57 16.18-6.56 6.51-16.31 6.51-9.74 0-16.12-6.56-6.39-6.57-6.39-16.31V-555H185.39v397.31q0 4.61 3.84 8.46 3.85 3.84 8.46 3.84h271.16q9.66 0 16.17 6.57 6.52 6.57 6.52 16.31 0 9.74-6.52 16.12-6.51 6.39-16.17 6.39H197.69Zm-12.3-500.38h589.22v-136.54q0-4.62-3.84-8.46-3.85-3.85-8.46-3.85H197.69q-4.61 0-8.46 3.85-3.84 3.84-3.84 8.46v136.54Zm0 0v-148.85 148.85Zm379.23 471.53v-65.61q0-5.18 2-10.21 2-5.02 6.59-9.62l208.33-207.39q7.54-7.55 16.34-10.63 8.8-3.07 17.46-3.07 9.27 0 18.16 3.53 8.88 3.54 15.96 10.62l37 37.38q7.08 7.47 10.31 16.16Q900-359 900-350.31t-3.73 17.69q-3.73 9-10.51 16.59L678.91-108.6q-4.6 4.6-9.63 6.6-5.02 2-10.2 2h-65.62q-12.35 0-20.6-8.25-8.24-8.24-8.24-20.6Zm287.69-221.46-37-37.38 37 37.38Zm-240 202.62h38l129.84-130.47-18.38-19-18.62-18.76-130.84 130.23v38Zm149.46-149.47-18.62-18.76 37 37.76-18.38-19Z'/%3E%3C/svg%3E");
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  vertical-align: 0.08em;
+  border-radius: var(--shape-xs);
+  padding: 0 6px 0 4px;
+  font-size: 0.78em;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+  background: rgb(var(--violet-bg));
+  color: rgb(var(--violet));
 }
-[data-theme='material'] .wz-prop {
+/* The symbols of the task lists (CalendarClock, Repeat, Clock from lib/icons), not emoji */
+[data-theme='werkbank'] .cm-due[data-kind]::before {
+  content: '';
+  width: 1.05em;
+  height: 1.05em;
+  flex-shrink: 0;
+  background: currentColor;
+  -webkit-mask: var(--due-icon) center / contain no-repeat;
+  mask: var(--due-icon) center / contain no-repeat;
+}
+[data-theme='werkbank'] .cm-due[data-kind='repeat'] {
+  --due-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath d='m227.92-223.46 74.23 74.23q6.7 6.76 6.58 15.84-.11 9.08-6.81 16.25-7.13 7.16-16.22 7.38-9.08.22-16.16-6.86l-109.31-109.3q-4.61-4.62-6.61-9.61-2-4.99-2-10.81 0-5.81 2-10.62t6.61-9.43l109.31-109.3q6.81-6.69 16.17-6.58 9.37.12 16.44 7.25 6.65 7.13 6.87 16 .21 8.87-6.87 15.94l-74.23 74.23h460.54q5.39 0 8.85-3.46t3.46-8.84v-125q0-9.67 6.57-16.18 6.56-6.52 16.3-6.52 9.74 0 16.13 6.52 6.38 6.51 6.38 16.18v125q0 23.59-17.05 40.64-17.04 17.05-40.64 17.05H227.92Zm504.16-467.69H271.54q-5.39 0-8.85 3.46t-3.46 8.84v125q0 9.67-6.57 16.18-6.56 6.52-16.3 6.52-9.74 0-16.13-6.52-6.38-6.51-6.38-16.18v-125q0-23.59 17.05-40.64 17.04-17.05 40.64-17.05h460.54l-74.23-74.23q-6.7-6.76-6.58-15.84.11-9.08 6.81-16.25 7.13-7.16 16.22-7.38 9.08-.22 16.16 6.86l109.31 109.3q4.61 4.62 6.81 9.61 2.19 4.99 2.19 10.81 0 5.81-2.19 10.62-2.2 4.81-6.81 9.43l-109.31 109.3q-6.81 6.69-16.17 6.58-9.37-.12-16.44-7.25-6.65-7.13-6.87-16-.21-8.87 6.87-15.94l74.23-74.23Z'/%3E%3C/svg%3E");
+}
+[data-theme='werkbank'] .cm-due[data-kind='time'] {
+  --due-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath d='M504.92-489.31v-177.54q0-9.9-6.4-16.29-6.39-6.4-16.3-6.4t-16.3 6.4q-6.38 6.39-6.38 16.29v184.54q0 5.83 2 10.73 2 4.89 6 9.5l145.54 149.39q6.69 7.3 16.92 7.19 10.23-.12 17.31-7.19 7.07-7.08 7.07-16.81 0-9.73-7.07-16.42L504.92-489.31ZM480.07-100q-78.22 0-147.4-29.92t-120.99-81.71q-51.81-51.79-81.75-120.94Q100-401.71 100-479.93q0-78.22 29.92-147.4t81.71-120.99q51.79-51.81 120.94-81.75Q401.71-860 479.93-860q78.22 0 147.4 29.92t120.99 81.71q51.81 51.79 81.75 120.94Q860-558.29 860-480.07q0 78.22-29.92 147.4t-81.71 120.99q-51.79 51.81-120.94 81.75Q558.29-100 480.07-100ZM480-480Zm0 334.61q138.08 0 236.35-98.26 98.26-98.27 98.26-236.35 0-138.08-98.26-236.35-98.27-98.26-236.35-98.26-138.08 0-236.35 98.26-98.26 98.27-98.26 236.35 0 138.08 98.26 236.35 98.27 98.26 236.35 98.26Z'/%3E%3C/svg%3E");
+}
+[data-theme='werkbank'] .cm-due.today {
+  background: rgb(var(--amber-bg));
+  color: rgb(var(--amber-hi));
+}
+[data-theme='werkbank'] .cm-due.overdue {
+  background: rgb(var(--red-bg));
+  color: rgb(var(--red));
+}
+[data-theme='werkbank'] .cm-tag {
+  border-radius: var(--shape-xs);
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  color: rgb(var(--soft));
+  background: rgb(var(--raised));
+  padding: 0 5px;
+}
+[data-theme='werkbank'] .wz-prop {
   border-color: rgb(var(--outline-variant));
   border-radius: var(--shape-sm);
   min-height: 32px;
@@ -2299,23 +2428,23 @@ span.cm-checkbox {
   font-weight: 500;
   letter-spacing: 0.1px;
 }
-[data-theme='material'] .wz-prop-key {
+[data-theme='werkbank'] .wz-prop-key {
   background: transparent;
   color: rgb(var(--on-surface-variant));
   padding: 4px 4px 4px 12px;
 }
-[data-theme='material'] .wz-prop-value {
+[data-theme='werkbank'] .wz-prop-value {
   color: rgb(var(--on-surface));
   padding: 4px 12px 4px 4px;
 }
-[data-theme='material'] .wz-table,
-[data-theme='material'] .wz-diagram,
-[data-theme='material'] .wz-lane {
+[data-theme='werkbank'] .wz-table,
+[data-theme='werkbank'] .wz-diagram,
+[data-theme='werkbank'] .wz-lane {
   border-color: transparent;
   background: rgb(var(--surface-container-low));
   border-radius: var(--shape-lg);
 }
-[data-theme='material'] .wz-card {
+[data-theme='werkbank'] .wz-card {
   border-color: transparent;
   background: rgb(var(--surface-container-highest));
   border-radius: var(--shape-md);
@@ -2335,29 +2464,29 @@ span.cm-checkbox {
   @apply bg-secondary-container text-on-secondary-container;
 }
 /* Autocomplete in the editor: an M3 menu */
-[data-theme='material'] .cm-tooltip-autocomplete {
+[data-theme='werkbank'] .cm-tooltip-autocomplete {
   border-radius: var(--shape-lg) !important;
   border: 0 !important;
   background: rgb(var(--surface-container)) !important;
   box-shadow: var(--elevation-2) !important;
 }
-[data-theme='material'] .cm-tooltip-autocomplete > ul {
+[data-theme='werkbank'] .cm-tooltip-autocomplete > ul {
   padding: 4px !important;
 }
-[data-theme='material'] .cm-tooltip-autocomplete > ul > li {
+[data-theme='werkbank'] .cm-tooltip-autocomplete > ul > li {
   padding: 10px 12px !important;
   border-radius: var(--shape-md) !important;
   font-size: 14px;
   letter-spacing: 0.1px;
 }
-[data-theme='material'] .cm-tooltip-autocomplete > ul > li:hover:not([aria-selected]) {
+[data-theme='werkbank'] .cm-tooltip-autocomplete > ul > li:hover:not([aria-selected]) {
   background: rgb(var(--on-surface) / var(--state-hover)) !important;
 }
-[data-theme='material'] .cm-tooltip-autocomplete li[aria-selected] {
+[data-theme='werkbank'] .cm-tooltip-autocomplete li[aria-selected] {
   background: rgb(var(--secondary-container)) !important;
   color: rgb(var(--on-secondary-container)) !important;
 }
-[data-theme='material'] .cm-tooltip-autocomplete li[aria-selected] .cm-completionDetail {
+[data-theme='werkbank'] .cm-tooltip-autocomplete li[aria-selected] .cm-completionDetail {
   color: rgb(var(--on-secondary-container) / 0.75) !important;
 }
 
@@ -2415,8 +2544,8 @@ span.cm-checkbox {
     margin: 16mm;
   }
   :root,
-  [data-theme='material'],
-  [data-theme='material'][data-scheme] {
+  [data-theme='werkbank'],
+  [data-theme='werkbank'][data-scheme] {
     --surface: 255 255 255;
     --surface-container-low: 255 255 255;
     --surface-container-high: 245 244 241;
@@ -2502,46 +2631,52 @@ span.cm-checkbox {
 .anim-m3-menu {
   animation: m3-menu-in 160ms var(--ease) both;
 }
-/* Exposed dropdown menu field: a filled text field with a trailing arrow */
+/* Dropdown field: looks like a text field (.input) with a trailing arrow; open = accent border */
 .m3-select-field {
-  min-height: 48px;
-  border-radius: var(--shape-xs) var(--shape-xs) 0 0;
-  border: 0;
-  border-bottom: 1px solid rgb(var(--on-surface-variant));
-  background: rgb(var(--surface-container-highest));
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
+  min-height: 2.25rem;
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+}
+@media (min-width: 768px) and (hover: hover) {
+  .m3-select-field {
+    min-height: 2rem;
+  }
 }
 .m3-select-field[aria-expanded='true'] {
-  border-bottom-color: rgb(var(--primary));
-  box-shadow: inset 0 -1px 0 rgb(var(--primary));
+  border-color: rgb(var(--acc));
+  box-shadow: 0 0 0 1px rgb(var(--acc));
 }
-/* Menu (M3 Expressive): surface-container, large shape, elevation 2, items with medium shape */
+/* Menu: raised panel with a line, 8px radius, compact 32px rows (36px on touch) */
 .m3-menu {
   padding: 4px;
-  border-radius: var(--shape-lg);
-  background: rgb(var(--surface-container));
-  color: rgb(var(--on-surface));
+  border-radius: 8px;
+  border: 1px solid rgb(var(--line2));
+  background: rgb(var(--raised));
+  color: rgb(var(--text));
   box-shadow: var(--elevation-2);
   overflow-x: hidden;
 }
 .m3-menu-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 44px;
-  padding: 10px 12px;
-  border-radius: var(--shape-md);
-  font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 0.1px;
-  font-weight: 500;
+  gap: 10px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 450;
   cursor: pointer;
   user-select: none;
   transition: background-color var(--dur-short) var(--ease-standard), color var(--dur-short) var(--ease-standard);
 }
+@media (min-width: 768px) and (hover: hover) {
+  .m3-menu-item {
+    min-height: 32px;
+  }
+}
 .m3-menu-item svg {
-  color: rgb(var(--on-surface-variant));
+  color: rgb(var(--muted));
 }
 .m3-menu-item[aria-disabled='true'] {
   opacity: 0.38;
@@ -2549,20 +2684,21 @@ span.cm-checkbox {
 }
 .m3-menu-item:not([aria-selected='true']):not([aria-disabled='true'])[data-highlighted='true'],
 .m3-menu-item:not([aria-selected='true']):not([aria-disabled='true']):hover {
-  background: rgb(var(--on-surface) / var(--state-hover));
+  background: rgb(var(--line));
 }
 .m3-menu-item[aria-selected='true'] {
-  background: rgb(var(--secondary-container));
-  color: rgb(var(--on-secondary-container));
+  background: rgb(var(--acc-bg));
+  color: rgb(var(--acc-hi));
 }
 .m3-menu-item[aria-selected='true'] svg {
   color: inherit;
 }
 /* Popover / non-modal surfaces (rich tooltips, pickers): surface-container, large shape, elevation 2 */
 .m3-popover {
-  border-radius: var(--shape-lg);
-  background: rgb(var(--surface-container));
-  color: rgb(var(--on-surface));
+  border-radius: 8px;
+  border: 1px solid rgb(var(--line2));
+  background: rgb(var(--raised));
+  color: rgb(var(--text));
   box-shadow: var(--elevation-2);
 }
 /* Snackbar: inverse surface, extra-small shape, elevation 3 */
@@ -2580,28 +2716,23 @@ span.cm-checkbox {
   transition: transform 120ms var(--ease), box-shadow 120ms var(--ease);
 }
 .heatmap-cell[data-level='0'] {
-  background: rgb(var(--surface-container-high));
-  box-shadow: inset 0 0 0 1px rgb(var(--outline-variant) / 0.8);
+  background: rgb(var(--raised));
 }
-[data-theme='material'] .heatmap-cell[data-level='0'] {
-  background: rgb(var(--surface-container-low));
-  box-shadow: inset 0 0 0 1px rgb(var(--outline-variant) / 0.55);
+[data-theme='werkbank'][data-scheme='light'] .heatmap-cell[data-level='0'] {
+  background: rgb(var(--line));
 }
-[data-theme='material'][data-scheme='light'] .heatmap-cell[data-level='0'] {
-  background: rgb(var(--outline-variant) / 0.45);
-  box-shadow: inset 0 0 0 1px rgb(var(--outline-variant));
-}
+/* Activity in the user's accent, mixed into the empty cell color */
 .heatmap-cell[data-level='1'] {
-  background: rgb(var(--ok) / 0.28);
+  background: color-mix(in srgb, rgb(var(--acc)) 25%, rgb(var(--raised)));
 }
 .heatmap-cell[data-level='2'] {
-  background: rgb(var(--ok) / 0.52);
+  background: color-mix(in srgb, rgb(var(--acc)) 48%, rgb(var(--raised)));
 }
 .heatmap-cell[data-level='3'] {
-  background: rgb(var(--ok) / 0.76);
+  background: color-mix(in srgb, rgb(var(--acc)) 74%, rgb(var(--raised)));
 }
 .heatmap-cell[data-level='4'] {
-  background: rgb(var(--ok));
+  background: rgb(var(--acc));
 }
 
 
@@ -2757,4 +2888,144 @@ span.cm-checkbox {
   color: rgb(var(--error)) !important;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.92em;
+}
+
+/*
+ * Notebook motifs (docs/DESIGN.md › Character), used sparingly:
+ * - .paper-dots: a dot grid behind a header that fades out towards the text (Home, the day sheet, empty states);
+ * - .note-sheet: the margin line left of the note text, like the ruled margin of an exercise book (desktop only).
+ */
+.paper-dots {
+  position: relative;
+  isolation: isolate;
+}
+.paper-dots::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(rgb(var(--edge) / 0.55) 1px, transparent 1.3px);
+  background-size: 14px 14px;
+  background-position: right 7px top 7px;
+  -webkit-mask-image: linear-gradient(to left, #000 0%, rgb(0 0 0 / 0.5) 35%, transparent 75%);
+  mask-image: linear-gradient(to left, #000 0%, rgb(0 0 0 / 0.5) 35%, transparent 75%);
+}
+@media (min-width: 768px) {
+  .note-sheet {
+    position: relative;
+    padding-left: 22px;
+  }
+  .note-sheet::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 1.5rem;
+    bottom: 3rem;
+    width: 1px;
+    background: rgb(var(--acc-line) / 0.7);
+  }
+  /* Two lines, like the margin of a notebook page */
+  .note-sheet::after {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 1.5rem;
+    bottom: 3rem;
+    width: 1px;
+    background: rgb(var(--acc-line) / 0.35);
+  }
+}
+@media print {
+  .note-sheet {
+    padding-left: 0;
+  }
+  .note-sheet::before,
+  .note-sheet::after {
+    display: none;
+  }
+}
+
+/* Empty states: a dotted sheet that fades out at the edges, a short serif line, a muted hint below */
+.empty-sheet {
+  position: relative;
+  isolation: isolate;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: rgb(var(--muted));
+  font-size: 13px;
+  line-height: 20px;
+}
+.empty-sheet::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(rgb(var(--edge) / 0.5) 1px, transparent 1.3px);
+  background-size: 14px 14px;
+  background-position: center;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 0%, rgb(0 0 0 / 0.4) 45%, transparent 75%);
+  mask-image: radial-gradient(ellipse at center, #000 0%, rgb(0 0 0 / 0.4) 45%, transparent 75%);
+}
+.empty-sheet .empty-title {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  font-size: 19px;
+  line-height: 26px;
+  font-weight: 520;
+  color: rgb(var(--strong));
+}
+/* The knowledge graph sits on the dot grid of a notebook page */
+.paper-grid {
+  background-image: radial-gradient(rgb(var(--edge) / 0.35) 1px, transparent 1.3px);
+  background-size: 18px 18px;
+}
+
+/*
+ * Small motions with a meaning (docs/DESIGN.md › Motion): the tick draws itself when a task is done, the sync dot
+ * sends out a ring, a changed count rolls in. prefers-reduced-motion shortens them to nothing (see above).
+ */
+@keyframes check-draw {
+  0% {
+    clip-path: inset(0 100% 100% 0);
+  }
+  45% {
+    clip-path: inset(0 calc(100% - 2px) 0 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.cm-checkbox:checked::after,
+.cm-checkbox[data-status='done']::after {
+  animation: check-draw 260ms var(--ease) both;
+}
+@keyframes sync-ring {
+  0% {
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  100% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+.sync-dot {
+  animation: sync-ring 700ms var(--ease) 1;
+}
+.sync-dot[data-state='syncing'] {
+  animation: sync-ring 1100ms var(--ease) infinite;
+}
+@keyframes num-tick {
+  0% {
+    opacity: 0;
+    transform: translateY(40%);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+.num-tick {
+  display: inline-block;
+  animation: num-tick 220ms var(--ease);
 }

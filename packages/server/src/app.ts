@@ -272,6 +272,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
         hasPassword: false,
         isAdmin: false,
         avatarUrl: user.avatarUrl,
+        accent: user.accent,
         standalone: true,
         dataDir: opts.dataDir,
         transcription: !!transcriber,
@@ -285,6 +286,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       hasPassword: user.hasPassword,
       isAdmin: user.isAdmin,
       avatarUrl: user.avatarUrl,
+        accent: user.accent,
       externalLogins: users.externalLoginsOf(user.id),
       transcription: !!transcriber,
     };

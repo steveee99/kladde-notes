@@ -105,7 +105,7 @@ export function WebClipDialog({ initialUrl = '', title: givenTitle = '', selecti
           onChange={(e) => (setUrl(e.target.value), setError(''))}
           onKeyDown={(e) => e.key === 'Enter' && run()}
         />
-        <button className="btn-ghost shrink-0 rounded-xl border border-outline-variant" onClick={paste} title={tl(lang, 'dialogs.recipePasteTitle')} aria-label={tl(lang, 'dialogs.recipePasteTitle')}>
+        <button className="btn-outlined shrink-0" onClick={paste} title={tl(lang, 'dialogs.recipePasteTitle')} aria-label={tl(lang, 'dialogs.recipePasteTitle')}>
           <ClipboardPaste size={16} />
         </button>
       </div>
@@ -130,7 +130,7 @@ export function WebClipDialog({ initialUrl = '', title: givenTitle = '', selecti
           </button>
         </p>
       )}
-      <button className="btn-primary w-full rounded-full py-2.5" disabled={!link || busy} onClick={run}>
+      <button className="btn-primary w-full py-2.5" disabled={!link || busy} onClick={run}>
         {busy ? <Loader2 size={16} className="animate-spin" /> : <Globe size={16} />} {busy ? tl(lang, 'clip.busy') : selection.trim() ? tl(lang, 'clip.saveSelection') : tl(lang, 'clip.save')}
       </button>
       <p className="mt-3 text-xs text-on-surface-variant">{tl(lang, 'clip.hint')}</p>

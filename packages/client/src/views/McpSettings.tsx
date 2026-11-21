@@ -15,7 +15,7 @@ export function CopyField({ value, label }: { value: string; label?: string }) {
       </code>
       <button
         type="button"
-        className="btn-ghost shrink-0 rounded-full border border-outline-variant px-3"
+        className="btn-outlined shrink-0  px-3"
         title={label ?? tl(lang, 'common.copy')}
         onClick={() => {
           void navigator.clipboard?.writeText(value);
@@ -69,7 +69,7 @@ export function McpSettingsView({ embedded }: { embedded?: boolean } = {}) {
       <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'mcp.intro')}</p>
 
       <section className="card space-y-3 p-5 anim-fade-up">
-        <h2 className="font-medium">{tl(lang, 'mcp.connectTitle')}</h2>
+        <h2 className="text-title-m text-strong">{tl(lang, 'mcp.connectTitle')}</h2>
         <p className="text-sm text-on-surface-variant">{tl(lang, 'mcp.connectDesc')}</p>
         <CopyField value={url} label={tl(lang, 'mcp.copyUrlTitle')} />
         <p className="text-xs text-on-surface-variant">Claude Code:</p>
@@ -77,7 +77,7 @@ export function McpSettingsView({ embedded }: { embedded?: boolean } = {}) {
       </section>
 
       <section className="card space-y-3 p-5 anim-fade-up">
-        <h2 className="font-medium">{tl(lang, 'mcp.tokensTitle')}</h2>
+        <h2 className="text-title-m text-strong">{tl(lang, 'mcp.tokensTitle')}</h2>
         <p className="text-sm text-on-surface-variant">{tl(lang, 'mcp.tokensDesc')}</p>
         {created ? (
           <div className="space-y-2 rounded-2xl border border-primary/40 bg-secondary-container/40 p-3.5 anim-fade-up">
@@ -85,7 +85,7 @@ export function McpSettingsView({ embedded }: { embedded?: boolean } = {}) {
             <CopyField value={created.token} label={tl(lang, 'mcp.copyTokenTitle')} />
             <p className="text-xs text-on-surface-variant">Claude Code:</p>
             <CopyField value={`claude mcp add --transport http kladde ${url} --header "Authorization: Bearer ${created.token}"`} />
-            <button className="btn-ghost rounded-full px-4 text-sm" onClick={() => setCreated(null)}>
+            <button className="btn-ghost px-4 text-sm" onClick={() => setCreated(null)}>
               {tl(lang, 'common.done')}
             </button>
           </div>
@@ -101,7 +101,7 @@ export function McpSettingsView({ embedded }: { embedded?: boolean } = {}) {
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" className="accent-accent" checked={canWrite} onChange={(e) => setCanWrite(e.target.checked)} /> {tl(lang, 'mcp.tokenCanWrite')}
             </label>
-            <button className="btn-ghost rounded-full border border-outline-variant px-4" type="submit">
+            <button className="btn-outlined px-4" type="submit">
               <Plus size={16} /> {tl(lang, 'mcp.tokenCreateBtn')}
             </button>
           </form>

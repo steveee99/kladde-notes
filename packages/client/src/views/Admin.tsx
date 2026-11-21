@@ -7,6 +7,7 @@ import { Avatar } from './Avatar';
 import { BackupsTab } from './AdminBackups';
 import { GroupsStorageTab, QuotaEditor } from './AdminStorage';
 import { StorageMeter } from './StorageMeter';
+import { PageBody, PageHeader } from './PageHeader';
 
 type Tab = 'users' | 'groups' | 'invites' | 'backups' | 'audit';
 
@@ -23,7 +24,7 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
   const [done, setDone] = useState(false);
   return (
     <button
-      className="btn-ghost rounded-full border border-outline-variant px-3 py-1 text-xs"
+      className="btn-outlined px-3 py-1 text-xs"
       onClick={() => {
         void navigator.clipboard?.writeText(text).then(() => {
           setDone(true);
@@ -130,7 +131,7 @@ function UsersTab({ me, onError }: { me: Me; onError: (msg: string) => void }) {
               <div className="mt-3 flex flex-wrap gap-2">
                 {!self && (
                   <button
-                    className="btn-ghost rounded-full border border-outline-variant px-3 py-1 text-xs"
+                    className="btn-outlined px-3 py-1 text-xs"
                     disabled={busy === u.id}
                     onClick={() =>
                       confirm(tl(lang, 'admin.resetPwConfirm', { username: u.username })) &&
@@ -150,7 +151,7 @@ function UsersTab({ me, onError }: { me: Me; onError: (msg: string) => void }) {
                 )}
                 {!u.bannedAt && (
                   <button
-                    className="btn-ghost rounded-full border border-outline-variant px-3 py-1 text-xs"
+                    className="btn-outlined px-3 py-1 text-xs"
                     disabled={busy === u.id}
                     title={tl(lang, 'admin.deviceCodeTooltip')}
                     onClick={() =>
@@ -172,7 +173,7 @@ function UsersTab({ me, onError }: { me: Me; onError: (msg: string) => void }) {
                   </button>
                 )}
                 <button
-                  className="btn-ghost rounded-full border border-outline-variant px-3 py-1 text-xs"
+                  className="btn-outlined px-3 py-1 text-xs"
                   disabled={busy === u.id}
                   onClick={() =>
                     (u.isAdmin ? confirm(tl(lang, 'admin.removeAdminConfirm', { username: u.username })) : confirm(tl(lang, 'admin.makeAdminConfirm', { username: u.username }))) &&
@@ -183,7 +184,7 @@ function UsersTab({ me, onError }: { me: Me; onError: (msg: string) => void }) {
                 </button>
                 {!self && (
                   <button
-                    className={`btn-ghost rounded-full border border-outline-variant px-3 py-1 text-xs ${u.bannedAt ? '' : 'text-error'}`}
+                    className={`btn-outlined px-3 py-1 text-xs ${u.bannedAt ? '' : 'text-error'}`}
                     disabled={busy === u.id}
                     onClick={() =>
                       (u.bannedAt || confirm(tl(lang, 'admin.banConfirm', { username: u.username }))) &&
@@ -238,7 +239,7 @@ function InvitesTab({ onError }: { onError: (msg: string) => void }) {
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
-        <button className="btn-primary shrink-0 rounded-full px-4 sm:px-5">{tl(lang, 'admin.inviteCreateBtn')}</button>
+        <button className="btn-primary shrink-0 px-4 sm:px-5">{tl(lang, 'admin.inviteCreateBtn')}</button>
       </form>
       {invites === null ? (
         <div className="py-10 text-center text-on-surface-variant">…</div>
@@ -352,44 +353,46 @@ export function AdminView({ me }: { me: Me }) {
   ];
 
   return (
-    <div className="content-container px-4 py-6 sm:px-8 sm:py-10">
-      <header className="mb-5 anim-fade-up">
-        <h1 className="text-headline-m">{tl(lang, 'admin.title')}</h1>
-        {status && (
-          <p className="mt-1 text-sm text-on-surface-variant">
-            {tl(lang, 'admin.statusSummary', {
-              version: status.version,
-              users: status.users,
-              notes: status.notes,
-              connections: status.connections,
-              since: since(status.startedAt, lang),
-            })}
-          </p>
-        )}
-      </header>
-      <div className="mb-5 grid grid-cols-4 gap-1 rounded-full border border-outline-variant bg-surface-container-low p-1 anim-fade-up">
-        {tabs.map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            onClick={() => {
-              setTab(id);
-              setError('');
-            }}
-            aria-pressed={tab === id}
-            className={`flex min-w-0 items-center justify-center gap-1.5 rounded-full px-1.5 py-2 text-xs font-medium transition-colors sm:px-2 sm:text-sm ${
-              tab === id ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:text-on-surface'
-            }`}
-          >
-            <Icon size={15} className="shrink-0" /> <span className="truncate">{label}</span>
-          </button>
-        ))}
-      </div>
+    <div>
+      <PageHeader
+        title={tl(lang, 'admin.title')}
+        subtitle={
+          status &&
+          tl(lang, 'admin.statusSummary', {
+            version: status.version,
+            users: status.users,
+            notes: status.notes,
+            connections: status.connections,
+            since: since(status.startedAt, lang),
+          })
+        }
+      >
+        <div className="-mb-3.5 mt-3 flex gap-1 overflow-x-auto scrollbar-thin" role="group" aria-label={tl(lang, 'admin.title')}>
+          {tabs.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              onClick={() => {
+                setTab(id);
+                setError('');
+              }}
+              aria-pressed={tab === id}
+              className={`flex shrink-0 items-center gap-1.5 border-b-2 px-2.5 pb-2.5 pt-1.5 text-label-l outline-none transition-colors focus-visible:text-text ${
+                tab === id ? 'border-acc text-strong' : 'border-transparent text-muted hover:text-text'
+              }`}
+            >
+              <Icon size={15} className="shrink-0" /> {label}
+            </button>
+          ))}
+        </div>
+      </PageHeader>
+      <PageBody>
       {error && <p className="mb-4 text-sm text-error anim-fade-in">{error}</p>}
       {tab === 'users' && <UsersTab me={me} onError={setError} />}
       {tab === 'groups' && <GroupsStorageTab onError={setError} />}
       {tab === 'invites' && <InvitesTab onError={setError} />}
       {tab === 'backups' && <BackupsTab onError={setError} />}
       {tab === 'audit' && <AuditTab onError={setError} />}
+      </PageBody>
     </div>
   );
 }

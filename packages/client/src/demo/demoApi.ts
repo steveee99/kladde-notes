@@ -5,6 +5,7 @@
  * kept in localStorage. Sharing, attachments, history and AI access need a server and say so.
  */
 import { assignTicketNumber, numberedTicketId, type Me, type PullResponse, type PushChange, type PushResult, type SyncedNote, type TrashEntry, type TrashList } from '@kladde/shared';
+import { isAccent, normalizeAccent } from '@kladde/shared';
 import { t } from '../lib/i18n';
 
 /** True in the demo build (`VITE_DEMO=1`) */
@@ -13,6 +14,8 @@ export const DEMO = import.meta.env.VITE_DEMO === '1';
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
 const TRASH_KEY = 'kladde_demo_trash';
 const RESTORED_KEY = 'kladde_demo_restored';
+const ACCENT_KEY = 'kladde_demo_accent';
+const demoAccent = () => normalizeAccent(read<unknown>(ACCENT_KEY, null));
 const TICKETS_KEY = 'kladde_demo_ticket_numbers';
 
 const ME: Me = {
@@ -109,7 +112,14 @@ function pull(): PullResponse {
 
 function handle(path: string, method: string, body: unknown): Response {
   const parts = path.split('/').filter(Boolean);
-  if (path === '/auth/me' || path === '/auth/dev-login') return json(ME);
+  if (path === '/auth/me' || path === '/auth/dev-login') return json({ ...ME, accent: demoAccent() });
+  // Accent color (Werkbank): kept in the browser like the rest of the demo
+  if (path === '/me/accent' && method === 'PUT') {
+    const accent = (body as { accent?: unknown } | null)?.accent;
+    if (!isAccent(accent)) return json({ error: 'Unbekannte Akzentfarbe.' }, 400);
+    write(ACCENT_KEY, accent);
+    return json({ ...ME, accent });
+  }
   if (path === '/auth/logout') return json({ ok: true });
   if (path === '/sync') return method === 'POST' ? json({ results: push(((body as { changes?: PushChange[] })?.changes ?? []).slice(0, 500)) }) : json(pull());
   if (path === '/presence' || path === '/presence/cursor') return json(null);

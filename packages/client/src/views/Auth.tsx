@@ -59,7 +59,7 @@ function GitLabButton({ label, query, primary }: { label: string; query?: Record
   return (
     <a
       href={`/api/auth/gitlab/start${q}`}
-      className={`${primary ? 'btn-primary py-3' : 'btn-ghost border border-outline-variant'} w-full rounded-full`}
+      className={`${primary ? 'btn-primary py-3' : 'btn-outlined'} w-full`}
       data-gitlab-login
     >
       <GitLabIcon /> {label}
@@ -103,7 +103,7 @@ function PasswordLogin({ busy, run, primary }: { busy: boolean; run: (fn: () => 
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
-      <button className={`${primary ? 'btn-primary rounded-full py-3' : 'btn-ghost rounded-full border border-outline-variant'} w-full`} disabled={busy || !username.trim() || !password}>
+      <button className={`${primary ? 'btn-primary py-3' : 'btn-outlined'} w-full`} disabled={busy || !username.trim() || !password}>
         <LogIn size={primary ? 18 : 16} /> {tl(lang, 'auth.passwordLogin')}
       </button>
     </form>
@@ -114,7 +114,7 @@ export function Frame({ title, subtitle, children }: { title: string; subtitle: 
   const lang = useLang();
   return (
     <div className="flex min-h-full items-center justify-center px-4 [--pad-top:1rem] [--pad-bottom:1rem] safe-top safe-bottom">
-      <div className="card w-full max-w-sm rounded-3xl p-6 anim-fade-up">
+      <div className="card w-full max-w-sm p-6 anim-fade-up">
         <div className="mb-4 flex items-start justify-between gap-2">
           <img src={appUrl('/icons/icon.svg')} alt="" className="h-14 w-14 anim-pop" />
           <div className="inline-flex rounded-full border border-outline-variant bg-surface-container-high p-0.5" role="group" aria-label={tl(lang, 'common.language')}>
@@ -133,7 +133,7 @@ export function Frame({ title, subtitle, children }: { title: string; subtitle: 
             ))}
           </div>
         </div>
-        <h1 className="text-headline-m">{title}</h1>
+        <h1 className="font-display text-[26px] leading-8">{title}</h1>
         <p className="mt-1 mb-6 text-sm text-on-surface-variant">{subtitle}</p>
         {children}
       </div>
@@ -174,7 +174,7 @@ export function Login({ onDone }: { onDone: (me: Me) => void }) {
   // Sign-up without an invite (SIGNUP_WITHOUT_INVITE); GitLab sign-up happens through the GitLab button
   const register =
     providers && ((providers.signup.passkey && passkeysAvailable()) || providers.signup.password) ? (
-      <button className="btn-ghost mt-2 w-full rounded-full text-sm" onClick={() => navigate('/register')}>
+      <button className="btn-ghost mt-2 w-full text-sm" onClick={() => navigate('/register')}>
         <UserPlus size={16} /> {tl(lang, 'auth.registerLink')}
       </button>
     ) : null;
@@ -192,7 +192,7 @@ export function Login({ onDone }: { onDone: (me: Me) => void }) {
   return (
     <Frame title="Kladde" subtitle={tl(lang, 'auth.subtitle')}>
       <button
-        className="btn-primary w-full rounded-full py-3"
+        className="btn-primary w-full py-3"
         disabled={busy}
         onClick={() =>
           run(async () => {
@@ -209,7 +209,7 @@ export function Login({ onDone }: { onDone: (me: Me) => void }) {
           <PasswordLogin busy={busy} run={run} primary={false} />
         </div>
       ) : (
-        <button className="btn-ghost mt-2 w-full rounded-full text-sm" onClick={() => setWithPassword(true)}>
+        <button className="btn-ghost mt-2 w-full text-sm" onClick={() => setWithPassword(true)}>
           {tl(lang, 'auth.usePassword')}
         </button>
       )}
@@ -224,14 +224,14 @@ export function Login({ onDone }: { onDone: (me: Me) => void }) {
         }}
       >
         <input className="input min-w-0 flex-1" placeholder={tl(lang, 'auth.deviceCodePlaceholder')} value={code} onChange={(e) => setCode(e.target.value)} />
-        <button className="btn-ghost shrink-0 rounded-xl border border-outline-variant" type="submit">
+        <button className="btn-outlined shrink-0" type="submit">
           <Smartphone size={16} />
         </button>
       </form>
       <p className="mt-2 text-xs text-on-surface-variant">{tl(lang, 'auth.deviceCodeHint')}</p>
       {import.meta.env.DEV && (
         <button
-          className="btn-ghost mt-4 w-full rounded-full border border-dashed border-outline-variant"
+          className="btn-outlined mt-4 w-full border-dashed"
           onClick={() => run(() => api<Me>('/auth/dev-login', { method: 'POST', json: {} }))}
         >
           <Sparkles size={16} /> {tl(lang, 'auth.devLogin')}
@@ -273,7 +273,7 @@ export function Invite({ code, onDone }: { code?: string; onDone: (me: Me) => vo
       {code ? (
         <p className="mt-3 text-xs text-on-surface-variant">{tl(lang, 'auth.inviteCodeLabel', { code })}</p>
       ) : (
-        <button className="btn-ghost mt-3 w-full rounded-full text-sm" onClick={() => navigate('/', true)}>
+        <button className="btn-ghost mt-3 w-full text-sm" onClick={() => navigate('/', true)}>
           {tl(lang, 'auth.backToLogin')}
         </button>
       )}
@@ -315,12 +315,12 @@ export function Invite({ code, onDone }: { code?: string; onDone: (me: Me) => vo
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <button className="btn-primary w-full rounded-full py-3" disabled={busy || username.trim().length < 3 || password.length < PASSWORD_MIN_LENGTH}>
+          <button className="btn-primary w-full py-3" disabled={busy || username.trim().length < 3 || password.length < PASSWORD_MIN_LENGTH}>
             <UserPlus size={18} /> {tl(lang, 'auth.createAccount')}
           </button>
         </form>
         {canPasskey ? (
-          <button className="btn-ghost mt-2 w-full rounded-full text-sm" onClick={() => setChoice('passkey')}>
+          <button className="btn-ghost mt-2 w-full text-sm" onClick={() => setChoice('passkey')}>
             {tl(lang, 'auth.usePasskeyInstead')}
           </button>
         ) : (
@@ -358,12 +358,12 @@ export function Invite({ code, onDone }: { code?: string; onDone: (me: Me) => vo
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
-        <button className="btn-primary w-full rounded-full py-3" disabled={busy || username.trim().length < 3}>
+        <button className="btn-primary w-full py-3" disabled={busy || username.trim().length < 3}>
           <UserPlus size={18} /> {tl(lang, 'auth.createWithPasskey')}
         </button>
       </form>
       {canPassword && (
-        <button className="btn-ghost mt-2 w-full rounded-full text-sm" onClick={() => setChoice('password')}>
+        <button className="btn-ghost mt-2 w-full text-sm" onClick={() => setChoice('password')}>
           {tl(lang, 'auth.usePasswordInstead')}
         </button>
       )}
@@ -382,7 +382,7 @@ export function LinkDevice({ code, onDone }: { code: string; onDone: (me: Me) =>
     <Frame title={tl(lang, 'auth.linkTitle')} subtitle={tl(lang, 'auth.linkSubtitle')}>
       {!passkeysAvailable() && <p className="mb-3 rounded-xl bg-surface-container-high p-3 text-sm text-warn">{tl(lang, 'auth.noPasskeyHint')}</p>}
       <button
-        className="btn-primary w-full rounded-full py-3"
+        className="btn-primary w-full py-3"
         disabled={busy || !passkeysAvailable()}
         onClick={() =>
           run(async () => {
@@ -394,7 +394,7 @@ export function LinkDevice({ code, onDone }: { code: string; onDone: (me: Me) =>
       >
         <KeyRound size={18} /> {tl(lang, 'auth.createPasskeyBtn')}
       </button>
-      <button className="btn-ghost mt-2 w-full rounded-full" onClick={() => navigate('/', true)}>
+      <button className="btn-ghost mt-2 w-full" onClick={() => navigate('/', true)}>
         {tl(lang, 'common.back')}
       </button>
       {error && <p className="mt-4 text-sm text-error anim-fade-in">{error}</p>}

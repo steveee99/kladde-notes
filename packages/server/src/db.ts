@@ -532,6 +532,15 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 26,
+    description: 'Accent color per account (Werkbank design)',
+    up: (db) => {
+      // Guarded, so a database that already has the column (an early build of the design) migrates too
+      const cols = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
+      if (!cols.some((c) => c.name === 'accent')) db.exec('ALTER TABLE users ADD COLUMN accent TEXT');
+    },
+  },
 ];
 
 /** The schema version this build migrates to */

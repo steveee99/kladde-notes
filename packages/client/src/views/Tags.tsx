@@ -7,6 +7,7 @@ import { useReadOnly } from '../lib/readOnly';
 import { t, useLang } from '../lib/i18n';
 import { NoteCollection, ViewSwitch } from './NoteList';
 import { Sheet } from './Dialogs';
+import { PageBody, PageHeader } from './PageHeader';
 
 /** All tags in a flat list (for the merge suggestions and "does it exist?") */
 function flatten(nodes: TagNode[], out: TagNode[] = []): TagNode[] {
@@ -48,30 +49,30 @@ function TagRow({
   return (
     <li>
       <div
-        className={`state-layer flex min-h-12 items-center rounded-full pr-4 ${active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface'}`}
+        className={`state-layer flex min-h-9 items-center rounded-md pr-3 text-body-m nav:min-h-8 ${active ? 'bg-line text-strong' : 'text-text'}`}
         style={{ paddingLeft: `${depth * 16 + 4}px` }}
       >
         {node.children.length > 0 ? (
           <button
             type="button"
-            className="btn-icon h-10 w-10"
+            className="btn-icon h-8 w-8"
             aria-expanded={open}
             aria-label={open ? t('tags.collapse', { tag: node.tag }) : t('tags.expand', { tag: node.tag })}
             onClick={() => onToggle(node.tag)}
           >
-            {open ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+            {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>
         ) : (
-          <span className="w-10 shrink-0" />
+          <span className="w-8 shrink-0" />
         )}
         <button
           type="button"
           aria-current={active ? 'true' : undefined}
           onClick={() => navigate(`/tags/${encodeURIComponent(node.tag)}`)}
-          className="flex min-w-0 flex-1 items-center gap-3 py-3 text-left outline-none"
+          className="flex min-w-0 flex-1 items-center gap-2.5 py-1.5 text-left outline-none"
         >
-          <span className={`min-w-0 flex-1 truncate text-label-l ${node.count === 0 ? 'text-on-surface-variant' : ''}`}>#{node.name}</span>
-          <span className="shrink-0 text-label-m text-on-surface-variant" title={t('tags.countTitle', { n: node.count, total: node.total })}>
+          <span className={`min-w-0 flex-1 truncate font-mono text-[12.5px] ${node.count === 0 ? 'text-muted' : ''}`}>#{node.name}</span>
+          <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted" title={t('tags.countTitle', { n: node.count, total: node.total })}>
             {node.total}
           </span>
         </button>
@@ -182,11 +183,9 @@ export function TagsView({ tag }: { tag?: string }) {
     });
 
   return (
-    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
-      <div className="mb-6 anim-fade-up">
-        <h1 className="text-headline-m">{t('tags.title')}</h1>
-        <p className="mt-1 text-body-m text-on-surface-variant">{t('tags.summary', { tags: all.filter((n) => n.count > 0).length, notes: tagged })}</p>
-      </div>
+    <div>
+      <PageHeader title={t('tags.title')} subtitle={t('tags.summary', { tags: all.filter((n) => n.count > 0).length, notes: tagged })} />
+      <PageBody>
 
       {tree.length === 0 ? (
         <div className="card flex flex-col items-center gap-3 px-6 py-12 text-center">
@@ -194,28 +193,27 @@ export function TagsView({ tag }: { tag?: string }) {
           <p className="max-w-sm text-body-m text-on-surface-variant">{t('tags.empty')}</p>
         </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[minmax(16rem,20rem)_1fr]">
+        <div className="grid gap-5 lg:grid-cols-[minmax(16rem,20rem)_1fr]">
           <section aria-label={t('tags.title')} className="min-w-0">
-            {/* M3 search bar */}
-            <div className="mb-3 flex h-12 items-center gap-3 rounded-full bg-surface-container-high px-4 focus-within:ring-2 focus-within:ring-primary">
-              <Search size={20} className="shrink-0 text-on-surface-variant" />
+            <div className="mb-3 flex h-9 items-center gap-2 rounded-md border border-line2 bg-panel px-3 focus-within:border-acc focus-within:shadow-[0_0_0_1px_rgb(var(--acc))] nav:h-8">
+              <Search size={16} className="shrink-0 text-muted" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t('tags.filterPlaceholder')}
                 aria-label={t('tags.filterPlaceholder')}
-                className="min-w-0 flex-1 bg-transparent text-body-l text-on-surface outline-none placeholder:text-on-surface-variant"
+                className="min-w-0 flex-1 bg-transparent text-body-m text-text outline-none placeholder:text-muted"
               />
               {query && (
-                <button type="button" className="btn-icon -mr-2" onClick={() => setQuery('')} aria-label={t('search.clear')}>
-                  <X size={20} />
+                <button type="button" className="btn-icon -mr-2 h-7 w-7" onClick={() => setQuery('')} aria-label={t('search.clear')}>
+                  <X size={16} />
                 </button>
               )}
             </div>
             {shown.length === 0 ? (
               <p className="px-4 py-6 text-body-m text-on-surface-variant">{t('tags.noMatch')}</p>
             ) : (
-              <ul className="card p-2">
+              <ul className="card p-1">
                 {shown.map((n) => (
                   <TagRow key={n.tag} node={n} depth={0} selected={selected} expanded={expanded} onToggle={toggle} forceOpen={!!q} />
                 ))}
@@ -231,10 +229,10 @@ export function TagsView({ tag }: { tag?: string }) {
                   {!locked && (
                     <>
                       <button className="btn-tonal" onClick={() => setSheet('rename')} disabled={notes.length === 0}>
-                        <Pencil size={18} /> {t('tags.renameBtn')}
+                        <Pencil size={16} /> {t('tags.renameBtn')}
                       </button>
                       <button className="btn-outlined" onClick={() => setSheet('merge')} disabled={notes.length === 0}>
-                        <Merge size={18} /> {t('tags.mergeInto')}
+                        <Merge size={16} /> {t('tags.mergeInto')}
                       </button>
                     </>
                   )}
@@ -254,6 +252,7 @@ export function TagsView({ tag }: { tag?: string }) {
       )}
 
       {sheet && selected && <RenameTagSheet tag={selected} merge={sheet === 'merge'} allTags={all.map((n) => n.tag)} onClose={() => setSheet(null)} />}
+      </PageBody>
     </div>
   );
 }

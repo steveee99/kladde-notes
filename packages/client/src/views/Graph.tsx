@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY, SimulationLinkDatum, SimulationNodeDatum } from 'd3-force';
 import type { GraphEdge, GraphNode, GraphNoteKind, ParaRole } from '@kladde/shared';
 import { extractMeta, filterGraph, projectTitleOf, roleOfFolder, splitPath } from '@kladde/shared';
-import { Check, Filter, LocateFixed, X } from '../lib/icons';
+import { Filter, LocateFixed, X } from '../lib/icons';
 import { Dropdown } from './Dropdown';
 import { useVault, vault } from '../data/vault';
 import { navigate } from '../lib/router';
 import { compareText, folderDisplayName, locale, t, useLang, type I18nKey } from '../lib/i18n';
+import { PageBody, PageHeader } from './PageHeader';
 
 /** A graph node; `orphan` (no link in or out on the whole graph) draws it as a ring */
 type ViewNode = GraphNode & { orphan?: boolean };
@@ -247,7 +248,7 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: ViewNo
       palette = colors();
       draw();
     });
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-scheme', 'data-tone'] });
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-scheme', 'data-accent'] });
     resize();
     return () => {
       sim.stop();
@@ -264,7 +265,7 @@ export function Graph({ nodes, edges, focusId, height, onOpen }: { nodes: ViewNo
   }, [JSON.stringify(nodes.map((n) => [n.id, n.title, n.folder, n.links, !!n.orphan])), JSON.stringify(edges), roleConfigKey, focusId, height]);
 
   return (
-    <div ref={wrapRef} className="relative w-full touch-none select-none overflow-hidden rounded-lg border border-outline-variant bg-surface-container-low">
+    <div ref={wrapRef} className="paper-grid relative w-full touch-none select-none overflow-hidden rounded-lg border border-outline-variant bg-surface-container-low">
       <canvas ref={canvasRef} className="block cursor-grab" />
       {hoverTitle && <div className="pointer-events-none absolute left-3 top-3 max-w-[calc(100%-1.5rem)] truncate rounded bg-inverse-surface px-2 py-1 text-body-s text-inverse-on-surface anim-fade-in">{hoverTitle}</div>}
     </div>
@@ -317,11 +318,10 @@ const KIND_CHIPS: [GraphNoteKind, I18nKey][] = [
   ['drawing', 'graph.kindDrawing'],
 ];
 
-/** A filter chip (M3): outlined, tonal with a check mark while selected */
+/** A filter chip: outlined, accent tinted while selected */
 function FilterChip({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" className={`chip ${selected ? 'pl-2' : ''}`} aria-pressed={selected} onClick={onClick}>
-      {selected && <Check size={18} className="shrink-0" />}
+    <button type="button" className="chip" aria-pressed={selected} onClick={onClick}>
       {children}
     </button>
   );
@@ -330,7 +330,7 @@ function FilterChip({ selected, onClick, children }: { selected: boolean; onClic
 function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <div className="text-label-l text-on-surface-variant">{label}</div>
+      <div className="section-label">{label}</div>
       <div className="flex flex-wrap items-center gap-2">{children}</div>
     </div>
   );
@@ -427,25 +427,25 @@ export function GraphView() {
   };
 
   return (
-    <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 anim-fade-up">
-        <div className="min-w-0 flex-1 basis-56">
-          <h1 className="text-headline-m">{t('graph.title')}</h1>
-          <p className="mt-1 text-body-m text-on-surface-variant">
-            {t('graph.summary', { nodes: g.nodes.length, edges: g.edges.length })}
-            {g.orphans > 0 && ` · ${t('graph.orphanCount', { n: g.orphans })}`}
-          </p>
-        </div>
-        {active > 0 && (
-          <button type="button" className="btn-text" onClick={reset}>
-            {t('graph.reset')}
-          </button>
-        )}
-        <button type="button" className="btn-tonal" aria-expanded={filterOpen} onClick={() => setFilterOpen(!filterOpen)}>
-          <Filter size={18} /> {t('graph.filters')}
-          {active > 0 && <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-label-s text-on-primary">{active}</span>}
-        </button>
-      </div>
+    <div>
+      <PageHeader
+        title={t('graph.title')}
+        subtitle={`${t('graph.summary', { nodes: g.nodes.length, edges: g.edges.length })}${g.orphans > 0 ? ` · ${t('graph.orphanCount', { n: g.orphans })}` : ''}`}
+        actions={
+          <>
+            {active > 0 && (
+              <button type="button" className="btn-text" onClick={reset}>
+                {t('graph.reset')}
+              </button>
+            )}
+            <button type="button" className="btn-tonal" aria-expanded={filterOpen} onClick={() => setFilterOpen(!filterOpen)}>
+              <Filter size={16} /> {t('graph.filters')}
+              {active > 0 && <span className="pill bg-acc text-on-acc">{active}</span>}
+            </button>
+          </>
+        }
+      />
+      <PageBody>
 
       {filterOpen && (
         <div className="card mb-4 grid gap-5 p-4 anim-fade-in sm:p-5 lg:grid-cols-2">
@@ -503,7 +503,7 @@ export function GraphView() {
           {bounds[1] > bounds[0] && (
             <div className="space-y-2 lg:col-span-2">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-label-l text-on-surface-variant">{t('graph.filterTime')}</span>
+                <span className="section-label">{t('graph.filterTime')}</span>
                 <div className="segmented ml-auto h-8" role="group" aria-label={t('graph.filterTime')}>
                   {(['created', 'updated'] as const).map((f) => (
                     <button
@@ -584,6 +584,7 @@ export function GraphView() {
           </FilterChip>
         </div>
       </div>
+      </PageBody>
     </div>
   );
 }

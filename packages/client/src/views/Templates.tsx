@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { ArrowLeft, CalendarDays, CalendarRange, FilePlus2, LayoutTemplate, Pencil, Trash2 } from '../lib/icons';
+import { CalendarDays, CalendarRange, FilePlus2, LayoutTemplate, Pencil, Trash2 } from '../lib/icons';
 import { INBOX_FOLDER, PERIODIC_PLACEHOLDERS, Template, TEMPLATE_PLACEHOLDERS, type PeriodKind } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { folderDisplayName, tl, useLang, type I18nKey } from '../lib/i18n';
-import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
 import { Dropdown } from './Dropdown';
+import { SettingsPage } from './SettingsPage';
 
 const newId = () => `tpl-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
@@ -22,14 +22,8 @@ export function TemplatesView() {
   const periods = ([['week', weekly.enabled], ['month', monthly.enabled]] as const).filter(([, on]) => on).map(([k]) => k);
 
   return (
-    <div className="content-container space-y-6 px-4 py-6 sm:px-8 sm:py-10">
-      <div className="flex items-center gap-2 anim-fade-up">
-        <button className="btn-icon -ml-2" onClick={() => navigate('/settings')} title={tl(lang, 'templates.backToSettings')}>
-          <ArrowLeft size={18} />
-        </button>
-        <h1 className="text-headline-m">{tl(lang, 'templates.title')}</h1>
-      </div>
-      <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'templates.intro')}</p>
+    <SettingsPage title={tl(lang, 'templates.title')}>
+      <p className="text-body-m text-muted">{tl(lang, 'templates.intro')}</p>
 
       {editingDaily ? (
         <TemplateEditor
@@ -118,7 +112,7 @@ export function TemplatesView() {
             ))}
           </section>
           <button
-            className="btn-primary rounded-full px-5 anim-fade-up"
+            className="btn-primary px-5 anim-fade-up"
             disabled={readOnly}
             onClick={() =>
               setEditing({
@@ -133,7 +127,7 @@ export function TemplatesView() {
           </button>
         </>
       )}
-    </div>
+    </SettingsPage>
   );
 }
 
@@ -182,7 +176,7 @@ function TemplateEditor({ template, isNew, daily: dailyOnly, period, onDone }: {
         if (daily || label.trim()) void save();
       }}
     >
-      <h2 className="font-medium">{period ? template.label : daily ? tl(lang, 'templates.dailyLabel') : isNew ? tl(lang, 'templates.createTitle') : tl(lang, 'templates.editTitle')}</h2>
+      <h2 className="text-title-m text-strong">{period ? template.label : daily ? tl(lang, 'templates.dailyLabel') : isNew ? tl(lang, 'templates.createTitle') : tl(lang, 'templates.editTitle')}</h2>
       {daily ? (
         <p className="text-sm text-on-surface-variant">{tl(lang, period ? 'templates.periodicHint' : 'templates.dailyHint')}</p>
       ) : (
@@ -238,10 +232,10 @@ function TemplateEditor({ template, isNew, daily: dailyOnly, period, onDone }: {
       </div>
       )}
       <div className="flex gap-2">
-        <button className="btn-primary rounded-full px-5" disabled={!daily && !label.trim()}>
+        <button className="btn-primary px-5" disabled={!daily && !label.trim()}>
           {tl(lang, 'common.save')}
         </button>
-        <button type="button" className="btn-ghost rounded-full px-4" onClick={onDone}>
+        <button type="button" className="btn-ghost px-4" onClick={onDone}>
           {tl(lang, 'common.cancel')}
         </button>
       </div>

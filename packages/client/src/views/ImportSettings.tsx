@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, KeyRound, Plus, Trash2 } from '../lib/icons';
+import { KeyRound, Plus, Trash2 } from '../lib/icons';
 import { IMPORT_TOKEN_DAYS, type ImportToken, type ImportTokenCreated } from '@kladde/shared';
 import { api } from '../lib/api';
 import { locale, tl, useLang } from '../lib/i18n';
-import { navigate } from '../lib/router';
 import { Dropdown } from './Dropdown';
 import { CopyField } from './McpSettings';
+import { SettingsPage } from './SettingsPage';
 
 /** Tokens for the import CLI (`npm run import`), which brings a local folder such as an Obsidian vault into the space */
 export function ImportSettingsView() {
@@ -49,31 +49,25 @@ export function ImportSettingsView() {
   };
 
   return (
-    <div className="content-container space-y-6 px-4 py-6 sm:px-8 sm:py-10">
-      <div className="flex items-center gap-2 anim-fade-up">
-        <button className="btn-icon -ml-2" onClick={() => navigate('/settings')} title={tl(lang, 'templates.backToSettings')}>
-          <ArrowLeft size={18} />
-        </button>
-        <h1 className="text-headline-m">{tl(lang, 'import.title')}</h1>
-      </div>
-      <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'import.intro')}</p>
+    <SettingsPage title={tl(lang, 'import.title')}>
+      <p className="text-body-m text-muted">{tl(lang, 'import.intro')}</p>
 
       <section className="card space-y-3 p-5 anim-fade-up">
-        <h2 className="font-medium">{tl(lang, 'import.cliTitle')}</h2>
+        <h2 className="text-title-m text-strong">{tl(lang, 'import.cliTitle')}</h2>
         <p className="text-sm text-on-surface-variant">{tl(lang, 'import.cliDesc')}</p>
         <CopyField value={command} />
         {location.protocol === 'http:' && <p className="text-xs text-error">{tl(lang, 'import.insecureHint')}</p>}
       </section>
 
       <section className="card space-y-3 p-5 anim-fade-up">
-        <h2 className="font-medium">{tl(lang, 'import.createTitle')}</h2>
+        <h2 className="text-title-m text-strong">{tl(lang, 'import.createTitle')}</h2>
         <p className="text-sm text-on-surface-variant">{tl(lang, 'import.createDesc')}</p>
         {created ? (
           <div className="space-y-2 rounded-2xl border border-primary/40 bg-secondary-container/40 p-3.5 anim-fade-up">
             <p className="text-sm font-medium">{tl(lang, 'import.tokenCreatedTitle', { name: created.token.name })}</p>
             <CopyField value={created.secret} label={tl(lang, 'import.copyTokenTitle')} />
             <CopyField value={`KLADDE_IMPORT_TOKEN=${created.secret}`} />
-            <button className="btn-ghost rounded-full px-4 text-sm" onClick={() => setCreated(null)}>
+            <button className="btn-ghost px-4 text-sm" onClick={() => setCreated(null)}>
               {tl(lang, 'common.done')}
             </button>
           </div>
@@ -96,7 +90,7 @@ export function ImportSettingsView() {
                 options={[...IMPORT_TOKEN_DAYS].sort((a, b) => a - b).map((d) => ({ value: String(d), label: tl(lang, 'import.days', { n: d }) }))}
               />
             </div>
-            <button className="btn-ghost rounded-full border border-outline-variant px-4" type="submit">
+            <button className="btn-outlined px-4" type="submit">
               <Plus size={16} /> {tl(lang, 'import.tokenCreateBtn')}
             </button>
           </form>
@@ -131,6 +125,6 @@ export function ImportSettingsView() {
           </div>
         ))}
       </section>
-    </div>
+    </SettingsPage>
   );
 }

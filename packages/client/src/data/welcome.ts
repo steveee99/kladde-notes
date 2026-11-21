@@ -14,10 +14,8 @@ export function welcomeNotes(lang: Lang = getLang()): { folder: string; title: s
     return [
       {
         folder: INBOX_FOLDER,
-        title: 'Welcome',
-        content: `# Welcome to Kladde 👋
-
-##TOC##
+        title: 'Welcome to Kladde',
+        content: `##TOC##
 
 Everything here is **Markdown**. When your cursor leaves a line, it renders formatted – move your cursor back in to edit the raw syntax.
 
@@ -66,10 +64,8 @@ function greet(name: string) {
   return [
     {
       folder: INBOX_FOLDER,
-      title: 'Willkommen',
-      content: `# Willkommen bei Kladde 👋
-
-##TOC##
+      title: 'Willkommen bei Kladde',
+      content: `##TOC##
 
 Alles hier ist **Markdown**. Steht der Cursor nicht in einer Zeile, siehst du sie fertig formatiert – tippe hinein, um den Quelltext zu bearbeiten.
 

@@ -64,7 +64,7 @@ import { currentPath, navigate, usePath } from '../lib/router';
 import { dragSource, useDropTarget } from '../lib/dnd';
 import { isReadOnly, setReadOnly, useReadOnly } from '../lib/readOnly';
 import { ShareDialog } from './ShareDialog';
-import { MaterialShell } from './MaterialShell';
+import { WerkbankShell } from './WerkbankShell';
 import { Avatar } from './Avatar';
 import { AppLogo } from './AppLogo';
 import { NavBadge } from './NavBadge';
@@ -160,12 +160,12 @@ function NewNoteButton({
 
   return (
     <div ref={wrapRef} className="edit-only flex shrink-0 gap-0.5">
-      <button className="btn-primary min-w-0 flex-1 !rounded-r-md" onClick={() => run(() => newNote(folder ?? undefined))}>
+      <button className="btn-tonal min-w-0 flex-1 !rounded-r-md" onClick={() => run(() => newNote(folder ?? undefined))}>
         <Plus size={16} /> <span className="truncate">{t('nav.newNote')}</span>
       </button>
       <button
         type="button"
-        className="btn-primary !rounded-l-md !px-2.5"
+        className="btn-tonal !rounded-l-md !px-2.5"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={t('nav.newNoteMore')}
@@ -244,7 +244,7 @@ export async function openTodayDailyNote(): Promise<void> {
   navigate(`/n/${note.id}`);
 }
 
-export function SyncBadge({ compact }: { compact?: boolean } = {}) {
+export function SyncBadge({ compact, status }: { compact?: boolean; status?: boolean } = {}) {
   useVault();
   useLang();
   const pending = vault.pendingCount();
@@ -263,6 +263,23 @@ export function SyncBadge({ compact }: { compact?: boolean } = {}) {
             : t('common.idle');
   const fullLabel = files ? `${label} · ${t('uploads.badge', { n: files })}` : label;
   const Icon = state === 'syncing' ? Loader2 : state === 'offline' ? CloudOff : state === 'error' ? AlertTriangle : Cloud;
+  // Status bar (desktop): a small mono line with a colored dot
+  if (status) {
+    const tone = DEMO ? 'text-violet' : state === 'offline' ? 'text-amber' : state === 'error' ? 'text-red' : state === 'syncing' || pending || files ? 'text-amber' : 'text-green';
+    const text = DEMO ? t('demo.badge') : fullLabel;
+    return (
+      <button
+        type="button"
+        onClick={() => (DEMO ? undefined : files && !navigator.onLine ? navigate('/files') : vault.kick())}
+        title={DEMO ? t('demo.badgeTitle') : `${fullLabel} — ${t('common.syncAction')}`}
+        className={`flex min-w-0 items-center gap-1.5 rounded px-1 outline-none hover:bg-raised focus-visible:ring-2 focus-visible:ring-acc ${tone}`}
+      >
+        {/* The dot sends out a ring while syncing and once more when the state changes (key) */}
+        <span key={state} aria-hidden className="sync-dot h-1.5 w-1.5 shrink-0 rounded-full bg-current" data-state={state} />
+        <span className="truncate">{text}</span>
+      </button>
+    );
+  }
   // The demo has no server: say where the notes are instead of a sync state
   if (DEMO)
     return (
@@ -299,7 +316,7 @@ export function ReadOnlyToggle({ compact }: { compact?: boolean } = {}) {
       title={on ? t('nav.readOnlyDisableTitle') : t('nav.readOnlyEnableTitle')}
       aria-pressed={on}
       aria-label={label}
-      className={compact ? `btn-icon ${on ? '!bg-secondary-container !text-on-secondary-container' : ''}` : 'chip'}
+      className={compact ? `btn-icon ${on ? '!bg-line !text-acc' : ''}` : 'chip'}
     >
       {on ? <Lock size={compact ? 20 : 18} /> : <LockOpen size={compact ? 20 : 18} />}
       {on && !compact && <span>{t('nav.readOnlyBadge')}</span>}
@@ -433,7 +450,7 @@ function SidebarNoteRow({
             else openNote();
           }
         }}
-        className={`group flex min-w-0 cursor-pointer items-center gap-2 rounded-full py-1.5 pl-[26px] pr-3 text-left text-sm transition-colors ${
+        className={`group flex min-w-0 cursor-pointer items-center gap-2 rounded-md py-1.5 pl-[26px] pr-3 text-left text-sm transition-colors ${
           highlighted
             ? 'bg-secondary-container text-on-secondary-container font-medium ring-2 ring-inset ring-primary'
             : active
@@ -551,7 +568,7 @@ function FolderItem({
           {...dragSource({ kind: 'folder', path: node.path })}
           {...drop.props}
           {...folderMenu.rowProps}
-          className={`drop-target group flex min-w-0 items-center rounded-full pr-1.5 text-sm transition-colors ${drop.over ? 'drop-over' : active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'}`}
+          className={`drop-target group flex min-w-0 items-center rounded-md pr-1.5 text-sm transition-colors ${drop.over ? 'drop-over' : active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'}`}
           style={indent}
         >
           <button
@@ -696,7 +713,7 @@ function GroupTreeItem({ groupId, current, activeNoteId, onNavigate }: { groupId
   );
   return (
     <li data-tree-group={groupId}>
-      <div className={`group flex min-w-0 items-center rounded-full pr-1.5 text-sm transition-colors ${active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'}`}>
+      <div className={`group flex min-w-0 items-center rounded-md pr-1.5 text-sm transition-colors ${active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'}`}>
         <button
           type="button"
           className={`shrink-0 p-1.5 transition-transform duration-200 ${notes.length ? '' : 'invisible'} ${open ? 'rotate-90' : ''}`}
@@ -785,7 +802,7 @@ function GroupFolderNode({
     <li>
       <div
         {...menu.rowProps}
-        className={`group flex min-w-0 items-center rounded-full pr-1.5 text-sm transition-colors ${active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'}`}
+        className={`group flex min-w-0 items-center rounded-md pr-1.5 text-sm transition-colors ${active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'}`}
         style={{ paddingLeft: depth * 14 }}
       >
         <button
@@ -888,16 +905,21 @@ function SectionHeader({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="mt-2 mb-0.5 flex shrink-0 items-center gap-1 pl-1 pr-1.5 text-title-s text-on-surface-variant">
+    <div className="group/section mt-3 flex shrink-0 items-center gap-0.5 pr-1 text-label-s text-faint first:mt-1">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex min-w-0 flex-1 items-center gap-1 rounded-full py-1 pl-2 pr-0 text-left transition-colors hover:bg-surface-container-high hover:text-on-surface"
+        className="flex h-6 min-w-0 flex-1 items-center gap-1 rounded-md pl-2.5 pr-0 text-left outline-none transition-colors hover:text-text focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-acc"
       >
-        {open ? <ChevronDown size={13} className="shrink-0" /> : <ChevronRight size={13} className="shrink-0" />}
         {Icon && <Icon size={12} className="shrink-0" />}
-        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span className="min-w-0 truncate">{label}</span>
+        {open ? (
+          <ChevronDown size={12} className="shrink-0 opacity-0 transition-opacity group-hover/section:opacity-100" />
+        ) : (
+          <ChevronRight size={12} className="shrink-0" />
+        )}
+        <span className="flex-1" />
         {!open && badge}
         {!open && !badge && count ? <NavBadge tone="plain" count={count} /> : null}
       </button>
@@ -906,7 +928,12 @@ function SectionHeader({
   );
 }
 
-export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onNavigate?: () => void; isAdmin?: boolean; headerAction?: React.ReactNode }) {
+/**
+ * Folder tree with favorites and the new-note button. `panel` is the desktop side panel next to the rail
+ * (Werkbank): no brand, search, destinations or settings there, the top bar, rail and status bar have them.
+ * Without `panel` it is the full navigation of the phone drawer.
+ */
+export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: Me; onNavigate?: () => void; isAdmin?: boolean; headerAction?: React.ReactNode; panel?: boolean }) {
   const version = useVault();
   const lang = useLang();
   const loc = locale(lang);
@@ -915,6 +942,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
   const [newRoot, setNewRoot] = useState(false);
   const [favoritesOpen, setFavoritesOpen] = useSectionOpen('favorites', () => window.innerHeight >= 700);
   const [foldersOpen, setFoldersOpen] = useSectionOpen('folders', () => true);
+  const [groupsOpen, setGroupsOpen] = useSectionOpen('groups', () => true);
   const [navOpen, setNavOpen] = useSectionOpen('nav', () => true);
   const [revealRequest, setRevealRequest] = useState<RevealRequest | null>(null);
   const [flashNoteId, setFlashNoteId] = useState<string | null>(null);
@@ -1034,7 +1062,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
         onClick={opts.onClick ?? (() => opts.to && nav(opts.to))}
         aria-current={active ? 'page' : undefined}
         title={opts.title}
-        className={`flex h-10 w-full shrink-0 items-center gap-3 rounded-full pl-3.5 pr-1.5 text-left text-sm font-medium transition-colors ${
+        className={`flex h-10 w-full shrink-0 items-center gap-3 rounded-md pl-3.5 pr-1.5 text-left text-sm font-medium transition-colors ${
           active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
         }`}
       >
@@ -1051,14 +1079,20 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
   return (
     <div
       ref={sidebarRef}
-      className="flex h-full flex-col gap-1 overflow-hidden p-3"
+      className={`flex h-full flex-col gap-1 overflow-hidden ${panel ? 'px-2 pb-2 pt-1.5' : 'p-3'}`}
       onClick={(e) => (e.target as HTMLElement).closest('[data-close]') && onNavigate?.()}
     >
-      {/* Menu button, the brand next to it and Home on the right */}
+      {panel ? (
+        <div className="flex min-w-0 shrink-0 items-center gap-2 pl-2">
+          <span className="section-label min-w-0 flex-1 truncate">{t('nav.notes')}</span>
+          <span className="font-mono text-[11px] text-muted">{ownNotes.toLocaleString(loc)}</span>
+          {headerAction}
+        </div>
+      ) : (
       <div className="flex min-w-0 shrink-0 items-center gap-2.5">
         {headerAction}
-        <AppLogo size={32} />
-        <span className="min-w-0 flex-1 truncate text-title-l text-on-surface">Kladde</span>
+        <AppLogo size={28} />
+        <span className="font-display min-w-0 flex-1 truncate text-[22px] leading-7">Kladde</span>
         <button
           type="button"
           onClick={() => nav('/')}
@@ -1070,11 +1104,13 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
           <Home size={24} filled={path === '/'} />
         </button>
       </div>
-      <div className="mb-1.5 mt-2 shrink-0">
+      )}
+      <div className={`shrink-0 ${panel ? 'mb-1 mt-1' : 'mb-1.5 mt-2'}`}>
         <NewNoteButton zettel={features.zettel.enabled} recipe={features.recipe.enabled} folder={activeFolder} onNavigate={onNavigate} />
       </div>
 
-      {/* Looks like a search field, opens the search overlay (Ctrl/⌘+K) */}
+      {/* Looks like a search field, opens the search overlay (Ctrl/⌘+K); on the desktop the top bar has it */}
+      {!panel && (
       <button
         type="button"
         onClick={() => {
@@ -1083,20 +1119,23 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
         }}
         aria-haspopup="dialog"
         aria-keyshortcuts="Control+K Meta+K"
-        className="mb-2 flex h-10 w-full shrink-0 items-center gap-2 rounded-full border border-outline-variant/60 bg-surface-container-high px-3.5 text-left text-sm text-on-surface-variant transition-colors hover:border-outline focus-visible:border-primary focus-visible:outline-none"
+        className="mb-2 flex h-10 w-full shrink-0 items-center gap-2 rounded-md border border-outline-variant/60 bg-surface-container-high px-3.5 text-left text-sm text-on-surface-variant transition-colors hover:border-outline focus-visible:border-primary focus-visible:outline-none"
       >
         <Search size={16} className="shrink-0" />
         <span className="min-w-0 flex-1 truncate">{t('search.sidebarPlaceholder')}</span>
       </button>
+      )}
 
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto scrollbar-thin">
+          {!panel && (
           <SectionHeader
             label={t('nav.navigationLabel')}
             open={navOpen}
             onToggle={() => setNavOpen(!navOpen)}
             badge={<NavBadge tone="warn" count={urgentTasks + (inboxZero ? inboxCount : 0)} />}
           />
-          {navOpen && (
+          )}
+          {navOpen && !panel && (
             <nav aria-label={t('nav.main')} className="flex shrink-0 flex-col gap-0.5 pb-1 pl-4">
               {features.daily.enabled &&
                 (!locked || !!dailyNote) &&
@@ -1141,9 +1180,9 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
           )}
           {favoriteCount > 0 && (
             <>
-              <SectionHeader icon={Star} label={t('nav.favorites')} open={favoritesOpen} onToggle={() => setFavoritesOpen(!favoritesOpen)} count={favoriteCount} />
+              <SectionHeader label={t('nav.favorites')} open={favoritesOpen} onToggle={() => setFavoritesOpen(!favoritesOpen)} count={favoriteCount} />
               {favoritesOpen && (
-                <ul data-favorites-list className="max-h-[10.75rem] shrink-0 overflow-y-auto pl-6 scrollbar-thin">
+                <ul data-favorites-list className="shrink-0 space-y-px">
                   {favoriteGroupFolders.map(({ group, folder }) => {
                     const to = groupPath(group.id, folder);
                     const active = path === to;
@@ -1156,8 +1195,8 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
                           data-favorite-group-folder
                           onClick={() => nav(to)}
                           aria-current={active ? 'page' : undefined}
-                          className={`flex w-full min-w-0 items-center gap-2 rounded-full py-1.5 pl-[26px] pr-3 text-left text-sm transition-colors ${
-                            active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                          className={`flex h-8 w-full min-w-0 items-center gap-2 rounded-md pl-2.5 pr-3 text-left text-body-m transition-colors ${
+                            active ? 'bg-line text-strong' : 'text-soft hover:bg-raised hover:text-text'
                           }`}
                           title={folder ? `${group.name}/${folder}` : group.name}
                         >
@@ -1178,7 +1217,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
             <button
               type="button"
               data-focus-open-note="true"
-              className="rounded-full p-1 transition-colors hover:bg-surface-container-high hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded p-1 text-muted transition-colors hover:bg-raised hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
               title={activeNote ? t('nav.focusOpenNote') : t('nav.focusOpenNoteEmpty')}
               aria-label={t('nav.focusOpenNote')}
               disabled={!activeNote}
@@ -1187,7 +1226,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
               <LocateFixed size={14} />
             </button>
             <button
-              className="edit-only rounded-full p-1 hover:bg-surface-container-high hover:text-on-surface"
+              className="edit-only rounded p-1 text-muted hover:bg-raised hover:text-text"
               title={t('nav.newFolder')}
               aria-label={t('nav.newFolder')}
               onClick={() => {
@@ -1198,7 +1237,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
               <FolderPlus size={14} />
             </button>
           </SectionHeader>
-          <ul className={`min-h-[8rem] flex-1 overflow-y-auto pl-6 scrollbar-thin ${foldersOpen ? '' : 'hidden'}`}>
+          <ul className={`shrink-0 ${foldersOpen ? '' : 'hidden'}`}>
             {newRoot && (
               <li className="px-1">
                 <FolderNameInput
@@ -1234,24 +1273,39 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
                 onNavigate={onNavigate}
               />
             ))}
-            {/* Groups (#58): each group is a top folder with its own folders and notes */}
-            {!vault.standalone &&
-              vault.groups.map((g) => <GroupTreeItem key={g.id} groupId={g.id} current={path} activeNoteId={activeNoteId} onNavigate={onNavigate} />)}
-            <li className="edit-only mt-1">
-              <div {...rootDrop.props} className={`drop-target drop-zone-root rounded-xl border border-dashed border-outline-variant px-3 py-2 text-xs text-on-surface-variant ${rootDrop.over ? 'drop-over' : ''}`}>
+            <li className="edit-only">
+              <div {...rootDrop.props} className={`drop-target drop-zone-root rounded-md border border-dashed border-line2 px-3 py-1.5 text-xs text-muted ${rootDrop.over ? 'drop-over' : ''}`}>
                 {t('nav.dropTopLevel')}
               </div>
             </li>
           </ul>
-          {!foldersOpen && <div className="flex-1" aria-hidden />}
-          {/* Settings with the device status (read-only, sync) next to it */}
+          {/* Groups (#58): each group with its own folders and notes, in a section of its own */}
+          {!vault.standalone && vault.groups.length > 0 && (
+            <>
+              <SectionHeader label={t('nav.groups')} open={groupsOpen} onToggle={() => setGroupsOpen(!groupsOpen)} count={vault.groups.length}>
+                <button type="button" className="rounded p-1 text-muted hover:bg-raised hover:text-text" title={t('groups.title')} aria-label={t('groups.title')} onClick={() => nav('/groups')}>
+                  <Users size={14} />
+                </button>
+              </SectionHeader>
+              {groupsOpen && (
+                <ul className="shrink-0" data-groups-tree>
+                  {vault.groups.map((g) => (
+                    <GroupTreeItem key={g.id} groupId={g.id} current={path} activeNoteId={activeNoteId} onNavigate={onNavigate} />
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+          <div className="flex-1" aria-hidden />
+          {/* Settings with the device status (read-only, sync) next to it; the desktop has them in the rail and status bar */}
+          {!panel && (
           <div className="m3-status mt-1 flex shrink-0 items-center gap-1 border-t border-outline-variant/60 pt-1.5">
             <button
               type="button"
               onClick={() => nav('/settings')}
               aria-current={settingsActive ? 'page' : undefined}
               title={me.username}
-              className={`flex min-w-0 flex-1 items-center gap-3 rounded-full px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex min-w-0 flex-1 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                 settingsActive ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
               }`}
             >
@@ -1261,6 +1315,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction }: { me: Me; onN
             <ReadOnlyToggle compact />
             <SyncBadge compact />
           </div>
+          )}
         </div>
     </div>
   );
@@ -1435,7 +1490,7 @@ export function Shell({ me, children, isAdmin }: { me: Me; children: React.React
 
   return (
     <>
-      <MaterialShell me={me} isAdmin={isAdmin}>{children}</MaterialShell>
+      <WerkbankShell me={me} isAdmin={isAdmin}>{children}</WerkbankShell>
       {toast &&
         createPortal(
           <div

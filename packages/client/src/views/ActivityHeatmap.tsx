@@ -7,6 +7,7 @@ import { useReadOnly } from '../lib/readOnly';
 import { navigate } from '../lib/router';
 import { Dropdown, DropdownOption } from './Dropdown';
 import { CalendarPlanner } from './CalendarPlanner';
+import { PageBody, PageHeader } from './PageHeader';
 
 /** Cells grow to fill the card width; below MIN the grid scrolls horizontally. */
 const MIN_CELL_PX = 12;
@@ -113,12 +114,11 @@ export function ActivityHeatmap({ embedded = false }: { embedded?: boolean }) {
     data.activeDays === 1 ? tl(lang, 'heatmap.activeDaySingle') : tl(lang, 'heatmap.activeDays', { n: data.activeDays });
 
   return (
-    <section className="card p-4 sm:p-5 anim-fade-up" aria-label={tl(lang, 'heatmap.regionAria')}>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="flex min-w-0 flex-1 basis-40 items-center gap-2">
-          <CalendarDays size={18} className="shrink-0 text-ok" />
-          <h2 className="truncate font-medium">{tl(lang, 'heatmap.title')}</h2>
-          <span className="chip shrink-0">{activeBadgeText}</span>
+    <section className={embedded ? 'min-w-0 anim-fade-up' : 'card p-4 sm:p-5 anim-fade-up'} aria-label={tl(lang, 'heatmap.regionAria')}>
+      <div className={`flex flex-wrap items-center gap-2 ${embedded ? 'mb-3 min-h-10 border-b border-line px-3.5 pb-1' : 'mb-3'}`}>
+        <div className="flex min-w-0 flex-1 basis-40 items-baseline gap-2">
+          <h2 className={embedded ? 'panel-title truncate' : 'section-label truncate'}>{tl(lang, 'heatmap.title')}</h2>
+          <span className="shrink-0 font-mono text-[11px] text-muted">· {activeBadgeText}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <Dropdown
@@ -142,7 +142,7 @@ export function ActivityHeatmap({ embedded = false }: { embedded?: boolean }) {
         </div>
       </div>
 
-      <div ref={scrollRef} className="overflow-x-auto pb-1 scrollbar-thin" onMouseLeave={() => setInspectCell(null)}>
+      <div ref={scrollRef} className={`overflow-x-auto pb-1 scrollbar-thin ${embedded ? 'px-3.5' : ''}`} onMouseLeave={() => setInspectCell(null)}>
         <div className="inline-flex min-w-max items-start gap-2">
           <div
             className="flex shrink-0 flex-col pt-[20px] text-on-surface-variant select-none"
@@ -250,24 +250,23 @@ export function CalendarView() {
   // Calendar view (#72): month, week and agenda, with the activity heatmap below it while that is on
   if (features.calendarView.enabled) {
     return (
-      <div className="content-container mx-auto space-y-6 px-4 py-6 sm:px-8 sm:py-10">
-        <CalendarPlanner />
+      <CalendarPlanner>
         {heatmap.enabled && (
-          <section className="space-y-3" aria-labelledby="calendar-activity">
-            <h2 id="calendar-activity" className="text-title-m">
+          <section className="space-y-2" aria-labelledby="calendar-activity">
+            <h2 id="calendar-activity" className="section-label">
               {tl(lang, 'heatmap.title')}
             </h2>
             <ActivityHeatmap />
           </section>
         )}
-      </div>
+      </CalendarPlanner>
     );
   }
 
   if (!heatmap.enabled) {
     return (
-      <div className="content-container mx-auto px-4 py-6 sm:px-8 sm:py-10">
-        <div className="card max-w-lg space-y-4 p-6 anim-fade-up">
+      <PageBody>
+        <div className="card max-w-lg space-y-4 p-5 anim-fade-up">
           <div className="flex items-center gap-2 text-lg font-medium">
             <CalendarDays size={20} className="shrink-0 text-ok" />
             {tl(lang, 'heatmap.optInTitle')}
@@ -282,34 +281,31 @@ export function CalendarView() {
                 {tl(lang, 'heatmap.enableBtn')}
               </button>
             )}
-            <button className="btn-ghost border border-outline-variant" onClick={() => navigate('/settings')}>
+            <button className="btn-outlined" onClick={() => navigate('/settings')}>
               <Settings size={16} /> {tl(lang, 'daily.openSettings')}
             </button>
           </div>
         </div>
-      </div>
+      </PageBody>
     );
   }
 
   return (
-    <div className="content-container mx-auto space-y-5 px-4 py-6 sm:px-8 sm:py-10">
-      <header className="anim-fade-up">
-        <h1 className="text-headline-m">{tl(lang, 'heatmap.title')}</h1>
-        <p className="mt-1 text-sm text-on-surface-variant">
-          {daily.enabled ? tl(lang, 'heatmap.subtitleDailyOn') : tl(lang, 'heatmap.subtitleDailyOff')}
-        </p>
-      </header>
+    <div>
+      <PageHeader title={tl(lang, 'heatmap.title')} subtitle={daily.enabled ? tl(lang, 'heatmap.subtitleDailyOn') : tl(lang, 'heatmap.subtitleDailyOff')} />
+      <PageBody className="space-y-4">
 
       <ActivityHeatmap />
 
       {!daily.enabled && (
         <div className="card flex flex-wrap items-center justify-between gap-3 p-4 text-sm anim-fade-up">
           <span className="min-w-0 flex-1 text-on-surface-variant">{tl(lang, 'heatmap.dailyDisabledNotice')}</span>
-          <button className="btn-ghost shrink-0 border border-outline-variant" onClick={() => navigate('/settings')}>
+          <button className="btn-outlined shrink-0" onClick={() => navigate('/settings')}>
             <Settings size={15} /> {tl(lang, 'heatmap.openSettingsBtn')}
           </button>
         </div>
       )}
+      </PageBody>
     </div>
   );
 }

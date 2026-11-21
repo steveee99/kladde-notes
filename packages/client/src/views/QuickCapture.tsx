@@ -87,7 +87,7 @@ export function QuickCapture({
       style={vp ? { top: `${vp.top}px`, height: `${vp.height}px` } : { top: 0, bottom: 0 }}
     >
       <div className="fixed inset-0 bg-scrim/[0.32] anim-fade-in" onClick={onClose} />
-      <div ref={panel} role="dialog" aria-modal="true" aria-label={tl(lang, 'nav.capture')} tabIndex={-1} className="relative max-h-[min(90vh,100%)] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface-container-high px-4 pt-4 shadow-elevation-3 outline-none anim-sheet [--pad-bottom:1rem] safe-bottom sm:rounded-3xl">
+      <div ref={panel} role="dialog" aria-modal="true" aria-label={tl(lang, 'nav.capture')} tabIndex={-1} className="relative max-h-[min(90vh,100%)] w-full max-w-lg overflow-y-auto rounded-t-xl border border-line2 bg-panel px-4 pt-4 shadow-elevation-3 outline-none anim-sheet [--pad-bottom:1rem] safe-bottom sm:rounded-xl">
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-outline-variant sm:hidden" />
         {notice && (
           <p role="status" className="mb-3 flex items-start gap-2 text-sm text-warn">
@@ -150,7 +150,7 @@ export function QuickCapture({
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             disabled={keptFiles.length > 0}
-            className={`btn rounded-full px-3.5 disabled:opacity-40 ${asTask && !keptFiles.length ?'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
+            className={`btn px-3.5 disabled:opacity-40 ${asTask && !keptFiles.length ?'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
             onClick={() => setAsTask(!asTask)}
           >
             <CheckSquare size={16} /> {tl(lang, 'quick.taskBtn')}
@@ -158,7 +158,7 @@ export function QuickCapture({
           {canRecord() && (
             <button
               type="button"
-              className="btn-ghost rounded-full px-3"
+              className="btn-ghost px-3"
               disabled={recording || busy}
               onClick={() => setRecording(true)}
               title={tl(lang, 'voice.recordTitle')}
@@ -167,7 +167,7 @@ export function QuickCapture({
             </button>
           )}
           <button
-            className="btn-ghost rounded-full px-3"
+            className="btn-ghost px-3"
             onClick={() => {
               onClose();
               void newNote();
@@ -177,7 +177,7 @@ export function QuickCapture({
           </button>
           {recipeEnabled && (
             <button
-              className="btn-ghost rounded-full px-3"
+              className="btn-ghost px-3"
               title={tl(lang, 'quick.recipeTitle')}
               onClick={() => {
                 onClose();
@@ -187,7 +187,7 @@ export function QuickCapture({
               <ChefHat size={16} /> {tl(lang, 'quick.recipeBtn')}
             </button>
           )}
-          <button className="btn-primary ml-auto rounded-full px-4" onClick={save} disabled={busy}>
+          <button className="btn-primary ml-auto px-4" onClick={save} disabled={busy}>
             {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} {tl(lang, 'quick.saveBtn')}
           </button>
         </div>

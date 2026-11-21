@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-theme="material" data-scheme="dark">
+<html lang="de" data-theme="werkbank" data-scheme="dark" data-accent="blue">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
@@ -13,42 +13,29 @@
     -->
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Kladde" />
-    <meta name="theme-color" content="#121318" />
+    <meta name="theme-color" content="#131210" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="robots" content="noindex, nofollow" />
     <meta name="referrer" content="no-referrer" />
     <title>Kladde</title>
     <script>
-      // Language, Material 3 theme, color scheme and tone, editor font size and content width percentage before first paint
+      // Language, Werkbank theme, color scheme and accent, editor font size and content width percentage before first paint
       try {
         var lang = localStorage.getItem('kladde_lang');
         if (lang === 'en' || lang === 'de') document.documentElement.lang = lang;
       } catch (e) {}
-      document.documentElement.dataset.theme = 'material';
+      document.documentElement.dataset.theme = 'werkbank';
       var scheme = 'dark';
-      var tone = 'default';
       try {
         var cs = localStorage.getItem('kladde_color_scheme');
         if (cs === 'light') scheme = 'light';
-        else if (cs === 'darker') tone = 'darker';
         else if (cs === 'system' && window.matchMedia('(prefers-color-scheme: light)').matches) scheme = 'light';
+        var acc = localStorage.getItem('kladde_accent');
+        if (acc && /^[a-z]{3,12}$/.test(acc)) document.documentElement.dataset.accent = acc;
         var fs = Number(localStorage.getItem('kladde_editor_font_size'));
         if (fs >= 12 && fs <= 28) document.documentElement.style.setProperty('--editor-font-size', Math.round(fs) + 'px');
       } catch (e) {}
       document.documentElement.dataset.scheme = scheme;
-      document.documentElement.dataset.tone = tone;
-      try {
-        var w = localStorage.getItem('kladde_widescreen');
-        var cfg = w ? JSON.parse(w) : null;
-        var pct = 80;
-        if (cfg && typeof cfg.percent === 'number' && cfg.percent >= 35 && cfg.percent <= 100) {
-          pct = Math.round(cfg.percent);
-        } else if (cfg && cfg.mode === 'fluid') {
-          pct = 100;
-        }
-        document.documentElement.dataset.widescreen = String(pct);
-        document.documentElement.style.setProperty('--content-width', pct + '%');
-      } catch (e) {}
     </script>
   </head>
   <body class="bg-surface text-on-surface antialiased">

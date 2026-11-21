@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { AccountExportView } from './views/AccountExport';
+import { applyAccentOf } from './lib/accent';
 import { openNoteLink } from './lib/panes';
 import { SplitNoteView } from './views/SplitView';
 import { INBOX_FOLDER, Me, projectTitleOf, runQuery } from '@kladde/shared';
@@ -28,6 +29,7 @@ import { ActivityView } from './views/ActivityView';
 import { NotificationsView } from './views/NotificationsView';
 import { CalendarView } from './views/ActivityHeatmap';
 import { TasksView } from './views/TasksView';
+import { settingsSectionOf } from './lib/settingsRoutes';
 import { ProjectsView } from './views/ProjectsView';
 import { projectKeys, ticketById } from './data/tickets';
 
@@ -114,6 +116,7 @@ export function App() {
   const [me, setMe] = useState<Me | null | undefined>(() => {
     const cached = cachedMe();
     if (cached) {
+      applyAccentOf(cached);
       vault.standalone = !!cached.standalone;
       vault.actorName = cached.username;
       void vault.open(cached.id);
@@ -122,6 +125,7 @@ export function App() {
   });
 
   const signedIn = useCallback((user: Me) => {
+    applyAccentOf(user);
     vault.standalone = !!user.standalone;
     // Voice notes: the server transcribes when its admin set up a speech-to-text service
     editorHost.transcribe = user.transcription
@@ -232,7 +236,7 @@ export function App() {
   else if (groupManage && !me.standalone) page = <GroupManageView key={path} groupId={groupManage.id} />;
   else if (groupRoute && !me.standalone) page = <GroupView key={path} groupId={groupRoute.id} folder={groupRoute.folder ?? ''} />;
   else if (path === '/search') page = <SearchView />;
-  else if (path === '/admin' && !me.standalone) page = <AdminView me={me} />;
+  else if ((path === '/admin' || path === '/settings/admin') && !me.standalone) page = <AdminView me={me} />;
   else if (path === '/settings/templates') page = <TemplatesView />;
   else if (path === '/settings/export') page = <AccountExportView />;
   else if (path === '/settings/mcp') page = <McpSettingsView />;
@@ -242,10 +246,11 @@ export function App() {
   else if (path === '/settings/shortcuts' && !me.standalone) page = <ShortcutsSettingsView />;
   else if (path === '/settings/notifications' && !me.standalone) page = <NotificationSettingsView />;
   else if (path === '/files' || path === '/settings/files') page = <FilesView />;
-  else if (path === '/trash') page = <TrashView />;
-  else if (path === '/settings')
+  else if (path === '/trash' || path === '/settings/trash') page = <TrashView />;
+  else if (settingsSectionOf(path))
     page = (
       <SettingsView
+        section={settingsSectionOf(path)}
         me={me}
         onMe={signedIn}
         onLogout={async () => {

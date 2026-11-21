@@ -12,6 +12,7 @@ import { folderDisplayName, locale, t, useLang } from '../lib/i18n';
 import { useReadOnly } from '../lib/readOnly';
 import { navigate } from '../lib/router';
 import { Sheet } from './Dialogs';
+import { PageBody, PageHeader } from './PageHeader';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -133,9 +134,12 @@ export function TrashView() {
   );
 
   return (
-    <div className="content-container space-y-5 px-4 py-6 sm:px-8 sm:py-10">
-      <div className="flex flex-wrap items-center gap-2 anim-fade-up">
-        <h1 className="min-w-0 flex-1 text-headline-m">{t('trash.title')}</h1>
+    <div>
+      <PageHeader
+        title={t('trash.title')}
+        subtitle={retentionDays > 0 ? t('trash.intro', { days: retentionDays }) : t('trash.introForever')}
+        actions={
+          <>
         <button type="button" className="btn-icon" onClick={() => void load()} title={t('files.refreshTitle')} aria-label={t('files.refreshTitle')} disabled={loading}>
           <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
         </button>
@@ -155,8 +159,10 @@ export function TrashView() {
             <Trash2 size={16} /> {t('trash.emptyBtn')}
           </button>
         )}
-      </div>
-      <p className="text-body-m text-on-surface-variant anim-fade-up">{retentionDays > 0 ? t('trash.intro', { days: retentionDays }) : t('trash.introForever')}</p>
+          </>
+        }
+      />
+      <PageBody className="space-y-4">
 
       {error && (
         <div role="alert" className="flex items-center gap-2 rounded-2xl bg-error-container px-4 py-3 text-sm text-on-error-container">
@@ -179,7 +185,7 @@ export function TrashView() {
           <Loader2 size={20} className="animate-spin" />
         </div>
       ) : groups.length === 0 && !error ? (
-        <p className="py-10 text-center text-on-surface-variant">{t('trash.empty')}</p>
+        <div className="empty-sheet"><p className="empty-title">{t('trash.empty')}</p></div>
       ) : (
         <ul className="card divide-y divide-outline-variant/60 p-1 anim-fade-up">
           {groups.map((g) => {
@@ -266,7 +272,7 @@ export function TrashView() {
           />
           <button
             type="button"
-            className="btn-primary w-full rounded-full py-2.5"
+            className="btn-primary w-full py-2.5"
             disabled={!conflict.path.trim() || busy !== null}
             onClick={() => void restoreOne(conflict.entry, conflict.path.trim())}
           >
@@ -274,6 +280,7 @@ export function TrashView() {
           </button>
         </Sheet>
       )}
+      </PageBody>
     </div>
   );
 }

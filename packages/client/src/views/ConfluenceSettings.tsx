@@ -51,7 +51,7 @@ export function ConfluenceSettingsView({ embedded }: { embedded?: boolean } = {}
       <p className="text-sm text-on-surface-variant anim-fade-up">{tl(lang, 'confluence.intro')}</p>
 
       <section className="card space-y-3 p-5 anim-fade-up">
-        <h2 className="font-medium">{tl(lang, 'confluence.connectionTitle')}</h2>
+        <h2 className="text-title-m text-strong">{tl(lang, 'confluence.connectionTitle')}</h2>
         {connection && (
           <p className="flex items-center gap-2 text-sm text-primary">
             <Check size={16} /> {tl(lang, 'confluence.connectedAs', { name: connection.accountName })}
@@ -95,7 +95,7 @@ export function ConfluenceSettingsView({ embedded }: { embedded?: boolean } = {}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              className="btn-outlined rounded-full px-4"
+              className="btn-outlined px-4"
               disabled={!!busy || !url}
               onClick={() =>
                 void act('test', async () => {
@@ -106,13 +106,13 @@ export function ConfluenceSettingsView({ embedded }: { embedded?: boolean } = {}
             >
               {busy === 'test' ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />} {tl(lang, 'confluence.test')}
             </button>
-            <button className="btn-primary rounded-full px-4" disabled={!!busy || !url}>
+            <button className="btn-primary px-4" disabled={!!busy || !url}>
               <Cloud size={16} /> {tl(lang, 'common.save')}
             </button>
             {connection && (
               <button
                 type="button"
-                className="btn-text rounded-full px-4 text-error"
+                className="btn-text px-4 text-error"
                 disabled={!!busy}
                 onClick={() => {
                   if (!confirm(tl(lang, 'confluence.removeConfirm'))) return;
@@ -136,7 +136,7 @@ export function ConfluenceSettingsView({ embedded }: { embedded?: boolean } = {}
       {connection && (
         <section className="card divide-y divide-outline-variant anim-fade-up">
           <div className="p-5 pb-3">
-            <h2 className="font-medium">{tl(lang, 'confluence.syncsTitle')}</h2>
+            <h2 className="text-title-m text-strong">{tl(lang, 'confluence.syncsTitle')}</h2>
             <p className="mt-1 text-sm text-on-surface-variant">{tl(lang, 'confluence.syncsHint')}</p>
           </div>
           {!overview?.syncs.length && <p className="p-5 pt-3 text-sm text-on-surface-variant">{tl(lang, 'confluence.syncsEmpty')}</p>}

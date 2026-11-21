@@ -73,7 +73,7 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
       style={vp ? { top: `${vp.top}px`, height: `${vp.height}px` } : { top: 0, bottom: 0 }}
     >
       <div className="fixed inset-0 bg-scrim/[0.32] anim-fade-in" onClick={onClose} />
-      <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="relative flex h-[min(90vh,100%)] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl bg-surface-container-high shadow-elevation-3 outline-none anim-sheet sm:rounded-3xl">
+      <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="relative flex h-[min(90vh,100%)] w-full max-w-5xl flex-col overflow-hidden rounded-t-xl border border-line2 bg-panel shadow-elevation-3 outline-none anim-sheet sm:rounded-xl">
         <div className="flex items-center gap-2 border-b border-outline-variant px-4 py-3">
           {detail && (
             <button className="btn-icon shrink-0 sm:hidden" onClick={() => setDetail(false)} title={tl(lang, 'history.backToList')}>
@@ -135,7 +135,7 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
                   </span>
                 )}
                 {canRestore && ready && version!.content !== current && (
-                  <button className="btn-ghost ml-auto rounded-full border border-outline-variant px-3.5 py-1 text-xs hover:border-primary/40 hover:text-primary" onClick={restore}>
+                  <button className="btn-outlined ml-auto" onClick={restore}>
                     <RotateCcw size={13} /> {tl(lang, 'common.restore')}
                   </button>
                 )}

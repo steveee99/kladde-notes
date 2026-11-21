@@ -143,7 +143,7 @@ export function VoiceRecorderPanel({ onDone }: { onDone: (file: File | null) => 
             </div>
             <div className="text-body-s text-on-surface-variant">{state === 'starting' ? tl(lang, 'voice.starting') : state === 'saving' ? tl(lang, 'voice.saving') : tl(lang, 'voice.recording')}</div>
           </div>
-          <button type="button" className="btn-primary rounded-full px-4" onClick={stop} disabled={state !== 'recording'}>
+          <button type="button" className="btn-primary px-4" onClick={stop} disabled={state !== 'recording'}>
             {state === 'saving' ? <Loader2 size={18} className="animate-spin" /> : <StopCircle size={18} />} {tl(lang, 'voice.stop')}
           </button>
         </>

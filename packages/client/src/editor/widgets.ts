@@ -1102,15 +1102,18 @@ export class DueWidget extends WidgetType {
     return o.date === this.date && o.kind === this.kind && o.lang === this.lang;
   }
   toDOM() {
+    // Same symbols as the task lists (icons from lib/icons, drawn as CSS masks in .cm-due::before), no emoji
     const s = document.createElement('span');
     if (this.kind === 'repeat' || this.kind === 'time') {
       s.className = 'cm-due';
-      s.textContent = `${this.kind === 'repeat' ? '🔁' : '⏰'} ${this.date}`;
+      s.dataset.kind = this.kind;
+      s.textContent = this.date;
       return s;
     }
     const today = toDateString(new Date());
     s.className = `cm-due${this.date < today ? ' overdue' : this.date === today ? ' today' : ''}`;
-    s.textContent = `📅 ${formatDue(this.date, this.lang)}`;
+    s.dataset.kind = 'due';
+    s.textContent = formatDue(this.date, this.lang);
     return s;
   }
 }

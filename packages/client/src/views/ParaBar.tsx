@@ -37,7 +37,7 @@ export function ParaBar({ note }: { note: LocalNote }) {
     <div className="mb-3 flex flex-wrap items-center gap-2 text-sm anim-fade-in">
       {showInboxActions && (
         <>
-          <span className="text-title-s text-on-surface-variant">{t('para.sortLabel')}</span>
+          <span className="section-label">{t('para.sortLabel')}</span>
           <div className="edit-only flex flex-wrap items-center gap-1.5">
             {features.para.enabled && (
               <>

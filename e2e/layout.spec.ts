@@ -13,7 +13,7 @@ test('shows the navigation that fits the device', async ({ page }, testInfo) => 
     // Rail on the left, with the new-note button
     expect(box!.x).toBeLessThan(10);
     expect(box!.height).toBeGreaterThan(viewport.height / 2);
-    await expect(page.getByRole('button', { name: 'New note', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New note', exact: true }).first()).toBeVisible();
   } else {
     // Bottom bar across the width
     expect(box!.y + box!.height).toBeGreaterThan(viewport.height - 4);
