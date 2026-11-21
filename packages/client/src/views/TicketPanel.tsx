@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { PRIORITIES, type Priority } from '@kladde/shared';
+import { PARENT_KINDS, PRIORITIES, childKindsOf, type Priority, type TicketKind } from '@kladde/shared';
 import { vault, useVault } from '../data/vault';
-import { allowedStatusesOf, assignees, byRank, createReleaseNotes, milestoneOfNote, milestonesOf, ticketOfNote, ticketsOf, updateTicket, type MilestoneInfo, type TicketInfo } from '../data/tickets';
+import { allowedStatusesOf, ancestorsOf, assignees, byRank, parentCandidates, createReleaseNotes, milestoneOfNote, milestonesOf, ticketOfNote, ticketsOf, updateTicket, type MilestoneInfo, type TicketInfo } from '../data/tickets';
 import { navigate } from '../lib/router';
 import { t, useLang } from '../lib/i18n';
-import { AddLink, AlertTriangle, Ban, CheckCircle2, Clock, FileText, Flag, NewReleases, Person, Plus, Tags, Ticket, X } from '../lib/icons';
+import { AccountTree, AlertTriangle, Ban, CheckCircle2, ChevronRight, Clock, FileText, Flag, NewReleases, Person, Plus, Tags, Ticket, X } from '../lib/icons';
+import { NoteSearchField } from './NoteSearchField';
 import { Dropdown } from './Dropdown';
-import { DocTargets, MilestoneBanner, NewTicketSheet, PriorityIcon, StatusBadge, formatDay, priorityLabel } from './ProjectView';
+import { KindIcon, MilestoneBanner, NewTicketSheet, PriorityIcon, StatusBadge, formatDay, kindLabel, kindOptions, priorityLabel } from './ProjectView';
 
 const label = 'flex items-center gap-1.5 text-label-l text-muted';
 
@@ -31,8 +32,8 @@ function LinkRow({ title, sub, Icon, onOpen, onRemove, tone = '' }: { title: str
 /** Header of a ticket: its fields as controls, documentation, relations and sub-task progress */
 function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
   const canEdit = tk.project.canWrite && !readOnly && tk.note.access !== 'read';
-  const [doc, setDoc] = useState('');
   const [label_, setLabel] = useState('');
+  const [child, setChild] = useState<TicketKind | null>(null);
   const milestones = milestonesOf(tk.project);
   const others = ticketsOf(tk.project).filter((x) => x !== tk && !tk.blocking.includes(x)).sort(byRank);
   const links = vault.links();
@@ -40,12 +41,13 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
   const unresolved = tk.meta.docs.filter((d) => !links.resolve(d));
   const pinned = new Set(tk.meta.docs.map((d) => links.resolve(d)).filter(Boolean));
   const set = (fields: Parameters<typeof updateTicket>[1]) => void updateTicket(tk, fields);
-  const addDoc = () => {
-    const v = doc.trim();
-    if (!v || tk.meta.docs.some((d) => d.toLowerCase() === v.toLowerCase())) return setDoc('');
+  const addDoc = (v: string) => {
+    if (!v || tk.meta.docs.some((d) => d.toLowerCase() === v.toLowerCase())) return;
     set({ docs: [...tk.meta.docs, v] });
-    setDoc('');
   };
+  const parents = parentCandidates(tk.project, tk.meta.kind, tk);
+  const ancestors = ancestorsOf(tk);
+  const childKinds = childKindsOf(tk.meta.kind);
   const addLabel = () => {
     const v = label_.trim();
     if (v && !tk.meta.labels.includes(v)) set({ labels: [...tk.meta.labels, v] });
@@ -61,9 +63,23 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
   );
   return (
     <section className="no-print mb-3 space-y-3 rounded-lg border border-line bg-panel p-3 anim-fade-in" aria-label={t('tickets.ticketLabel', { ticket: tk.meta.id ?? '' })} data-ticket-panel>
+      {ancestors.length > 0 && (
+        <nav className="flex min-w-0 flex-wrap items-center gap-1 text-label-l text-muted" aria-label={t('tickets.parent')} data-ticket-ancestors>
+          {ancestors.map((a) => (
+            <span key={a.note.id} className="inline-flex min-w-0 items-center gap-1">
+              <button className="inline-flex min-w-0 items-center gap-1 hover:text-text hover:underline" onClick={() => navigate(`/n/${a.note.id}`)}>
+                <KindIcon kind={a.meta.kind} size={14} />
+                <span className="font-mono">{a.meta.id ?? `${a.project.config.key}-?`}</span>
+                <span className="max-w-[14rem] truncate">{a.title}</span>
+              </button>
+              <ChevronRight size={14} className="shrink-0 text-faint" />
+            </span>
+          ))}
+        </nav>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line2 bg-raised px-2 font-mono text-label-m text-strong" data-ticket-id>
-          <Ticket size={16} /> {tk.meta.id ?? `${tk.project.config.key}-?`}
+          <KindIcon kind={tk.meta.kind} /> {tk.meta.id ?? `${tk.project.config.key}-?`}
         </span>
         {tk.meta.provisional && <span className="chip">{t('tickets.notSynced')}</span>}
         <StatusBadge tk={tk} />
@@ -75,6 +91,57 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
         )}
       </div>
       <dl className="grid grid-cols-[minmax(6rem,auto)_minmax(0,1fr)] items-center gap-x-3 gap-y-2 rounded-md border border-line bg-bg px-3 py-2.5 text-body-m">
+        {field(
+          t('tickets.kind'),
+          Ticket,
+          canEdit ? (
+            <Dropdown
+              variant="chip"
+              aria-label={t('tickets.kind')}
+              leadingIcon={<KindIcon kind={tk.meta.kind} />}
+              value={tk.meta.kind}
+              options={kindOptions()}
+              onChange={(k) => {
+                const kind = k as TicketKind;
+                // A parent that no longer fits the new type is dropped
+                set({ kind, ...(tk.parent && !PARENT_KINDS[kind].includes(tk.parent.meta.kind) ? { parent: null } : {}) });
+              }}
+            />
+          ) : (
+            <span className="inline-flex items-center gap-1">
+              <KindIcon kind={tk.meta.kind} /> {kindLabel(tk.meta.kind)}
+            </span>
+          )
+        )}
+        {PARENT_KINDS[tk.meta.kind].length > 0 &&
+          field(
+            t('tickets.parent'),
+            AccountTree,
+            <>
+              {canEdit ? (
+                <Dropdown
+                  variant="chip"
+                  aria-label={t('tickets.parent')}
+                  value={tk.parent?.note.id ?? ''}
+                  options={[
+                    { value: '', label: t('tickets.noParent') },
+                    ...(tk.parent && !parents.includes(tk.parent) ? [tk.parent] : []).concat(parents).map((p) => ({ value: p.note.id, label: `${p.meta.id ?? `${p.project.config.key}-?`} · ${p.title}` })),
+                  ]}
+                  onChange={(id) => {
+                    const p = parents.find((x) => x.note.id === id);
+                    set({ parent: p?.meta.id ?? null });
+                  }}
+                />
+              ) : tk.parent ? (
+                <button className="hover:underline" onClick={() => navigate(`/n/${tk.parent!.note.id}`)}>
+                  {tk.parent.meta.id} · {tk.parent.title}
+                </button>
+              ) : (
+                <span className="text-muted">{tk.meta.parent ?? t('tickets.noParent')}</span>
+              )}
+              {tk.meta.kind === 'subtask' && !tk.parent && <span className="text-label-m text-amber">{t('tickets.parentNeeded')}</span>}
+            </>
+          )}
         {field(
           t('tickets.colStatus'),
           CheckCircle2,
@@ -206,23 +273,7 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
               <LinkRow key={d} title={d} sub={t('tickets.docMissingNote')} Icon={FileText} tone="text-amber" onRemove={canEdit ? () => set({ docs: tk.meta.docs.filter((x) => x !== d) }) : undefined} />
             ))}
           </ul>
-          {canEdit && (
-            <div className="mt-1.5 flex gap-1.5">
-              <input
-                className="input !min-h-0 min-w-0 flex-1 !py-1.5"
-                list="ticket-doc-targets"
-                aria-label={t('tickets.docLink')}
-                placeholder={t('tickets.docLinkPlaceholder')}
-                value={doc}
-                onChange={(e) => setDoc(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addDoc()}
-              />
-              <button className="btn-tonal shrink-0" onClick={addDoc} disabled={!doc.trim()} aria-label={t('tickets.docAdd')} title={t('tickets.docAdd')}>
-                <AddLink size={16} />
-              </button>
-              <DocTargets />
-            </div>
-          )}
+          {canEdit && <NoteSearchField className="mt-1.5" label={t('tickets.docAdd')} placeholder={t('tickets.docLinkPlaceholder')} exclude={new Set([tk.note.id, ...docNotes.map((n) => n.id)])} onPick={addDoc} />}
         </div>
         <div>
           <h3 className="mb-1.5 flex items-center gap-1.5 text-label-m font-semibold text-muted">
@@ -259,6 +310,45 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
           )}
         </div>
       </div>
+      {(childKinds.length > 0 || tk.children.length > 0) && (
+        <div data-ticket-children>
+          <h3 className="mb-1.5 flex items-center gap-1.5 text-label-m font-semibold text-muted">
+            <AccountTree size={14} /> {t('tickets.children', { done: tk.rollup.done, total: tk.rollup.total })}
+          </h3>
+          {tk.rollup.total > 0 && (
+            <div className="mb-1.5 h-1 overflow-hidden rounded-full bg-line" aria-hidden>
+              <div className="h-full bg-acc" style={{ width: `${Math.round((tk.rollup.done / tk.rollup.total) * 100)}%` }} />
+            </div>
+          )}
+          <ul className="space-y-1">
+            {tk.children.map((c) => (
+              <li key={c.note.id} className="flex items-center gap-2 rounded-md border border-line px-2.5 py-1.5">
+                <KindIcon kind={c.meta.kind} />
+                <button className="min-w-0 flex-1 text-left" onClick={() => navigate(`/n/${c.note.id}`)}>
+                  <span className={`block truncate font-medium ${c.category === 'done' ? 'text-muted line-through' : ''}`}>{c.title}</span>
+                  <span className="block truncate text-label-m text-muted">
+                    {c.meta.id ?? `${c.project.config.key}-?`}
+                    {c.meta.assignee ? ` · ${c.meta.assignee}` : ''}
+                    {c.rollup.total ? ` · ${t('tickets.childrenShort', { done: c.rollup.done, total: c.rollup.total })}` : ''}
+                  </span>
+                </button>
+                <StatusBadge tk={c} />
+              </li>
+            ))}
+            {!tk.children.length && <li className="px-1 text-body-s text-muted">{t('tickets.childrenNone')}</li>}
+          </ul>
+          {canEdit && childKinds.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {childKinds.map((k) => (
+                <button key={k} className="btn-text !min-h-0 !py-1" onClick={() => setChild(k)} data-new-child={k}>
+                  <Plus size={14} /> {t('tickets.newChild', { kind: kindLabel(k) })}
+                </button>
+              ))}
+            </div>
+          )}
+          {child && <NewTicketSheet project={tk.project} parent={tk} kind={child} onClose={() => setChild(null)} />}
+        </div>
+      )}
     </section>
   );
 }
@@ -274,10 +364,10 @@ function MilestoneHeader({ m, readOnly }: { m: MilestoneInfo; readOnly: boolean 
     { title: t('tickets.catDone'), rows: m.tickets.filter((tk) => tk.category === 'done') },
   ].map((g) => ({ ...g, rows: g.rows.sort(byRank) }));
   const date = (key: 'start' | 'due', value: string | null) => (
-    <label className="text-label-l text-muted">
+    <label className="min-w-0 text-label-l text-muted">
       {t(key === 'start' ? 'tickets.start' : 'tickets.due')}
       {canEdit ? (
-        <input type="date" className="input mt-1 !min-h-0 !py-1" value={value ?? ''} onChange={(e) => void vault.setFrontmatter(m.note.id, { [key]: e.target.value || null })} />
+        <input type="date" className="input mt-1 block !min-h-0 min-w-0 !py-1" value={value ?? ''} onChange={(e) => void vault.setFrontmatter(m.note.id, { [key]: e.target.value || null })} />
       ) : (
         <span className="block text-body-m text-text">{value ? formatDay(value) : '–'}</span>
       )}
@@ -286,14 +376,15 @@ function MilestoneHeader({ m, readOnly }: { m: MilestoneInfo; readOnly: boolean 
   return (
     <section className="no-print mb-3 space-y-3 rounded-lg border border-line bg-panel p-3 anim-fade-in" aria-label={t('tickets.milestoneLabel', { title: m.title })} data-milestone-panel>
       <MilestoneBanner m={m} />
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {/* Columns by the room the note has (tablet with side panels), not by the screen width */}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-x-3 gap-y-2">
         {date('start', m.meta.start)}
         {date('due', m.meta.due)}
-        <div className="text-label-l text-muted">
+        <div className="min-w-0 text-label-l text-muted">
           {t('tickets.release')}
           <span className="block text-body-m text-text">{m.meta.release ?? '–'}</span>
         </div>
-        <div className="text-label-l text-muted">
+        <div className="min-w-0 text-label-l text-muted">
           {t('tickets.points')}
           <span className="block text-body-m tabular-nums text-text">{m.progress.points ? `${m.progress.donePoints} / ${m.progress.points}` : '–'}</span>
         </div>
@@ -307,7 +398,7 @@ function MilestoneHeader({ m, readOnly }: { m: MilestoneInfo; readOnly: boolean 
             </h3>
             <ul className="space-y-1">
               {g.rows.map((tk) => (
-                <LinkRow key={tk.note.id} title={tk.title} sub={`${tk.meta.id ?? `${tk.project.config.key}-?`} · ${tk.meta.status}${tk.meta.assignee ? ` · ${tk.meta.assignee}` : ''}`} Icon={Ticket} onOpen={() => navigate(`/n/${tk.note.id}`)} />
+                <LinkRow key={tk.note.id} title={tk.title} sub={`${kindLabel(tk.meta.kind)} · ${tk.meta.id ?? `${tk.project.config.key}-?`} · ${tk.meta.status}${tk.meta.assignee ? ` · ${tk.meta.assignee}` : ''}`} Icon={Ticket} onOpen={() => navigate(`/n/${tk.note.id}`)} />
               ))}
             </ul>
           </div>

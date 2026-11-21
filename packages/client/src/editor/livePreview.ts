@@ -1,5 +1,5 @@
 import { EditorState, Extension, Facet, Range, StateEffect, StateField } from '@codemirror/state';
-import { Decoration, DecorationSet, EditorView } from '@codemirror/view';
+import { Decoration, DecorationSet, EditorView, WidgetType } from '@codemirror/view';
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
 import { findMath, ticketIdPattern, type MathSpan, MENTION_RE, mentionName, CALLOUT_TONES, calloutTypeTitle, escapeRegExp, isKnownCalloutType, parseCalloutLine, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, type NoteHeading, type ReleaseField } from '@kladde/shared';
@@ -49,6 +49,24 @@ export const previewAll = Facet.define<boolean, boolean>({ combine: (v) => v.som
 export const slideBreakLabel = Facet.define<string, string>({ combine: (v) => v[0] ?? '' });
 /** Callouts (#86) are on: `> [!type] Title` quotes are drawn as callouts, otherwise as plain quotes */
 export const calloutsFacet = Facet.define<boolean, boolean>({ combine: (v) => (v.length ? v[0] : true) });
+/** The note shows its fields elsewhere (tickets, milestones): the frontmatter row is hidden until the cursor enters it */
+export const hidePropertiesFacet = Facet.define<boolean, boolean>({ combine: (v) => v.some(Boolean) });
+
+/** Takes the place of hidden frontmatter: no room, nothing to click */
+class HiddenPropertiesWidget extends WidgetType {
+  eq() {
+    return true;
+  }
+  toDOM() {
+    const el = document.createElement('div');
+    el.className = 'wz-props-hidden';
+    el.setAttribute('aria-hidden', 'true');
+    return el;
+  }
+  ignoreEvent() {
+    return true;
+  }
+}
 /** Current note id so notes don't autolink to themselves */
 export const noteIdFacet = Facet.define<string, string>({ combine: (v) => v[0] ?? '' });
 /** Re-render widgets that depend on other notes (queries, link targets, language) */
@@ -156,6 +174,7 @@ function build(state: EditorState): DecorationSet {
   const releaseOpts = release ? releaseRenderOptions(lang) : null;
   const slideLabel = state.facet(slideBreakLabel);
   const callouts = state.facet(calloutsFacet);
+  const hideProps = state.facet(hidePropertiesFacet);
   const toggled = state.field(calloutFoldField);
   let slideNo = 1;
   const active = new Set<number>();
@@ -203,6 +222,7 @@ function build(state: EditorState): DecorationSet {
       if (doc.line(l).text === '---') {
         fmEnd = doc.line(l).to;
         if (isActive(0, fmEnd)) lineClass(0, fmEnd, 'cm-frontmatter');
+        else if (hideProps) replace(0, fmEnd, Decoration.replace({ widget: new HiddenPropertiesWidget(), block: true }));
         else replace(0, fmEnd, Decoration.replace({ widget: new PropertiesWidget(l > 2 ? doc.sliceString(doc.line(2).from, doc.line(l - 1).to) : '', lang, !state.readOnly), block: true }));
         break;
       }

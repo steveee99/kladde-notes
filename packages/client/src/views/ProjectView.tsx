@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { PRIORITIES, cleanProjectKey, rankBetween, roadmapOffset, roadmapWeeks, splitPath, type Priority } from '@kladde/shared';
+import { useState } from 'react';
+import { PRIORITIES, TICKET_KINDS, PARENT_KINDS, cleanProjectKey, rankBetween, roadmapOffset, roadmapWeeks, type Priority, type TicketKind } from '@kladde/shared';
 import { vault, useVault } from '../data/vault';
 import {
   assignees,
@@ -13,6 +13,7 @@ import {
   updateTicket,
   allowedStatusesOf,
   canMoveTo,
+  parentCandidates,
   type MilestoneInfo,
   type ProjectInfo,
   type TicketInfo,
@@ -21,7 +22,8 @@ import {
 import { useReadOnly } from '../lib/readOnly';
 import { navigate } from '../lib/router';
 import { compareText, locale, t, useLang, type I18nKey } from '../lib/i18n';
-import { AlertTriangle, Ban, DragIndicator, FileText, Flag, Kanban, Plus, PriorityHigh, PriorityLow, PriorityMedium, Settings, TableRows, Ticket, ViewTimeline } from '../lib/icons';
+import { AlertTriangle, Ban, BugReport, CheckSquare, DragIndicator, FileText, Flag, Kanban, Plus, PriorityHigh, PriorityLow, PriorityMedium, Settings, Stars, SubdirectoryArrowRight, TableRows, Ticket, ViewTimeline, X, Zap } from '../lib/icons';
+import { NoteSearchField } from './NoteSearchField';
 import { Sheet } from './Dialogs';
 import { Dropdown, type DropdownOption } from './Dropdown';
 import { Avatar } from './Avatar';
@@ -43,6 +45,28 @@ export function PriorityIcon({ p, size = 16 }: { p: Priority | null; size?: numb
     </span>
   );
 }
+
+export const kindLabel = (k: TicketKind) => t(`tickets.kind.${k}` as I18nKey);
+
+const KIND_ICON: Record<TicketKind, { Icon: typeof Zap; tone: string }> = {
+  epic: { Icon: Zap, tone: 'text-violet' },
+  feature: { Icon: Stars, tone: 'text-green' },
+  task: { Icon: CheckSquare, tone: 'text-acc' },
+  bug: { Icon: BugReport, tone: 'text-red' },
+  subtask: { Icon: SubdirectoryArrowRight, tone: 'text-muted' },
+};
+
+/** Ticket type as an icon in its color (epic violet, feature green, task accent, bug red, subtask muted) */
+export function KindIcon({ kind, size = 16, className = '' }: { kind: TicketKind; size?: number; className?: string }) {
+  const { Icon, tone } = KIND_ICON[kind];
+  return (
+    <span className={`inline-flex shrink-0 ${tone} ${className}`} title={kindLabel(kind)} aria-label={kindLabel(kind)} role="img">
+      <Icon size={size} />
+    </span>
+  );
+}
+
+export const kindOptions = (kinds: readonly TicketKind[] = TICKET_KINDS): DropdownOption[] => kinds.map((k) => ({ value: k, label: kindLabel(k) }));
 
 /** Colors of a status category: open neutral, active in the accent, done green */
 export const categoryClass = (c: TicketInfo['category']) => (c === 'done' ? 'bg-green-bg text-green' : c === 'active' ? 'bg-acc-bg text-acc-hi' : 'bg-raised text-soft');
@@ -96,15 +120,21 @@ function TicketCard({ tk, canEdit }: { tk: TicketInfo; canEdit: boolean }) {
       data-ticket={tk.meta.id ?? ''}
       data-ticket-note={tk.note.id}
     >
+      {tk.parent && <div className="truncate text-label-m text-muted">{ticketLabel(tk.parent)} · {tk.parent.title}</div>}
       <div className="flex items-start gap-1.5 font-medium leading-snug text-text">
-        {blocked && <Ban size={16} className="mt-0.5 shrink-0 text-red" />}
+        {blocked ? <Ban size={16} className="mt-0.5 shrink-0 text-red" /> : <KindIcon kind={tk.meta.kind} className="mt-0.5" />}
         <span className="min-w-0 break-words">{tk.title}</span>
       </div>
-      {tk.progress.total > 0 && <Progress done={tk.progress.done} total={tk.progress.total} />}
+      {tk.rollup.total > 0 ? <Progress done={tk.rollup.done} total={tk.rollup.total} /> : tk.progress.total > 0 && <Progress done={tk.progress.done} total={tk.progress.total} />}
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-label-m text-muted">{ticketLabel(tk)}</span>
         <PriorityIcon p={tk.meta.priority} />
         {tk.meta.labels[0] && <span className="pill bg-raised text-soft">{tk.meta.labels[0]}</span>}
+        {tk.rollup.total > 0 && (
+          <span className="inline-flex items-center gap-0.5 text-label-m tabular-nums text-muted" title={t('tickets.children', { done: tk.rollup.done, total: tk.rollup.total })}>
+            <SubdirectoryArrowRight size={14} /> {t('tickets.childrenShort', { done: tk.rollup.done, total: tk.rollup.total })}
+          </span>
+        )}
         <span className="flex-1" />
         <DocsBadge tk={tk} />
         {tk.meta.assignee && <Avatar name={tk.meta.assignee} size="xs" />}
@@ -271,9 +301,13 @@ function BacklogTab({ tickets, milestones, canEdit }: { tickets: TicketInfo[]; m
                   <td className="pl-2 text-faint">{canEdit && <DragIndicator size={16} className="cursor-grab" />}</td>
                   <td className="whitespace-nowrap px-2 py-1.5 font-mono text-label-m text-muted">{ticketLabel(tk)}</td>
                   <td className="px-2 py-1.5">
-                    <button className="text-left font-medium hover:underline" onClick={() => navigate(`/n/${tk.note.id}`)}>
-                      {tk.title}
-                    </button>
+                    <span className={`inline-flex items-start gap-1.5 ${tk.meta.kind === 'subtask' ? 'pl-4' : ''}`}>
+                      <KindIcon kind={tk.meta.kind} className="mt-0.5" />
+                      <button className="text-left font-medium hover:underline" onClick={() => navigate(`/n/${tk.note.id}`)}>
+                        {tk.title}
+                      </button>
+                    </span>
+                    {tk.parent && <span className="ml-2 font-mono text-label-m text-muted" title={tk.parent.title}>↑ {ticketLabel(tk.parent)}</span>}
                     {tk.meta.provisional && <span className="pill ml-2 bg-raised text-soft">{t('tickets.notSynced')}</span>}
                   </td>
                   <td className="px-2 py-1">
@@ -400,7 +434,7 @@ function RoadmapTab({ milestones, tickets, onNewMilestone, canEdit }: { mileston
 const isoToday = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 /** A new ticket; without `project` the sheet asks for one (the "Projects" page) */
-export function NewTicketSheet({ project: fixed, onClose, milestone: presetMilestone }: { project?: ProjectInfo; onClose: () => void; milestone?: string }) {
+export function NewTicketSheet({ project: fixed, onClose, milestone: presetMilestone, parent: presetParent, kind: presetKind }: { project?: ProjectInfo; onClose: () => void; milestone?: string; parent?: TicketInfo; kind?: TicketKind }) {
   useVault();
   const writable = allProjects().filter((p) => p.canWrite);
   const [projectId, setProjectId] = useState(fixed?.id ?? writable[0]?.id ?? '');
@@ -408,9 +442,11 @@ export function NewTicketSheet({ project: fixed, onClose, milestone: presetMiles
   const [title, setTitle] = useState('');
   const [status, setStatus] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
-  const [milestone, setMilestone] = useState(presetMilestone ?? '');
+  const [milestone, setMilestone] = useState(presetMilestone ?? presetParent?.milestone?.note.id ?? '');
   const [assignee, setAssignee] = useState(vault.actorName);
-  const [doc, setDoc] = useState('');
+  const [kind, setKind] = useState<TicketKind>(presetKind ?? 'task');
+  const [parentId, setParentId] = useState(presetParent?.note.id ?? '');
+  const [docs, setDocs] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   if (!project) {
@@ -421,6 +457,8 @@ export function NewTicketSheet({ project: fixed, onClose, milestone: presetMiles
     );
   }
   const milestones = milestonesOf(project);
+  const parents = parentCandidates(project, kind);
+  const parent = parents.find((p) => p.note.id === parentId) ?? null;
   const save = async () => {
     if (busy || !title.trim()) return;
     setBusy(true);
@@ -433,7 +471,9 @@ export function NewTicketSheet({ project: fixed, onClose, milestone: presetMiles
         priority,
         milestone: m ? (m.meta.id ?? m.title) : null,
         assignee: assignee || null,
-        docs: doc.trim() ? [doc.trim()] : [],
+        kind,
+        parent: parent?.meta.id ?? null,
+        docs,
       });
       onClose();
       navigate(`/n/${note.id}`);
@@ -460,13 +500,33 @@ export function NewTicketSheet({ project: fixed, onClose, milestone: presetMiles
         )}
         <input className="input" autoFocus aria-label={t('tickets.colTitle')} placeholder={t('tickets.titlePlaceholder')} value={title} onChange={(e) => setTitle(e.target.value)} data-new-ticket-title />
         <div className="grid grid-cols-2 gap-2">
+          <Dropdown aria-label={t('tickets.kind')} leadingIcon={<KindIcon kind={kind} />} value={kind} options={kindOptions()} onChange={(k) => setKind(k as TicketKind)} />
+          <Dropdown
+            aria-label={t('tickets.parent')}
+            value={parent?.note.id ?? ''}
+            disabled={!PARENT_KINDS[kind].length}
+            options={[{ value: '', label: t('tickets.noParent') }, ...parents.map((p) => ({ value: p.note.id, label: `${p.meta.id} · ${p.title}` }))]}
+            onChange={setParentId}
+          />
           <Dropdown aria-label={t('tickets.colStatus')} value={status || project.config.workflow[0]} options={project.config.workflow.map((s) => ({ value: s, label: s }))} onChange={setStatus} />
           <Dropdown aria-label={t('tickets.colPriority')} value={priority} options={PRIORITIES.map((p) => ({ value: p, label: priorityLabel(p) }))} onChange={(v) => setPriority(v as Priority)} />
           <Dropdown aria-label={t('tickets.milestone')} value={milestone} options={[{ value: '', label: t('tickets.noMilestone') }, ...milestones.map((m) => ({ value: m.note.id, label: m.title }))]} onChange={setMilestone} />
           <Dropdown aria-label={t('tickets.colAssignee')} value={assignee} options={[{ value: '', label: t('tickets.unassigned') }, ...assignees(project).map((a) => ({ value: a, label: a }))]} onChange={setAssignee} />
         </div>
-        <input className="input" list="ticket-doc-targets" aria-label={t('tickets.docLink')} placeholder={t('tickets.docLinkPlaceholder')} value={doc} onChange={(e) => setDoc(e.target.value)} />
-        <DocTargets />
+        {kind === 'subtask' && !parent && <p className="text-body-s text-amber">{t('tickets.parentNeeded')}</p>}
+        {docs.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {docs.map((d) => (
+              <span key={d} className="inline-flex items-center gap-1 pill bg-raised text-soft">
+                <FileText size={12} /> {d}
+                <button type="button" aria-label={t('tickets.removeLink', { title: d })} onClick={() => setDocs(docs.filter((x) => x !== d))}>
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <NoteSearchField label={t('tickets.docLink')} placeholder={t('tickets.docLinkPlaceholder')} onPick={(d) => setDocs((all) => (all.some((x) => x.toLowerCase() === d.toLowerCase()) ? all : [...all, d]))} />
         <p className="text-body-s text-muted">{t('tickets.numberHint')}</p>
         {error && <p className="text-sm text-red">{error}</p>}
         <div className="flex justify-end gap-2">
@@ -479,18 +539,6 @@ export function NewTicketSheet({ project: fixed, onClose, milestone: presetMiles
         </div>
       </form>
     </Sheet>
-  );
-}
-
-/** Titles of notes for the documentation field */
-export function DocTargets() {
-  const titles = useMemo(() => [...new Set(vault.list().filter((n) => !n.path.startsWith('.')).map((n) => splitPath(n.path).name))].sort((a, b) => compareText(a, b)), []);
-  return (
-    <datalist id="ticket-doc-targets">
-      {titles.map((n) => (
-        <option key={n} value={n} />
-      ))}
-    </datalist>
   );
 }
 
@@ -643,6 +691,7 @@ export function ProjectView({ project }: { project: ProjectInfo }) {
   const [milestoneFilter, setMilestoneFilter] = useState('');
   const [assigneeFilter, setAssigneeFilter] = useState('');
   const [labelFilter, setLabelFilter] = useState('');
+  const [kindFilter, setKindFilter] = useState('');
   const [sheet, setSheet] = useState<'ticket' | 'milestone' | 'settings' | null>(null);
   const all = ticketsOf(project);
   const milestones = milestonesOf(project);
@@ -653,8 +702,10 @@ export function ProjectView({ project }: { project: ProjectInfo }) {
     (tk) =>
       (!milestoneFilter || (milestoneFilter === '-' ? !tk.milestone : tk.milestone?.note.id === milestoneFilter)) &&
       (!assigneeFilter || (assigneeFilter === '-' ? !tk.meta.assignee : tk.meta.assignee?.toLowerCase() === assigneeFilter.toLowerCase())) &&
-      (!labelFilter || tk.meta.labels.includes(labelFilter))
+      (!labelFilter || tk.meta.labels.includes(labelFilter)) &&
+      (!kindFilter || tk.meta.kind === kindFilter)
   );
+  const kinds = TICKET_KINDS.filter((k) => all.some((tk) => tk.meta.kind === k));
   const choose = (next: Tab) => {
     setTab(next);
     try {
@@ -714,6 +765,7 @@ export function ProjectView({ project }: { project: ProjectInfo }) {
             options={[{ value: '', label: t('tickets.everyone') }, ...(vault.actorName ? [{ value: vault.actorName, label: t('tickets.me') }] : []), ...people.filter((p) => p !== vault.actorName).map((p) => ({ value: p, label: p })), { value: '-', label: t('tickets.unassigned') }]}
             onChange={setAssigneeFilter}
           />
+          {kinds.length > 1 && <Dropdown variant="chip" aria-label={t('tickets.kind')} value={kindFilter} options={[{ value: '', label: t('tickets.allKinds') }, ...kindOptions(kinds)]} onChange={setKindFilter} />}
           {labels.length > 0 && <Dropdown variant="chip" aria-label={t('tickets.labels')} value={labelFilter} options={[{ value: '', label: t('tickets.allLabels') }, ...labels.map((l) => ({ value: l, label: l }))]} onChange={setLabelFilter} />}
         </div>
       )}

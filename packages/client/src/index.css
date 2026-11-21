@@ -244,6 +244,24 @@ input[type='range'],
 progress {
   accent-color: rgb(var(--acc));
 }
+/*
+ * iOS Safari gives date and time inputs a fixed intrinsic width that ignores their column, so two of them side by
+ * side overlap on an iPad; without the native appearance they shrink to the column like any input.
+ */
+@supports (-webkit-touch-callout: none) {
+  input[type='date'],
+  input[type='time'],
+  input[type='datetime-local'] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+    max-width: 100%;
+  }
+  input[type='date']::-webkit-date-and-time-value,
+  input[type='time']::-webkit-date-and-time-value {
+    text-align: left;
+  }
+}
 ::selection {
   background: rgb(var(--selection));
 }

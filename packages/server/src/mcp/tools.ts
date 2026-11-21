@@ -59,6 +59,11 @@ import {
   allowedStatuses,
   canTransition,
   MILESTONE_FOLDER,
+  PARENT_KINDS,
+  TICKET_KINDS,
+  canHaveParent,
+  ticketKindOf,
+  type TicketKind,
   type Priority,
   type ProjectConfig,
 } from '@kladde/shared';
@@ -485,6 +490,8 @@ function ticketSummary(n: SpaceNote, project: ToolProject) {
     note_id: n.id,
     title: extractMeta(n.path, n.content).title,
     path: n.path,
+    kind: m.kind,
+    parent: m.parent,
     status: m.status,
     category: statusCategory(project.config, m.status),
     priority: m.priority,
@@ -533,7 +540,29 @@ function priorityArg(args: Record<string, unknown>): Priority | undefined {
   return p as Priority;
 }
 
+function kindArg(args: Record<string, unknown>): TicketKind | undefined {
+  const k = str(args, 'kind');
+  if (k === undefined) return undefined;
+  if (!(TICKET_KINDS as readonly string[]).includes(k.trim().toLowerCase())) throw new ToolError(`Typ muss ${TICKET_KINDS.join(', ')} sein.`);
+  return ticketKindOf(k);
+}
+
+/** The id of the parent ticket in the same project, checked against the type hierarchy; null removes the parent */
+function parentArg(ctx: ToolContext, project: ToolProject, kind: TicketKind, ref: string | undefined, self?: string): string | null {
+  if (!ref?.trim()) return null;
+  if (!PARENT_KINDS[kind].length) throw new ToolError(`Ein ${kind} hat kein übergeordnetes Ticket.`);
+  const found = findTicket(ctx, ref);
+  if (found.project.folder !== project.folder) throw new ToolError('Das übergeordnete Ticket muss im selben Projekt liegen.');
+  const meta = ticketMeta(found.note.content);
+  if (found.note.id === self) throw new ToolError('Ein Ticket kann nicht unter sich selbst hängen.');
+  if (!meta.id || meta.provisional) throw new ToolError('Das übergeordnete Ticket hat noch keine Nummer.');
+  if (!canHaveParent(kind, meta.kind)) throw new ToolError(`Ein ${kind} kann nicht unter einem ${meta.kind} hängen. Erlaubt: ${PARENT_KINDS[kind].join(', ')}.`);
+  return meta.id;
+}
+
 const ticketFieldsSchema: Record<string, JsonSchema> = {
+  kind: { type: 'string', enum: [...TICKET_KINDS], description: 'Ticket type: epic (large goal) > feature (user-visible capability) > task or bug > subtask. Default task' },
+  parent: { type: 'string', description: 'Id of the parent ticket (e.g. KLD-12): a feature below an epic, a task or bug below a feature or epic, a subtask below a task, bug or feature. Empty string removes it' },
   status: { type: 'string', description: 'A status of the project workflow (see list_projects)' },
   priority: { type: 'string', enum: [...PRIORITIES] },
   milestone: { type: 'string', description: 'Title or id of a milestone of the project' },
@@ -1157,7 +1186,7 @@ export const TOOLS: ToolDef[] = [
     name: 'list_tickets',
     title: 'Tickets auflisten',
     description:
-      'Lists tickets, optionally of one project (key like "KLD" or its folder), with a status, milestone or assignee. `open_only` leaves out finished tickets. Each ticket has its id (e.g. KLD-118), status and its category (open/active/done), priority, milestone, assignee, estimate, labels and linked documentation.',
+      'Lists tickets, optionally of one project (key like "KLD" or its folder), with a status, milestone or assignee. `open_only` leaves out finished tickets. `kind` limits to one ticket type, `parent` to the tickets below one ticket. Each ticket has its id (e.g. KLD-118), its type (`kind`: epic, feature, task, bug, subtask) and `parent`, status and its category (open/active/done), priority, milestone, assignee, estimate, labels and linked documentation.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1165,6 +1194,8 @@ export const TOOLS: ToolDef[] = [
         status: { type: 'string' },
         milestone: { type: 'string' },
         assignee: { type: 'string', description: 'Username; "me" for the user' },
+        kind: { type: 'string', enum: [...TICKET_KINDS] },
+        parent: { type: 'string', description: 'Id of a parent ticket (e.g. KLD-12)' },
         open_only: { type: 'boolean', default: false },
       },
     },
@@ -1178,10 +1209,12 @@ export const TOOLS: ToolDef[] = [
       const milestone = str(args, 'milestone')?.toLowerCase();
       let assignee = str(args, 'assignee')?.replace(/^@/, '').toLowerCase();
       if (assignee === 'me') assignee = ctx.notes.usernameOf(ctx.userId)?.toLowerCase();
+      const kind = str(args, 'kind')?.toLowerCase();
+      const parent = str(args, 'parent')?.toLowerCase();
       return chosen.flatMap((p) =>
         ticketsIn(notes, p)
           .map((n) => ticketSummary(n, p))
-          .filter((t) => (!status || t.status.toLowerCase() === status) && (!milestone || t.milestone?.toLowerCase() === milestone) && (!assignee || t.assignee?.toLowerCase() === assignee) && (args.open_only !== true || t.category !== 'done'))
+          .filter((t) => (!status || t.status.toLowerCase() === status) && (!milestone || t.milestone?.toLowerCase() === milestone) && (!assignee || t.assignee?.toLowerCase() === assignee) && (!kind || t.kind === kind) && (!parent || t.parent?.toLowerCase() === parent) && (args.open_only !== true || t.category !== 'done'))
           .map((t) => ({ ...t, project: p.config.key }))
       );
     },
@@ -1190,7 +1223,7 @@ export const TOOLS: ToolDef[] = [
     name: 'ticket_create',
     title: 'Ticket anlegen',
     description:
-      'Creates a ticket in a project (key like "KLD" or its folder). The server gives it the next number (e.g. KLD-119), returned as `ticket`. The description is Markdown; sub-tasks as "- [ ] text". Status defaults to the first of the workflow, priority to medium.',
+      'Creates a ticket in a project (key like "KLD" or its folder), by default a task; `kind` and `parent` build the hierarchy epic > feature > task/bug > subtask. The server gives it the next number (e.g. KLD-119), returned as `ticket`. The description is Markdown; sub-tasks as "- [ ] text". Status defaults to the first of the workflow, priority to medium.',
     inputSchema: {
       type: 'object',
       properties: { project: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' }, ...ticketFieldsSchema },
@@ -1203,8 +1236,11 @@ export const TOOLS: ToolDef[] = [
       const title = str(args, 'title', true)!.trim().slice(0, 200);
       const estimate = args.estimate === undefined || args.estimate === null ? null : Number(args.estimate);
       if (estimate !== null && !Number.isFinite(estimate)) throw new ToolError('Parameter "estimate" muss eine Zahl sein.');
+      const kind = kindArg(args) ?? 'task';
       const content = newTicketContent({
         key: project.config.key,
+        kind,
+        parent: parentArg(ctx, project, kind, str(args, 'parent')),
         status: projectStatus(project, str(args, 'status')) ?? project.config.workflow[0],
         priority: priorityArg(args),
         milestone: str(args, 'milestone') ?? null,
@@ -1223,7 +1259,7 @@ export const TOOLS: ToolDef[] = [
     name: 'ticket_update',
     title: 'Ticket ändern',
     description:
-      'Changes fields of a ticket by its id (e.g. KLD-118): status, priority, milestone, assignee, estimate, labels, docs, blocks (ids of tickets this one blocks). Only the given fields change; an empty string or list removes a field. `comment` appends a line to the description. Use update_note to rewrite the description.',
+      'Changes fields of a ticket by its id (e.g. KLD-118): kind, parent, status, priority, milestone, assignee, estimate, labels, docs, blocks (ids of tickets this one blocks). Only the given fields change; an empty string or list removes a field. `comment` appends a line to the description. Use update_note to rewrite the description.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1246,6 +1282,11 @@ export const TOOLS: ToolDef[] = [
           throw new ToolError(`Der Workflow erlaubt nicht „${current}“ → „${fields.status}“. Von „${current}“ geht es nur nach: ${allowed.join(', ') || '(keinem anderen Status)'}.`);
         }
       }
+      const current = ticketMeta(note.content);
+      const kind = 'kind' in args ? (kindArg(args) ?? 'task') : current.kind;
+      if ('kind' in args) fields.kind = kind;
+      if ('parent' in args) fields.parent = parentArg(ctx, project, kind, str(args, 'parent'), note.id);
+      else if ('kind' in args && current.parent && !PARENT_KINDS[kind].length) fields.parent = null;
       if ('priority' in args) fields.priority = priorityArg(args) ?? null;
       if ('milestone' in args) fields.milestone = str(args, 'milestone') ?? null;
       if ('assignee' in args) fields.assignee = str(args, 'assignee')?.replace(/^@/, '') || null;

@@ -105,7 +105,7 @@ import { HistoryDialog } from './History';
 import { ParaBar } from './ParaBar';
 import { MemoryPanel } from './MemoryPanel';
 import { TicketBacklinks, TicketPanel } from './TicketPanel';
-import { ticketsDocumentedIn, type TicketInfo } from '../data/tickets';
+import { milestoneOfNote, ticketOfNote, ticketsDocumentedIn, type TicketInfo } from '../data/tickets';
 import { Graph, GraphLegend } from './Graph';
 import { Sheet } from './Dialogs';
 import { Avatar } from './Avatar';
@@ -1402,6 +1402,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const inMemory = vault.isMemoryNote(note);
   // Tickets that document their work here get their own section instead of plain backlinks
   const ticketLinks = ticketsDocumentedIn(id);
+  // Tickets and milestones show their fields in the panel above the text, so the frontmatter row stays hidden
+  const hideProperties = !focus && (!!ticketOfNote(id) || !!milestoneOfNote(id));
   const ticketIds = new Set(ticketLinks.map((tk) => tk.note.id));
   const backlinks = (inMemory ? allBacklinks : allBacklinks.filter((b) => !vault.isMemoryNote(b))).filter((b) => !ticketIds.has(b.id));
   const memoryBacklinks = inMemory ? [] : allBacklinks.filter((b) => vault.isMemoryNote(b));
@@ -1725,6 +1727,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               onActivity={features.writingStats.enabled ? onEditorActivity : undefined}
               slideBreaks={features.presentation.enabled ? t('present.slideBreak') : ''}
               callouts={features.callouts.enabled}
+              hideProperties={hideProperties}
             />
             </div>
           )}

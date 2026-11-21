@@ -162,3 +162,47 @@ test('workflow: enforced order, a rule from a template and a GitLab webhook that
   await expect.poll(async () => (await serverNote(page.request, ticketId))?.content ?? '').toContain('status: Done');
   expect((await serverNote(page.request, ticketId))?.content).toContain('Merged: https://git.example/mr/7');
 });
+
+test('ticket types: an epic with a feature below it, doc search and hidden frontmatter', async ({ page }) => {
+  await enableFeature(page, 'tickets');
+  const folder = `Types ${uid()}`;
+  const key = `K${letters()}`;
+  await seed(page.request, [{ path: `${folder}/Architecture overview.md`, content: 'How sync works' }]);
+  await page.goto(`/f/${encodeURIComponent(folder)}`);
+  await page.locator('[data-make-project]').click();
+  await page.locator('[data-project-key]').fill(key);
+  await page.getByRole('button', { name: 'Create project' }).click();
+  const project = page.locator(`[data-project="${key}"]`);
+
+  // An epic
+  await project.locator('[data-new-ticket]').click();
+  await page.locator('[data-new-ticket-title]').fill('Offline first');
+  await choose(page, page.getByRole('dialog'), 'Type', 'Epic');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await page.waitForURL(/\/n\/[0-9a-f]+/);
+  const epicId = /\/n\/([0-9a-f]+)/.exec(page.url())![1];
+  await expect(page.locator('[data-ticket-id]')).toHaveText(`${key}-1`, { timeout: 15_000 });
+  // The panel shows the fields, the frontmatter row above the text stays hidden
+  await expect(page.locator('.wz-props')).toHaveCount(0);
+  await expect(page.locator('.wz-props-hidden')).toHaveCount(1);
+
+  // A feature below it, from the epic's children section
+  await page.locator('[data-new-child="feature"]').click();
+  await page.locator('[data-new-ticket-title]').fill('Sync status');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await page.waitForURL((u) => !u.pathname.endsWith(epicId));
+  const featureId = /\/n\/([0-9a-f]+)/.exec(page.url())![1];
+  await expect.poll(async () => (await serverNote(page.request, featureId))?.content ?? '').toMatch(/kind: feature[\s\S]*parent: "\[\[\w+-1\]\]"/);
+  await expect(page.locator('[data-ticket-ancestors]')).toContainText('Offline first');
+
+  // Documentation by search: a word from the title finds the note
+  const panel = page.locator('[data-ticket-panel]');
+  await panel.getByRole('combobox', { name: 'Link documentation' }).fill('architec');
+  await page.getByRole('option', { name: /Architecture overview/ }).click();
+  await expect.poll(async () => (await serverNote(page.request, featureId))?.content ?? '').toContain('docs: ["[[Architecture overview]]"]');
+
+  // The epic lists the feature with the progress over its children
+  await page.goto(`/n/${epicId}`);
+  await expect(page.locator('[data-ticket-children]')).toContainText('Sync status');
+  await expect(page.locator('[data-ticket-children]')).toContainText('0/1');
+});

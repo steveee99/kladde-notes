@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   assignTicketNumber,
+  canHaveParent,
+  childKindsOf,
   cleanProjectKey,
   isMilestoneContent,
   isTicketContent,
@@ -20,6 +22,7 @@ import {
   statusCategory,
   subtaskProgress,
   ticketIdPattern,
+  ticketKindOf,
   ticketMeta,
   writeProject,
 } from '../src/index.js';
@@ -30,7 +33,7 @@ describe('projects', () => {
     const project = parseProject(content)!;
     expect(project).toEqual({ key: 'KLD', workflow: ['Offen', 'In Arbeit', 'Review', 'Erledigt'], active: ['In Arbeit', 'Review'], done: ['Erledigt'], requireDocs: false, transitions: null, automations: [] });
     const db = parseDatabase(content)!;
-    expect(db.properties.map((p) => p.name)).toEqual(['status', 'priority', 'milestone', 'assignee', 'estimate', 'labels']);
+    expect(db.properties.map((p) => p.name)).toEqual(['kind', 'parent', 'status', 'priority', 'milestone', 'assignee', 'estimate', 'labels']);
     expect(db.views.map((v) => v.type)).toEqual(['board', 'table']);
     expect(db.views[0].group).toBe('status');
   });
@@ -51,7 +54,7 @@ describe('projects', () => {
     const content = newProjectContent('KLD', 'en');
     const next = writeProject(content, { ...parseProject(content)!, key: 'NEW', requireDocs: true });
     expect(parseProject(next)).toMatchObject({ key: 'NEW', requireDocs: true, done: ['Done'] });
-    expect(parseDatabase(next)!.properties).toHaveLength(6);
+    expect(parseDatabase(next)!.properties).toHaveLength(8);
   });
 
   it('suggests keys from names', () => {
@@ -133,6 +136,40 @@ describe('tickets', () => {
     expect(rankBetween(null, 1000)).toBe(0);
     expect(rankBetween(1000, null)).toBe(2000);
     expect(rankBetween(1000, 2000)).toBe(1500);
+  });
+});
+
+describe('ticket kinds', () => {
+  it('reads the kind and the parent, tasks by default', () => {
+    expect(ticketMeta('---\ntype: ticket\nid: KLD-1\n---\n').kind).toBe('task');
+    const m = ticketMeta('---\ntype: ticket\nid: KLD-2\nkind: Epic\nparent: "[[KLD-1]]"\n---\n');
+    expect(m.kind).toBe('epic');
+    expect(m.parent).toBe('KLD-1');
+    expect(ticketKindOf('Story')).toBe('feature');
+    expect(ticketKindOf('Unteraufgabe')).toBe('subtask');
+    expect(ticketKindOf('sub-task')).toBe('subtask');
+    expect(ticketKindOf('Fehler')).toBe('bug');
+    expect(ticketKindOf('whatever')).toBe('task');
+  });
+
+  it('writes kind and parent into new tickets and changes them', () => {
+    const content = newTicketContent({ key: 'KLD', status: 'Offen', kind: 'subtask', parent: 'KLD-7' });
+    expect(content).toContain('kind: subtask');
+    expect(content).toContain('parent: "[[KLD-7]]"');
+    const meta = ticketMeta(setTicketFields(content, { kind: 'bug', parent: null }));
+    expect(meta.kind).toBe('bug');
+    expect(meta.parent).toBeNull();
+    expect(newTicketContent({ key: 'KLD', status: 'Offen' })).toContain('kind: task');
+  });
+
+  it('knows which kind may hang below which', () => {
+    expect(canHaveParent('feature', 'epic')).toBe(true);
+    expect(canHaveParent('subtask', 'task')).toBe(true);
+    expect(canHaveParent('epic', 'feature')).toBe(false);
+    expect(canHaveParent('task', 'subtask')).toBe(false);
+    expect(childKindsOf('epic')).toEqual(['feature', 'task', 'bug']);
+    expect(childKindsOf('feature')[0]).toBe('task');
+    expect(childKindsOf('subtask')).toEqual([]);
   });
 });
 

@@ -27,6 +27,8 @@ import {
   writeProject,
   canWriteInGroup,
   allowedStatuses,
+  canHaveParent,
+  type TicketKind,
   type TicketHook,
   type TicketHookProvider,
   type MilestoneMeta,
@@ -68,6 +70,12 @@ export interface TicketInfo {
   blockedBy: TicketInfo[];
   /** Tickets this one blocks */
   blocking: TicketInfo[];
+  /** The ticket this one hangs below (field `parent`, same project) */
+  parent: TicketInfo | null;
+  /** Tickets below this one, backlog order */
+  children: TicketInfo[];
+  /** Finished and all tickets below this one, at every level */
+  rollup: { done: number; total: number };
   /** Ids of the documentation notes (field `docs` and [[links]] in the text to notes that are no tickets) */
   docIds: string[];
   /** The project asks for documentation, and this started or finished ticket has none */
@@ -159,6 +167,9 @@ function build(): Index {
           progress: memo.progress,
           blockedBy: [],
           blocking: [],
+          parent: null,
+          children: [],
+          rollup: { done: 0, total: 0 },
           docIds: [],
           docsMissing: false,
           milestone: null,
@@ -193,6 +204,13 @@ function build(): Index {
       tk.milestone = milestones.find((m) => m.project === tk.project && (m.title.toLowerCase() === target || m.meta.id?.toLowerCase() === target)) ?? null;
       tk.milestone?.tickets.push(tk);
     }
+    if (tk.meta.parent) {
+      const parent = ticketIn(tk.project, tk.meta.parent);
+      if (parent && parent !== tk) {
+        tk.parent = parent;
+        parent.children.push(tk);
+      }
+    }
     for (const b of tk.meta.blocks) {
       const blocked = ticketIn(tk.project, b);
       if (!blocked || blocked === tk) continue;
@@ -211,6 +229,22 @@ function build(): Index {
     }
     tk.docIds = [...docs];
     tk.docsMissing = tk.project.config.requireDocs && tk.category === 'done' && docs.size === 0;
+  }
+  // Hierarchy: children in backlog order and the progress over all levels (a loop in `parent` counts each ticket once)
+  const rollupOf = (tk: TicketInfo, seen: Set<TicketInfo>): void => {
+    for (const c of tk.children) {
+      if (seen.has(c)) continue;
+      seen.add(c);
+      rollupOf(c, seen);
+    }
+  };
+  for (const tk of tickets) {
+    if (!tk.children.length) continue;
+    tk.children.sort(byRank);
+    const seen = new Set<TicketInfo>([tk]);
+    rollupOf(tk, seen);
+    seen.delete(tk);
+    tk.rollup = { done: [...seen].filter((x) => x.category === 'done').length, total: seen.size };
   }
   for (const m of milestones) {
     m.progress = milestoneProgress(m.meta, m.tickets.map((tk) => ({ category: tk.category, estimate: tk.meta.estimate })), today);
@@ -316,6 +350,29 @@ export async function saveProject(project: ProjectInfo, config: ProjectConfig, r
   await vault.updateContents(changes);
 }
 
+/** Tickets of the project a ticket of `kind` may hang below (not itself or anything below it) */
+export function parentCandidates(project: ProjectInfo, kind: TicketKind, self?: TicketInfo): TicketInfo[] {
+  const below = new Set<TicketInfo>();
+  const walk = (tk: TicketInfo) => {
+    for (const c of tk.children) {
+      if (below.has(c)) continue;
+      below.add(c);
+      walk(c);
+    }
+  };
+  if (self) walk(self);
+  return ticketsOf(project)
+    .filter((tk) => tk !== self && !below.has(tk) && canHaveParent(kind, tk.meta.kind) && !!tk.meta.id && !tk.meta.provisional)
+    .sort((a, b) => (a.category === 'done' ? 1 : 0) - (b.category === 'done' ? 1 : 0) || byRank(a, b));
+}
+
+/** The chain of parents from the top down, without the ticket itself */
+export function ancestorsOf(tk: TicketInfo): TicketInfo[] {
+  const out: TicketInfo[] = [];
+  for (let p = tk.parent; p && !out.includes(p) && p !== tk; p = p.parent) out.unshift(p);
+  return out;
+}
+
 /** Statuses a ticket can move to now (its own first in workflow order); all of them without transitions */
 export const allowedStatusesOf = (ticket: TicketInfo): string[] => allowedStatuses(ticket.project.config, ticket.meta.status);
 
@@ -331,6 +388,9 @@ export const removeTicketHook = (project: ProjectInfo, id: string) => api<Ticket
 
 export interface TicketDraft {
   title: string;
+  kind?: TicketKind;
+  /** Id of the parent ticket */
+  parent?: string | null;
   status?: string;
   priority?: Priority;
   milestone?: string | null;
@@ -348,6 +408,8 @@ export async function createTicket(project: ProjectInfo, draft: TicketDraft): Pr
   const content = newTicketContent({
     key: project.config.key,
     status: draft.status ?? project.config.workflow[0],
+    kind: draft.kind,
+    parent: draft.parent,
     priority: draft.priority,
     milestone: draft.milestone,
     assignee: draft.assignee,
