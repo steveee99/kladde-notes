@@ -4,7 +4,7 @@
  *
  *   Projekte/Kladde/_database-<uuid>.md   type: database + `project: { key: KLD, workflow: […], active: […], done: […] }`
  *   Projekte/Kladde/<ticket>.md           type: ticket, id: KLD-118, status, priority, milestone, assignee, …
- *   Projekte/Kladde/Meilensteine/<m>.md   type: milestone, id, start, due, release, goal
+ *   Projekte/Kladde/Meilensteine/<m>.md   type: milestone, id, start, due, release, goal, status, blocks, blockedBy
  *
  * Ticket numbers are counted by the server per owner (user or group) and project key: a client writes the
  * provisional id `KLD-?` and the server replaces it with the next number when the note arrives (`assignTicketNumber`).
@@ -113,8 +113,29 @@ export interface TicketMeta {
   docs: string[];
   /** Link targets of the tickets this one blocks */
   blocks: string[];
+  /** Link targets of the tickets that block this one (the other side of `blocks`, written on this ticket) */
+  blockedBy: string[];
   /** Backlog order (smaller first) */
   rank: number | null;
+}
+
+/**
+ * Status of a milestone. Without `status` in the frontmatter it follows from the tickets (`milestoneState`):
+ * planned until something started, active while work is open, done when every ticket is finished.
+ * Set by hand it wins: closing a milestone early or dropping it (cancelled).
+ */
+export const MILESTONE_STATUSES = ['planned', 'active', 'done', 'cancelled'] as const;
+export type MilestoneStatus = (typeof MILESTONE_STATUSES)[number];
+
+/** A milestone status from frontmatter text (also German names); unknown or empty → null (follow the tickets) */
+export function milestoneStatusOf(raw: string): MilestoneStatus | null {
+  const s = raw.trim().toLowerCase().replace(/[\s_-]+/g, '');
+  if ((MILESTONE_STATUSES as readonly string[]).includes(s)) return s as MilestoneStatus;
+  if (/^(geplant|offen|open|todo|plan)$/.test(s)) return 'planned';
+  if (/^(aktiv|inarbeit|inprogress|läuft|laufend|started)$/.test(s)) return 'active';
+  if (/^(abgeschlossen|erledigt|fertig|closed|finished|complete|completed|released)$/.test(s)) return 'done';
+  if (/^(verworfen|abgebrochen|abgesagt|canceled|dropped)$/.test(s)) return 'cancelled';
+  return null;
 }
 
 export interface MilestoneMeta {
@@ -123,6 +144,12 @@ export interface MilestoneMeta {
   due: string | null;
   release: string | null;
   goal: string;
+  /** Status set by hand; null follows the tickets */
+  status: MilestoneStatus | null;
+  /** Link targets of the milestones that can only start after this one */
+  blocks: string[];
+  /** Link targets of the milestones this one waits for */
+  blockedBy: string[];
 }
 
 const str = (v: YamlValue | undefined): string => (typeof v === 'string' ? v.trim() : '');
@@ -287,6 +314,7 @@ export function ticketMeta(content: string): TicketMeta {
     labels: list(get('labels')),
     docs: list(get('docs')).map((x) => linkTarget(x)).filter(Boolean),
     blocks: list(get('blocks')).map((x) => linkTarget(x)).filter(Boolean),
+    blockedBy: list(get('blockedBy') ?? get('blockedby')).map((x) => linkTarget(x)).filter(Boolean),
     rank: num(get('rank')),
   };
 }
@@ -295,11 +323,39 @@ export function ticketMeta(content: string): TicketMeta {
 export function milestoneMeta(content: string): MilestoneMeta {
   const d: YamlMap = readFrontmatterYaml(content)?.data ?? {};
   const date = (v: YamlValue | undefined) => (ISO_DATE.test(str(v)) ? str(v) : null);
-  return { id: str(d.id) || null, start: date(d.start), due: date(d.due), release: str(d.release) || null, goal: str(d.goal) };
+  const links = (v: YamlValue | undefined) => list(v).map((x) => linkTarget(x)).filter(Boolean);
+  return {
+    id: str(d.id) || null,
+    start: date(d.start),
+    due: date(d.due),
+    release: str(d.release) || null,
+    goal: str(d.goal),
+    status: milestoneStatusOf(str(d.status)),
+    blocks: links(d.blocks),
+    blockedBy: links(d.blockedBy ?? d.blockedby),
+  };
+}
+
+/** Sets milestone fields (status and dependencies), keeping all other frontmatter; null or [] removes a field */
+export function setMilestoneFields(content: string, fields: { status?: MilestoneStatus | null; blocks?: string[]; blockedBy?: string[] }): string {
+  const updates: Record<string, YamlValue | undefined> = {};
+  if ('status' in fields) updates.status = fields.status ?? undefined;
+  for (const k of ['blocks', 'blockedBy'] as const) if (k in fields) updates[k] = ticketFieldValue(k, fields[k] ?? null);
+  return setFrontmatterValues(content, updates);
+}
+
+/**
+ * The status a milestone shows: the one set by hand, otherwise from its tickets (none started: planned; all
+ * finished: done; else active).
+ */
+export function milestoneState(status: MilestoneStatus | null, tickets: { category: StatusCategory }[]): MilestoneStatus {
+  if (status) return status;
+  if (tickets.length && tickets.every((t) => t.category === 'done')) return 'done';
+  return tickets.some((t) => t.category !== 'open') ? 'active' : 'planned';
 }
 
 /** Frontmatter values to write for a ticket field; undefined removes the key */
-export function ticketFieldValue(field: 'status' | 'kind' | 'parent' | 'priority' | 'milestone' | 'assignee' | 'estimate' | 'labels' | 'docs' | 'blocks' | 'rank', value: string | number | string[] | null): YamlValue | undefined {
+export function ticketFieldValue(field: 'status' | 'kind' | 'parent' | 'priority' | 'milestone' | 'assignee' | 'estimate' | 'labels' | 'docs' | 'blocks' | 'blockedBy' | 'rank', value: string | number | string[] | null): YamlValue | undefined {
   if (value === null || value === '' || (Array.isArray(value) && !value.length)) return undefined;
   switch (field) {
     case 'milestone':
@@ -309,6 +365,7 @@ export function ticketFieldValue(field: 'status' | 'kind' | 'parent' | 'priority
       return `@${String(value).replace(/^@/, '')}`;
     case 'docs':
     case 'blocks':
+    case 'blockedBy':
       return (value as string[]).map((v) => `[[${v.replace(/^\[\[|\]\]$/g, '')}]]`);
     case 'labels':
       return value as string[];
@@ -436,7 +493,7 @@ const dayMs = 86_400_000;
 const dayOf = (iso: string) => Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
 
 /** Progress of a milestone from the categories of its tickets, with a risk hint */
-export function milestoneProgress(m: Pick<MilestoneMeta, 'start' | 'due'>, tickets: { category: StatusCategory; estimate: number | null }[], today = new Date()): MilestoneProgress {
+export function milestoneProgress(m: Pick<MilestoneMeta, 'start' | 'due'> & { status?: MilestoneStatus | null }, tickets: { category: StatusCategory; estimate: number | null }[], today = new Date()): MilestoneProgress {
   const total = tickets.length;
   const done = tickets.filter((t) => t.category === 'done').length;
   const points = tickets.reduce((s, t) => s + (t.estimate ?? 0), 0);
@@ -445,7 +502,7 @@ export function milestoneProgress(m: Pick<MilestoneMeta, 'start' | 'due'>, ticke
   const now = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
   const daysLeft = m.due ? Math.round((dayOf(m.due) - now) / dayMs) : null;
   let atRisk = false;
-  if (m.due && total && done < total) {
+  if (m.due && total && done < total && m.status !== 'done' && m.status !== 'cancelled') {
     if (daysLeft !== null && daysLeft < 0) atRisk = true;
     else if (m.start) {
       const span = dayOf(m.due) - dayOf(m.start);

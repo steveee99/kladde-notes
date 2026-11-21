@@ -177,7 +177,7 @@ describe('milestones', () => {
   it('reads their dates and release', () => {
     const c = newMilestoneContent({ id: 'v2.14', start: '2026-11-23', due: '2026-12-18', release: '2.14.0', goal: 'Tickets-MVP' });
     expect(isMilestoneContent(c)).toBe(true);
-    expect(milestoneMeta(c)).toEqual({ id: 'v2.14', start: '2026-11-23', due: '2026-12-18', release: '2.14.0', goal: 'Tickets-MVP' });
+    expect(milestoneMeta(c)).toEqual({ id: 'v2.14', start: '2026-11-23', due: '2026-12-18', release: '2.14.0', goal: 'Tickets-MVP', status: null, blocks: [], blockedBy: [] });
     expect(milestoneMeta('---\ntype: milestone\ndue: morgen\n---\n').due).toBeNull();
   });
 

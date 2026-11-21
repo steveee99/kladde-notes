@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PRIORITIES, TICKET_KINDS, PARENT_KINDS, cleanProjectKey, rankBetween, roadmapOffset, roadmapWeeks, type Priority, type TicketKind } from '@kladde/shared';
+import { PRIORITIES, TICKET_KINDS, PARENT_KINDS, cleanProjectKey, rankBetween, roadmapOffset, roadmapWeeks, type MilestoneStatus, type Priority, type TicketKind } from '@kladde/shared';
 import { vault, useVault } from '../data/vault';
 import {
   assignees,
@@ -75,6 +75,22 @@ export function StatusBadge({ tk }: { tk: TicketInfo }) {
   return (
     <span className={`pill whitespace-nowrap font-medium ${tk.blockedBy.length && tk.category !== 'done' ? 'bg-red-bg text-red' : categoryClass(tk.category)}`}>
       {tk.blockedBy.length && tk.category !== 'done' ? t('tickets.blocked') : tk.meta.status || t('tickets.noStatus')}
+    </span>
+  );
+}
+
+export const milestoneStatusLabel = (s: MilestoneStatus) => t(`tickets.milestoneStatus.${s}` as I18nKey);
+
+/** Colors of a milestone status: planned neutral, active in the accent, done green, cancelled faint */
+const milestoneClass = (s: MilestoneStatus) =>
+  s === 'done' ? 'bg-green-bg text-green' : s === 'active' ? 'bg-acc-bg text-acc-hi' : s === 'cancelled' ? 'bg-raised text-faint line-through' : 'bg-raised text-soft';
+
+/** Status of a milestone; "blocked" while a milestone it waits for is open */
+export function MilestoneStatusBadge({ m }: { m: MilestoneInfo }) {
+  const blocked = m.blockedBy.length > 0 && m.state !== 'done' && m.state !== 'cancelled';
+  return (
+    <span className={`pill whitespace-nowrap font-medium ${blocked ? 'bg-red-bg text-red' : milestoneClass(m.state)}`} title={m.meta.status ? undefined : t('tickets.milestoneStatusAuto')} data-milestone-status={m.state}>
+      {blocked ? t('tickets.blocked') : milestoneStatusLabel(m.state)}
     </span>
   );
 }
@@ -362,6 +378,30 @@ function RoadmapTab({ milestones, tickets, onNewMilestone, canEdit }: { mileston
           )}
         </div>
       ) : (
+        <>
+        <ul className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-label-m text-muted" aria-label={t('tickets.legend')} data-roadmap-legend>
+          {(['planned', 'active', 'done', 'cancelled'] as const).map((s) => (
+            <li key={s} className="inline-flex items-center gap-1.5">
+              <span
+                className={`h-3 w-5 rounded-sm ${s === 'done' ? 'border border-green/40 bg-green-bg' : s === 'active' ? 'border border-acc-line bg-acc-bg' : s === 'cancelled' ? 'border border-dashed border-line2' : 'border border-line2 bg-raised'}`}
+                aria-hidden
+              />
+              {milestoneStatusLabel(s)}
+            </li>
+          ))}
+          <li className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rotate-45 rounded-[2px] border-2 border-acc" aria-hidden /> {t('tickets.legendRelease')}
+          </li>
+          <li className="inline-flex items-center gap-1.5">
+            <span className="h-3 w-0.5 bg-acc" aria-hidden /> {t('tickets.legendToday')}
+          </li>
+          <li className="inline-flex items-center gap-1 text-amber">
+            <AlertTriangle size={12} /> {t('tickets.atRisk')}
+          </li>
+          <li className="inline-flex items-center gap-1">
+            <Ban size={12} /> {t('tickets.legendWaits')}
+          </li>
+        </ul>
         <div className="card overflow-x-auto p-0">
           <div className="grid min-w-[44rem]" style={{ gridTemplateColumns: '13rem minmax(0,1fr)' }}>
             <div className="border-b border-line px-3 py-2 text-label-m text-muted">{t('tickets.milestone')}</div>
@@ -375,22 +415,35 @@ function RoadmapTab({ milestones, tickets, onNewMilestone, canEdit }: { mileston
             {milestones.map((m) => {
               const from = roadmapOffset(m.meta.start ?? m.meta.due ?? today, start, weeks.length);
               const to = m.meta.due ? roadmapOffset(m.meta.due, start, weeks.length) + 1 / (weeks.length * 7) : Math.min(1, from + 1 / weeks.length);
-              const finished = m.progress.total > 0 && m.progress.done === m.progress.total;
-              const tone = finished ? 'border border-green/40 bg-green-bg text-green' : m.progress.done || m.tickets.some((tk) => tk.category === 'active') ? 'border border-acc-line bg-acc-bg text-acc-hi' : 'border border-line2 bg-raised text-text';
+              const finished = m.state === 'done';
+              const tone =
+                m.state === 'done'
+                  ? 'border border-green/40 bg-green-bg text-green'
+                  : m.state === 'active'
+                    ? 'border border-acc-line bg-acc-bg text-acc-hi'
+                    : m.state === 'cancelled'
+                      ? 'border border-dashed border-line2 bg-transparent text-faint'
+                      : 'border border-line2 bg-raised text-text';
               return (
                 <div key={m.note.id} className="contents">
                   <div className="flex min-h-[4.25rem] flex-col justify-center border-b border-line px-3 py-2">
                     <button className="truncate text-left font-medium hover:underline" onClick={() => navigate(`/n/${m.note.id}`)}>
                       {m.title}
                     </button>
-                    <span className="text-label-m text-muted">
+                    <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-label-m text-muted">
+                      <MilestoneStatusBadge m={m} />
                       {t('tickets.doneOf', { done: m.progress.done, total: m.progress.total })}
                       {m.progress.atRisk && (
-                        <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber">
+                        <span className="inline-flex items-center gap-0.5 text-amber">
                           <AlertTriangle size={12} /> {t('tickets.atRisk')}
                         </span>
                       )}
                     </span>
+                    {m.blockedBy.length > 0 && (
+                      <span className={`flex items-center gap-1 truncate text-label-m ${m.conflicts.length ? 'text-red' : 'text-muted'}`} title={m.conflicts.length ? t('tickets.milestoneConflict', { list: m.conflicts.map((c) => c.title).join(', ') }) : undefined}>
+                        <Ban size={12} className="shrink-0" /> {t('tickets.waitsFor', { list: m.blockedBy.map((b) => b.title).join(', ') })}
+                      </span>
+                    )}
                   </div>
                   <div
                     className="relative min-h-[4.25rem] border-b border-line"
@@ -412,7 +465,15 @@ function RoadmapTab({ milestones, tickets, onNewMilestone, canEdit }: { mileston
                       </span>
                     </button>
                     {m.meta.due && m.meta.release && (
-                      <span className="absolute top-[1.6rem] h-3.5 w-3.5 rotate-45 rounded-sm bg-warn" style={{ left: `calc(${roadmapOffset(m.meta.due, start, weeks.length) * 100}% + ${100 / (weeks.length * 7)}% - 7px)` }} title={t('tickets.releaseOn', { release: m.meta.release, date: formatDay(m.meta.due) })} />
+                      // Release date: a diamond outlined in the accent (a date, no warning; the legend explains it)
+                      <span
+                        className="absolute top-[0.95rem] z-[2] flex items-center gap-1"
+                        style={{ left: `calc(${roadmapOffset(m.meta.due, start, weeks.length) * 100}% + ${100 / (weeks.length * 7)}% - 6px)` }}
+                        title={t('tickets.releaseOn', { release: m.meta.release, date: formatDay(m.meta.due) })}
+                        data-release-marker
+                      >
+                        <span className="h-3 w-3 rotate-45 rounded-[2px] border-2 border-acc bg-bg" aria-hidden />
+                      </span>
                     )}
                   </div>
                 </div>
@@ -425,6 +486,7 @@ function RoadmapTab({ milestones, tickets, onNewMilestone, canEdit }: { mileston
             <div className="flex items-center px-3 text-label-l text-muted">{t('tickets.roadmapHint')}</div>
           </div>
         </div>
+        </>
       )}
     </div>
   );
@@ -649,7 +711,7 @@ export function MakeProjectSheet({ space, folder, onClose }: { space: TicketSpac
 
 /** The milestone that matters now: the first unfinished one by due date */
 export function currentMilestone(milestones: MilestoneInfo[]): MilestoneInfo | null {
-  return milestones.find((m) => !m.progress.total || m.progress.done < m.progress.total) ?? null;
+  return milestones.find((m) => m.state !== 'done' && m.state !== 'cancelled') ?? null;
 }
 
 export function MilestoneBanner({ m }: { m: MilestoneInfo }) {
@@ -660,6 +722,7 @@ export function MilestoneBanner({ m }: { m: MilestoneInfo }) {
       <button className="font-medium hover:underline" onClick={() => navigate(`/n/${m.note.id}`)}>
         {m.title}
       </button>
+      <MilestoneStatusBadge m={m} />
       <span className="text-body-m text-muted">
         {m.meta.start && m.meta.due ? `${formatDay(m.meta.start)} – ${formatDay(m.meta.due)}` : m.meta.due ? t('tickets.dueOn', { date: formatDay(m.meta.due) }) : ''}
         {days !== null && ` · ${days >= 0 ? t('tickets.daysLeft', { n: days }) : t('tickets.overdueDays', { n: -days })}`}

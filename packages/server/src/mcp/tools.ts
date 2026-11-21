@@ -50,6 +50,7 @@ import {
   isTicketContent,
   milestoneMeta,
   milestoneProgress,
+  milestoneState,
   newTicketContent,
   parseProject,
   PRIORITIES,
@@ -501,6 +502,7 @@ function ticketSummary(n: SpaceNote, project: ToolProject) {
     labels: m.labels,
     docs: m.docs,
     blocks: m.blocks,
+    blockedBy: m.blockedBy,
     version: n.version,
   };
 }
@@ -1259,13 +1261,14 @@ export const TOOLS: ToolDef[] = [
     name: 'ticket_update',
     title: 'Ticket ändern',
     description:
-      'Changes fields of a ticket by its id (e.g. KLD-118): kind, parent, status, priority, milestone, assignee, estimate, labels, docs, blocks (ids of tickets this one blocks). Only the given fields change; an empty string or list removes a field. `comment` appends a line to the description. Use update_note to rewrite the description.',
+      'Changes fields of a ticket by its id (e.g. KLD-118): kind, parent, status, priority, milestone, assignee, estimate, labels, docs, blocks (ids of tickets this one blocks), blockedBy (ids of tickets that block this one). Only the given fields change; an empty string or list removes a field. `comment` appends a line to the description. Use update_note to rewrite the description.',
     inputSchema: {
       type: 'object',
       properties: {
         ticket: { type: 'string', description: 'Ticket id like KLD-118 (or the note id)' },
         ...ticketFieldsSchema,
         blocks: { type: 'array', items: { type: 'string' } },
+        blockedBy: { type: 'array', items: { type: 'string' } },
         comment: { type: 'string', description: 'Markdown appended to the ticket' },
       },
       required: ['ticket'],
@@ -1295,7 +1298,7 @@ export const TOOLS: ToolDef[] = [
         if (e !== null && !Number.isFinite(e)) throw new ToolError('Parameter "estimate" muss eine Zahl sein.');
         fields.estimate = e;
       }
-      for (const key of ['labels', 'docs', 'blocks'] as const) if (key in args) fields[key] = strList(args, key) ?? [];
+      for (const key of ['labels', 'docs', 'blocks', 'blockedBy'] as const) if (key in args) fields[key] = strList(args, key) ?? [];
       let content = setTicketFields(note.content, fields);
       const comment = str(args, 'comment')?.trim();
       if (comment) content = `${content.replace(/\s+$/, '')}\n\n${comment}\n`;
@@ -1307,7 +1310,7 @@ export const TOOLS: ToolDef[] = [
     name: 'milestone_status',
     title: 'Meilenstein-Stand',
     description:
-      'Progress of a milestone by its title or id: finished and open tickets, story points, days left and whether it is at risk (time elapsed clearly ahead of progress, or overdue).',
+      'Progress of a milestone by its title or id: its status (`status` set by hand or null, `state` as shown: planned, active, done, cancelled), the milestones it waits for (`blockedBy`) and blocks, finished and open tickets, story points, days left and whether it is at risk (time elapsed clearly ahead of progress, or overdue).',
     inputSchema: { type: 'object', properties: { milestone: { type: 'string' }, project: { type: 'string' } }, required: ['milestone'] },
     write: false,
     run(args, ctx) {
@@ -1324,7 +1327,7 @@ export const TOOLS: ToolDef[] = [
             .map((n) => ticketSummary(n, p))
             .filter((t) => t.milestone && (t.milestone.toLowerCase() === title.toLowerCase() || (!!meta.id && t.milestone.toLowerCase() === meta.id.toLowerCase())));
           const progress = milestoneProgress(meta, tickets, ctx.today ?? new Date());
-          return { project: p.config.key, title, ...meta, ...progress, tickets: tickets.map(({ ticket, title: t, status, category, assignee, estimate }) => ({ ticket, title: t, status, category, assignee, estimate })) };
+          return { project: p.config.key, title, ...meta, state: milestoneState(meta.status, tickets), ...progress, tickets: tickets.map(({ ticket, title: t, status, category, assignee, estimate }) => ({ ticket, title: t, status, category, assignee, estimate })) };
         }
       }
       throw new ToolError(`Meilenstein „${str(args, 'milestone')}“ nicht gefunden. Die Meilensteine stehen in list_projects.`);

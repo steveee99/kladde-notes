@@ -13,6 +13,8 @@ import {
   isTicketContent,
   milestoneMeta,
   milestoneProgress,
+  milestoneState,
+  setMilestoneFields,
   newMilestoneContent,
   newProjectContent,
   newTicketContent,
@@ -33,6 +35,7 @@ import {
   type TicketHookProvider,
   type MilestoneMeta,
   type MilestoneProgress,
+  type MilestoneStatus,
   type Priority,
   type ProjectConfig,
   type StatusCategory,
@@ -68,6 +71,8 @@ export interface TicketInfo {
   progress: { done: number; total: number };
   /** Unfinished tickets that block this one */
   blockedBy: TicketInfo[];
+  /** All tickets that block this one, finished ones too (field `blockedBy` here or `blocks` there) */
+  blockers: TicketInfo[];
   /** Tickets this one blocks */
   blocking: TicketInfo[];
   /** The ticket this one hangs below (field `parent`, same project) */
@@ -90,6 +95,16 @@ export interface MilestoneInfo {
   title: string;
   tickets: TicketInfo[];
   progress: MilestoneProgress;
+  /** The status shown: set by hand, otherwise from the tickets */
+  state: MilestoneStatus;
+  /** Milestones this one waits for (field `blockedBy` here or `blocks` there) */
+  blockers: MilestoneInfo[];
+  /** Blockers that are neither done nor cancelled */
+  blockedBy: MilestoneInfo[];
+  /** Milestones that wait for this one */
+  blocking: MilestoneInfo[];
+  /** Blockers due after this milestone starts: the plan does not fit */
+  conflicts: MilestoneInfo[];
 }
 
 interface Index {
@@ -166,6 +181,7 @@ function build(): Index {
           category: statusCategory(project.config, memo.meta.status),
           progress: memo.progress,
           blockedBy: [],
+          blockers: [],
           blocking: [],
           parent: null,
           children: [],
@@ -179,7 +195,19 @@ function build(): Index {
       if (folder.endsWith(`/${MILESTONE_FOLDER}`)) {
         const owner = projectAt.get(`${sk}|${folder.slice(0, -MILESTONE_FOLDER.length - 1)}`);
         if (owner && isMilestoneContent(n.content)) {
-          milestones.push({ note: n, project: owner, meta: milestoneMeta(n.content), title: splitPath(n.path).name, tickets: [], progress: milestoneProgress({ start: null, due: null }, []) });
+          milestones.push({
+            note: n,
+            project: owner,
+            meta: milestoneMeta(n.content),
+            title: splitPath(n.path).name,
+            tickets: [],
+            progress: milestoneProgress({ start: null, due: null }, []),
+            state: 'planned',
+            blockers: [],
+            blockedBy: [],
+            blocking: [],
+            conflicts: [],
+          });
         }
       }
     }
@@ -198,10 +226,22 @@ function build(): Index {
     const found = id ? byNote.get(id) : undefined;
     return found?.project === project ? found : undefined;
   };
+  // Milestone in the same project by title, id or a link that resolves to it
+  const milestoneIn = (project: ProjectInfo, target: string): MilestoneInfo | undefined => {
+    const low = target.trim().toLowerCase();
+    const id = links?.resolve(target);
+    return milestones.find((m) => m.project === project && (m.title.toLowerCase() === low || m.meta.id?.toLowerCase() === low || m.note.id === id));
+  };
+  // One "blocks" relation, whichever note wrote it (both sides may)
+  const relate = (blocker: TicketInfo, blocked: TicketInfo) => {
+    if (blocker.blocking.includes(blocked)) return;
+    blocker.blocking.push(blocked);
+    blocked.blockers.push(blocker);
+    if (blocker.category !== 'done') blocked.blockedBy.push(blocker);
+  };
   for (const tk of tickets) {
     if (tk.meta.milestone) {
-      const target = tk.meta.milestone.toLowerCase();
-      tk.milestone = milestones.find((m) => m.project === tk.project && (m.title.toLowerCase() === target || m.meta.id?.toLowerCase() === target)) ?? null;
+      tk.milestone = milestoneIn(tk.project, tk.meta.milestone) ?? null;
       tk.milestone?.tickets.push(tk);
     }
     if (tk.meta.parent) {
@@ -213,9 +253,11 @@ function build(): Index {
     }
     for (const b of tk.meta.blocks) {
       const blocked = ticketIn(tk.project, b);
-      if (!blocked || blocked === tk) continue;
-      tk.blocking.push(blocked);
-      if (tk.category !== 'done') blocked.blockedBy.push(tk);
+      if (blocked && blocked !== tk) relate(tk, blocked);
+    }
+    for (const b of tk.meta.blockedBy) {
+      const blocker = ticketIn(tk.project, b);
+      if (blocker && blocker !== tk) relate(blocker, tk);
     }
     const docs = new Set<string>();
     for (const d of tk.meta.docs) {
@@ -248,6 +290,27 @@ function build(): Index {
   }
   for (const m of milestones) {
     m.progress = milestoneProgress(m.meta, m.tickets.map((tk) => ({ category: tk.category, estimate: tk.meta.estimate })), today);
+    m.state = milestoneState(m.meta.status, m.tickets);
+  }
+  const relateMilestones = (blocker: MilestoneInfo, blocked: MilestoneInfo) => {
+    if (blocker === blocked || blocker.blocking.includes(blocked)) return;
+    blocker.blocking.push(blocked);
+    blocked.blockers.push(blocker);
+  };
+  for (const m of milestones) {
+    for (const b of m.meta.blocks) {
+      const other = milestoneIn(m.project, b);
+      if (other) relateMilestones(m, other);
+    }
+    for (const b of m.meta.blockedBy) {
+      const other = milestoneIn(m.project, b);
+      if (other) relateMilestones(other, m);
+    }
+  }
+  for (const m of milestones) {
+    m.blockedBy = m.blockers.filter((b) => b.state !== 'done' && b.state !== 'cancelled');
+    const begins = m.meta.start ?? m.meta.due;
+    m.conflicts = begins ? m.blockedBy.filter((b) => !!b.meta.due && b.meta.due > begins) : [];
   }
   const lang = getLang();
   projects.sort((a, b) => compareText(a.spaceName, b.spaceName, lang) || compareText(a.folder, b.folder, lang));
@@ -444,6 +507,55 @@ export async function updateTicket(ticket: TicketInfo, fields: Parameters<typeof
   if (!note) return false;
   await vault.update(note.id, { content: setTicketFields(note.content, fields) });
   return true;
+}
+
+/** Sets a milestone's status by hand; null lets it follow the tickets again */
+export async function setMilestoneStatus(m: MilestoneInfo, status: MilestoneStatus | null): Promise<void> {
+  guard();
+  const note = vault.get(m.note.id);
+  if (note) await vault.update(note.id, { content: setMilestoneFields(note.content, { status }) });
+}
+
+/** How a ticket or milestone is written in another one's `blocks`/`blockedBy` */
+const refOf = (x: TicketInfo | MilestoneInfo): string => ('category' in x ? (x.meta.id && !x.meta.provisional ? x.meta.id : x.title) : (x.meta.id ?? x.title));
+/** Whether a written target means this ticket or milestone */
+function refersTo(target: string, x: TicketInfo | MilestoneInfo): boolean {
+  const low = target.trim().toLowerCase();
+  if (low === x.title.toLowerCase() || (!!x.meta.id && low === x.meta.id.toLowerCase())) return true;
+  return vault.links().resolve(target) === x.note.id;
+}
+
+/**
+ * Adds "`blocker` blocks `blocked`" (tickets or milestones of one project). It is written on the note being edited:
+ * `side` 'blocks' adds to the blocker's `blocks`, 'blockedBy' to the blocked one's `blockedBy`.
+ */
+export async function addBlock<T extends TicketInfo | MilestoneInfo>(blocker: T, blocked: T, side: 'blocks' | 'blockedBy'): Promise<void> {
+  guard();
+  const owner = side === 'blocks' ? blocker : blocked;
+  const other = side === 'blocks' ? blocked : blocker;
+  const note = vault.get(owner.note.id);
+  if (!note) return;
+  const current = owner.meta[side];
+  if (current.some((x) => refersTo(x, other))) return;
+  const next = [...current, refOf(other)];
+  await vault.update(note.id, { content: 'category' in owner ? setTicketFields(note.content, { [side]: next }) : setMilestoneFields(note.content, { [side]: next }) });
+}
+
+/** Removes "`blocker` blocks `blocked`" from both notes, wherever it was written */
+export async function removeBlock<T extends TicketInfo | MilestoneInfo>(blocker: T, blocked: T): Promise<void> {
+  guard();
+  const changes: { id: string; content: string }[] = [];
+  for (const [owner, side, other] of [
+    [blocker, 'blocks', blocked],
+    [blocked, 'blockedBy', blocker],
+  ] as const) {
+    const note = vault.get(owner.note.id);
+    const list = owner.meta[side];
+    if (!note || note.access === 'read' || !list.some((x) => refersTo(x, other))) continue;
+    const next = list.filter((x) => !refersTo(x, other));
+    changes.push({ id: note.id, content: 'category' in owner ? setTicketFields(note.content, { [side]: next }) : setMilestoneFields(note.content, { [side]: next }) });
+  }
+  if (changes.length) await vault.updateContents(changes);
 }
 
 /** Release notes of a milestone as a new note in the project's "Release Notes" folder */

@@ -3259,3 +3259,20 @@ span.cm-checkbox {
   display: inline-block;
   animation: num-tick 220ms var(--ease);
 }
+
+/* Tickets and milestones: the panel beside the text when the note column has the room, above it otherwise.
+   Container queries, so side panels and split view count, not the screen width. */
+.ticket-layout { container-type: inline-size; }
+.ticket-panel { container-type: inline-size; }
+.tp-split, .tp-split3 { grid-template-columns: minmax(0, 1fr); }
+@container (min-width: 34rem) {
+  .tp-split { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tp-split3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@container (min-width: 50rem) {
+  .ticket-grid { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; column-gap: 1.5rem; align-items: start; }
+  .ticket-grid > * { grid-column: 1; }
+  .ticket-grid > .ticket-side { grid-column: 2; grid-row: 1 / span 12; position: sticky; top: 1rem; max-height: calc(100dvh - 7rem); overflow-y: auto; overscroll-behavior: contain; }
+  .ticket-grid > .ticket-side .ticket-panel { margin-bottom: 0; }
+}
+@media print { .ticket-grid { display: block; } }

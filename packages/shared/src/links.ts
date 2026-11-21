@@ -2,6 +2,7 @@ import { escapeRegExp } from './util.js';
 import { extractMeta, mapOutsideCode, splitPath } from './markdown.js';
 import { PARA, RoleFolderMap, ZETTEL_ID_PATTERN, isFolderProjectHome } from './para.js';
 import { okfLinkTarget } from './memory.js';
+import { isDatabasePath } from './database.js';
 
 /**
  * Link resolution. A [[link]] matches, in this order: a note title, a frontmatter `id`
@@ -236,9 +237,15 @@ export class LinkIndex {
   }
 
   graph(): { nodes: GraphNode[]; edges: GraphEdge[] } {
+    // Database notes (`_database-<uuid>.md`) hold a folder's settings; they are no notes of their own in the graph
+    const hidden = new Set<string>();
+    for (const n of this.notes.values()) if (isDatabasePath(n.path)) hidden.add(n.id);
     const edges: GraphEdge[] = [];
-    for (const [id, targets] of this.outgoingCache) for (const t of targets) edges.push({ source: id, target: t });
-    const nodes = [...this.notes.values()].map((n) => ({
+    for (const [id, targets] of this.outgoingCache) {
+      if (hidden.has(id)) continue;
+      for (const t of targets) if (!hidden.has(t)) edges.push({ source: id, target: t });
+    }
+    const nodes = [...this.notes.values()].filter((n) => !hidden.has(n.id)).map((n) => ({
       id: n.id,
       title: n.title,
       folder: n.folder,
