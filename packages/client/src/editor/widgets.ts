@@ -523,23 +523,61 @@ export function openLightbox(url: string) {
   document.body.append(box);
 }
 
+/** Folds or unfolds the long code block whose opening fence starts at this position (only in the view) */
+export const toggleCodeFoldEffect = StateEffect.define<number>();
+
+/**
+ * Header of a rendered code block: the file name (`title="…"`) or the language on the left; on the right the language
+ * next to a file name, a fold button for foldable blocks and the copy button. Which parts show follows the code block
+ * settings through CSS (`data-code-copy`, `data-code-lang` on <html>).
+ */
 export class CodeHeaderWidget extends WidgetType {
   constructor(
     readonly lang: string,
     readonly code: string,
-    readonly uiLang: Lang = getLang()
+    readonly uiLang: Lang = getLang(),
+    readonly title = '',
+    /** null: not foldable; otherwise whether it is folded right now */
+    readonly folded: boolean | null = null,
+    readonly pos = 0
   ) {
     super();
   }
   eq(other: CodeHeaderWidget) {
-    return other.lang === this.lang && other.code === this.code && other.uiLang === this.uiLang;
+    return other.lang === this.lang && other.code === this.code && other.uiLang === this.uiLang && other.title === this.title && other.folded === this.folded && other.pos === this.pos;
   }
-  toDOM() {
+  toDOM(view: EditorView) {
     const el = document.createElement('span');
-    el.className = 'cm-code-header';
-    const lang = document.createElement('span');
-    lang.textContent = this.lang || 'code';
+    el.className = this.title ? 'cm-code-header cm-code-header-titled' : 'cm-code-header';
+    const name = document.createElement('span');
+    name.className = this.title ? 'cm-code-title' : 'cm-code-lang';
+    name.textContent = this.title || this.lang || 'code';
+    if (this.title) name.title = this.title;
+    const actions = document.createElement('span');
+    actions.className = 'cm-code-actions';
+    if (this.title && this.lang) {
+      const lang = document.createElement('span');
+      lang.className = 'cm-code-lang';
+      lang.textContent = this.lang;
+      actions.append(lang);
+    }
+    if (this.folded !== null) {
+      const fold = document.createElement('button');
+      fold.type = 'button';
+      fold.className = 'cm-code-fold';
+      fold.setAttribute('aria-expanded', String(!this.folded));
+      fold.textContent = tl(this.uiLang, this.folded ? 'editor.codeExpand' : 'editor.codeCollapse');
+      fold.setAttribute('aria-label', tl(this.uiLang, this.folded ? 'editor.codeExpandLabel' : 'editor.codeCollapseLabel'));
+      fold.addEventListener('mousedown', (e) => e.preventDefault());
+      fold.addEventListener('click', (e) => {
+        e.preventDefault();
+        view.dispatch({ effects: toggleCodeFoldEffect.of(this.pos) });
+      });
+      actions.append(fold);
+    }
     const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'cm-code-copy';
     copy.textContent = tl(this.uiLang, 'editor.codeCopy');
     copy.addEventListener('mousedown', (e) => {
       e.preventDefault();
@@ -548,7 +586,60 @@ export class CodeHeaderWidget extends WidgetType {
         setTimeout(() => (copy.textContent = tl(this.uiLang, 'editor.codeCopy')), 1200);
       });
     });
-    el.append(lang, copy);
+    actions.append(copy);
+    el.append(name, actions);
+    return el;
+  }
+  ignoreEvent() {
+    return true;
+  }
+}
+
+/**
+ * Line number of a code line: an absolutely placed span at the line start (CSS shows it per setting). A widget rather
+ * than `content: attr()`, which Chromium does not always repaint when CodeMirror reuses a line element.
+ */
+export class CodeLineNumberWidget extends WidgetType {
+  constructor(readonly n: number) {
+    super();
+  }
+  eq(other: CodeLineNumberWidget) {
+    return other.n === this.n;
+  }
+  toDOM() {
+    const el = document.createElement('span');
+    el.className = 'cm-code-ln';
+    el.setAttribute('aria-hidden', 'true');
+    el.textContent = String(this.n);
+    return el;
+  }
+}
+
+/** The folded rest of a long code block: "Show 24 more lines" */
+export class CodeFoldWidget extends WidgetType {
+  constructor(
+    readonly hidden: number,
+    readonly pos: number,
+    readonly uiLang: Lang = getLang()
+  ) {
+    super();
+  }
+  eq(other: CodeFoldWidget) {
+    return other.hidden === this.hidden && other.pos === this.pos && other.uiLang === this.uiLang;
+  }
+  toDOM(view: EditorView) {
+    const el = document.createElement('div');
+    el.className = 'cm-code-more';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.setAttribute('aria-expanded', 'false');
+    btn.textContent = tl(this.uiLang, 'editor.codeMoreLines', { n: String(this.hidden) });
+    btn.addEventListener('mousedown', (e) => e.preventDefault());
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      view.dispatch({ effects: toggleCodeFoldEffect.of(this.pos) });
+    });
+    el.append(btn);
     return el;
   }
   ignoreEvent() {

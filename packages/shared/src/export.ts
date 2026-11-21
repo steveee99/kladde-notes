@@ -1,4 +1,5 @@
 import { parseCalloutLine, type CalloutHeader } from './callout.js';
+import { parseCodeInfo } from './codeInfo.js';
 import { extractHeadings, parseFrontmatter, TOC_ANCHOR_RE } from './markdown.js';
 import { INLINE_MATH_SOURCE, findMath } from './math.js';
 
@@ -29,7 +30,8 @@ export type ExportBlock =
   | { type: 'list'; ordered: boolean; items: ExportListItem[] }
   /** `callout` (#86): the quote is a callout; its head line is not part of `lines` */
   | { type: 'blockquote'; lines: ExportInline[][]; callout?: CalloutHeader & { titleInlines: ExportInline[] } }
-  | { type: 'code'; lang: string; code: string }
+  /** `title` is the file name from the info string (`title="…"`, see codeInfo.ts), empty without one */
+  | { type: 'code'; lang: string; code: string; title?: string }
   | { type: 'table'; headers: ExportInline[][]; align: TableAlign[]; rows: ExportInline[][][] }
   | { type: 'image'; alt: string; url: string }
   | { type: 'hr' }
@@ -184,7 +186,8 @@ export function parseMarkdownForExport(title: string, content: string): ExportDo
     if (fence) {
       const marker = fence[1][0];
       const len = fence[1].length;
-      const lang = fence[2].trim().toLowerCase();
+      const codeInfo = parseCodeInfo(fence[2]);
+      const lang = codeInfo.lang;
       const codeLines: string[] = [];
       i++;
       while (i < lines.length) {
@@ -204,7 +207,7 @@ export function parseMarkdownForExport(title: string, content: string): ExportDo
           else if (bareUrl) blocks.push({ type: 'image', alt: '', url: bareUrl[1] });
         }
       } else {
-        blocks.push({ type: 'code', lang, code });
+        blocks.push(codeInfo.title ? { type: 'code', lang, code, title: codeInfo.title } : { type: 'code', lang, code });
       }
       continue;
     }

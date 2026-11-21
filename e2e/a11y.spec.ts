@@ -4,7 +4,7 @@ import { test, expect, createNote, editor, expectOnServer, noteMenu, serverNote,
 
 // Accessibility audit (#63): axe (WCAG 2.1 A/AA) on the main views and overlays in every color scheme,
 // plus the keyboard paths through dialogs, menus and the Kanban board
-const SCHEMES = ['dark', 'light'] as const;
+const SCHEMES = ['dark', 'mocha', 'light'] as const;
 
 async function violations(page: Page, label: string): Promise<string[]> {
   const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();

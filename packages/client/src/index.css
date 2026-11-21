@@ -88,6 +88,24 @@
   /* Editor surfaces */
   --code-bg: var(--panel);
   --inline-code-bg: var(--raised);
+  /* Fenced code blocks and their syntax colors; the code themes below override them (lib/codeTheme.ts) */
+  --codeblock-bg: var(--panel);
+  --codeblock-line: var(--line);
+  --code-fg: var(--body);
+  --code-muted: var(--faint);
+  --syn-keyword: var(--acc);
+  --syn-string: var(--violet);
+  --syn-number: var(--amber);
+  --syn-comment: var(--faint);
+  --syn-function: var(--green);
+  --syn-type: var(--red);
+  --syn-property: var(--acc-hi);
+  --syn-operator: var(--muted);
+  --syn-punct: var(--muted);
+  --syn-escape: var(--amber);
+  --syn-tag: var(--red);
+  --syn-attr: var(--amber);
+  --syn-link: var(--violet);
   --selection: var(--acc) / 0.28;
   /* Shape scale: pills 4, controls 6, cards 8, dialogs 10, FAB 14 */
   --shape-xs: 4px;
@@ -193,6 +211,110 @@
 [data-theme='werkbank'][data-scheme='light'][data-accent='pink'] { --acc: 178 38 102; --acc-hi: 163 33 93; --acc-bg: 252 232 241; --acc-line: 235 162 195; --on-acc: 255 255 255; }
 [data-theme='werkbank'][data-scheme='light'][data-accent='coral'] { --acc: 176 58 10; --acc-hi: 163 54 10; --acc-bg: 253 235 228; --acc-line: 240 174 147; --on-acc: 255 255 255; }
 [data-theme='werkbank'][data-scheme='light'][data-accent='graphite'] { --acc: 68 64 58; --acc-hi: 33 31 28; --acc-bg: 234 230 221; --acc-line: 176 169 157; --on-acc: 255 255 255; }
+
+/*
+ * Catppuccin Mocha (Settings → Appearance → Color scheme "Mocha"): a dark palette on top of the Werkbank tokens.
+ * lib/theme.ts sets data-scheme="dark" plus data-palette="mocha", so everything dark-specific still applies.
+ * Colors from catppuccin.com/palette; the accent presets map onto Mocha's colors (blue, yellow, green, teal,
+ * mauve, pink, peach, subtext1), all ≥ 7:1 on base with crust as the text on them.
+ */
+[data-theme='werkbank'][data-palette='mocha'] {
+  --sunken: 17 17 27; /* crust */
+  --bg: 30 30 46; /* base */
+  --panel: 24 24 37; /* mantle */
+  --bar: 21 21 33;
+  --raised: 39 39 58;
+  --line: 49 50 68; /* surface0 */
+  --line2: 69 71 90; /* surface1 */
+  --strong: 224 230 251;
+  --text: 205 214 244; /* text */
+  --body: 196 204 236;
+  --soft: 186 194 222; /* subtext1 */
+  --muted: 166 173 200; /* subtext0 */
+  --faint: 147 153 178; /* overlay2 */
+  --edge: 108 112 134; /* overlay0 */
+  --acc: 137 180 250;
+  --acc-hi: 178 206 252;
+  --acc-bg: 47 54 79;
+  --acc-line: 71 87 124;
+  --on-acc: 17 17 27;
+  --amber: 250 179 135; /* peach */
+  --amber-hi: 249 226 175; /* yellow */
+  --amber-bg: 65 54 60;
+  --red: 243 139 168;
+  --red-bg: 64 47 66;
+  --violet: 203 166 247; /* mauve */
+  --violet-bg: 58 52 78;
+  --green: 166 227 161;
+  --green-bg: 52 62 64;
+  --on-tertiary: 17 17 27;
+  --on-error: 17 17 27;
+  --on-ok: 17 17 27;
+  --on-warn: 17 17 27;
+  --elevation-1: 0 1px 2px rgb(17 17 27 / 0.45);
+  --elevation-2: 0 8px 20px rgb(17 17 27 / 0.5);
+  --elevation-3: 0 24px 60px rgb(17 17 27 / 0.65);
+  --cursor-1: 148 226 213;
+  --cursor-2: 203 166 247;
+  --cursor-3: 245 194 231;
+  --cursor-4: 250 179 135;
+  --cursor-5: 166 227 161;
+  --cursor-6: 235 160 172;
+}
+[data-theme='werkbank'][data-palette='mocha'][data-accent='blue'] { --acc: 137 180 250; --acc-hi: 178 206 252; --acc-bg: 47 54 79; --acc-line: 71 87 124; --on-acc: 17 17 27; }
+[data-theme='werkbank'][data-palette='mocha'][data-accent='amber'] { --acc: 249 226 175; --acc-hi: 251 236 203; --acc-bg: 65 61 67; --acc-line: 113 104 95; --on-acc: 17 17 27; }
+[data-theme='werkbank'][data-palette='mocha'][data-accent='green'] { --acc: 166 227 161; --acc-hi: 197 237 194; --acc-bg: 52 62 64; --acc-line: 82 105 90; --on-acc: 17 17 27; }
+[data-theme='werkbank'][data-palette='mocha'][data-accent='teal'] { --acc: 148 226 213; --acc-hi: 185 236 228; --acc-bg: 49 61 73; --acc-line: 75 104 109; --on-acc: 17 17 27; }
+[data-theme='werkbank'][data-palette='mocha'][data-accent='violet'] { --acc: 203 166 247; --acc-hi: 221 197 250; --acc-bg: 58 52 78; --acc-line: 96 82 122; --on-acc: 17 17 27; }
+[data-theme='werkbank'][data-palette='mocha'][data-accent='pink'] { --acc: 245 194 231; --acc-hi: 249 215 239; --acc-bg: 64 56 76; --acc-line: 112 92 116; --on-acc: 17 17 27; }
+[data-theme='werkbank'][data-palette='mocha'][data-accent='coral'] { --acc: 250 179 135; --acc-hi: 252 206 177; --acc-bg: 65 54 60; --acc-line: 114 87 80; --on-acc: 17 17 27; }
+[data-theme='werkbank'][data-palette='mocha'][data-accent='graphite'] { --acc: 186 194 222; --acc-hi: 210 215 234; --acc-bg: 55 56 74; --acc-line: 89 92 113; --on-acc: 17 17 27; }
+
+/*
+ * Code themes (Settings → Appearance → Code theme, per device, lib/codeTheme.ts sets data-code-theme). The
+ * HighlightStyles in editor/Editor.tsx read these --syn-* tokens; every theme has a dark and a light value set
+ * and follows the color scheme. "Kladde" (the default, declared in :root) uses the Werkbank tokens and the accent.
+ */
+[data-code-theme='catppuccin'] {
+  /* Mocha */
+  --codeblock-bg: 24 24 37; --codeblock-line: 49 50 68; --code-fg: 205 214 244; --code-muted: 147 153 178;
+  --syn-keyword: 203 166 247; --syn-string: 166 227 161; --syn-number: 250 179 135; --syn-comment: 147 153 178;
+  --syn-function: 137 180 250; --syn-type: 249 226 175; --syn-property: 180 190 254; --syn-operator: 137 220 235;
+  --syn-punct: 147 153 178; --syn-escape: 245 194 231; --syn-tag: 243 139 168; --syn-attr: 249 226 175; --syn-link: 245 224 220;
+}
+[data-code-theme='catppuccin'][data-scheme='light'] {
+  /* Latte */
+  --codeblock-bg: 239 241 245; --codeblock-line: 204 208 218; --code-fg: 76 79 105; --code-muted: 108 111 133;
+  --syn-keyword: 136 57 239; --syn-string: 64 160 43; --syn-number: 254 100 11; --syn-comment: 124 127 147;
+  --syn-function: 30 102 245; --syn-type: 223 142 29; --syn-property: 114 135 253; --syn-operator: 4 165 229;
+  --syn-punct: 124 127 147; --syn-escape: 234 118 203; --syn-tag: 210 15 57; --syn-attr: 223 142 29; --syn-link: 220 138 120;
+}
+[data-code-theme='github'] {
+  --codeblock-bg: 13 17 23; --codeblock-line: 48 54 61; --code-fg: 230 237 243; --code-muted: 139 148 158;
+  --syn-keyword: 255 123 114; --syn-string: 165 214 255; --syn-number: 121 192 255; --syn-comment: 139 148 158;
+  --syn-function: 210 168 255; --syn-type: 255 166 87; --syn-property: 121 192 255; --syn-operator: 255 123 114;
+  --syn-punct: 230 237 243; --syn-escape: 121 192 255; --syn-tag: 126 231 135; --syn-attr: 121 192 255; --syn-link: 165 214 255;
+}
+[data-code-theme='github'][data-scheme='light'] {
+  --codeblock-bg: 246 248 250; --codeblock-line: 209 217 224; --code-fg: 31 35 40; --code-muted: 89 99 110;
+  --syn-keyword: 207 34 46; --syn-string: 10 48 105; --syn-number: 5 80 174; --syn-comment: 89 99 110;
+  --syn-function: 130 80 223; --syn-type: 149 56 0; --syn-property: 5 80 174; --syn-operator: 207 34 46;
+  --syn-punct: 31 35 40; --syn-escape: 5 80 174; --syn-tag: 17 99 41; --syn-attr: 5 80 174; --syn-link: 10 48 105;
+}
+[data-code-theme='one'] {
+  /* One Dark */
+  --codeblock-bg: 40 44 52; --codeblock-line: 62 68 81; --code-fg: 171 178 191; --code-muted: 127 132 142;
+  --syn-keyword: 198 120 221; --syn-string: 152 195 121; --syn-number: 209 154 102; --syn-comment: 127 132 142;
+  --syn-function: 97 175 239; --syn-type: 229 192 123; --syn-property: 224 108 117; --syn-operator: 86 182 194;
+  --syn-punct: 171 178 191; --syn-escape: 86 182 194; --syn-tag: 224 108 117; --syn-attr: 209 154 102; --syn-link: 97 175 239;
+}
+[data-code-theme='one'][data-scheme='light'] {
+  /* One Light */
+  --codeblock-bg: 250 250 250; --codeblock-line: 219 219 220; --code-fg: 56 58 66; --code-muted: 105 108 119;
+  --syn-keyword: 166 38 164; --syn-string: 80 161 79; --syn-number: 152 104 1; --syn-comment: 105 108 119;
+  --syn-function: 64 120 242; --syn-type: 193 132 1; --syn-property: 228 86 73; --syn-operator: 1 132 188;
+  --syn-punct: 56 58 66; --syn-escape: 1 132 188; --syn-tag: 228 86 73; --syn-attr: 152 104 1; --syn-link: 64 120 242;
+}
 
 /*
  * The document itself never scrolls: iOS scrolls the window when the keyboard opens and, in the
@@ -556,6 +678,15 @@ progress {
   [data-scheme='light'] .accent-swatch[data-swatch='pink'] { --swatch: 178 38 102; }
   [data-scheme='light'] .accent-swatch[data-swatch='coral'] { --swatch: 176 58 10; }
   [data-scheme='light'] .accent-swatch[data-swatch='graphite'] { --swatch: 68 64 58; }
+  [data-palette='mocha'] .accent-swatch { --swatch-on: 17 17 27; }
+  [data-palette='mocha'] .accent-swatch[data-swatch='blue'] { --swatch: 137 180 250; }
+  [data-palette='mocha'] .accent-swatch[data-swatch='amber'] { --swatch: 249 226 175; }
+  [data-palette='mocha'] .accent-swatch[data-swatch='green'] { --swatch: 166 227 161; }
+  [data-palette='mocha'] .accent-swatch[data-swatch='teal'] { --swatch: 148 226 213; }
+  [data-palette='mocha'] .accent-swatch[data-swatch='violet'] { --swatch: 203 166 247; }
+  [data-palette='mocha'] .accent-swatch[data-swatch='pink'] { --swatch: 245 194 231; }
+  [data-palette='mocha'] .accent-swatch[data-swatch='coral'] { --swatch: 250 179 135; }
+  [data-palette='mocha'] .accent-swatch[data-swatch='graphite'] { --swatch: 186 194 222; }
   /* Notes use the whole width of the content area (no width setting) */
   .content-container {
     width: 100%;
@@ -703,31 +834,106 @@ html[data-readonly] .edit-only {
 .cm-codeblock {
   font-family: var(--font-mono);
   font-size: 0.86em;
-  line-height: 1.6;
-  background: rgb(var(--code-bg));
+  line-height: 1.55;
+  color: rgb(var(--code-fg));
+  background: rgb(var(--codeblock-bg));
+  border-inline: 1px solid rgb(var(--codeblock-line));
   padding: 0 14px !important;
 }
-.cm-codeblock-first { border-top-left-radius: 10px; border-top-right-radius: 10px; padding-top: 6px !important; }
-.cm-codeblock-last { border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; padding-bottom: 6px !important; }
+.cm-codeblock-first { border-top: 1px solid rgb(var(--codeblock-line)); border-top-left-radius: 8px; border-top-right-radius: 8px; padding-top: 4px !important; }
+.cm-codeblock-last { border-bottom: 1px solid rgb(var(--codeblock-line)); border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; padding-bottom: 4px !important; }
+/* Rendered block (cursor outside): the fence lines become a slim header and a thin closing edge */
+.cm-codeblock-head { padding: 0 !important; }
+.cm-codeblock-foot { font-size: 4px; line-height: 4px; padding-bottom: 4px !important; }
 /* Per-note text alignment (frontmatter `align`, set on a wrapper in NoteView); code and frontmatter stay left */
 [data-note-align='center'] .cm-line:not(.cm-codeblock):not(.cm-frontmatter) { text-align: center; }
 [data-note-align='right'] .cm-line:not(.cm-codeblock):not(.cm-frontmatter) { text-align: right; }
 [data-note-align='justify'] .cm-line:not(.cm-codeblock):not(.cm-frontmatter) { text-align: justify; hyphens: auto; }
 .cm-code-header {
-  display: flex;
+  display: inline-flex;
+  box-sizing: border-box;
+  width: 100%;
+  height: 28px;
+  margin-bottom: 6px;
+  padding: 0 4px 0 14px;
+  vertical-align: top;
   justify-content: space-between;
   align-items: center;
-  font-family: var(--font-sans);
-  font-size: 12px;
-  color: rgb(var(--on-surface-variant));
+  gap: 8px;
+  border-bottom: 1px solid rgb(var(--codeblock-line));
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1;
+  color: rgb(var(--code-muted));
 }
 .cm-code-header button {
-  padding: 2px 8px;
-  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  color: rgb(var(--code-muted));
 }
-.cm-code-header button:hover {
-  background: rgb(var(--surface-container-high));
-  color: rgb(var(--on-surface));
+.cm-code-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgb(var(--code-fg));
+}
+.cm-code-actions { display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.cm-code-actions .cm-code-lang { padding: 0 6px; }
+/* Code block settings (lib/prefs.ts, attributes on <html>) */
+[data-code-copy='off'] .cm-code-copy,
+[data-code-lang='off'] .cm-code-lang { display: none; }
+/* Nothing left in the header: no header, only a thin top edge */
+[data-code-copy='off'][data-code-lang='off'] .cm-codeblock-head:not(:has(.cm-code-header-titled, .cm-code-fold)) {
+  font-size: 4px;
+  line-height: 4px;
+  padding-top: 4px !important;
+}
+[data-code-copy='off'][data-code-lang='off'] .cm-codeblock-head:not(:has(.cm-code-header-titled, .cm-code-fold)) .cm-code-header { display: none; }
+/* Line numbers (CodeLineNumberWidget, only on numbered blocks): in the flow inside the line's left padding, so
+   wrapped lines keep a hanging indent */
+.cm-codeblock.cm-code-numbered { padding-left: calc(14px + 3.2em) !important; }
+.cm-code-ln {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 3.2em;
+  margin-left: -3.2em;
+  padding-right: 1em;
+  text-align: right;
+  color: rgb(var(--code-muted) / 0.8);
+  user-select: none;
+}
+/* Highlighted lines ({3-4} in the info string) */
+.cm-codeblock.cm-code-hl {
+  background: linear-gradient(rgb(var(--acc) / 0.13), rgb(var(--acc) / 0.13)), rgb(var(--codeblock-bg));
+  box-shadow: inset 2px 0 0 rgb(var(--acc));
+}
+/* The folded rest of a long block */
+.cm-code-more {
+  background: rgb(var(--codeblock-bg));
+  border-inline: 1px solid rgb(var(--codeblock-line));
+  padding: 2px 8px 0;
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+.cm-code-more button {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 4px;
+  color: rgb(var(--acc-hi));
+}
+.cm-code-more button:hover,
+.cm-code-more button:focus-visible { background: rgb(var(--codeblock-line)); }
+.cm-code-header button:hover,
+.cm-code-header button:focus-visible {
+  background: rgb(var(--codeblock-line));
+  color: rgb(var(--code-fg));
 }
 .cm-quote {
   border-left: 3px solid rgb(var(--primary) / 0.6);
@@ -1195,6 +1401,7 @@ span.cm-checkbox {
 
 .cm-source .cm-codeblock {
   font-size: 1em;
+  border-inline: 0;
   line-height: inherit;
   padding: 0 12px !important;
 }

@@ -4,6 +4,12 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Catppuccin Mocha as a third color scheme (Settings → Appearance → Color scheme, also in the command palette). The accent presets map onto Mocha's colors.
+- New: Code themes for code blocks, chosen per device: Kladde (follows the accent), Catppuccin (Mocha/Latte), GitHub and One, each with a dark and a light variant that follows the color scheme.
+- Changed: Code blocks are more compact: a slim header with the language and the copy button, a thin border and no empty space above and below the code.
+- New: Code block settings (Settings → Editor → Code blocks, per device): line numbers, the copy button, the language in the header and folding long blocks from 10, 20 or 40 lines.
+- New: Options in a code block's first line, as in Docusaurus and VitePress: `title="src/vault.ts"` shows a file name in the header, `{3-4,7}` highlights lines, `showLineNumbers` (or `showLineNumbers=10`), `noLineNumbers`, `collapse` and `noCollapse` override the settings for that block. Word, PDF and Confluence exports keep the file name.
+
 ## [2.15.0] – 2026-11-21
 
 - New: Ticket workflows. The project settings open in a dialog that uses the whole window, with sections for General, Statuses, Transitions, Automations and Git integration; nothing has to be written in the frontmatter any more.

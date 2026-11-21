@@ -231,3 +231,78 @@ export function setEditorFontSize(px: number): void {
 export function useEditorFontSize(): number {
   return useSyncExternalStore(subscribe, () => editorFontSize);
 }
+
+/*
+ * Code blocks (Settings → Editor → Code blocks), per device. The copy button and the language label are switched by
+ * attributes on <html> (`data-code-copy`, `data-code-lang`, CSS in index.css); line numbers and folding are part of
+ * the editor's decorations (Editor.tsx refreshes on a change). A block can override line numbers and folding in its info string (shared/codeInfo.ts).
+ */
+export interface CodeBlockPrefs {
+  lineNumbers: boolean;
+  copy: boolean;
+  language: boolean;
+  /** Fold blocks longer than this many lines down to it; 0 = never */
+  collapseAfter: number;
+}
+
+export const CODE_COLLAPSE_OPTIONS = [0, 10, 20, 40] as const;
+/** Lines left visible when a block asks for `collapse` while the setting is off */
+export const CODE_COLLAPSE_FALLBACK = 20;
+const CODE_BLOCKS_KEY = 'kladde_code_blocks';
+const CODE_BLOCK_DEFAULTS: CodeBlockPrefs = { lineNumbers: false, copy: true, language: true, collapseAfter: 0 };
+
+function readCodeBlocks(): CodeBlockPrefs {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(CODE_BLOCKS_KEY) : null;
+    if (!raw) return CODE_BLOCK_DEFAULTS;
+    const v = JSON.parse(raw) as Partial<Record<keyof CodeBlockPrefs, unknown>>;
+    return {
+      lineNumbers: typeof v.lineNumbers === 'boolean' ? v.lineNumbers : CODE_BLOCK_DEFAULTS.lineNumbers,
+      copy: typeof v.copy === 'boolean' ? v.copy : CODE_BLOCK_DEFAULTS.copy,
+      language: typeof v.language === 'boolean' ? v.language : CODE_BLOCK_DEFAULTS.language,
+      collapseAfter: (CODE_COLLAPSE_OPTIONS as readonly unknown[]).includes(v.collapseAfter) ? (v.collapseAfter as number) : CODE_BLOCK_DEFAULTS.collapseAfter,
+    };
+  } catch {
+    return CODE_BLOCK_DEFAULTS;
+  }
+}
+
+let codeBlocks = readCodeBlocks();
+
+function applyCodeBlocks(): void {
+  if (typeof document === 'undefined') return;
+  const ds = document.documentElement.dataset;
+  ds.codeCopy = codeBlocks.copy ? 'on' : 'off';
+  ds.codeLang = codeBlocks.language ? 'on' : 'off';
+}
+applyCodeBlocks();
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key !== CODE_BLOCKS_KEY) return;
+    codeBlocks = readCodeBlocks();
+    applyCodeBlocks();
+    listeners.forEach((l) => l());
+  });
+}
+
+export function getCodeBlockPrefs(): CodeBlockPrefs {
+  return codeBlocks;
+}
+
+export function setCodeBlockPrefs(patch: Partial<CodeBlockPrefs>): void {
+  const next = { ...codeBlocks, ...patch };
+  if ((Object.keys(next) as (keyof CodeBlockPrefs)[]).every((k) => next[k] === codeBlocks[k])) return;
+  codeBlocks = next;
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(CODE_BLOCKS_KEY, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+  applyCodeBlocks();
+  listeners.forEach((l) => l());
+}
+
+export function useCodeBlockPrefs(): CodeBlockPrefs {
+  return useSyncExternalStore(subscribe, () => codeBlocks);
+}

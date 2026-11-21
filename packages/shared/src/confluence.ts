@@ -475,7 +475,7 @@ export function markdownToConfluence(path: string, content: string, ctx: Conflue
         if (block.lang === 'query') return renderQuery(block.code);
         const only = KLADDE_ONLY[block.lang];
         if (only) return `${hint(`(${only} aus Kladde – hier als Quelltext)`)}${codeMacro('text', block.code)}`;
-        return codeMacro(block.lang, block.code);
+        return codeMacro(block.lang, block.code, block.title);
       }
       case 'table': {
         const head = `<tr>${block.headers.map((h) => `<th>${inline(h)}</th>`).join('')}</tr>`;
@@ -507,10 +507,11 @@ const CODE_LANGS = new Set([
 ]);
 const LANG_ALIASES: Record<string, string> = { sh: 'bash', shell: 'bash', zsh: 'bash', javascript: 'js', ts: 'typescript', csharp: 'c#', cs: 'c#', 'c++': 'cpp', c: 'cpp', yml: 'yaml', golang: 'go', kt: 'kotlin', rb: 'ruby', ps1: 'powershell', htm: 'html', md: 'text', markdown: 'text', '': 'text' };
 
-function codeMacro(lang: string, code: string): string {
+function codeMacro(lang: string, code: string, title?: string): string {
   const l = LANG_ALIASES[lang] ?? lang;
   const language = CODE_LANGS.has(l) ? l : 'text';
-  return `<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">${xmlEscape(language)}</ac:parameter><ac:plain-text-body>${cdata(code)}</ac:plain-text-body></ac:structured-macro>`;
+  const titleParam = title ? `<ac:parameter ac:name="title">${xmlEscape(title)}</ac:parameter>` : '';
+  return `<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">${xmlEscape(language)}</ac:parameter>${titleParam}<ac:plain-text-body>${cdata(code)}</ac:plain-text-body></ac:structured-macro>`;
 }
 
 function inlineText(spans: ExportInline[]): string {

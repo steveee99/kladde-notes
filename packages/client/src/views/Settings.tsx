@@ -18,8 +18,9 @@ import { APP_VERSION, Me, PASSWORD_MIN_LENGTH } from '@kladde/shared';
 import { api, deleteAvatar, uploadAvatar } from '../lib/api';
 import { useConfluence } from '../lib/confluence';
 import { Lang, locale, setLang, tl, useLang, type I18nKey } from '../lib/i18n';
-import { EDITOR_FONT_SIZES, setEditorFontSize, setInboxZero, setLigatures, useEditorFontSize, useInboxZero, useLigatures } from '../lib/prefs';
+import { CODE_COLLAPSE_OPTIONS, EDITOR_FONT_SIZES, setCodeBlockPrefs, setEditorFontSize, setInboxZero, setLigatures, useCodeBlockPrefs, useEditorFontSize, useInboxZero, useLigatures } from '../lib/prefs';
 import { setColorSchemeChoice, useColorSchemeChoice } from '../lib/theme';
+import { CODE_THEMES, setCodeTheme, useCodeTheme } from '../lib/codeTheme';
 import { useVault, vault } from '../data/vault';
 import { navigate, usePath } from '../lib/router';
 import { GitLabIcon, passkeysAvailable, useAuthProviders, useRedirectParam } from './Auth';
@@ -182,8 +183,10 @@ export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (m
   const loc = locale(lang);
   const inboxZero = useInboxZero();
   const ligatures = useLigatures();
+  const codeBlocks = useCodeBlockPrefs();
   const editorFontSize = useEditorFontSize();
   const colorScheme = useColorSchemeChoice();
+  const codeTheme = useCodeTheme();
   const inPanel = useSettingsNavInPanel();
   const path = usePath();
   const [link, setLink] = useState<{ code: string; expiresAt: number } | null>(null);
@@ -349,16 +352,26 @@ export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (m
               <AccentPicker onMe={onMe} />
             </div>
             <SettingRow title={tl(lang, 'settings.colorSchemeTitle')} desc={tl(lang, 'settings.colorSchemeDesc')}>
-              <div className="segmented grid w-full grid-cols-3 sm:inline-flex sm:w-auto sm:shrink-0" role="group" aria-label={tl(lang, 'settings.colorSchemeTitle')}>
+              <div className="segmented grid w-full grid-cols-4 sm:inline-flex sm:w-auto sm:shrink-0" role="group" aria-label={tl(lang, 'settings.colorSchemeTitle')}>
                 {(
                   [
                     ['dark', 'settings.colorSchemeDark'],
+                    ['mocha', 'settings.colorSchemeMocha'],
                     ['light', 'settings.colorSchemeLight'],
                     ['system', 'settings.colorSchemeSystem'],
                   ] as const
                 ).map(([choice, label]) => (
                   <button key={choice} type="button" aria-pressed={colorScheme === choice} onClick={() => setColorSchemeChoice(choice)} className="min-w-0">
                     <span className="truncate">{tl(lang, label)}</span>
+                  </button>
+                ))}
+              </div>
+            </SettingRow>
+            <SettingRow title={tl(lang, 'settings.codeThemeTitle')} desc={tl(lang, 'settings.codeThemeDesc')}>
+              <div className="segmented grid w-full grid-cols-2 min-[420px]:grid-cols-4 sm:inline-flex sm:w-auto sm:shrink-0" role="group" aria-label={tl(lang, 'settings.codeThemeTitle')}>
+                {CODE_THEMES.map((theme) => (
+                  <button key={theme} type="button" aria-pressed={codeTheme === theme} onClick={() => setCodeTheme(theme)} className="min-w-0" data-code-theme-choice={theme}>
+                    <span className="truncate">{tl(lang, `settings.codeTheme.${theme}`)}</span>
                   </button>
                 ))}
               </div>
@@ -412,6 +425,44 @@ export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (m
               checked={ligatures}
               onChange={setLigatures}
             />
+            <GroupLabel>{tl(lang, 'settings.codeBlocksTitle')}</GroupLabel>
+            <SwitchRow
+              id="code-line-numbers-switch"
+              title={tl(lang, 'settings.codeLineNumbersTitle')}
+              desc={tl(lang, 'settings.codeLineNumbersDesc')}
+              label={tl(lang, 'settings.codeLineNumbersTitle')}
+              checked={codeBlocks.lineNumbers}
+              onChange={(on) => setCodeBlockPrefs({ lineNumbers: on })}
+            />
+            <SwitchRow
+              id="code-copy-switch"
+              title={tl(lang, 'settings.codeCopyTitle')}
+              desc={tl(lang, 'settings.codeCopyDesc')}
+              label={tl(lang, 'settings.codeCopyTitle')}
+              checked={codeBlocks.copy}
+              onChange={(on) => setCodeBlockPrefs({ copy: on })}
+            />
+            <SwitchRow
+              id="code-language-switch"
+              title={tl(lang, 'settings.codeLanguageTitle')}
+              desc={tl(lang, 'settings.codeLanguageDesc')}
+              label={tl(lang, 'settings.codeLanguageTitle')}
+              checked={codeBlocks.language}
+              onChange={(on) => setCodeBlockPrefs({ language: on })}
+            />
+            <SettingRow title={tl(lang, 'settings.codeCollapseTitle')} desc={tl(lang, 'settings.codeCollapseDesc')}>
+              <div className="segmented grid w-full grid-cols-4 sm:inline-flex sm:w-auto sm:shrink-0" role="group" aria-label={tl(lang, 'settings.codeCollapseTitle')}>
+                {CODE_COLLAPSE_OPTIONS.map((n) => (
+                  <button key={n} type="button" aria-pressed={codeBlocks.collapseAfter === n} onClick={() => setCodeBlockPrefs({ collapseAfter: n })} className="min-w-0 tabular-nums">
+                    {n === 0 ? tl(lang, 'settings.codeCollapseNever') : tl(lang, 'settings.codeCollapseLines', { n: String(n) })}
+                  </button>
+                ))}
+              </div>
+            </SettingRow>
+            <div className="border-b border-line py-4 text-body-s text-muted">
+              {tl(lang, 'settings.codeInfoHint')}
+              <pre className="mt-2 overflow-x-auto rounded-md border border-line bg-panel px-3 py-2 font-mono text-[12.5px] text-body">```ts title="vault.ts" {'{3-4}'} showLineNumbers</pre>
+            </div>
             <SettingRow title={tl(lang, 'settings.templatesTitle')} desc={tl(lang, 'settings.navTemplatesDesc')}>
               <button className="btn-outlined self-start sm:self-auto" onClick={() => navigate('/settings/templates')}>
                 <LayoutTemplate size={16} /> {tl(lang, 'settings.templatesTitle')}

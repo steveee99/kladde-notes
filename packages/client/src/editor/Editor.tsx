@@ -13,7 +13,7 @@ import { calloutsFacet, hidePropertiesFacet, livePreview, noteIdFacet, previewAl
 import { configureEmbeds } from './embed';
 import { embedResolverFacet, type EmbedResolver } from './embedContext';
 import { statusTaskList } from './taskStatus';
-import { useLigatures } from '../lib/prefs';
+import { useCodeBlockPrefs, useLigatures } from '../lib/prefs';
 import { sourceHighlight } from './sourceHighlight';
 import { editorHost } from './host';
 import { merge3, tagBeforeCursor, textChanges } from '@kladde/shared';
@@ -50,32 +50,38 @@ const proseTheme = EditorView.theme({
   '.cm-scroller': { fontFamily: 'var(--font-sans)', lineHeight: '1.7' },
 });
 
+/*
+ * Syntax colors of fenced code: the --syn-* tokens in index.css, set per code theme (lib/codeTheme.ts). The source
+ * view adds Markdown punctuation and URLs on top.
+ */
+const syntaxRules = [
+  { tag: [t.keyword, t.modifier, t.controlKeyword, t.operatorKeyword, t.definitionKeyword, t.moduleKeyword], color: 'rgb(var(--syn-keyword))' },
+  { tag: [t.string, t.special(t.string), t.regexp], color: 'rgb(var(--syn-string))' },
+  { tag: [t.number, t.bool, t.null, t.atom], color: 'rgb(var(--syn-number))' },
+  { tag: [t.comment, t.meta], color: 'rgb(var(--syn-comment))', fontStyle: 'italic' },
+  { tag: [t.function(t.variableName), t.function(t.propertyName), t.function(t.definition(t.variableName))], color: 'rgb(var(--syn-function))' },
+  { tag: [t.typeName, t.className, t.namespace], color: 'rgb(var(--syn-type))' },
+  { tag: t.tagName, color: 'rgb(var(--syn-tag))' },
+  { tag: [t.propertyName, t.definition(t.propertyName)], color: 'rgb(var(--syn-property))' },
+  { tag: t.attributeName, color: 'rgb(var(--syn-attr))' },
+  { tag: t.attributeValue, color: 'rgb(var(--syn-string))' },
+  { tag: [t.operator, t.derefOperator], color: 'rgb(var(--syn-operator))' },
+  { tag: [t.escape, t.character], color: 'rgb(var(--syn-escape))' },
+];
+
 const highlight = HighlightStyle.define([
-  { tag: [t.keyword, t.modifier, t.controlKeyword, t.operatorKeyword], color: 'rgb(var(--primary))' },
-  { tag: [t.string, t.special(t.string), t.regexp], color: 'rgb(var(--tertiary))' },
-  { tag: [t.number, t.bool, t.null, t.atom], color: 'rgb(var(--warn))' },
-  { tag: [t.comment, t.meta], color: 'rgb(var(--outline))', fontStyle: 'italic' },
-  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: 'rgb(var(--ok))' },
-  { tag: [t.typeName, t.className, t.tagName], color: 'rgb(var(--error))' },
-  { tag: [t.propertyName, t.attributeName], color: 'rgb(var(--on-surface))' },
+  ...syntaxRules,
+  { tag: t.punctuation, color: 'rgb(var(--syn-punct))' },
+  // Markdown marks in prose stay in the interface colors
   { tag: t.processingInstruction, color: 'rgb(var(--outline))' },
   { tag: t.url, color: 'rgb(var(--on-surface-variant))' },
 ]);
 
 const sourceCodeHighlight = HighlightStyle.define([
-  { tag: [t.keyword, t.modifier, t.controlKeyword, t.operatorKeyword], color: 'rgb(var(--primary))' },
-  { tag: [t.string, t.special(t.string), t.regexp], color: 'rgb(var(--tertiary))' },
-  { tag: [t.number, t.bool, t.null, t.atom], color: 'rgb(var(--warn))' },
-  { tag: [t.comment, t.meta], color: 'rgb(var(--outline))', fontStyle: 'italic' },
-  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: 'rgb(var(--ok))' },
-  { tag: [t.typeName, t.className, t.tagName], color: 'rgb(var(--error))' },
-  { tag: [t.propertyName, t.definition(t.propertyName)], color: 'rgb(var(--on-primary-container))' },
-  { tag: t.attributeName, color: 'rgb(var(--warn))' },
-  { tag: t.attributeValue, color: 'rgb(var(--ok))' },
-  { tag: [t.operator, t.punctuation], color: 'rgb(var(--on-surface-variant))' },
-  { tag: [t.escape, t.character], color: 'rgb(var(--warn))' },
+  ...syntaxRules,
+  { tag: t.punctuation, color: 'rgb(var(--on-surface-variant))' },
   { tag: [t.angleBracket, t.processingInstruction], color: 'rgb(var(--outline))' },
-  { tag: t.url, color: 'rgb(var(--tertiary))' },
+  { tag: t.url, color: 'rgb(var(--syn-link))' },
 ]);
 
 const previewExtensions = (source: boolean): Extension =>
@@ -285,6 +291,9 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   const locked = readOnly || lockedEverywhere;
   const lang = useLang();
   const ligatures = useLigatures();
+  // Line numbers and folding of code blocks are part of the decorations; copy button and language work through CSS
+  const codePrefs = useCodeBlockPrefs();
+  const codeStamp = codePrefs.collapseAfter * 10_000_000 + (codePrefs.lineNumbers ? 500_000_000 : 0);
   const lockConf = useRef(new Compartment());
   const placeholderConf = useRef(new Compartment());
   const previewConf = useRef(new Compartment());
@@ -463,8 +472,8 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   }, [value]);
 
   useEffect(() => {
-    view.current?.dispatch({ effects: refreshEffect.of(stamp + (lang === 'en' ? 1_000_000 : 0) + (ligatures ? 0 : 2_000_000)) });
-  }, [stamp, lang, ligatures]);
+    view.current?.dispatch({ effects: refreshEffect.of(stamp + (lang === 'en' ? 1_000_000 : 0) + (ligatures ? 0 : 2_000_000) + codeStamp) });
+  }, [stamp, lang, ligatures, codeStamp]);
 
   return <div ref={host} className="wz-editor" />;
 }
