@@ -1672,7 +1672,14 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             </div>
           )}
           {!focus && vault.isMemoryNote(note) && <MemoryPanel note={note} readOnly={readOnly} />}
-          {!focus && <TicketPanel noteId={id} readOnly={readOnly} />}
+          {/* Tickets and milestones: the fields beside the text when the note has the room (container query in index.css) */}
+          <div className={hideProperties ? 'ticket-layout' : 'contents'}>
+          <div className={hideProperties ? 'ticket-grid' : 'contents'}>
+          {!focus && (
+            <div className="ticket-side" data-ticket-side>
+              <TicketPanel noteId={id} readOnly={readOnly} />
+            </div>
+          )}
           {/* "Edit as text" and fullscreen live inside the canvas, so the drawing gets the room */}
           {showDrawing && (
             <Suspense fallback={<div className="flex min-h-[60vh] flex-1 items-center justify-center text-sm text-on-surface-variant">{t('common.loading')}</div>}>
@@ -1731,6 +1738,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             />
             </div>
           )}
+          </div>
+          </div>
 
           {/* Bottom links/graph overview remains visible when the right split pane is collapsed */}
           {!showPdf && !splitOpen && !focus && (backlinks.length > 0 || memoryBacklinks.length > 0 || mentions.length > 0 || ticketLinks.length > 0 || local.nodes.length > 1) && (

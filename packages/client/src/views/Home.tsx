@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { AlignJustify, ArrowRight, Briefcase, CalendarCheck, CalendarDays, Kanban, List, ListChecks, Plus } from '../lib/icons';
-import { INBOX_FOLDER, Task, bucketOf, isoWeek, projectTitleOf, projectsOf, splitPath, toDateString } from '@kladde/shared';
+import { INBOX_FOLDER, Task, bucketOf, isDatabasePath, isoWeek, projectTitleOf, projectsOf, splitPath, toDateString } from '@kladde/shared';
 import { openDialog } from '../lib/dialogs';
 import { reviewDue } from './Review';
 import { useVault, vault } from '../data/vault';
@@ -74,7 +74,8 @@ export function HomeView() {
     : [];
   const todayStr = toDateString(new Date());
   const inboxCount = own.filter((n) => splitPath(n.path).folder === INBOX_FOLDER).length;
-  const recent = [...notes].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6);
+  // Database notes (`_database-<uuid>.md`) are folder settings, no notes to go back to
+  const recent = [...notes].filter((n) => !isDatabasePath(n.path)).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6);
   const openCount = tasks.filter((tk) => bucketOf(tk) === 'overdue' || bucketOf(tk) === 'today').length;
   const openCountText = openCount === 0 ? t('home.allDoneToday') : openCount === 1 ? t('home.openTodaySingle') : t('home.openTodayPlural', { n: openCount });
   const inboxChipText = inboxCount === 1 ? t('home.inboxSingle') : t('home.inboxPlural', { n: inboxCount });

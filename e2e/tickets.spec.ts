@@ -206,3 +206,69 @@ test('ticket types: an epic with a feature below it, doc search and hidden front
   await expect(page.locator('[data-ticket-children]')).toContainText('Sync status');
   await expect(page.locator('[data-ticket-children]')).toContainText('0/1');
 });
+
+test('milestones: status, dependencies with a conflict, blocked by on tickets and the panel beside the text', async ({ page }, info) => {
+  await enableFeature(page, 'tickets');
+  const folder = `Plan ${uid()}`;
+  const key = `M${letters()}`;
+  await seed(page.request, [{ path: `${folder}/Readme.md`, content: 'Plan' }]);
+  await page.goto(`/f/${encodeURIComponent(folder)}`);
+  await page.locator('[data-make-project]').click();
+  await page.locator('[data-project-key]').fill(key);
+  await page.getByRole('button', { name: 'Create project' }).click();
+  await expect(page.locator(`[data-project="${key}"]`)).toBeVisible();
+  const ms = `${folder}/Meilensteine`;
+  const [alphaId, betaId, oneId, twoId] = await seed(page.request, [
+    { path: `${ms}/Alpha.md`, content: '---\ntype: milestone\nstart: 2026-11-01\ndue: 2026-11-30\nrelease: 1.0\n---\n' },
+    { path: `${ms}/Beta.md`, content: '---\ntype: milestone\nstart: 2026-11-15\ndue: 2026-12-20\n---\n' },
+    { path: `${folder}/Login.md`, content: `---\ntype: ticket\nid: ${key}-1\nstatus: Open\nmilestone: "[[Alpha]]"\n---\n` },
+    { path: `${folder}/Logout.md`, content: `---\ntype: ticket\nid: ${key}-2\nstatus: Open\nmilestone: "[[Alpha]]"\n---\n` },
+  ]);
+
+  // A milestone without started tickets is planned; waiting for Alpha, which ends after Beta starts, is a conflict
+  await page.goto(`/n/${betaId}`);
+  const beta = page.locator('[data-milestone-panel]');
+  await expect(beta.locator('[data-milestone-status="planned"]').first()).toBeVisible({ timeout: 15_000 });
+  await choose(page, beta, 'Blocked by …', 'Alpha');
+  await expect.poll(async () => (await serverNote(page.request, betaId))?.content ?? '').toContain('blockedBy: ["[[Alpha]]"]');
+  await expect(beta.locator('[data-milestone-conflict]')).toContainText('Alpha');
+  await expect(beta.getByText('blocked by Alpha')).toBeVisible();
+
+  // Closing Alpha by hand while tickets are open warns; Beta is no longer blocked
+  await page.goto(`/n/${alphaId}`);
+  const alpha = page.locator('[data-milestone-panel]');
+  await expect(alpha.getByText('blocks Beta')).toBeVisible({ timeout: 15_000 });
+  await choose(page, alpha, 'Status', 'Done');
+  await expect.poll(async () => (await serverNote(page.request, alphaId))?.content ?? '').toContain('status: done');
+  await expect(alpha.locator('[data-milestone-open-left]')).toContainText('2 tickets');
+
+  // "Blocked by" on a ticket is written on that ticket; the other one shows "blocks"
+  await page.goto(`/n/${twoId}`);
+  const two = page.locator('[data-ticket-panel]');
+  await choose(page, two, 'Blocked by …', `${key}-1 · Login`);
+  await expect.poll(async () => (await serverNote(page.request, twoId))?.content ?? '').toContain(`blockedBy: ["[[${key}-1]]"]`);
+  await expect(two.getByText('Blocked', { exact: true }).first()).toBeVisible();
+  await page.goto(`/n/${oneId}`);
+  const one = page.locator('[data-ticket-panel]');
+  await expect(one.getByText(`blocks ${key}-2`)).toBeVisible({ timeout: 15_000 });
+  // Removing it from the blocking side clears it on the blocked ticket
+  await one.getByRole('button', { name: `Remove the link to blocks ${key}-2` }).click();
+  await expect.poll(async () => (await serverNote(page.request, twoId))?.content ?? '').not.toContain('blockedBy');
+
+  // With room the panel sits beside the text
+  if (info.project.name === 'desktop') {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await page.goto(`/n/${oneId}`);
+    const side = page.locator('[data-ticket-side]');
+    const editor = page.locator('.cm-editor').first();
+    await expect(side.locator('[data-ticket-panel]')).toBeVisible({ timeout: 15_000 });
+    const [s, e] = [await side.boundingBox(), await editor.boundingBox()];
+    expect(s!.x).toBeGreaterThan(e!.x + e!.width - 1);
+  }
+
+  // The roadmap explains its marks
+  await page.goto(`/f/${encodeURIComponent(folder)}`);
+  await page.locator('[data-project-tab="roadmap"]').click();
+  await expect(page.locator('[data-roadmap-legend]')).toContainText('Release date');
+  await expect(page.locator('[data-release-marker]')).toHaveCount(1);
+});

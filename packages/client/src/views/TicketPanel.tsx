@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { PARENT_KINDS, PRIORITIES, childKindsOf, type Priority, type TicketKind } from '@kladde/shared';
+import { MILESTONE_STATUSES, PARENT_KINDS, PRIORITIES, childKindsOf, type MilestoneStatus, type Priority, type TicketKind } from '@kladde/shared';
 import { vault, useVault } from '../data/vault';
-import { allowedStatusesOf, ancestorsOf, assignees, byRank, parentCandidates, createReleaseNotes, milestoneOfNote, milestonesOf, ticketOfNote, ticketsOf, updateTicket, type MilestoneInfo, type TicketInfo } from '../data/tickets';
+import { addBlock, allowedStatusesOf, ancestorsOf, assignees, byRank, parentCandidates, createReleaseNotes, milestoneOfNote, milestonesOf, removeBlock, setMilestoneStatus, ticketOfNote, ticketsOf, updateTicket, type MilestoneInfo, type TicketInfo } from '../data/tickets';
 import { navigate } from '../lib/router';
 import { t, useLang } from '../lib/i18n';
 import { AccountTree, AlertTriangle, Ban, CheckCircle2, ChevronRight, Clock, FileText, Flag, NewReleases, Person, Plus, Tags, Ticket, X } from '../lib/icons';
 import { NoteSearchField } from './NoteSearchField';
 import { Dropdown } from './Dropdown';
-import { KindIcon, MilestoneBanner, NewTicketSheet, PriorityIcon, StatusBadge, formatDay, kindLabel, kindOptions, priorityLabel } from './ProjectView';
+import { KindIcon, MilestoneBanner, MilestoneStatusBadge, NewTicketSheet, PriorityIcon, StatusBadge, formatDay, kindLabel, kindOptions, milestoneStatusLabel, priorityLabel } from './ProjectView';
 
 const label = 'flex items-center gap-1.5 text-label-l text-muted';
 
@@ -29,13 +29,60 @@ function LinkRow({ title, sub, Icon, onOpen, onRemove, tone = '' }: { title: str
   );
 }
 
+type Relatable = TicketInfo | MilestoneInfo;
+const isTicket = (x: Relatable): x is TicketInfo => 'category' in x;
+const finished = (x: Relatable) => (isTicket(x) ? x.category === 'done' : x.state === 'done' || x.state === 'cancelled');
+const refLabel = (x: Relatable) => (isTicket(x) ? (x.meta.id ?? `${x.project.config.key}-?`) : x.title);
+
+/**
+ * "Blocked by" and "Blocks" of a ticket or milestone, each with a picker. A new relation is written on this note
+ * (`blockedBy` or `blocks`); removing it clears it on both notes.
+ */
+function Relations<T extends Relatable>({ self, blockers, blocking, candidates, canEdit, title }: { self: T; blockers: T[]; blocking: T[]; candidates: T[]; canEdit: boolean; title: string }) {
+  const free = candidates.filter((c) => c !== self && !blockers.includes(c) && !blocking.includes(c));
+  const option = (c: T) => ({ value: c.note.id, label: isTicket(c) ? `${refLabel(c)} · ${c.title}` : c.title });
+  const pick = (side: 'blocks' | 'blockedBy') => (id: string) => {
+    const other = free.find((c) => c.note.id === id);
+    if (other) void (side === 'blocks' ? addBlock(self, other, 'blocks') : addBlock(other, self, 'blockedBy'));
+  };
+  const row = (x: T, kind: 'by' | 'blocks') => (
+    <LinkRow
+      key={`${kind}-${x.note.id}`}
+      title={t(kind === 'by' ? 'tickets.blockedByOne' : 'tickets.blocksOne', { ticket: refLabel(x) })}
+      sub={[isTicket(x) ? x.title : '', finished(x) ? t('tickets.relationDone') : ''].filter(Boolean).join(' · ') || undefined}
+      Icon={Ban}
+      tone={kind === 'by' && !finished(x) ? 'text-red' : finished(x) ? 'text-faint' : ''}
+      onOpen={() => navigate(`/n/${x.note.id}`)}
+      onRemove={canEdit ? () => void (kind === 'by' ? removeBlock(x, self) : removeBlock(self, x)) : undefined}
+    />
+  );
+  return (
+    <div data-relations>
+      <h3 className="mb-1.5 flex items-center gap-1.5 text-label-m font-semibold text-muted">
+        <Ban size={14} /> {title}
+      </h3>
+      <ul className="space-y-1">
+        {blockers.map((b) => row(b, 'by'))}
+        {blocking.map((b) => row(b, 'blocks'))}
+        {!blockers.length && !blocking.length && <li className="px-1 text-body-s text-muted">{t('tickets.noRelations')}</li>}
+      </ul>
+      {canEdit && free.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <Dropdown variant="chip" aria-label={t('tickets.addBlockedBy')} placeholder={t('tickets.addBlockedBy')} leadingIcon={<Plus size={14} />} value="" options={free.map(option)} onChange={pick('blockedBy')} />
+          <Dropdown variant="chip" aria-label={t('tickets.addBlocks')} placeholder={t('tickets.addBlocks')} leadingIcon={<Plus size={14} />} value="" options={free.map(option)} onChange={pick('blocks')} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Header of a ticket: its fields as controls, documentation, relations and sub-task progress */
 function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
   const canEdit = tk.project.canWrite && !readOnly && tk.note.access !== 'read';
   const [label_, setLabel] = useState('');
   const [child, setChild] = useState<TicketKind | null>(null);
   const milestones = milestonesOf(tk.project);
-  const others = ticketsOf(tk.project).filter((x) => x !== tk && !tk.blocking.includes(x)).sort(byRank);
+  const others = ticketsOf(tk.project).sort(byRank);
   const links = vault.links();
   const docNotes = tk.docIds.map((id) => vault.get(id)).filter((n): n is NonNullable<typeof n> => !!n);
   const unresolved = tk.meta.docs.filter((d) => !links.resolve(d));
@@ -62,7 +109,7 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
     </>
   );
   return (
-    <section className="no-print mb-3 space-y-3 rounded-lg border border-line bg-panel p-3 anim-fade-in" aria-label={t('tickets.ticketLabel', { ticket: tk.meta.id ?? '' })} data-ticket-panel>
+    <section className="ticket-panel no-print mb-3 space-y-3 rounded-lg border border-line bg-panel p-3 anim-fade-in" aria-label={t('tickets.ticketLabel', { ticket: tk.meta.id ?? '' })} data-ticket-panel>
       {ancestors.length > 0 && (
         <nav className="flex min-w-0 flex-wrap items-center gap-1 text-label-l text-muted" aria-label={t('tickets.parent')} data-ticket-ancestors>
           {ancestors.map((a) => (
@@ -248,7 +295,7 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
           <div className="h-full bg-acc" style={{ width: `${Math.round((tk.progress.done / tk.progress.total) * 100)}%` }} />
         </div>
       )}
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="tp-split grid gap-3">
         <div>
           <h3 className="mb-1.5 flex items-center gap-1.5 text-label-m font-semibold text-muted">
             <FileText size={14} /> {t('tickets.docs', { n: docNotes.length })}
@@ -275,40 +322,7 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
           </ul>
           {canEdit && <NoteSearchField className="mt-1.5" label={t('tickets.docAdd')} placeholder={t('tickets.docLinkPlaceholder')} exclude={new Set([tk.note.id, ...docNotes.map((n) => n.id)])} onPick={addDoc} />}
         </div>
-        <div>
-          <h3 className="mb-1.5 flex items-center gap-1.5 text-label-m font-semibold text-muted">
-            <Ban size={14} /> {t('tickets.relations')}
-          </h3>
-          <ul className="space-y-1">
-            {tk.blockedBy.map((b) => (
-              <LinkRow key={b.note.id} title={t('tickets.blockedByOne', { ticket: b.meta.id ?? b.title })} sub={b.title} Icon={Ban} tone="text-red" onOpen={() => navigate(`/n/${b.note.id}`)} />
-            ))}
-            {tk.blocking.map((b) => (
-              <LinkRow
-                key={b.note.id}
-                title={t('tickets.blocksOne', { ticket: b.meta.id ?? b.title })}
-                sub={b.title}
-                Icon={Ban}
-                onOpen={() => navigate(`/n/${b.note.id}`)}
-                onRemove={canEdit ? () => set({ blocks: tk.meta.blocks.filter((x) => x.toUpperCase() !== (b.meta.id ?? '').toUpperCase() && x.toLowerCase() !== b.title.toLowerCase()) }) : undefined}
-              />
-            ))}
-            {!tk.blockedBy.length && !tk.blocking.length && <li className="px-1 text-body-s text-muted">{t('tickets.noRelations')}</li>}
-          </ul>
-          {canEdit && others.length > 0 && (
-            <div className="mt-1.5">
-              <Dropdown
-                variant="chip"
-                aria-label={t('tickets.addBlocks')}
-                placeholder={t('tickets.addBlocks')}
-                leadingIcon={<Plus size={14} />}
-                value=""
-                options={others.filter((o) => o.meta.id && !o.meta.provisional).map((o) => ({ value: o.meta.id!, label: `${o.meta.id} · ${o.title}` }))}
-                onChange={(id) => set({ blocks: [...tk.meta.blocks, id] })}
-              />
-            </div>
-          )}
-        </div>
+        <Relations self={tk} blockers={tk.blockers} blocking={tk.blocking} candidates={others} canEdit={canEdit} title={t('tickets.relations')} />
       </div>
       {(childKinds.length > 0 || tk.children.length > 0) && (
         <div data-ticket-children>
@@ -374,8 +388,34 @@ function MilestoneHeader({ m, readOnly }: { m: MilestoneInfo; readOnly: boolean 
     </label>
   );
   return (
-    <section className="no-print mb-3 space-y-3 rounded-lg border border-line bg-panel p-3 anim-fade-in" aria-label={t('tickets.milestoneLabel', { title: m.title })} data-milestone-panel>
+    <section className="ticket-panel no-print mb-3 space-y-3 rounded-lg border border-line bg-panel p-3 anim-fade-in" aria-label={t('tickets.milestoneLabel', { title: m.title })} data-milestone-panel>
       <MilestoneBanner m={m} />
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={label}>
+          <Flag size={16} /> {t('tickets.milestoneStatusTitle')}
+        </span>
+        {canEdit ? (
+          <Dropdown
+            variant="chip"
+            aria-label={t('tickets.milestoneStatusTitle')}
+            value={m.meta.status ?? ''}
+            options={[{ value: '', label: t('tickets.milestoneStatusAutoOption', { status: milestoneStatusLabel(m.state) }) }, ...MILESTONE_STATUSES.map((s) => ({ value: s, label: milestoneStatusLabel(s) }))]}
+            onChange={(v) => void setMilestoneStatus(m, (v as MilestoneStatus) || null)}
+          />
+        ) : (
+          <MilestoneStatusBadge m={m} />
+        )}
+        {m.meta.status === 'done' && m.progress.done < m.progress.total && (
+          <span className="inline-flex items-center gap-1 text-label-m text-amber" data-milestone-open-left>
+            <AlertTriangle size={14} /> {t('tickets.milestoneDoneOpen', { n: m.progress.total - m.progress.done })}
+          </span>
+        )}
+      </div>
+      {m.conflicts.length > 0 && (
+        <p className="flex items-start gap-1.5 rounded-md bg-red-bg px-2.5 py-2 text-body-s text-red" data-milestone-conflict>
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" /> {t('tickets.milestoneConflict', { list: m.conflicts.map((c) => `${c.title}${c.meta.due ? ` (${formatDay(c.meta.due)})` : ''}`).join(', ') })}
+        </p>
+      )}
       {/* Columns by the room the note has (tablet with side panels), not by the screen width */}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-x-3 gap-y-2">
         {date('start', m.meta.start)}
@@ -390,7 +430,8 @@ function MilestoneHeader({ m, readOnly }: { m: MilestoneInfo; readOnly: boolean 
         </div>
       </div>
       {m.meta.goal && <p className="text-body-m">{m.meta.goal}</p>}
-      <div className="grid gap-3 md:grid-cols-3">
+      <Relations self={m} blockers={m.blockers} blocking={m.blocking} candidates={milestonesOf(m.project)} canEdit={canEdit} title={t('tickets.dependencies')} />
+      <div className="tp-split3 grid gap-3">
         {groups.map((g) => (
           <div key={g.title}>
             <h3 className="mb-1.5 text-label-m font-semibold text-muted">

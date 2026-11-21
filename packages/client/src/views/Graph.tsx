@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY, SimulationLinkDatum, SimulationNodeDatum } from 'd3-force';
 import type { GraphEdge, GraphNode, GraphNoteKind, ParaRole } from '@kladde/shared';
-import { extractMeta, filterGraph, projectTitleOf, roleOfFolder, splitPath } from '@kladde/shared';
+import { extractMeta, filterGraph, isDatabasePath, projectTitleOf, roleOfFolder, splitPath } from '@kladde/shared';
 import { Filter, LocateFixed, X } from '../lib/icons';
 import { Dropdown } from './Dropdown';
 import { useVault, vault } from '../data/vault';
@@ -415,6 +415,7 @@ export function GraphView() {
   const noteOptions = useMemo(
     () =>
       notes
+        .filter((n) => !isDatabasePath(n.path))
         .map((n) => ({ value: n.id, label: projectTitleOf(n.path, n.content, roleConfig) || splitPath(n.path).name }))
         .sort((a, b) => compareText(a.label, b.label, lang)),
     // eslint-disable-next-line react-hooks/exhaustive-deps

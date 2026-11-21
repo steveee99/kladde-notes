@@ -4,6 +4,14 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Milestones have a status: Planned, Active, Done or Cancelled. Without one set by hand it follows the tickets (nothing started: planned; all finished: done), so an empty milestone shows "Planned". Closing a milestone while tickets are open shows how many are left; done and cancelled milestones are no longer "at risk".
+- New: Dependencies between milestones ("Blocked by …" and "Blocks …" in the milestone, frontmatter `blockedBy`/`blocks`). The roadmap shows what a milestone waits for and warns when it starts before the milestone it waits for ends.
+- New: Tickets can be marked "Blocked by …" on themselves (frontmatter `blockedBy`, also in `ticket_update` over MCP), not only "Blocks …" on the other ticket. Finished blockers stay listed as done; removing a relation clears it on both tickets.
+- Changed: Tickets and milestones show their fields beside the text when the note has the room (about 800px), above it otherwise.
+- Changed: The roadmap has a legend, and the release date is a diamond outlined in the accent instead of a yellow one that looked like a warning.
+- Fixed: Links in the frontmatter count as links: a ticket's milestone, parent, documentation and blockers now show in the graph and in the backlinks.
+- Fixed: Database notes (`_database-<uuid>`, which hold a folder's settings) no longer appear in the graph, its focus list, the recent notes on Home or the notes of a day.
+
 ## [2.16.0] – 2026-11-21
 
 - New: Catppuccin Mocha as a third color scheme (Settings → Appearance → Color scheme, also in the command palette). The accent presets map onto Mocha's colors.

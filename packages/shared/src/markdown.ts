@@ -50,7 +50,9 @@ export function extractMeta(path: string, content: string): NoteMeta {
     if (t.trim()) tags.add(t.trim().replace(/^#/, '').toLowerCase());
   }
   const links = new Set<string>();
-  for (const m of prose.matchAll(/\[\[([^\]|#\n]+)(?:#[^\]|\n]*)?(?:\|[^\]\n]*)?\]\]/g)) links.add(m[1].trim());
+  // Links in the frontmatter count too (a ticket's `milestone`, `parent`, `docs`, `blocks`; a memory note's `sources`)
+  const head = content.slice(0, content.length - body.length);
+  for (const text of [head, prose]) for (const m of text.matchAll(/\[\[([^\]|#\n]+)(?:#[^\]|\n]*)?(?:\|[^\]\n]*)?\]\]/g)) links.add(m[1].trim());
   return { title: data.title || name, folder, tags: [...tags], links: [...links], frontmatter: data };
 }
 
