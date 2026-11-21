@@ -149,6 +149,21 @@ describe('MCP ticket tools', () => {
     expect(projects.map((p) => p.key)).toEqual(['KLD']);
   });
 
+  it('builds the hierarchy epic > feature > task > subtask with checked parents', () => {
+    const { ctx } = world();
+    const epic = run('ticket_create', { project: 'KLD', title: 'Offline', kind: 'epic' }, ctx) as { ticket: string };
+    const feature = run('ticket_create', { project: 'KLD', title: 'Sync-Status', kind: 'feature', parent: epic.ticket }, ctx) as { ticket: string };
+    const task = run('ticket_create', { project: 'KLD', title: 'Badge', parent: feature.ticket }, ctx) as { ticket: string };
+    expect(() => run('ticket_create', { project: 'KLD', title: 'x', kind: 'epic', parent: feature.ticket }, ctx)).toThrow(/kein übergeordnetes/);
+    expect(() => run('ticket_create', { project: 'KLD', title: 'x', kind: 'feature', parent: task.ticket }, ctx)).toThrow(/Erlaubt: epic/);
+    run('ticket_create', { project: 'KLD', title: 'Icon', kind: 'subtask', parent: task.ticket }, ctx);
+    const below = run('list_tickets', { parent: task.ticket }, ctx) as { title: string; kind: string }[];
+    expect(below).toEqual([expect.objectContaining({ title: 'Icon', kind: 'subtask' })]);
+    expect(run('list_tickets', { kind: 'task' }, ctx)).toEqual([expect.objectContaining({ ticket: task.ticket, kind: 'task', parent: feature.ticket })]);
+    // Turning the task into an epic drops its parent
+    expect(run('ticket_update', { ticket: task.ticket, kind: 'epic' }, ctx)).toMatchObject({ kind: 'epic', parent: null });
+  });
+
   it('group projects follow the group switch, readers cannot write', () => {
     const { ctx, groups, g, ben, notes } = world();
     groups.setFeatures(ctx.userId, g.id, { tickets: true });

@@ -30,6 +30,48 @@ export const PROJECT_KEY_RE = /^[A-Z][A-Z0-9]{1,9}$/;
 const TICKET_ID_RE = /^([A-Z][A-Z0-9]{1,9})-(\d{1,7}|\?)$/;
 
 export type StatusCategory = 'open' | 'active' | 'done';
+
+/**
+ * Ticket types and their hierarchy (frontmatter `kind`, the parent in `parent: "[[KLD-12]]"`):
+ *
+ *   epic      a large goal over several milestones; top level
+ *   feature   a user-visible capability (a story); below an epic or on its own
+ *   task      a piece of work; below a feature or an epic, or on its own
+ *   bug       a defect; like a task
+ *   subtask   one step of a task, bug or feature; always below one
+ *
+ * Small steps can stay Markdown checkboxes in the ticket's text; a subtask ticket has its own status and assignee.
+ */
+export const TICKET_KINDS = ['epic', 'feature', 'task', 'bug', 'subtask'] as const;
+export type TicketKind = (typeof TICKET_KINDS)[number];
+/** Tickets without `kind` are tasks */
+export const DEFAULT_TICKET_KIND: TicketKind = 'task';
+/** The kinds a ticket of each kind may hang below (none: top level only) */
+export const PARENT_KINDS: Record<TicketKind, readonly TicketKind[]> = {
+  epic: [],
+  feature: ['epic'],
+  task: ['feature', 'epic'],
+  bug: ['feature', 'epic'],
+  subtask: ['task', 'bug', 'feature'],
+};
+/** Whether a ticket of kind `child` may hang below one of kind `parent` */
+export const canHaveParent = (child: TicketKind, parent: TicketKind): boolean => PARENT_KINDS[child].includes(parent);
+/** Kinds that may hang below a ticket of `kind`, the usual one first */
+export const childKindsOf = (kind: TicketKind): TicketKind[] => {
+  const kinds = TICKET_KINDS.filter((k) => canHaveParent(k, kind));
+  return kind === 'epic' ? kinds : kind === 'feature' ? ['task', 'bug', 'subtask'] : kinds;
+};
+
+/** A ticket kind from frontmatter text (also German names and Jira's "story"); unknown or empty → task */
+export function ticketKindOf(raw: string): TicketKind {
+  const s = raw.trim().toLowerCase().replace(/[\s_-]+/g, '');
+  if ((TICKET_KINDS as readonly string[]).includes(s)) return s as TicketKind;
+  if (s === 'story' || s === 'userstory' || s === 'funktion') return 'feature';
+  if (s === 'fehler' || s === 'defect' || s === 'defekt') return 'bug';
+  if (s === 'aufgabe' || s === 'todo') return 'task';
+  if (s === 'unteraufgabe' || s === 'teilaufgabe') return 'subtask';
+  return DEFAULT_TICKET_KIND;
+}
 export const PRIORITIES = ['high', 'medium', 'low'] as const;
 export type Priority = (typeof PRIORITIES)[number];
 
@@ -56,6 +98,10 @@ export interface TicketMeta {
   number: number | null;
   provisional: boolean;
   status: string;
+  /** Ticket type (frontmatter `kind`; task without one) */
+  kind: TicketKind;
+  /** Link target of the parent ticket (`[[KLD-12]]` → `KLD-12`) */
+  parent: string | null;
   priority: Priority | null;
   /** Link target of the milestone (`[[v2.14]]` → `v2.14`) */
   milestone: string | null;
@@ -164,6 +210,8 @@ export function newProjectContent(key: string, lang: 'de' | 'en' = 'de', require
     type: 'database',
     project: { key, workflow: wf.workflow, active: wf.active, done: wf.done, ...(requireDocs ? { requireDocs: 'true' } : {}) },
     properties: [
+      { name: 'kind', type: 'select', options: [...TICKET_KINDS], default: DEFAULT_TICKET_KIND },
+      { name: 'parent', type: 'link' },
       { name: 'status', type: 'select', options: wf.workflow, default: wf.workflow[0] },
       { name: 'priority', type: 'select', options: [...PRIORITIES], default: 'medium' },
       { name: 'milestone', type: 'link' },
@@ -173,7 +221,7 @@ export function newProjectContent(key: string, lang: 'de' | 'en' = 'de', require
     ],
     views: [
       { name: 'Board', type: 'board', group: 'status' },
-      { name: en ? 'Backlog' : 'Backlog', type: 'table', columns: ['id', 'status', 'priority', 'milestone', 'assignee', 'estimate'], sort: 'rank' },
+      { name: en ? 'Backlog' : 'Backlog', type: 'table', columns: ['id', 'kind', 'status', 'priority', 'milestone', 'assignee', 'estimate'], sort: 'rank' },
     ],
   };
   return setFrontmatterValues(en ? '# Project\n' : '# Projekt\n', head);
@@ -223,12 +271,15 @@ export function ticketMeta(content: string): TicketMeta {
   const parsed = id ? parseTicketId(id) : null;
   const milestone = str(get('milestone'));
   const assignee = str(get('assignee')).replace(/^@/, '');
+  const parent = str(get('parent'));
   return {
     id: parsed ? id : null,
     key: parsed?.key ?? null,
     number: parsed?.number ?? null,
     provisional: !!parsed && parsed.number === null,
     status: str(get('status')),
+    kind: ticketKindOf(str(get('kind'))),
+    parent: parent ? linkTarget(parent) || null : null,
     priority: priorityOf(str(get('priority'))),
     milestone: milestone ? linkTarget(milestone) || null : null,
     assignee: assignee || null,
@@ -248,10 +299,11 @@ export function milestoneMeta(content: string): MilestoneMeta {
 }
 
 /** Frontmatter values to write for a ticket field; undefined removes the key */
-export function ticketFieldValue(field: 'status' | 'priority' | 'milestone' | 'assignee' | 'estimate' | 'labels' | 'docs' | 'blocks' | 'rank', value: string | number | string[] | null): YamlValue | undefined {
+export function ticketFieldValue(field: 'status' | 'kind' | 'parent' | 'priority' | 'milestone' | 'assignee' | 'estimate' | 'labels' | 'docs' | 'blocks' | 'rank', value: string | number | string[] | null): YamlValue | undefined {
   if (value === null || value === '' || (Array.isArray(value) && !value.length)) return undefined;
   switch (field) {
     case 'milestone':
+    case 'parent':
       return `[[${String(value).replace(/^\[\[|\]\]$/g, '')}]]`;
     case 'assignee':
       return `@${String(value).replace(/^@/, '')}`;
@@ -277,6 +329,9 @@ export function setTicketFields(content: string, fields: Partial<Record<Paramete
 export interface NewTicket {
   key: string;
   status: string;
+  kind?: TicketKind;
+  /** Id or title of the parent ticket */
+  parent?: string | null;
   priority?: Priority;
   milestone?: string | null;
   assignee?: string | null;
@@ -290,8 +345,9 @@ export interface NewTicket {
 /** Content of a new ticket with the provisional id `KEY-?` (the server numbers it) */
 export function newTicketContent(t: NewTicket): string {
   const body = t.description?.trim() ? `\n${t.description.trim()}\n` : '\n';
-  const base = setFrontmatterValues(body, { type: TICKET_TYPE, id: provisionalTicketId(t.key) });
+  const base = setFrontmatterValues(body, { type: TICKET_TYPE, id: provisionalTicketId(t.key), kind: t.kind ?? DEFAULT_TICKET_KIND });
   return setTicketFields(base, {
+    parent: t.parent ?? null,
     status: t.status,
     priority: t.priority ?? 'medium',
     milestone: t.milestone ?? null,

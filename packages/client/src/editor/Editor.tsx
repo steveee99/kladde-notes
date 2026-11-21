@@ -9,7 +9,7 @@ import type { SyntaxNode } from '@lezer/common';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 import { tags as t } from '@lezer/highlight';
 import { commentHighlights } from './comments';
-import { calloutsFacet, livePreview, noteIdFacet, previewAll, refreshEffect, slideBreakLabel } from './livePreview';
+import { calloutsFacet, hidePropertiesFacet, livePreview, noteIdFacet, previewAll, refreshEffect, slideBreakLabel } from './livePreview';
 import { configureEmbeds } from './embed';
 import { embedResolverFacet, type EmbedResolver } from './embedContext';
 import { statusTaskList } from './taskStatus';
@@ -270,9 +270,11 @@ export interface EditorProps {
   slideBreaks?: string;
   /** Callouts (#86): `> [!type]` quotes as callouts (default) or, with the feature off, as plain quotes */
   callouts?: boolean;
+  /** Hide the frontmatter row in the live preview (the note shows its fields above the text, e.g. tickets) */
+  hideProperties?: boolean;
 }
 
-export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote, dim = false, onActivity, resolveEmbed, releases = null, slideBreaks = '', callouts = true }: EditorProps) {
+export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote, dim = false, onActivity, resolveEmbed, releases = null, slideBreaks = '', callouts = true, hideProperties = false }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const changeRef = useRef(onChange);
@@ -294,6 +296,9 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   const calloutConf = useRef(new Compartment());
   const calloutRef = useRef(callouts);
   calloutRef.current = callouts;
+  const hidePropsConf = useRef(new Compartment());
+  const hidePropsRef = useRef(hideProperties);
+  hidePropsRef.current = hideProperties;
   const releasesRef = useRef(releases);
   releasesRef.current = releases;
   const releaseKey = releases ? JSON.stringify(releases) : '';
@@ -341,6 +346,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           outlineSupport,
           slideConf.current.of(slideBreakLabel.of(slideRef.current)),
           calloutConf.current.of(calloutsFacet.of(calloutRef.current)),
+          hidePropsConf.current.of(hidePropertiesFacet.of(hidePropsRef.current)),
           EditorView.updateListener.of((u) => {
             if (u.docChanged || u.selectionSet) activityRef.current?.(u.view);
             if (!u.docChanged) return;
@@ -404,6 +410,16 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
     }
     view.current?.dispatch({ effects: [calloutConf.current.reconfigure(calloutsFacet.of(callouts)), refreshEffect.of(Date.now())] });
   }, [callouts]);
+
+  // Frontmatter row hidden or shown (a note became a ticket) without rebuilding the editor
+  const firstHideProps = useRef(true);
+  useEffect(() => {
+    if (firstHideProps.current) {
+      firstHideProps.current = false;
+      return;
+    }
+    view.current?.dispatch({ effects: [hidePropsConf.current.reconfigure(hidePropertiesFacet.of(hideProperties)), refreshEffect.of(Date.now())] });
+  }, [hideProperties]);
 
   // Dimming on/off without rebuilding the editor
   useEffect(() => {

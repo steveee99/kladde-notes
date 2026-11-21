@@ -229,8 +229,13 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
   return (
     <div className="flex h-full flex-col bg-bg">
       {/* Top bar (desktop): brand, the command field in the middle (opens the search, Ctrl/⌘+K), account */}
+      {/*
+        Opaque and sticky at the top edge like the phone bar: iOS 26 home-screen apps (iPad in landscape uses this
+        layout) paint a dark blur over the top of the page and only leave it out over such a bar. box-content keeps
+        the 48px for the content when the status bar adds a top inset.
+      */}
       {!focus && (
-        <header className="hidden h-12 shrink-0 items-center gap-3 border-b border-line bg-bar pl-2 pr-3 [--pad-top:0px] safe-top nav:flex">
+        <header className="sticky top-0 z-20 hidden box-content h-12 shrink-0 items-center gap-3 border-b border-line bg-bar pl-2 pr-3 [--pad-top:0px] safe-top nav:flex">
           <button type="button" onClick={() => navigate('/')} className="flex shrink-0 items-center gap-2 rounded-md px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-acc" title={t('nav.home')}>
             <AppLogo size={22} />
             <span className="font-display text-[19px] leading-6">Kladde</span>
