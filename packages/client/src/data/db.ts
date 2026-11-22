@@ -10,6 +10,8 @@ export interface LocalNote extends SyncedNote {
   /** Only while a deletion is pushed: the folder deletion this note was part of (restored as one unit from the trash) */
   trashBatch?: string;
   trashFolder?: string;
+  /** Online mode: when the text of this note was loaded (the oldest ones are dropped again) */
+  cachedAt?: number;
 }
 
 /** An attachment added while offline (#28): kept on this device until it is uploaded */
@@ -32,9 +34,12 @@ interface Schema extends DBSchema {
 
 let dbPromise: Promise<IDBPDatabase<Schema>> | null = null;
 
-/** One database per account, so two accounts on one device never mix */
-export function openLocalDb(userId: string): Promise<IDBPDatabase<Schema>> {
-  dbPromise = openDB<Schema>(`kladde-${userId}`, 2, {
+/**
+ * One database per account, so two accounts on one device never mix. In online mode a separate one, which holds only
+ * the notes the device has the text of (opened ones, unsaved edits), not the offline copy of the whole vault.
+ */
+export function openLocalDb(userId: string, online = false): Promise<IDBPDatabase<Schema>> {
+  dbPromise = openDB<Schema>(online ? `kladde-online-${userId}` : `kladde-${userId}`, 2, {
     upgrade(db, oldVersion) {
       if (oldVersion < 1) {
         db.createObjectStore('notes', { keyPath: 'id' });

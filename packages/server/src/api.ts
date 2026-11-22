@@ -214,8 +214,24 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     res.json({ ok: presence.cursor(req.user!.id, clientId, body.noteId, pos) });
   });
 
+  // `light=1` (online mode): notes without their text, as a catalog; the device fetches texts with POST /sync/notes
   router.get('/sync', (req, res) => {
-    res.json(notes.pull(req.user!.id, Math.max(0, Number(req.query.since) || 0)));
+    res.json(notes.pull(req.user!.id, Math.max(0, Number(req.query.since) || 0), { light: req.query.light === '1' }));
+  });
+
+  // Full texts of notes a device holds only as catalog entries (opened, or changed by others while open)
+  router.post('/sync/notes', express.json({ limit: '256kb' }), (req, res) => {
+    const ids = Array.isArray(req.body?.ids) ? (req.body.ids as unknown[]).filter((id): id is string => typeof id === 'string').slice(0, 500) : [];
+    res.json({ notes: notes.fetchNotes(req.user!.id, ids) });
+  });
+
+  // Online mode: links to a renamed note are rewritten on the server, in every note the user may edit
+  router.post('/sync/relink', express.json({ limit: '16kb' }), (req, res) => {
+    const { noteId, oldName, newName } = (req.body ?? {}) as { noteId?: unknown; oldName?: unknown; newName?: unknown };
+    if (typeof noteId !== 'string' || typeof oldName !== 'string' || typeof newName !== 'string' || oldName.length > 400 || newName.length > 400) {
+      return res.status(400).json({ error: 'Ungültige Anfrage.' });
+    }
+    res.json({ changed: notes.relink(req.user!.id, noteId, oldName, newName) });
   });
 
   router.post(

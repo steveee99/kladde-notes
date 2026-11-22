@@ -4,6 +4,10 @@ import { defineConfig } from '@playwright/test';
 // database and the accounts anna, ben and cara; every run works on its own data directory.
 const PORT = Number(process.env.E2E_PORT ?? 3102);
 const baseURL = `http://127.0.0.1:${PORT}`;
+/** A second test server in online mode (`KLADDE_MODE=online`) for `e2e/online.spec.ts` and `BENCH_ONLINE=1` */
+const ONLINE_PORT = PORT + 1;
+const onlineURL = `http://127.0.0.1:${ONLINE_PORT}`;
+const BENCH_ONLINE = process.env.BENCH_ONLINE === '1';
 const CI = !!process.env.CI;
 
 /** Touch devices: no hover, coarse pointer, so the `nav:` layout switch sees them like real phones and tablets */
@@ -22,26 +26,44 @@ export default defineConfig({
   workers: CI ? 2 : undefined,
   reporter: CI ? [['github'], ['html', { open: 'never' }]] : [['list']],
   use: {
-    baseURL,
+    // The large-vault benchmark in online mode signs in and measures on the online server
+    baseURL: BENCH_ONLINE ? onlineURL : baseURL,
     locale: 'en-US',
     timezoneId: 'Europe/Berlin',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  webServer: {
-    command: 'node e2e/server.mjs',
-    url: `${baseURL}/health`,
-    env: { E2E_PORT: String(PORT) },
-    reuseExistingServer: !CI,
-    timeout: 60_000,
-    stdout: 'ignore',
-  },
+  webServer: [
+    {
+      command: 'node e2e/server.mjs',
+      url: `${baseURL}/health`,
+      env: { E2E_PORT: String(PORT), KLADDE_MODE: 'offline' },
+      reuseExistingServer: !CI,
+      timeout: 60_000,
+      stdout: 'ignore',
+    },
+    {
+      command: 'node e2e/server.mjs',
+      url: `${onlineURL}/health`,
+      env: { E2E_PORT: String(ONLINE_PORT), KLADDE_MODE: 'online' },
+      reuseExistingServer: !CI,
+      timeout: 60_000,
+      stdout: 'ignore',
+    },
+  ],
   projects: [
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'desktop',
       dependencies: ['setup'],
+      testIgnore: /online\.spec\.ts/,
       use: { viewport: { width: 1280, height: 800 } },
+    },
+    {
+      // Online mode: its own server, the test signs in there itself
+      name: 'online',
+      testMatch: /online\.spec\.ts/,
+      use: { viewport: { width: 1280, height: 800 }, baseURL: onlineURL },
     },
     {
       // Tablet in portrait: phone-style layout with the bottom bar and its extra destinations

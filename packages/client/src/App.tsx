@@ -79,7 +79,9 @@ Object.assign(editorHost, {
     const id = links.resolve(target);
     const note = id ? vault.get(id) : undefined;
     if (!note || note.deleted) return null;
-    return { id: note.id, title: links.notes.get(note.id)?.title ?? target, content: note.content, canWrite: note.access !== 'read' && !isReadOnly() };
+    // Online mode: only the catalog entry until the text is loaded (read-only meanwhile)
+    if (note.partial) vault.prefetch(note.id);
+    return { id: note.id, title: links.notes.get(note.id)?.title ?? target, content: note.content, canWrite: note.access !== 'read' && !isReadOnly() && !note.partial };
   },
   runQuery: (src: string) => {
     try {
@@ -118,6 +120,7 @@ export function App() {
     if (cached) {
       applyAccentOf(cached);
       vault.standalone = !!cached.standalone;
+      vault.online = !!cached.online;
       vault.actorName = cached.username;
       void vault.open(cached.id);
     }
@@ -127,6 +130,11 @@ export function App() {
   const signedIn = useCallback((user: Me) => {
     applyAccentOf(user);
     vault.standalone = !!user.standalone;
+    // The server switched between offline and online mode: the vault starts again with the other local store
+    if (vault.online !== !!user.online) {
+      vault.close();
+      vault.online = !!user.online;
+    }
     // Voice notes: the server transcribes when its admin set up a speech-to-text service
     editorHost.transcribe = user.transcription
       ? (url: string) =>

@@ -107,6 +107,43 @@ describe('NoteStore', () => {
   });
 });
 
+describe('Online mode', () => {
+  it('pulls a catalog without texts and fetches texts the user may see', () => {
+    const { notes, anna, ben } = setup();
+    notes.push(anna.id, [change('note-0001', 'Langer Text'), change('note-0002', '["Inbox"]', 0, '.kladde/folders.json')]);
+    const light = notes.pull(anna.id, 0, { light: true });
+    expect(light.notes.find((n) => n.id === 'note-0001')).toMatchObject({ path: 'Inbox/Test.md', content: '', partial: true, version: 1 });
+    // System notes (settings, folders) always come with their text
+    expect(light.notes.find((n) => n.id === 'note-0002')).toMatchObject({ content: '["Inbox"]' });
+    expect(light.notes.find((n) => n.id === 'note-0002')?.partial).toBeUndefined();
+    // Again from the path cache, and a changed note decrypted again
+    notes.push(anna.id, [change('note-0001', 'Neu', 1, 'Inbox/Umbenannt.md')]);
+    expect(notes.pull(anna.id, 0, { light: true }).notes.find((n) => n.id === 'note-0001')).toMatchObject({ path: 'Inbox/Umbenannt.md', content: '', version: 2 });
+    expect(notes.fetchNotes(anna.id, ['note-0001', 'unknown-01', 'note-0001'])).toMatchObject([{ id: 'note-0001', content: 'Neu' }]);
+    expect(notes.fetchNotes(ben.id, ['note-0001'])).toEqual([]);
+  });
+
+  it('keeps the text when a device without it moves or deletes a note', () => {
+    const { notes, anna } = setup();
+    notes.push(anna.id, [change('note-0001', 'Bleibt erhalten')]);
+    const [moved] = notes.push(anna.id, [{ ...change('note-0001', '', 1, 'Archiv/Test.md'), keepContent: true }]);
+    expect(moved).toEqual({ id: 'note-0001', status: 'ok', version: 2 });
+    expect(notes.fetchNotes(anna.id, ['note-0001'])[0]).toMatchObject({ path: 'Archiv/Test.md', content: 'Bleibt erhalten' });
+    notes.push(anna.id, [{ ...change('note-0001', '', 2, 'Archiv/Test.md'), deleted: true, keepContent: true }]);
+    expect(notes.trash(anna.id)[0]).toMatchObject({ path: 'Archiv/Test.md' });
+  });
+
+  it('rewrites links to a renamed note in every note the user may edit', () => {
+    const { notes, anna, ben } = setup();
+    notes.push(anna.id, [change('note-0001', 'Ziel', 0, 'Inbox/Neu.md'), change('note-0002', 'Siehe [[Alt]] und [[Alt|hier]].', 0, 'Inbox/A.md'), change('note-0003', 'Ohne Link', 0, 'Inbox/B.md')]);
+    notes.push(ben.id, [change('note-0004', 'Bens [[Alt]]', 0, 'Inbox/C.md')]);
+    expect(notes.relink(anna.id, 'note-0001', 'Alt', 'Neu')).toBe(1);
+    expect(notes.fetchNotes(anna.id, ['note-0002'])[0].content).toBe('Siehe [[Neu]] und [[Neu|hier]].');
+    // Other users' notes stay as they are
+    expect(notes.fetchNotes(ben.id, ['note-0004'])[0].content).toBe('Bens [[Alt]]');
+  });
+});
+
 describe('Folder shares', () => {
   const visible = (notes: NoteStore, userId: string) =>
     Object.fromEntries(notes.pull(userId, 0).notes.map((n) => [n.id, n.access]));

@@ -34,6 +34,8 @@ export interface AuthOptions {
   devLogin: boolean;
   /** The server transcribes voice notes (shown to the client in /auth/me) */
   transcription?: boolean;
+  /** Online mode (`KLADDE_MODE=online`, shown to the client in /auth/me) */
+  online?: boolean;
   /** "Sign in with GitLab", null/undefined = off */
   gitlab?: GitLabConfig | null;
   /** Replaces fetch for the GitLab token/user lookups (tests) */
@@ -156,6 +158,7 @@ export function authRouter(opts: AuthOptions): express.Router {
         accent: user.accent,
       externalLogins: users.externalLoginsOf(user.id),
       transcription: !!opts.transcription,
+      ...(opts.online ? { online: true } : {}),
     };
   };
 

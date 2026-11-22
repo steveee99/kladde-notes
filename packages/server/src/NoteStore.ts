@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, assignTicketNumber, canTransition, isDatabasePath, isTicketContent, parseProject, runAutomations, setTicketFields, subtaskProgress, ticketEvents, ticketMeta, workflowStatus, type ProjectConfig, contentHash, embedsOf, extractMeta, numberedTicketId, parseGroupFeatures, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, splitPath } from '@kladde/shared';
+import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, assignTicketNumber, canTransition, isDatabasePath, isTicketContent, parseProject, runAutomations, setTicketFields, subtaskProgress, ticketEvents, ticketMeta, workflowStatus, type ProjectConfig, contentHash, embedsOf, extractMeta, numberedTicketId, parseGroupFeatures, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, splitPath, renameWikiLinks } from '@kladde/shared';
 import { DataCipher, randomToken } from './crypto.js';
 import { transaction } from './db.js';
 
@@ -492,7 +492,83 @@ export class NoteStore {
     return row && !row.deleted ? this.audience(row) : null;
   }
 
-  pull(userId: string, since: number): PullResponse {
+  /**
+   * Changes since `since`. `light` (online mode): notes come as catalog entries without their text (`partial`), only
+   * system notes (settings, folders, templates) keep it; the device fetches a note's text with `fetchNotes`.
+   */
+  pull(userId: string, since: number, opts: { light?: boolean } = {}): PullResponse {
+    const res = this.pullAll(userId, since, !!opts.light);
+    if (!opts.light) return res;
+    return { ...res, notes: res.notes.map((n) => (n.deleted || n.path.startsWith(SYSTEM_PREFIX) ? n : { ...n, content: '', partial: true })) };
+  }
+
+  /** Full notes the user may see, by id (deleted, unknown and foreign ones are left out) */
+  fetchNotes(userId: string, ids: string[]): SyncedNote[] {
+    const out: SyncedNote[] = [];
+    for (const id of new Set(ids)) {
+      if (typeof id !== 'string' || !ID_PATTERN.test(id)) continue;
+      const row = this.getRow(id);
+      const access = row && !row.deleted ? this.accessOf(userId, row) : null;
+      if (row && access) out.push(this.syncedFor(row, userId, access));
+    }
+    return out;
+  }
+
+  /**
+   * Online mode: after a rename every [[Old Title]] in the notes the user may edit points to the new title (the
+   * device holds only the texts it opened, so the server rewrites them). Returns how many notes changed.
+   */
+  relink(userId: string, renamedId: string, oldName: string, newName: string): number {
+    if (!oldName || !newName || oldName === newName) return 0;
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM notes WHERE owner_id = ? AND deleted = 0
+         UNION SELECT notes.* FROM group_members JOIN notes ON notes.owner_id = group_members.group_id
+           WHERE group_members.user_id = ? AND group_members.role IN ('owner', 'editor') AND notes.deleted = 0
+         UNION SELECT notes.* FROM shares JOIN notes ON notes.id = shares.note_id WHERE shares.user_id = ? AND shares.can_write = 1 AND notes.deleted = 0`
+      )
+      .all(userId, userId, userId) as unknown as NoteRow[];
+    const changes: PushChange[] = [];
+    const now = Date.now();
+    for (const row of rows) {
+      if (row.id === renamedId) continue;
+      const p = this.payload(row);
+      if (p.path.startsWith(SYSTEM_PREFIX) || !p.content.includes('[[')) continue;
+      const content = renameWikiLinks(p.content, oldName, newName);
+      if (content !== p.content) changes.push({ id: row.id, baseVersion: row.version, path: p.path, content, deleted: false, createdAt: row.created_at, updatedAt: now });
+    }
+    let changed = 0;
+    for (let i = 0; i < changes.length; i += 500) changed += this.push(userId, changes.slice(i, i + 500)).filter((r) => r.status === 'ok').length;
+    return changed;
+  }
+
+  /** Paths of catalog entries by note id and seq: a light pull decrypts only notes that changed since the last one */
+  private catalogPaths = new Map<string, { seq: number; path: string }>();
+
+  /** A note as a catalog entry (light pull): path, version and access from the cache when the note did not change */
+  private catalogEntry(row: NoteRow, access: NoteAccess, owner?: string, ownerAvatar?: string | null): SyncedNote {
+    const hit = this.catalogPaths.get(row.id);
+    if (!hit || hit.seq !== row.seq || row.deleted) {
+      const full = this.toSynced(row, access, owner, ownerAvatar);
+      if (!row.deleted && !full.versioning) this.catalogPaths.set(row.id, { seq: row.seq, path: full.path });
+      return full;
+    }
+    return {
+      id: row.id,
+      path: hit.path,
+      content: '',
+      version: row.version,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      deleted: false,
+      access,
+      ...(owner ? { owner } : {}),
+      ...(ownerAvatar ? { ownerAvatar: `/api/avatars/${ownerAvatar}` } : {}),
+    };
+  }
+
+  private pullAll(userId: string, since: number, light: boolean): PullResponse {
+    const synced = light ? this.catalogEntry.bind(this) : this.toSynced.bind(this);
     const cursor = this.currentSeq();
     const own = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND seq > ? ORDER BY seq').all(userId, since) as unknown as NoteRow[];
     const shared = this.db
@@ -517,11 +593,11 @@ export class NoteStore {
     const sentIds = new Set([...shared.map((s) => s.id), ...grouped.map((g) => g.id)]);
     return {
       notes: [
-        ...own.map((r) => this.toSynced(r, 'owner')),
-        ...shared.map((r) => ({ ...this.toSynced(r, r.can_write ? 'write' : 'read', r.owner_name, r.owner_avatar), ...(r.can_delete ? { canDelete: true } : {}) })),
+        ...own.map((r) => synced(r, 'owner')),
+        ...shared.map((r) => ({ ...synced(r, r.can_write ? 'write' : 'read', r.owner_name, r.owner_avatar), ...(r.can_delete ? { canDelete: true } : {}) })),
         ...grouped.map((r) => {
           const writer = canWriteInGroup(r.group_role);
-          return { ...this.toSynced(r, writer ? 'write' : 'read', r.group_name), group: r.owner_id, ...(writer ? { canDelete: true } : {}) };
+          return { ...synced(r, writer ? 'write' : 'read', r.group_name), group: r.owner_id, ...(writer ? { canDelete: true } : {}) };
         }),
       ],
       revoked: revoked.map((r) => r.note_id).filter((id) => !sentIds.has(id) && !this.canSee(id, userId)),
@@ -631,6 +707,8 @@ export class NoteStore {
         // A recipient deletes only with the folder share's permission (and an unknown owner is refused)
         if (!manager && change.deleted && !this.canDeleteShared(row.id, userId)) return { id: change.id, status: 'forbidden' };
         const old = this.payload(row);
+        // Online mode: a device without the text moves, renames or deletes the note; the text stays as it is
+        if (change.keepContent) content = old.content;
         // Only the owner moves or renames a note: it lives in their space. Deleting also needs the folder share's permission
         const path = manager ? cleanPath(change.path) : old.path;
         const deleted = !!change.deleted;
@@ -654,7 +732,7 @@ export class NoteStore {
         if (deleted) this.dropShares(row.id, seq);
         else if (access === 'owner' && path !== old.path) audience.push(...this.applyFolderShares(userId, row.id, path, seq, folderShares()));
         events.push({ noteId: row.id, ownerId: row.owner_id, audience: [...new Set(audience)], path, previousPath: old.path, content: deleted ? content : this.published(row.id, content), deleted, actorId: userId, previousContent: old.content });
-        return { id: change.id, status: 'ok', version: row.version + 1, ...(content !== sent ? { content } : {}), ...flow };
+        return { id: change.id, status: 'ok', version: row.version + 1, ...(content !== sent && !change.keepContent ? { content } : {}), ...flow };
       })
     );
     for (const e of events) this.onChange(e);

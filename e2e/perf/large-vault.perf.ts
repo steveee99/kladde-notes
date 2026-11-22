@@ -7,7 +7,11 @@ import { generateVault } from '../fixtures/largeVault.mjs';
 // Seeds 5,000 notes (20,000 links, 10,000 tasks) for the account `perf` and measures what users wait for.
 // The numbers go to the console and to test-results/perf-large-vault.json; compare them across changes.
 
+// `BENCH_ONLINE=1` measures against the test server in online mode (KLADDE_MODE=online): the device loads a catalog
+// of the notes and a note's text when it opens.
+
 const NOTES = Number(process.env.BENCH_NOTES ?? 5000);
+const ONLINE = process.env.BENCH_ONLINE === '1';
 
 interface Result {
   name: string;
@@ -24,9 +28,23 @@ test('large vault', async ({ browser }, testInfo) => {
   const record = (name: string, ms: number, note?: string) => {
     results.push({ name, ms: Math.round(ms), note });
     console.log(`  ${name}: ${Math.round(ms)} ms ${note ?? ''}`);
-    fs.writeFileSync(out, JSON.stringify({ notes: NOTES, at: new Date().toISOString(), results }, null, 2));
+    fs.writeFileSync(out, JSON.stringify({ notes: NOTES, online: ONLINE, at: new Date().toISOString(), results }, null, 2));
   };
   const stepTimeout = Number(process.env.BENCH_STEP_TIMEOUT ?? 60_000);
+  // `BENCH_PROFILE=open,typing` (or `1` for the typing): CPU profiles of those steps in test-results/perf-<step>.cpuprofile
+  // (open them in the Performance panel of Chrome DevTools)
+  const profiled = new Set((process.env.BENCH_PROFILE === '1' ? 'typing' : (process.env.BENCH_PROFILE ?? '')).split(',').filter(Boolean));
+  const startProfile = async (step: string) => {
+    if (!profiled.has(step)) return null;
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Profiler.enable');
+    await cdp.send('Profiler.start');
+    return async () => {
+      await page.waitForTimeout(1000);
+      const { profile } = await cdp.send('Profiler.stop');
+      fs.writeFileSync(path.join(path.dirname(out), `perf-${step}.cpuprofile`), JSON.stringify(profile));
+    };
+  };
 
   // Seed through the sync API, like a device that wrote all of it
   const context = await newContextAs(browser, testInfo, 'perf');
@@ -67,6 +85,7 @@ test('large vault', async ({ browser }, testInfo) => {
     );
 
   // 1. First start on a new device: download and store everything
+  const stopSync = await startProfile('sync');
   let t = Date.now();
   const pulled = page.waitForResponse((r) => r.url().includes('/api/sync?since=0'));
   await page.goto('/');
@@ -79,7 +98,9 @@ test('large vault', async ({ browser }, testInfo) => {
   await expect(page.getByRole('button', { name: 'Synced' }).first()).toBeVisible({ timeout: Number(process.env.BENCH_SYNC_TIMEOUT ?? 120_000) });
   await expect(page.getByRole('region', { name: 'Recently edited' })).toBeVisible();
   record('first sync: stored and home shown', Date.now() - t);
-  expect(await countLocal()).toBeGreaterThanOrEqual(NOTES);
+  await stopSync?.();
+  // Online mode keeps only opened notes on the device
+  if (!ONLINE) expect(await countLocal()).toBeGreaterThanOrEqual(NOTES);
 
   // 2. Start again: everything comes from IndexedDB
   t = Date.now();
@@ -93,8 +114,16 @@ test('large vault', async ({ browser }, testInfo) => {
 
   // 3. Typing in a note with many backlinks: Event Timing gives the time from key press to the next paint
   const target = vault[0];
-  await page.goto(`/n/${target.id}`);
-  await expect(editor(page)).toBeVisible({ timeout: 300_000 });
+  // Inside the app (like a click on a link), not a new page load: in online mode this loads the note's text
+  const stopOpen = await startProfile('open');
+  t = Date.now();
+  await page.evaluate((to) => {
+    history.pushState(null, '', to);
+    dispatchEvent(new PopStateEvent('popstate'));
+  }, `/n/${target.id}`);
+  await expect(editor(page)).toContainText(target.content.split('\n').find((l) => l.length > 30 && !l.startsWith('-') && !l.startsWith('#'))!.slice(0, 20), { timeout: 300_000 });
+  record('open a note (until its text shows)', Date.now() - t);
+  await stopOpen?.();
   await editor(page).click();
   await page.keyboard.press('ControlOrMeta+End');
   await page.evaluate(() => {
@@ -104,22 +133,13 @@ test('large vault', async ({ browser }, testInfo) => {
       for (const e of list.getEntries()) if (e.name === 'keydown') w.__keys.push(e.duration);
     }).observe({ type: 'event', durationThreshold: 16, buffered: false } as PerformanceObserverInit);
   });
-  // `BENCH_PROFILE=1`: a CPU profile of the typing (test-results/perf-typing.cpuprofile, opens in Chrome DevTools)
-  const cdp = process.env.BENCH_PROFILE ? await context.newCDPSession(page) : null;
-  if (cdp) {
-    await cdp.send('Profiler.enable');
-    await cdp.send('Profiler.start');
-  }
+  const stopTyping = await startProfile('typing');
   const text = ' tippen im grossen vault';
   t = Date.now();
   for (const ch of text) await page.keyboard.type(ch, { delay: 30 });
   await expect(editor(page)).toContainText('tippen im grossen vault');
   const typedMs = Date.now() - t;
-  if (cdp) {
-    await page.waitForTimeout(1500);
-    const { profile } = await cdp.send('Profiler.stop');
-    fs.writeFileSync(path.join(path.dirname(out), 'perf-typing.cpuprofile'), JSON.stringify(profile));
-  }
+  await stopTyping?.();
   await page.waitForTimeout(500);
   const slow = await page.evaluate(() => (window as unknown as { __keys: number[] }).__keys);
   // Event Timing reports from 16 ms on, so a keystroke missing here was faster than that
@@ -160,8 +180,8 @@ test('large vault', async ({ browser }, testInfo) => {
 
   const width = Math.max(...results.map((r) => r.name.length));
   const lines = results.map((r) => `${r.name.padEnd(width)}  ${String(r.ms).padStart(7)} ms  ${r.note ?? ''}`);
-  console.log(`\nLarge vault: ${NOTES} notes · ${testInfo.project.name}\n${lines.join('\n')}\n`);
-  fs.writeFileSync(out, JSON.stringify({ notes: NOTES, at: new Date().toISOString(), results }, null, 2));
+  console.log(`\nLarge vault: ${NOTES} notes${ONLINE ? ' (online mode)' : ''} · ${testInfo.project.name}\n${lines.join('\n')}\n`);
+  fs.writeFileSync(out, JSON.stringify({ notes: NOTES, online: ONLINE, at: new Date().toISOString(), results }, null, 2));
   await testInfo.attach('results', { body: JSON.stringify(results, null, 2), contentType: 'application/json' });
   await context.close();
 });

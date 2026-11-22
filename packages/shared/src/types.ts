@@ -28,6 +28,11 @@ export interface SyncedNote {
   releaseHash?: string;
   /** Read-only readers get the latest release instead of the draft: its version (the content is that release) */
   showsRelease?: string;
+  /**
+   * Online mode: only the catalog entry came (path, version, access); `content` is empty until the device fetches
+   * the note (`POST /api/sync/notes`)
+   */
+  partial?: boolean;
 }
 
 /** A released version of a note (#53); immutable once created */
@@ -134,6 +139,8 @@ export interface PushChange {
   owner?: string;
   /** New note in a group (#58): the group's id; the note belongs to the group */
   group?: string;
+  /** Online mode: the device does not hold the text (a move, rename or deletion); the server keeps its own */
+  keepContent?: boolean;
   /** Deleted together with a folder: a random id shared by all notes of that deletion (restored as one unit) */
   trashBatch?: string;
   /** The folder that was deleted with this note (shown in the trash) */
@@ -236,6 +243,11 @@ export interface Me {
   dataDir?: string;
   /** The server can transcribe voice notes (TRANSCRIBE_URL is set) */
   transcription?: boolean;
+  /**
+   * Online mode (`KLADDE_MODE=online`): devices keep only a catalog of the notes and load the text of a note when it
+   * opens; nothing works without a connection
+   */
+  online?: boolean;
 }
 
 export const PASSWORD_MIN_LENGTH = 8;

@@ -1180,6 +1180,25 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
       vault.markSeen(id);
     };
   }, [id]);
+  // Online mode: the device has only the catalog entry; the text loads when the note opens
+  const partial = !!note?.partial;
+  const [fetchFailed, setFetchFailed] = useState(false);
+  const [fetchTry, setFetchTry] = useState(0);
+  useEffect(() => {
+    if (!partial) return;
+    setFetchFailed(false);
+    let live = true;
+    vault.ensureFull(id).catch(() => live && setFetchFailed(true));
+    return () => {
+      live = false;
+    };
+  }, [id, partial, fetchTry]);
+  useEffect(() => {
+    if (!fetchFailed) return;
+    const retry = () => setFetchTry((n) => n + 1);
+    window.addEventListener('online', retry);
+    return () => window.removeEventListener('online', retry);
+  }, [fetchFailed]);
   // Comments (#68): threads on passages, kept on the server (only for notes it already has)
   const commentsOn = !!note && !vault.standalone && !DEMO && vault.features().comments.enabled && note.version > 0;
   const threads = useComments(id, commentsOn);
@@ -1361,6 +1380,20 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             {t('note.backToHome')}
           </button>
         </div>
+      </div>
+    );
+  }
+
+  if (note.partial) {
+    return (
+      <div className="p-10 text-center text-muted anim-fade-in" role="status">
+        <div className="text-title-m text-strong">{splitPath(note.path).name}</div>
+        <p className="mt-2 text-body-m">{fetchFailed ? t('online.unavailable') : t('online.loading')}</p>
+        {fetchFailed && (
+          <button className="btn-outlined mt-4" onClick={() => setFetchTry((n) => n + 1)}>
+            {t('online.retry')}
+          </button>
+        )}
       </div>
     );
   }

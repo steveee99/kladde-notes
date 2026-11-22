@@ -31,6 +31,7 @@ import {
   INBOX_FOLDER,
   PROJECT_HOME_NAME,
   PullResponse,
+  PushChange,
   PushResponse,
   RoleFolderMap,
   DEFAULT_RECIPE_FOLDER,
@@ -110,6 +111,11 @@ import { clientId, presence } from '../lib/presence';
 import { LocalDb, LocalNote, openLocalDb } from './db';
 import { welcomeNotes } from './welcome';
 
+/** Online mode: texts of opened notes kept on the device; older ones go back to catalog entries */
+const MAX_CACHED = 300;
+/** Notes fetched with their text per request */
+const FETCH_BATCH = 500;
+
 /** Window event with the server's version (from the live stream's `hello`), heard by `lib/update.ts` */
 export const SERVER_VERSION_EVENT = 'kladde-server-version';
 
@@ -138,6 +144,11 @@ class Vault {
   ready = false;
   /** Running against local standalone desktop server (always reachable even when navigator.onLine is false) */
   standalone = false;
+  /**
+   * Online mode (`KLADDE_MODE=online`, from /auth/me): the device holds a catalog of all notes (paths, versions,
+   * access) and the text only of system notes and the notes it opened (`ensureFull`); set before `open`
+   */
+  online = false;
   /** Folders other users share with this user (from the last pull) */
   sharedFolders: SharedFolder[] = [];
   /** Groups the user is a member of (#58, from the last pull) */
@@ -201,7 +212,7 @@ class Vault {
   }
 
   private async load(userId: string): Promise<void> {
-    const db = await openLocalDb(userId);
+    const db = await openLocalDb(userId, this.online);
     if (this.userId !== userId) return;
     this.db = db;
     for (const n of await this.db.getAll('notes')) this.notes.set(n.id, n);
@@ -226,6 +237,9 @@ class Vault {
     this.events = null;
     presence.reset();
     this.notes.clear();
+    this.memCursor = null;
+    this.fetching.clear();
+    this.relinks = [];
     this.sharedFolders = [];
     this.groups = [];
     this.ready = false;
@@ -256,19 +270,8 @@ class Vault {
     } catch {
       // ignore editor flush issues during unload
     }
-    const dirty = [...this.notes.values()].filter((n) => n.dirty);
-    if (!dirty.length) return;
-    const changes = dirty.map((n) => ({
-      id: n.id,
-      baseVersion: n.version,
-      path: n.path,
-      content: n.content,
-      deleted: n.deleted,
-      createdAt: n.createdAt,
-      updatedAt: n.updatedAt,
-      ...newNoteSpace(n),
-      ...(n.deleted && n.trashBatch ? { trashBatch: n.trashBatch, trashFolder: n.trashFolder } : {}),
-    }));
+    const changes = [...this.notes.values()].filter((n) => n.dirty).map(toChange);
+    if (!changes.length) return;
     const body = JSON.stringify({ changes });
     // Fetch keepalive allows up to ~64 KiB; chunk larger payloads cleanly if needed
     if (body.length <= 60_000 && typeof fetch === 'function') {
@@ -322,6 +325,102 @@ class Vault {
         // malformed event: ignore
       }
     });
+  }
+
+  // ------------------------------------------------------------------ online mode
+
+  /** Online mode: the sync cursor lives in memory (each start loads the catalog again) */
+  private memCursor: number | null = null;
+  private fetching = new Map<string, Promise<LocalNote | undefined>>();
+  /** Online mode: renames whose links the server still has to rewrite (sent with the next sync) */
+  private relinks: { noteId: string; oldName: string; newName: string }[] = [];
+
+  /** True while only the note's catalog entry is on the device (online mode): its text loads when it opens */
+  isPartial(id: string): boolean {
+    return !!this.notes.get(id)?.partial;
+  }
+
+  /**
+   * The note with its text: fetched from the server when the device has only its catalog entry, then kept (up to
+   * MAX_CACHED notes). Rejects when the server cannot be reached.
+   */
+  ensureFull(id: string): Promise<LocalNote | undefined> {
+    const note = this.notes.get(id);
+    if (!note || !note.partial) return Promise.resolve(note);
+    const running = this.fetching.get(id);
+    if (running) return running;
+    const p = this.fetchFull([id])
+      .then(async () => {
+        await this.evictCached();
+        return this.notes.get(id);
+      })
+      .finally(() => this.fetching.delete(id));
+    this.fetching.set(id, p);
+    return p;
+  }
+
+  /**
+   * The note for an edit of its text: loaded first in online mode (a table cell, a task on the task page, a status on
+   * the board of a note that was never opened); undefined when it is gone or its text cannot be loaded
+   */
+  private async withText(id: string): Promise<LocalNote | undefined> {
+    if (this.notes.get(id)?.partial) await this.ensureFull(id).catch(() => {});
+    const note = this.get(id);
+    return note?.partial ? undefined : note;
+  }
+
+  /** Starts loading a note's text in the background (embeds, previews) */
+  prefetch(id: string): void {
+    if (this.notes.get(id)?.partial) void this.ensureFull(id).catch(() => {});
+  }
+
+  /** Texts from the server, in batches; local edits made meanwhile (a move, a deletion) are kept */
+  private async fetchFull(ids: string[]): Promise<void> {
+    for (let i = 0; i < ids.length; i += FETCH_BATCH) {
+      const { notes } = await api<{ notes: SyncedNote[] }>('/sync/notes', { method: 'POST', json: { ids: ids.slice(i, i + FETCH_BATCH) } });
+      const now = Date.now();
+      const full: LocalNote[] = [];
+      for (const server of notes) {
+        const local = this.notes.get(server.id);
+        if (!local || !local.partial) continue;
+        if (local.dirty) {
+          // Moved or deleted here before the text came: the text joins the pending change
+          const { partial: _p, ...rest } = local;
+          full.push({ ...rest, content: server.content, version: server.version, base: server.content, basePath: server.path, cachedAt: now });
+        } else full.push({ ...server, dirty: false, cachedAt: now });
+      }
+      await this.storeMany(full);
+    }
+  }
+
+  /** Writes many notes to memory and IndexedDB in one transaction with one update (#64); catalog entries stay in memory */
+  private async storeMany(list: LocalNote[], removed: string[] = []): Promise<void> {
+    if (!list.length && !removed.length) return;
+    for (const n of list) this.notes.set(n.id, n);
+    this.emit();
+    if (!this.db) return;
+    const tx = this.db.transaction('notes', 'readwrite');
+    await Promise.all([...list.map((n) => (n.partial && !n.dirty ? tx.store.delete(n.id) : tx.store.put(n))), ...removed.map((id) => tx.store.delete(id)), tx.done]);
+  }
+
+  /** Keeps the texts of at most MAX_CACHED opened notes; the ones opened longest ago become catalog entries again */
+  private async evictCached(): Promise<void> {
+    const cached = [...this.notes.values()].filter((n) => n.cachedAt && !n.partial);
+    if (cached.length <= MAX_CACHED) return;
+    cached.sort((a, b) => (a.cachedAt ?? 0) - (b.cachedAt ?? 0));
+    const slim = cached
+      .slice(0, cached.length - MAX_CACHED)
+      .filter((n) => !n.dirty && n.id !== this.viewing)
+      .map(toCatalogEntry);
+    await this.storeMany(slim);
+  }
+
+  /** Sends the renames whose links the server rewrites (online mode); kept for the next sync when that fails */
+  private async sendRelinks(): Promise<void> {
+    while (this.relinks.length) {
+      await api('/sync/relink', { method: 'POST', json: this.relinks[0] });
+      this.relinks.shift();
+    }
   }
 
   // ------------------------------------------------------------------ queries
@@ -402,6 +501,10 @@ class Vault {
   // ------------------------------------------------------------------ edits
 
   private async put(note: LocalNote) {
+    const previous = this.notes.get(note.id);
+    // Online mode: a catalog entry has no text, so a text computed from it would replace the real one. Code that
+    // changes a text loads the note first (`ensureFull`); a path change or deletion goes out without the text
+    if (note.partial && previous?.partial && note.content !== previous.content) note = { ...note, content: previous.content };
     if (!note.dirty) {
       // Synced: the content itself is the base
       if (note.base !== undefined || note.basePath !== undefined) {
@@ -415,7 +518,8 @@ class Vault {
     }
     this.notes.set(note.id, note);
     this.emit();
-    await this.db?.put('notes', note);
+    if (note.partial && !note.dirty) await this.db?.delete('notes', note.id);
+    else await this.db?.put('notes', note);
   }
 
   /** A free path for `title` in `folder` of one space (own notes, one other owner's space, or a group) */
@@ -538,7 +642,8 @@ class Vault {
    */
   async duplicate(id: string): Promise<LocalNote> {
     if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
-    const note = this.notes.get(id);
+    // Online mode: copied with its text
+    const note = await this.ensureFull(id);
     if (!note || note.deleted) throw new Error(t('vault.duplicateMissing'));
     const { folder, name } = splitPath(note.path);
     const title = t('note.copyName', { name });
@@ -621,6 +726,11 @@ class Vault {
 
   /** After a rename every [[Old Title]] in notes the user may edit points to the new title */
   private async relink(renamedId: string, oldName: string, newName: string) {
+    if (this.online) {
+      // The server holds the texts: it rewrites the links, the changed notes come back with the next pull
+      this.relinks.push({ noteId: renamedId, oldName, newName });
+      return;
+    }
     for (const n of [...this.notes.values()]) {
       if (n.deleted || n.id === renamedId || n.access === 'read' || !n.content.includes('[[')) continue;
       const content = renameWikiLinks(n.content, oldName, newName);
@@ -687,7 +797,7 @@ class Vault {
 
   /** Replaces the first plain mention of the target's title in `noteId` with a link */
   async linkMention(noteId: string, targetId: string) {
-    const note = this.get(noteId);
+    const note = await this.withText(noteId);
     const target = this.get(targetId);
     if (!note || !target) return;
     const full = this.links().notes.get(targetId)?.title ?? splitPath(target.path).name;
@@ -699,8 +809,12 @@ class Vault {
 
   // ------------------------------------------------------------------ Daily Notes, PARA, Zettelkasten & Features
 
+  private featuresCache: { version: number; features: FeatureSettings } | null = null;
+
+  /** The feature settings; kept until the next change, since many views ask on every render (#64) */
   features(): FeatureSettings {
-    return normalizeFeatures(this.setting(FEATURES_SETTING), this.folders());
+    if (this.featuresCache?.version !== this.version) this.featuresCache = { version: this.version, features: normalizeFeatures(this.setting(FEATURES_SETTING), this.folders()) };
+    return this.featuresCache.features;
   }
 
   roleConfig(): RoleFolderMap {
@@ -805,7 +919,7 @@ class Vault {
   }
 
   async setFrontmatter(id: string, updates: Record<string, string | null>) {
-    const note = this.get(id);
+    const note = await this.withText(id);
     if (note) await this.update(id, { content: setFrontmatter(note.content, updates) });
   }
 
@@ -929,7 +1043,7 @@ class Vault {
 
   /** Inbox item becomes a fleeting Zettel: id in front of the title and in the frontmatter */
   async toZettel(id: string) {
-    const note = this.get(id);
+    const note = await this.withText(id);
     const { zettel } = this.features();
     if (!note || !zettel.enabled) return;
     const zid = zettelId(new Date(note.createdAt));
@@ -1072,7 +1186,7 @@ class Vault {
 
   /** Writes (or with null removes) the `icon` frontmatter key of a note the user may edit */
   async setNoteIcon(id: string, icon: string | null): Promise<void> {
-    const note = this.notes.get(id);
+    const note = await this.withText(id);
     if (!note) return;
     await this.update(id, { content: setFrontmatter(note.content, { [ICON_KEY]: cleanIcon(icon) }) });
   }
@@ -1250,17 +1364,17 @@ class Vault {
   }
 
   async setTaskMeta(id: string, line: number, meta: { due?: string | null; repeat?: string | null }): Promise<void> {
-    const note = this.get(id);
+    const note = await this.withText(id);
     if (note) await this.update(id, { content: setTaskMeta(note.content, line, meta) });
   }
 
   async toggleTask(id: string, line: number): Promise<void> {
-    const note = this.get(id);
+    const note = await this.withText(id);
     if (note) await this.update(id, { content: toggleTask(note.content, line) });
   }
 
   async setTaskStatus(id: string, line: number, status: TaskStatus): Promise<void> {
-    const note = this.get(id);
+    const note = await this.withText(id);
     if (note) await this.update(id, { content: setTaskStatus(note.content, line, status) });
   }
 
@@ -1357,7 +1471,7 @@ class Vault {
   }
 
   isFolderEmpty(folder: string): boolean {
-    return this.notesBelow(folder).length === 0;
+    return !this.folderCounts().has(folder);
   }
 
   /** Only empty folders (with empty subfolders) can be deleted */
@@ -1378,7 +1492,26 @@ class Vault {
 
   /** Number of own notes inside `folder` and its subfolders */
   notesInFolder(folder: string): number {
-    return this.notesBelow(folder).length;
+    return this.folderCounts().get(folder) ?? 0;
+  }
+
+  private countsCache: { version: number; counts: Map<string, number> } | null = null;
+
+  /** Own notes per folder, its subfolders included; once per change instead of once per folder row (#64) */
+  private folderCounts(): Map<string, number> {
+    if (this.countsCache?.version === this.version) return this.countsCache.counts;
+    const counts = new Map<string, number>();
+    for (const n of this.notes.values()) {
+      if (n.deleted || n.access !== 'owner' || n.path.startsWith(SYSTEM_PREFIX)) continue;
+      let f = splitPath(n.path).folder;
+      while (f) {
+        counts.set(f, (counts.get(f) ?? 0) + 1);
+        const cut = f.lastIndexOf('/');
+        f = cut < 0 ? '' : f.slice(0, cut);
+      }
+    }
+    this.countsCache = { version: this.version, counts };
+    return counts;
   }
 
   /** Deletes a folder with every note and subfolder below it */
@@ -1472,8 +1605,9 @@ class Vault {
     this.setState('syncing');
     try {
       await this.push();
-      const firstPull = (await this.db.get('meta', 'cursor')) === undefined;
+      const firstPull = this.online ? this.memCursor === null && this.notes.size === 0 : (await this.db.get('meta', 'cursor')) === undefined;
       await this.pull();
+      if (this.relinks.length) await this.sendRelinks();
       if (firstPull && !this.notes.has(this.foldersNoteId())) await this.seed();
       else if (this.notes.has(this.foldersNoteId()) && this.setting(FEATURES_SETTING) === undefined && !isReadOnly()) {
         await this.setSetting(FEATURES_SETTING, this.features());
@@ -1532,24 +1666,7 @@ class Vault {
   private async push() {
     const dirty = [...this.notes.values()].filter((n) => n.dirty);
     if (!dirty.length) return;
-    const { results } = await api<PushResponse>('/sync', {
-      method: 'POST',
-      json: {
-        changes: dirty.map((n) => ({
-          id: n.id,
-          baseVersion: n.version,
-          path: n.path,
-          content: n.content,
-          deleted: n.deleted,
-          createdAt: n.createdAt,
-          updatedAt: n.updatedAt,
-          // New note in a folder someone shares with us or in a group: it is created in their space
-          ...newNoteSpace(n),
-          // Deleted with a folder: the trash restores the whole folder as one unit
-          ...(n.deleted && n.trashBatch ? { trashBatch: n.trashBatch, trashFolder: n.trashFolder } : {}),
-        })),
-      },
-    });
+    const { results } = await api<PushResponse>('/sync', { method: 'POST', json: { changes: dirty.map(toChange) } });
     const pushed = new Map(dirty.map((n) => [n.id, n]));
     for (const r of results) {
       const sent = pushed.get(r.id);
@@ -1560,9 +1677,9 @@ class Vault {
         if (current.deleted && unchanged) {
           this.notes.delete(r.id);
           await this.db!.delete('notes', r.id);
-        } else if (unchanged) await this.put({ ...current, version: r.version, dirty: false, ...(r.content !== undefined ? { content: r.content } : {}) });
+        } else if (unchanged) await this.put({ ...current, version: r.version, dirty: false, ...(r.content !== undefined && !current.partial ? { content: r.content } : {}) });
         // Edited again while the push was underway: the pushed state is the new base (with what the server changed)
-        else if (r.content !== undefined) await this.put({ ...current, content: merge3(sent.content, current.content, r.content).text, version: r.version, dirty: true, base: r.content, basePath: sent.path });
+        else if (r.content !== undefined && !current.partial) await this.put({ ...current, content: merge3(sent.content, current.content, r.content).text, version: r.version, dirty: true, base: r.content, basePath: sent.path });
         else await this.put({ ...current, version: r.version, dirty: true, base: sent.content, basePath: sent.path });
       } else if (r.status === 'conflict') {
         await this.resolveConflict(current, r.server);
@@ -1678,14 +1795,30 @@ class Vault {
   }
 
   private async pull() {
-    const since = ((await this.db!.get('meta', 'cursor')) as number | undefined) ?? 0;
-    const res = await api<PullResponse>(`/sync?since=${since}`);
+    const since = this.online ? (this.memCursor ?? 0) : (((await this.db!.get('meta', 'cursor')) as number | undefined) ?? 0);
+    const res = await api<PullResponse>(`/sync?since=${since}${this.online ? '&light=1' : ''}`);
+    // Online mode: notes whose text is on the device and changed on the server get their new text
+    const wanted: string[] = [];
     // Notes taken as they are go into memory right away and to IndexedDB in one transaction with one update of the
     // UI at the end: a first sync of thousands of notes would otherwise write and re-render once per note (#64)
     const stored: LocalNote[] = [];
     const removed: string[] = [];
+    // Online mode: catalog entries that replace a note stored with its text (only those are in IndexedDB)
+    const dropped = new Set<string>();
     for (const server of res.notes) {
       const local = this.notes.get(server.id);
+      if (server.partial && local && !local.partial) {
+        if (local.version < server.version) wanted.push(server.id);
+        else if (local.dirty || local.version === server.version) {
+          // The text on the device is current: take only the catalog's news (release state, access)
+          if (local.version === server.version && !local.dirty) {
+            const note: LocalNote = { ...withReleaseState(local, server), access: server.access };
+            this.notes.set(note.id, note);
+            stored.push(note);
+          }
+        }
+        continue;
+      }
       if (local?.dirty && local.version < server.version) await this.resolveConflict(local, server);
       else if (local?.dirty) {
         // Same version, only the release state changed (#53): keep the local edits, take the new state
@@ -1694,15 +1827,34 @@ class Vault {
       } else if (server.deleted) {
         this.notes.delete(server.id);
         removed.push(server.id);
+      } else if (server.partial) {
+        // Online mode: catalog entries stay in memory
+        this.notes.set(server.id, { ...server, dirty: false });
+        if (local && !local.partial) dropped.add(server.id);
       } else {
         const note: LocalNote = { ...server, dirty: false };
         this.notes.set(note.id, note);
         stored.push(note);
       }
     }
+    removed.push(...dropped);
     for (const id of res.revoked) {
       this.notes.delete(id);
       removed.push(id);
+    }
+    if (wanted.length) {
+      for (let i = 0; i < wanted.length; i += FETCH_BATCH) {
+        const { notes } = await api<{ notes: SyncedNote[] }>('/sync/notes', { method: 'POST', json: { ids: wanted.slice(i, i + FETCH_BATCH) } });
+        for (const server of notes) {
+          const local = this.notes.get(server.id);
+          if (local?.dirty) await this.resolveConflict(local, server);
+          else {
+            const note: LocalNote = { ...server, dirty: false, ...(local?.cachedAt ? { cachedAt: local.cachedAt } : {}) };
+            this.notes.set(note.id, note);
+            stored.push(note);
+          }
+        }
+      }
     }
     if (stored.length || removed.length) {
       const tx = this.db!.transaction('notes', 'readwrite');
@@ -1716,7 +1868,8 @@ class Vault {
       this.groups = res.groups;
       await this.db!.put('meta', res.groups, 'groups');
     }
-    await this.db!.put('meta', res.cursor, 'cursor');
+    if (this.online) this.memCursor = res.cursor;
+    else await this.db!.put('meta', res.cursor, 'cursor');
     this.emit();
     if (res.notes.length || since === 0 || !this.newsLoaded) {
       this.newsLoaded = true;
@@ -1741,6 +1894,14 @@ class Vault {
     }
     if (local.id === this.settingsId()) {
       await this.put({ ...server, content: JSON.stringify({ ...safeObject(server.content), ...safeObject(local.content) }), dirty: true });
+      return;
+    }
+    // Online mode: moved or deleted here without the text, changed elsewhere: the move or deletion goes out again
+    if (local.partial) {
+      if (server.deleted) return this.accept(server);
+      const renamedHere = local.basePath !== undefined && local.path !== local.basePath && server.path === local.basePath;
+      await this.put({ ...server, path: renamedHere && server.access === 'owner' ? local.path : server.path, deleted: local.deleted, dirty: true, ...(server.partial ? {} : { base: server.content, basePath: server.path }) });
+      this.schedule(250);
       return;
     }
     // Both changed the text: apply both sides' edits (the result is pushed as a new version)
@@ -1775,6 +1936,30 @@ function cleanFolder(path: string): string {
 function spaceOf(n: LocalNote): string {
   if (n.group) return `group:${n.group}`;
   return n.access === 'owner' ? 'own' : `user:${n.owner ?? ''}`;
+}
+
+/** A local note as a pushed change; catalog entries (online mode) move, rename and delete without the text */
+function toChange(n: LocalNote): PushChange {
+  return {
+    id: n.id,
+    baseVersion: n.version,
+    path: n.path,
+    content: n.partial ? '' : n.content,
+    deleted: n.deleted,
+    createdAt: n.createdAt,
+    updatedAt: n.updatedAt,
+    ...(n.partial ? { keepContent: true } : {}),
+    // New note in a folder someone shares with us or in a group: it is created in their space
+    ...newNoteSpace(n),
+    // Deleted with a folder: the trash restores the whole folder as one unit
+    ...(n.deleted && n.trashBatch ? { trashBatch: n.trashBatch, trashFolder: n.trashFolder } : {}),
+  };
+}
+
+/** An opened note as a catalog entry again (online mode): the text is dropped from the device */
+function toCatalogEntry(n: LocalNote): LocalNote {
+  const { cachedAt: _c, base: _b, basePath: _bp, ...rest } = n;
+  return { ...rest, content: '', partial: true };
 }
 
 /** What a new note tells the server about where it belongs: a group, or a folder another user shares */

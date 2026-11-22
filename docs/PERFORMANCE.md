@@ -106,6 +106,35 @@ The benchmark runs without Playwright's trace: its DOM snapshots after every act
 What stays slow at this size is the work over every note on the device: storing and reading 100,000 notes, the folder
 tree, the task page and the graph.
 
+## Online mode at 100,000 notes (Unreleased)
+
+`KLADDE_MODE=online` (experimental): a device keeps a catalog of the notes (path, version, access; no text, in memory
+only) and the text of system notes and the notes it opened (at most 300, in its own IndexedDB `kladde-online-<user>`).
+`GET /api/sync?light=1` sends the catalog (the server caches the decrypted paths by `seq`), `POST /api/sync/notes`
+the texts, path changes and deletions go out with `keepContent`, and `POST /api/sync/relink` rewrites the links after
+a rename on the server. `BENCH_ONLINE=1 BENCH_NOTES=100000 npm run bench:e2e` measures it against a second test server
+in online mode; one run each, production build:
+
+| Step | Offline mode | Online mode |
+| --- | ---: | ---: |
+| First sync: download | 5,643 ms (92 MB) | 4,294 ms (20 MB) |
+| First sync until home is shown | 11,881 ms | 8,211 ms |
+| Start until the folder tree is filled | 7,904 ms | 1,692 ms |
+| Open a note until its text shows | 4,885 ms | 5,508 ms |
+| Typing: 30 keystrokes with 30 ms pauses | 878 ms | 867 ms |
+| Search overlay: results for two words | 654 ms | 1,367 ms |
+| Task page until the first task | 8,068 ms | 2,037 ms |
+| Graph page until the canvas | 28,852 ms | 124 ms |
+
+The online numbers for search, tasks and the graph are not comparable yet: they only see the notes the device opened
+(search finds the others by title). Opening a note costs the same in both modes, and is not the request (about 50 ms):
+the CPU profile (`BENCH_PROFILE=open`) shows the link index over 100,000 titles, the auto-link pattern built from them
+and the task badge. Those move to the server with link resolution, backlinks and tasks.
+
+Both modes also gained from the changes made for it: the folder tree sorts a folder's notes again only when they
+changed (100,000 notes were sorted after every change), the folder counts come from one pass per change instead of a
+pass per folder row, and the feature settings are parsed once per change.
+
 ## Not done
 
 - No Web Worker: with the incremental indexes the remaining work per keystroke is a few milliseconds, which does not
