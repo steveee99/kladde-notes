@@ -79,9 +79,157 @@ languages and the icons.
 - **Long lists** (task buckets on home and the task page, Kanban columns) show 100 rows and more on request.
 - **Graph** with more than 1,500 notes settles in fewer steps and labels only the notes in focus.
 
+## 100,000 notes (Unreleased)
+
+`BENCH_NOTES=100000 npm run bench:e2e` (400,000 links, 200,000 tasks, 92 MB of sync JSON), one run each:
+
+| Step | Before | After |
+| --- | ---: | ---: |
+| First sync until the notes are stored and home is shown | 20,916 ms | 13,411 ms |
+| Start from IndexedDB until home | 193 ms | 254 ms |
+| Start from IndexedDB until the folder tree is filled | 12,641 ms | 9,596 ms |
+| Typing: median keystroke, key press to paint | 32 ms | 24 ms |
+| Typing: 30 keystrokes with 30 ms pauses | 881 ms | 881 ms |
+| Search overlay: results for two words | 4,993 ms | 3,031 ms |
+| Task page until the first task | 12,860 ms | 7,069 ms |
+| Graph page until the canvas | 49,849 ms | 33,903 ms |
+
+The per-note memos (`NoteMemo`) held at most 20,000 notes (the semantic search 10,000). A pass over more notes than
+that evicts every entry before it is needed again, so above that size every pass parsed every note again. The limit is
+now 250,000 (`MEMO_MAX_NOTES`), and a hit no longer moves its entry to the end of the map. The navigation badge counts
+urgent tasks per note instead of building and sorting the list of all tasks on every change.
+
+The benchmark runs without Playwright's trace: its DOM snapshots after every action made typing look like 114 s for
+30 keystrokes, while key press to paint stayed below 40 ms. `BENCH_PROFILE=1` writes a CPU profile of the typing to
+`test-results/perf-typing.cpuprofile` (open it in the Performance panel of Chrome DevTools).
+
+What stays slow at this size is the work over every note on the device: storing and reading 100,000 notes, the folder
+tree, the task page and the graph.
+
+## Online mode at 100,000 notes (Unreleased)
+
+`KLADDE_MODE=online` (experimental): a device keeps a catalog of the notes (path, version, access; no text, in memory
+only) and the text of system notes and the notes it opened (at most 300, in its own IndexedDB `kladde-online-<user>`).
+`GET /api/sync?light=1` sends the catalog (the server caches the decrypted paths by `seq`), `POST /api/sync/notes`
+the texts, path changes and deletions go out with `keepContent`, and `POST /api/sync/relink` rewrites the links after
+a rename on the server. `BENCH_ONLINE=1 BENCH_NOTES=100000 npm run bench:e2e` measures it against a second test server
+in online mode; one run each, production build:
+
+| Step | Offline mode | Online mode |
+| --- | ---: | ---: |
+| First sync: download | 5,643 ms (92 MB) | 4,294 ms (20 MB) |
+| First sync until home is shown | 11,881 ms | 8,211 ms |
+| Start until the folder tree is filled | 7,904 ms | 1,692 ms |
+| Open a note until its text shows | 4,885 ms | 5,508 ms |
+| Typing: 30 keystrokes with 30 ms pauses | 878 ms | 867 ms |
+| Search overlay: results for two words | 654 ms | 1,367 ms |
+| Task page until the first task | 8,068 ms | 2,037 ms |
+| Graph page until the canvas | 28,852 ms | 124 ms |
+
+The online numbers for search, tasks and the graph are not comparable yet: they only see the notes the device opened
+(search finds the others by title). Opening a note costs the same in both modes, and is not the request (about 50 ms):
+the CPU profile (`BENCH_PROFILE=open`) shows the link index over 100,000 titles, the auto-link pattern built from them
+and the task badge. Those move to the server with link resolution, backlinks and tasks.
+
+Both modes also gained from the changes made for it: the folder tree sorts a folder's notes again only when they
+changed (100,000 notes were sorted after every change), the folder counts come from one pass per change instead of a
+pass per folder row, and the feature settings are parsed once per change.
+
+## Online mode, stage 2: search and backlinks on the server (Unreleased)
+
+The server keeps one index per space (a user's own notes or a group's) in memory (`server/src/online/SpaceIndex.ts`):
+the decrypted texts, a `LinkIndex` and the lower-cased search text per note. Everybody who sees a space shares its
+index, so a group of 100,000 notes is held once however many members work in it. Before every question a space takes
+the notes with a newer `seq` and compares its number of notes; it is built right after a device loaded its catalog
+(`warm`) and dropped after 12 hours without questions. `GET /api/online/search` answers the search overlay and
+`GET /api/online/backlinks/:id` the backlinks and unlinked mentions of a note. Links resolve inside a note's space; a
+link from another visible space counts as a backlink when that space has no note of the name itself.
+
+On the device the link index holds only the notes whose text is there; links to the others resolve through the
+catalog (names and paths). The note list, the folders, the folder counts and the feature settings are kept until the
+next change of a path instead of being computed again for every keystroke, in both modes.
+
+Server side alone (`node` with 100,000 notes in one space, 600 MB heap in total):
+
+| Step | Time |
+| --- | ---: |
+| Light pull, cold (decrypts every note) / warm (cached paths) | 3,083 / 476 ms |
+| Building the space (decrypt, link index, search text) | 3,476 ms |
+| Search for two words | 144 ms |
+| Backlinks and mentions of a note | 104 ms |
+
+In the browser, online mode (`BENCH_ONLINE=1 BENCH_NOTES=100000 npm run bench:e2e`, one run):
+
+| Step | Stage 1 | Stage 2 |
+| --- | ---: | ---: |
+| First sync until home is shown | 8,211 ms | 9,679 ms |
+| Start until the folder tree is filled | 1,692 ms | 1,894 ms |
+| Open a note until its text shows | 5,508 ms | 2,764 ms |
+| Search overlay: results for two words (now every note, not only opened ones) | 1,367 ms | 1,122 ms |
+
+The first sync is slower because the server builds the space index right after it; that blocks the server for about
+3 seconds once, instead of the first opened note waiting for it. The search overlay spends most of its time in the
+browser (filtering the 100,000 catalog entries), not on the server. The open-note step is measured in the page
+(`waitForFunction`): Playwright's retries of `toContainText` build an accessibility snapshot of the whole page each
+time, which cost seconds with a large folder tree.
+
+## Online mode, stage 3: tasks, tickets and database tables (Unreleased)
+
+The space index also keeps the tasks of every note, parsed once per version of the note (and again on a new day, for
+`due:heute`). `GET /api/online/tasks?since=&sig=` sends them as compact tuples (`OnlineTaskTuple`): the first time all
+notes with tasks, then only the notes changed since the cursor of the previous answer; a change of the visible spaces
+(a share, a group) or of the day sends everything again. The device asks once per sync and merges the rows with the
+ones it parses itself from the notes whose text it holds. Database folders (the database note, the notes directly in
+its folder and a project's `Meilensteine/`) are loaded in full and kept beside the 300 opened notes, so tables, boards
+and tickets work as before. The catalog and the tasks are sent gzip-compressed (19.5 MB catalog: 1.8 MB; 13.7 MB of
+tasks: 2.4 MB).
+
+Server side alone (100,000 notes, 200,000 tasks): parsing every task 628 ms (once, done while warming the space), all
+tasks again 41 ms, the changes since the last answer 29 ms.
+
+In the browser (`BENCH_ONLINE=1 BENCH_NOTES=100000 npm run bench:e2e`, one run, production build):
+
+| Step | Stage 2 | Stage 3 |
+| --- | ---: | ---: |
+| First sync until home is shown | 9,679 ms | 10,075 ms |
+| Start until the folder tree is filled | 1,894 ms | 2,937 ms (2,068 ms in the run before) |
+| Open a note until its text shows | 2,764 ms | 2,712 ms |
+| Search overlay: results for two words | 1,122 ms | 628 ms |
+| Task page until the first task (stage 2: only opened notes; stage 3: all 200,000 tasks) | 2,037 ms | 467 ms |
+
+With every task on the device, the lists that are computed over all of them showed: `collectTasks` sorted with
+`localeCompare` (seconds for 200,000 tasks; ISO dates now compare as strings), `bucketOf` built today's date for every
+task, the sorted list was built again on every change of the vault, and the folder tree grouped 100,000 notes after
+every keystroke. The rows from the server are now kept until a path, an answer or the day changes, the sorted list
+while no note's rows changed, today's date for a second, and the folder grouping until a path changes.
+
+## Online mode, stage 4: graph and query blocks (Unreleased)
+
+The space index also builds the graph: `GET /api/online/graph` sends every visible note as `[id, title, kind, tags?]`
+and the edges as pairs of indexes (links that a space cannot resolve go to a note of that name in another visible
+space). A stamp of the visible spaces answers `same` while nothing changed. Query blocks run on the server
+(`POST /api/online/query`, at most 2,000 rows per result, group or lane; totals count every row).
+
+Server side alone (100,000 notes, 400,000 links): the graph 250 ms (type and tags are parsed while warming the space),
+14.3 MB JSON, 3.8 MB gzipped.
+
+Graphs above 1,500 notes are laid out in a Web Worker behind a progress bar (`client/lib/graphLayout.ts`). One step of
+d3-force costs about 0.6 s at 100,000 nodes (Barnes–Hut charge 0.47 s, links 0.09 s), so above 8,000 notes the notes
+are placed by folder instead (one sunflower disc per folder, the most linked notes in its middle): 80 ms. Drawing
+batches lines and circles into a few paths and skips what is out of view.
+
+In the browser (`npm run bench:e2e` with `BENCH_NOTES=100000`, page reloaded before the step, one run each):
+
+| Step | Before | Stage 4 |
+| --- | ---: | ---: |
+| Online: graph until laid out and drawn (before: only opened notes) | 135 ms | 7,552 ms (canvas at 5,285 ms) |
+| Offline: graph until laid out and drawn | 29,980 ms | 13,683 ms |
+
+Online, most of the time before the canvas is the app starting next to it after the reload (100,000 catalog entries,
+the first sync); the request itself takes about 0.6 s on the server. Moving to the graph inside the app skips that.
+
 ## Not done
 
 - No Web Worker: with the incremental indexes the remaining work per keystroke is a few milliseconds, which does not
   justify moving the vault to a worker and syncing state across.
 - The note list and folder tree are not virtualized; they stay usable at 5,000 notes but render every row.
-- The graph of all notes still simulates every node on the main thread (about 2 s until the canvas at 5,000 notes).

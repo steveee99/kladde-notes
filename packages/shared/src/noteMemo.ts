@@ -2,8 +2,12 @@
  * Per-note memo for work that only depends on a note's path and text (#64). Large vaults run the same parsing over
  * thousands of notes again after every change; with a memo only the changed notes are parsed again.
  * Comparing the text is cheap: an unchanged note keeps the same string, so the check is usually a pointer compare.
- * The memo holds at most `max` notes and forgets the least recently used ones.
+ * The memo holds at most `max` notes and forgets the ones computed longest ago. `max` must stay above the number of
+ * notes a pass goes over: a pass over more notes than that evicts every entry before it is used again, and the memo
+ * computes everything every time (100,000 notes with the old limit of 20,000 made typing take seconds per key).
  */
+export const MEMO_MAX_NOTES = 250_000;
+
 export interface MemoNote {
   id: string;
   path: string;
@@ -15,7 +19,7 @@ export class NoteMemo<T, N extends MemoNote = MemoNote> {
 
   constructor(
     private readonly compute: ((note: N) => T) | null = null,
-    private readonly max = 20_000
+    private readonly max = MEMO_MAX_NOTES
   ) {}
 
   /**
@@ -24,12 +28,8 @@ export class NoteMemo<T, N extends MemoNote = MemoNote> {
    */
   get(note: N, extra = '', compute: ((note: N) => T) | null = this.compute): T {
     const hit = this.entries.get(note.id);
-    if (hit && hit.content === note.content && hit.path === note.path && hit.extra === extra) {
-      // Most recently used goes last
-      this.entries.delete(note.id);
-      this.entries.set(note.id, hit);
-      return hit.value;
-    }
+    // A hit stays where it is: moving it to the end costs two map operations per note and pass
+    if (hit && hit.content === note.content && hit.path === note.path && hit.extra === extra) return hit.value;
     if (!compute) throw new Error('NoteMemo: nothing to compute');
     const value = compute(note);
     this.entries.delete(note.id);

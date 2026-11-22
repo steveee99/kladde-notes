@@ -74,7 +74,7 @@ import { ConfluenceDialog } from './ConfluenceDialog';
 import { useConfluenceConnected } from '../lib/confluence';
 import { getFocusMode, setFocusMode, toggleFocusMode } from '../lib/focus';
 import { editorHost } from '../editor/host';
-import { compareText, folderDisplayName, locale, t, useLang } from '../lib/i18n';
+import { compareText, folderDisplayName, locale, t, useLang, type Lang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
 import { createDrawingNote, createPdfNote } from '../lib/newNote';
 import { DEMO } from '../demo/demoApi';
@@ -262,6 +262,8 @@ export function SyncBadge({ compact, status }: { compact?: boolean; status?: boo
             ? t('common.syncPending', { n: pending })
             : t('common.idle');
   const fullLabel = files ? `${label} · ${t('uploads.badge', { n: files })}` : label;
+  // Online mode: without a connection only the notes opened before are on the device
+  const hint = vault.online && state === 'offline' ? t('online.offline') : t('common.syncAction');
   const Icon = state === 'syncing' ? Loader2 : state === 'offline' ? CloudOff : state === 'error' ? AlertTriangle : Cloud;
   // Status bar (desktop): a small mono line with a colored dot
   if (status) {
@@ -271,7 +273,7 @@ export function SyncBadge({ compact, status }: { compact?: boolean; status?: boo
       <button
         type="button"
         onClick={() => (DEMO ? undefined : files && !navigator.onLine ? navigate('/files') : vault.kick())}
-        title={DEMO ? t('demo.badgeTitle') : `${fullLabel} — ${t('common.syncAction')}`}
+        title={DEMO ? t('demo.badgeTitle') : `${fullLabel} — ${hint}`}
         className={`flex min-w-0 items-center gap-1.5 rounded px-1 outline-none hover:bg-raised focus-visible:ring-2 focus-visible:ring-acc ${tone}`}
       >
         {/* The dot sends out a ring while syncing and once more when the state changes (key) */}
@@ -291,7 +293,7 @@ export function SyncBadge({ compact, status }: { compact?: boolean; status?: boo
   return (
     <button
       onClick={() => (files && !navigator.onLine ? navigate('/files') : vault.kick())}
-      title={`${fullLabel} — ${t('common.syncAction')}`}
+      title={`${fullLabel} — ${hint}`}
       aria-label={fullLabel}
       className={`${compact ? 'btn-icon relative' : 'chip'} ${state === 'offline' ? 'text-warn' : state === 'error' ? 'text-error' : ''}`}
     >
@@ -933,6 +935,64 @@ function SectionHeader({
  * (Werkbank): no brand, search, destinations or settings there, the top bar, rail and status bar have them.
  * Without `panel` it is the full navigation of the phone drawer.
  */
+/** The sort order per folder from the last render: a folder whose notes and names stayed is not sorted again (#64) */
+const folderOrder = new Map<string, { lang: string; ids: string[]; names: string[]; order: number[] }>();
+
+/** The grouping by the last path change: a change of a text only takes the notes' current objects (#64) */
+let grouped: { stamp: number; lang: string; ids: Map<string, string[]> } | null = null;
+
+/** Own notes by folder (database notes left out), each list sorted by name */
+function groupByFolder(notes: LocalNote[], lang: Lang): Map<string, LocalNote[]> {
+  const stamp = vault.getPathStamp();
+  if (grouped && grouped.stamp === stamp && grouped.lang === lang) {
+    const out = new Map<string, LocalNote[]>();
+    for (const [folder, ids] of grouped.ids) {
+      const list: LocalNote[] = [];
+      for (const id of ids) {
+        const n = vault.get(id);
+        if (n) list.push(n);
+      }
+      out.set(folder, list);
+    }
+    return out;
+  }
+  const map = sortedByFolder(notes, lang);
+  grouped = { stamp, lang, ids: new Map([...map].map(([folder, list]) => [folder, list.map((n) => n.id)])) };
+  return map;
+}
+
+function sortedByFolder(notes: LocalNote[], lang: Lang): Map<string, LocalNote[]> {
+  const map = new Map<string, LocalNote[]>();
+  const names = new Map<LocalNote, string>();
+  for (const n of notes) {
+    if (n.access !== 'owner' || isDatabasePath(n.path)) continue;
+    const { folder, name } = splitPath(n.path);
+    names.set(n, name);
+    const list = map.get(folder);
+    if (list) list.push(n);
+    else map.set(folder, [n]);
+  }
+  for (const [folder, list] of map) {
+    // The notes keep their order in the vault between changes, so ids and names in that order say whether it changed
+    const ids = list.map((n) => n.id);
+    const listNames = list.map((n) => names.get(n)!);
+    const known = folderOrder.get(folder);
+    const same = !!known && known.lang === lang && known.ids.length === ids.length && ids.every((id, i) => known.ids[i] === id && known.names[i] === listNames[i]);
+    let order: number[];
+    if (same) order = known.order;
+    else {
+      order = ids.map((_, i) => i).sort((a, b) => compareText(listNames[a], listNames[b], lang));
+      folderOrder.set(folder, { lang, ids, names: listNames, order });
+    }
+    map.set(
+      folder,
+      order.map((i) => list[i])
+    );
+  }
+  for (const folder of folderOrder.keys()) if (!map.has(folder)) folderOrder.delete(folder);
+  return map;
+}
+
 export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: Me; onNavigate?: () => void; isAdmin?: boolean; headerAction?: React.ReactNode; panel?: boolean }) {
   const version = useVault();
   const lang = useLang();
@@ -1011,21 +1071,11 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
     setFlashNoteId(activeNote.id);
   };
 
-  const notesByFolder = useMemo(() => {
-    const map = new Map<string, LocalNote[]>();
-    for (const n of notes) {
-      if (n.access !== 'owner' || isDatabasePath(n.path)) continue;
-      const f = splitPath(n.path).folder;
-      const list = map.get(f);
-      if (list) list.push(n);
-      else map.set(f, [n]);
-    }
-    for (const list of map.values()) {
-      list.sort((a, b) => compareText(splitPath(a.path).name, splitPath(b.path).name, lang));
-    }
-    return map;
+  const notesByFolder = useMemo(
+    () => groupByFolder(notes, lang),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [version, loc]);
+    [version, loc]
+  );
   const rootNotes = notesByFolder.get('') ?? [];
 
   // Group notes (#58) have their own place: the groups

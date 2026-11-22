@@ -35,6 +35,7 @@ import { pushRouter } from './push/router.js';
 import { inQuietHours, localClock, runReminders, vapidSubject } from './push/reminders.js';
 import { allowedPushHosts, sendPush } from './push/webpush.js';
 import { EmbeddedAsset, ensureStandaloneUser } from './standalone.js';
+import { SpaceIndexes } from './online/SpaceIndex.js';
 import { trashRetentionDays } from './trash.js';
 import { transcriberFromEnv } from './transcribe.js';
 import { AttachmentTextStore } from './attachments/AttachmentTextStore.js';
@@ -93,11 +94,22 @@ export interface KladdeAppContext {
   metrics: MetricsSources;
 }
 
+/**
+ * `KLADDE_MODE=online`: for teams that are always online with large vaults. Devices keep only a catalog of the notes
+ * (paths, versions) and load a note's text when it opens, instead of a full offline copy. Default: `offline`.
+ */
+export function onlineModeFromEnv(env: NodeJS.ProcessEnv): boolean {
+  const mode = env.KLADDE_MODE?.trim().toLowerCase();
+  if (mode && mode !== 'online' && mode !== 'offline') console.warn(`KLADDE_MODE="${mode}" is unknown – using offline.`);
+  return mode === 'online';
+}
+
 /** Builds the Express app and stores for either multi-user server mode or single-user desktop standalone mode */
 export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   const env = opts.env ?? process.env;
   const startedAt = opts.startedAt ?? Date.now();
   const cipher = DataCipher.fromEnv(opts.dataDir, env);
+  const online = onlineModeFromEnv(env) && !opts.standalone;
   const users = new UserStore(opts.db);
   const audit = new AuditLog(opts.db);
   const live = new LiveUpdates();
@@ -291,6 +303,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
         accent: user.accent,
       externalLogins: users.externalLoginsOf(user.id),
       transcription: !!transcriber,
+      ...(online ? { online: true } : {}),
     };
   };
 
@@ -311,6 +324,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
         users,
         audit,
         transcription: !!transcriber,
+        online,
         publicUrl: opts.publicUrl,
         secureCookies: opts.isProduction && (opts.publicUrl?.startsWith('https://') ?? false),
         devLogin: !opts.isProduction && env.DEV_LOGIN === '1',
@@ -366,7 +380,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       })
     );
   }
-  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db), activity, notifications, comments: opts.standalone ? undefined : new CommentStore(opts.db, cipher, users) }));
+  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db), spaces: online ? new SpaceIndexes(notes) : undefined, activity, notifications, comments: opts.standalone ? undefined : new CommentStore(opts.db, cipher, users) }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
   if (opts.seaAssets && opts.seaAssets.size > 0) {

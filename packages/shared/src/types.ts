@@ -28,6 +28,11 @@ export interface SyncedNote {
   releaseHash?: string;
   /** Read-only readers get the latest release instead of the draft: its version (the content is that release) */
   showsRelease?: string;
+  /**
+   * Online mode: only the catalog entry came (path, version, access); `content` is empty until the device fetches
+   * the note (`POST /api/sync/notes`)
+   */
+  partial?: boolean;
 }
 
 /** A released version of a note (#53); immutable once created */
@@ -134,10 +139,50 @@ export interface PushChange {
   owner?: string;
   /** New note in a group (#58): the group's id; the note belongs to the group */
   group?: string;
+  /** Online mode: the device does not hold the text (a move, rename or deletion); the server keeps its own */
+  keepContent?: boolean;
   /** Deleted together with a folder: a random id shared by all notes of that deletion (restored as one unit) */
   trashBatch?: string;
   /** The folder that was deleted with this note (shown in the trash) */
   trashFolder?: string;
+}
+
+/**
+ * Online mode: one task as a tuple, to keep `GET /api/online/tasks` small with many notes:
+ * [line, status, text, due, repeat, time, doneDate, indent]; trailing nulls and the indentation "- " are left out
+ */
+export type OnlineTaskTuple = [number, 'open' | 'doing' | 'blocked' | 'done', string, (string | null)?, (string | null)?, (string | null)?, (string | null)?, string?];
+
+/** Online mode: the tasks of one note, with its frontmatter title (the device knows the path from its catalog) */
+export interface OnlineTaskNote {
+  id: string;
+  title?: string;
+  tasks: OnlineTaskTuple[];
+}
+
+/** `GET /api/online/tasks?since=&sig=`: notes changed since the cursor, or all with tasks when `reset` */
+export interface OnlineTasks {
+  cursor: number;
+  sig: string;
+  reset: boolean;
+  notes: OnlineTaskNote[];
+}
+
+/**
+ * A node of the online graph: id, title, type (0 note, 1 PDF, 2 drawing; Zettel the device finds by the folder) and
+ * the note's tags when it has any. Folder and dates come from the device's catalog.
+ */
+export type OnlineGraphNode = [id: string, title: string, kind: 0 | 1 | 2, tags?: string[]];
+
+/**
+ * `GET /api/online/graph?have=`: the graph of every note the user may see; `edges` are pairs of indexes into `nodes`
+ * (source, target, source, target, …). `same` (without nodes and edges) when `have` names the stamp of an unchanged graph.
+ */
+export interface OnlineGraph {
+  stamp: string;
+  same?: boolean;
+  nodes?: OnlineGraphNode[];
+  edges?: number[];
 }
 
 /** A deleted note in its owner's trash (`GET /api/trash`); restorable until it is purged */
@@ -236,6 +281,11 @@ export interface Me {
   dataDir?: string;
   /** The server can transcribe voice notes (TRANSCRIBE_URL is set) */
   transcription?: boolean;
+  /**
+   * Online mode (`KLADDE_MODE=online`): devices keep only a catalog of the notes and load the text of a note when it
+   * opens; nothing works without a connection
+   */
+  online?: boolean;
 }
 
 export const PASSWORD_MIN_LENGTH = 8;

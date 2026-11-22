@@ -83,18 +83,72 @@ export function filterGraph(
   config: RoleFolderMap = PARA
 ): { nodes: FilteredGraphNode[]; edges: GraphEdge[]; orphans: number } {
   const byId = new Map(notes.map((n) => [n.id, n]));
-  const all = index.graph();
+  const near = filter.focus ? neighbourhood(index, filter.focus.id, Math.max(1, Math.min(3, filter.focus.depth))) : null;
+  return filterGraphData(
+    index.graph(),
+    (id) => {
+      const note = byId.get(id);
+      if (!note) return undefined;
+      return { kind: graphNoteKind(note.path, note.content, config), tags: () => extractMeta(note.path, note.content).tags, createdAt: note.createdAt, updatedAt: note.updatedAt };
+    },
+    filter,
+    config,
+    near
+  );
+}
+
+/** What the graph filter needs of a note besides its node; `tags` is read only when a tag filter is set */
+export interface GraphNodeInfo {
+  kind: GraphNoteKind;
+  tags: () => string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Neighbourhood of `id` up to `depth` hops over the graph's edges (both directions) */
+export function edgeNeighbourhood(edges: GraphEdge[], id: string, depth: number): Set<string> {
+  const adj = new Map<string, string[]>();
+  for (const e of edges) {
+    (adj.get(e.source) ?? adj.set(e.source, []).get(e.source)!).push(e.target);
+    (adj.get(e.target) ?? adj.set(e.target, []).get(e.target)!).push(e.source);
+  }
+  const keep = new Set([id]);
+  let frontier = [id];
+  for (let d = 0; d < depth; d++) {
+    const next: string[] = [];
+    for (const n of frontier) {
+      for (const m of adj.get(n) ?? []) {
+        if (keep.has(m)) continue;
+        keep.add(m);
+        next.push(m);
+      }
+    }
+    frontier = next;
+  }
+  return keep;
+}
+
+/**
+ * The filter over a graph that is already built (online mode: nodes and edges from the server). `info` gives type,
+ * tags and dates of a node (undefined: left out); `near` the focus neighbourhood, found over the edges when missing.
+ */
+export function filterGraphData(
+  all: { nodes: GraphNode[]; edges: GraphEdge[] },
+  info: (id: string) => GraphNodeInfo | undefined,
+  filter: GraphFilter = {},
+  config: RoleFolderMap = PARA,
+  near: Set<string> | null = filter.focus ? edgeNeighbourhood(all.edges, filter.focus.id, Math.max(1, Math.min(3, filter.focus.depth))) : null
+): { nodes: FilteredGraphNode[]; edges: GraphEdge[]; orphans: number } {
   const roles = filter.roles?.length ? new Set(filter.roles) : null;
   const kinds = filter.kinds?.length ? new Set(filter.kinds) : null;
   const folder = trimSlashes(filter.folder ?? '');
-  const near = filter.focus ? neighbourhood(index, filter.focus.id, Math.max(1, Math.min(3, filter.focus.depth))) : null;
   let orphans = 0;
   const nodes: FilteredGraphNode[] = [];
   for (const node of all.nodes) {
-    const note = byId.get(node.id);
+    const note = info(node.id);
     if (!note) continue;
     const orphan = node.links === 0;
-    const kind = graphNoteKind(note.path, note.content, config);
+    const kind = note.kind;
     const isFocus = filter.focus?.id === node.id;
     if (!isFocus) {
       if (near && !near.has(node.id)) continue;
@@ -102,7 +156,7 @@ export function filterGraph(
       if (roles ? !roles.has(role ?? 'none') : filter.hideArchive && role === 'archive') continue;
       if (folder && node.folder !== folder && !node.folder.startsWith(`${folder}/`)) continue;
       if (kinds && !kinds.has(kind)) continue;
-      if (filter.tag && !extractMeta(note.path, note.content).tags.some((t) => tagMatches(t, filter.tag!))) continue;
+      if (filter.tag && !note.tags().some((t) => tagMatches(t, filter.tag!))) continue;
       if (filter.range) {
         const at = filter.range.field === 'created' ? note.createdAt : note.updatedAt;
         if (at < filter.range.from || at > filter.range.to) continue;

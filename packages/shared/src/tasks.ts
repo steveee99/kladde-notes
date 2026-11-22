@@ -237,9 +237,17 @@ export function setTaskStatus(content: string, line: number, status: TaskStatus,
 
 export type TaskBucket = 'overdue' | 'today' | 'upcoming' | 'someday';
 
-export function bucketOf(task: Task, today = new Date()): TaskBucket {
+/** Today as YYYY-MM-DD, kept for a second: lists of 100,000s of tasks ask for every task */
+let todayCache = { at: 0, day: '' };
+function todayString(): string {
+  const now = Date.now();
+  if (now - todayCache.at > 1000) todayCache = { at: now, day: toDateString(new Date(now)) };
+  return todayCache.day;
+}
+
+export function bucketOf(task: Task, today?: Date): TaskBucket {
   if (!task.due) return 'someday';
-  const t = toDateString(today);
+  const t = today ? toDateString(today) : todayString();
   if (task.due < t) return 'overdue';
   if (task.due === t) return 'today';
   return 'upcoming';

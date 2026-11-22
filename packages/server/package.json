@@ -5,6 +5,7 @@
   "main": "./dist/index.js",
   "scripts": {
     "dev": "cross-env DEV_LOGIN=1 PORT=3002 tsx watch src/index.ts",
+    "dev:online": "cross-env DEV_LOGIN=1 PORT=3002 KLADDE_MODE=online tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "vitest run"

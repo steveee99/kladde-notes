@@ -230,6 +230,28 @@ export class QueryWidget extends BlockWidget {
   }
   toDOM(view: EditorView) {
     const result = editorHost.runQuery(this.src);
+    if ('loading' in result) {
+      // Online mode: the server runs the query; the block is drawn again when the answer comes
+      const box = document.createElement('div');
+      box.className = 'cm-block-widget wz-query-loading';
+      box.setAttribute('role', 'status');
+      const label = tl(this.lang, 'editor.queryLoading');
+      box.innerHTML = '<div class="flex items-baseline justify-between text-body-s text-muted"></div><div class="mt-2 h-1 overflow-hidden rounded-full bg-line"><div class="load-bar-run h-full w-1/3 rounded-full bg-acc"></div></div>';
+      box.firstElementChild!.textContent = label;
+      return this.frame(view, box);
+    }
+    const dom = this.render(view, result);
+    if (!('error' in result) && result.total !== undefined && result.total > result.rows.length) {
+      const more = document.createElement('div');
+      more.className = 'wz-query-more';
+      const n = (v: number) => v.toLocaleString(this.lang === 'en' ? 'en-US' : 'de-DE');
+      more.textContent = tl(this.lang, 'editor.queryMore', { shown: n(result.rows.length), total: n(result.total) });
+      dom.append(more);
+    }
+    return dom;
+  }
+
+  private render(view: EditorView, result: QueryResult | { error: string }): HTMLElement {
     if ('error' in result) {
       const err = document.createElement('div');
       err.className = 'cm-block-widget wz-query-error';
@@ -315,7 +337,7 @@ export class QueryWidget extends BlockWidget {
         rows: g.rows.map(rowOf),
         footer: result.totals ? footerOf(g.aggregates, '') : undefined,
       }));
-      return this.frame(view, groupedTable(headers, groups, { caption, total: result.rows.length, footer: result.totals ? footerOf(result.totals, total) : undefined }));
+      return this.frame(view, groupedTable(headers, groups, { caption, total: result.total ?? result.rows.length, footer: result.totals ? footerOf(result.totals, total) : undefined }));
     }
     if (result.groups) {
       const box = document.createElement('div');

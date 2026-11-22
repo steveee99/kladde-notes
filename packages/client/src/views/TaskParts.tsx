@@ -6,8 +6,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarClock, Plus, Repeat, X } from '../lib/icons';
-import { NoteMemo, TASK_STATUSES, Task, TaskBucket, TaskStatus, bucketOf, parseTasks, projectTitleOf, roleOfPath, shortcutDate, splitPath } from '@kladde/shared';
+import { NoteMemo, TASK_STATUSES, type OnlineTaskNote, Task, TaskBucket, TaskStatus, bucketOf, parseTasks, projectTitleOf, roleOfPath, shortcutDate, splitPath } from '@kladde/shared';
 import { vault } from '../data/vault';
+import { onlineTasks, taskOfTuple } from '../data/onlineTasks';
 import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
 import { formatDue, openStatusMenu } from '../editor/widgets';
@@ -426,47 +427,120 @@ export function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
 }
 
 
-let cache: { version: number; day: string; tasks: TaskRow[] } | null = null;
 const rowMemo = new NoteMemo<TaskRow[]>();
+const EMPTY: TaskRow[] = [];
+/** Online mode: rows of a note from the server, kept while its answer, path and the day's settings stay the same */
+const remoteRows = new WeakMap<OnlineTaskNote, { key: string; rows: TaskRow[] }>();
 
-/**
- * Every task of the vault (open and done) with its note, sorted by due date. Notes in the PARA archive
- * are left out. Cached per vault version and day, so the navigation badge and the pages share one parse.
- */
-export function collectTasks(version: number): TaskRow[] {
+/** The task rows per note, once per vault version and day (shared by the sorted list and the badge count) */
+let rowsCache: { version: number; day: string; rows: TaskRow[][] } | null = null;
+
+/** Online mode: the rows from the server, kept until a path, the server's answer or the day's settings change */
+let remoteCache: { key: string; rows: TaskRow[][] } | null = null;
+
+function remoteTaskRows(prefix: string, dueOf: (path: string) => string | null, roleConfig: ReturnType<typeof vault.roleConfig>): TaskRow[][] {
+  const key = `${vault.getPathStamp()}|${onlineTasks.stamp}|${prefix}`;
+  if (remoteCache?.key === key) return remoteCache.rows;
+  const rows: TaskRow[][] = [];
+  for (const remote of onlineTasks.notes.values()) {
+    const n = vault.get(remote.id);
+    // Notes whose text is on the device are parsed there (with the edits not yet on the server)
+    if (!n?.partial) continue;
+    const defaultDue = n.access === 'owner' ? dueOf(n.path) : null;
+    const noteKey = `${prefix}${defaultDue ?? ''}|${n.path}`;
+    let hit = remoteRows.get(remote);
+    if (hit?.key !== noteKey) {
+      const noteTitle = remote.title ?? projectTitleOf(n.path, '', roleConfig);
+      const folder = splitPath(n.path).folder;
+      const list = roleOfPath(n.path, roleConfig) === 'archive' ? EMPTY : remote.tasks.map((tk) => ({ ...taskOfTuple(tk, defaultDue), noteId: n.id, noteTitle, folder }));
+      hit = { key: noteKey, rows: list };
+      remoteRows.set(remote, hit);
+    }
+    if (hit.rows.length) rows.push(hit.rows);
+  }
+  remoteCache = { key, rows };
+  return rows;
+}
+
+function taskRowsByNote(version: number): TaskRow[][] {
   const day = new Date().toDateString();
-  if (cache && cache.version === version && cache.day === day) return cache.tasks;
-  const out: TaskRow[] = [];
+  if (rowsCache && rowsCache.version === version && rowsCache.day === day) return rowsCache.rows;
+  const rows: TaskRow[][] = [];
   const dueOf = vault.taskDueResolver();
   const roleConfig = vault.roleConfig();
   const free = vault.freeTasksNote();
-  if (free) for (const tk of parseTasks(free.content)) out.push({ ...tk, noteId: free.id, noteTitle: '', folder: '' });
+  if (free) rows.push(parseTasks(free.content).map((tk) => ({ ...tk, noteId: free.id, noteTitle: '', folder: '' })));
   // Rows per note are kept until the note, the day, its default due date or the folder roles change (#64)
-  const roles = JSON.stringify(roleConfig);
+  const prefix = `${day}|${JSON.stringify(roleConfig)}|`;
+  if (vault.online) {
+    onlineTasks.want();
+    for (const noteRows of remoteTaskRows(prefix, dueOf, roleConfig)) rows.push(noteRows);
+  }
   for (const n of vault.list()) {
+    // Online mode: a catalog entry has no text; its tasks come from the server's index (above)
+    if (n.partial) continue;
     const defaultDue = n.access === 'owner' ? dueOf(n.path) : null;
-    const rows = rowMemo.get(n, `${day}|${defaultDue ?? ''}|${roles}`, () => {
-      if (roleOfPath(n.path, roleConfig) === 'archive') return [];
+    const noteRows = rowMemo.get(n, defaultDue ? prefix + defaultDue : prefix, () => {
+      if (roleOfPath(n.path, roleConfig) === 'archive') return EMPTY;
       const tasks = parseTasks(n.content, undefined, defaultDue);
-      if (!tasks.length) return [];
+      if (!tasks.length) return EMPTY;
       const noteTitle = projectTitleOf(n.path, n.content, roleConfig);
       const folder = splitPath(n.path).folder;
       return tasks.map((tk) => ({ ...tk, noteId: n.id, noteTitle, folder }));
     });
-    for (const row of rows) out.push(row);
+    if (noteRows.length) rows.push(noteRows);
   }
-  out.sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999'));
-  cache = { version, day, tasks: out };
+  rowsCache = { version, day, rows };
+  return rows;
+}
+
+let cache: { rows: TaskRow[][]; tasks: TaskRow[] } | null = null;
+
+/**
+ * Every task of the vault (open and done) with its note, sorted by due date. Notes in the PARA archive
+ * are left out. Cached per vault version and day, so the pages share one parse.
+ */
+export function collectTasks(version: number): TaskRow[] {
+  const rows = taskRowsByNote(version);
+  // A new vault version mostly keeps every note's rows: then the sorted list stays too
+  if (cache && (cache.rows === rows || (cache.rows.length === rows.length && cache.rows.every((r, i) => r === rows[i])))) {
+    cache.rows = rows;
+    return cache.tasks;
+  }
+  const out: TaskRow[] = [];
+  for (const noteRows of rows) for (const row of noteRows) out.push(row);
+  // ISO dates sort as plain strings; localeCompare costs seconds with 100,000s of tasks
+  out.sort((a, b) => {
+    const x = a.due ?? '9999';
+    const y = b.due ?? '9999';
+    return x < y ? -1 : x > y ? 1 : 0;
+  });
+  cache = { rows, tasks: out };
   return out;
 }
 
+/** Urgent tasks per note's rows: the badge counts again only the notes that changed */
+const urgentOf = new WeakMap<TaskRow[], { day: string; count: number }>();
+
 /** Open tasks that are overdue or due today (navigation badge, home header) */
 export function urgentTaskCount(version: number): number {
-  return collectTasks(version).filter((tk) => {
-    if (tk.done) return false;
-    const b = bucketOf(tk);
-    return b === 'overdue' || b === 'today';
-  }).length;
+  const day = new Date().toDateString();
+  let total = 0;
+  for (const noteRows of taskRowsByNote(version)) {
+    let hit = urgentOf.get(noteRows);
+    if (hit?.day !== day) {
+      let count = 0;
+      for (const tk of noteRows) {
+        if (tk.done) continue;
+        const b = bucketOf(tk);
+        if (b === 'overdue' || b === 'today') count++;
+      }
+      hit = { day, count };
+      urgentOf.set(noteRows, hit);
+    }
+    total += hit.count;
+  }
+  return total;
 }
 
 /** One line to add a task (`due:`/`every:` understood), as the first row of a task card */

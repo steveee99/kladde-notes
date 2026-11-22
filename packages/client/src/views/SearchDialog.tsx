@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { excerpt, isDatabasePath, isExcalidrawNote, pdfNoteOf, projectTitleOf, splitPath } from '@kladde/shared';
+import { isDatabasePath, isExcalidrawNote, pdfNoteOf, projectTitleOf, searchNotes, searchSnippet, searchTerms, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
+import { api } from '../lib/api';
 import type { LocalNote } from '../data/db';
 import { CheckSquare, Draw, FileText, FileType2, Psychology, Search as SearchIcon, Users, X } from '../lib/icons';
 import { openInSide, splitAvailable } from '../lib/panes';
@@ -42,41 +43,10 @@ export function SearchDialogHost({ commands }: { commands?: () => Command[] } = 
   return open ? <SearchDialog onClose={() => setOpen(false)} commands={commands} /> : null;
 }
 
-const MAX_RESULTS = 60;
 const MEMORY_PREF = 'kladde_search_memory';
 const RECENT = 8;
 
-/** Lower-cased words of the query */
-export function searchTerms(query: string): string[] {
-  return query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-}
-
-/** Notes whose title, path or text contain every term; title matches first, then the most recently edited */
-export function searchNotes(notes: LocalNote[], terms: string[], titleOf: (n: LocalNote) => string): LocalNote[] {
-  if (!terms.length) return [];
-  const hits: { note: LocalNote; inTitle: boolean }[] = [];
-  for (const note of notes) {
-    const title = titleOf(note).toLowerCase();
-    const hay = `${title}\n${note.path.toLowerCase()}\n${note.content.toLowerCase()}`;
-    if (terms.every((term) => hay.includes(term))) hits.push({ note, inTitle: terms.every((term) => title.includes(term)) });
-  }
-  hits.sort((a, b) => (a.inTitle === b.inTitle ? b.note.updatedAt - a.note.updatedAt : a.inTitle ? -1 : 1));
-  return hits.slice(0, MAX_RESULTS).map((h) => h.note);
-}
-
-/** The text around the first match (plain text without markup), or the start of the note */
-function snippetOf(content: string, terms: string[]): string {
-  const plain = excerpt(content, 4000);
-  const lower = plain.toLowerCase();
-  let at = -1;
-  for (const term of terms) {
-    const i = lower.indexOf(term);
-    if (i >= 0 && (at < 0 || i < at)) at = i;
-  }
-  if (at <= 40) return plain.slice(0, 160);
-  const start = plain.lastIndexOf(' ', at - 30);
-  return `… ${plain.slice(start < 0 ? at - 30 : start + 1, at + 130)}`;
-}
+export { searchNotes, searchTerms } from '@kladde/shared';
 
 /** `text` with every term of two or more letters marked (case-insensitive); React escapes the parts */
 function Highlight({ text, terms: all }: { text: string; terms: string[] }) {
@@ -150,15 +120,44 @@ function SearchDialog({ onClose, commands }: { onClose: () => void; commands?: (
     }
   };
 
+  // Online mode: the device has only the texts it opened, so the server searches (the notes stay in the catalog)
+  const [remote, setRemote] = useState<{ key: string; hits: { id: string; snippet: string }[] } | null>(null);
+  const remoteKey = `${terms.join(' ')}|${withMemory}`;
+  useEffect(() => {
+    if (!vault.online || commandMode || !terms.length) return;
+    let live = true;
+    const memory = vault.memoryFolder();
+    const timer = setTimeout(() => {
+      const skip = !withMemory && memory ? `&skip=${encodeURIComponent(memory)}` : '';
+      api<{ hits: { id: string; snippet: string }[] }>(`/online/search?q=${encodeURIComponent(terms.join(' '))}${skip}`)
+        .then((r) => live && setRemote({ key: remoteKey, hits: r.hits }))
+        .catch(() => {});
+    }, 120);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remoteKey, commandMode]);
+  const remoteHits = vault.online && remote?.key === remoteKey ? remote.hits : null;
+  const snippets = useMemo(() => new Map((remoteHits ?? []).map((h) => [h.id, h.snippet])), [remoteHits]);
+
   const notes = useMemo(() => {
     if (commandMode) return [];
     const list = vault.list().filter((n) => !isDatabasePath(n.path) && (withMemory || !vault.isMemoryNote(n)));
     const titleOf = (n: LocalNote) => projectTitleOf(n.path, n.content, roleConfig);
-    const ranked = terms.length ? searchNotes(list, terms, titleOf) : [...list].sort((a, b) => b.updatedAt - a.updatedAt);
+    let ranked: LocalNote[];
+    if (vault.online && terms.length) {
+      // The server's hits, then notes only this device has (not pushed yet) or whose text it holds
+      const allowed = new Set(list);
+      const fromServer = (remoteHits ?? []).map((h) => vault.get(h.id)).filter((n): n is LocalNote => !!n && allowed.has(n));
+      const seen = new Set(fromServer.map((n) => n.id));
+      ranked = [...fromServer, ...searchNotes(list.filter((n) => !n.partial && !seen.has(n.id)), terms, titleOf)];
+    } else ranked = terms.length ? searchNotes(list, terms, titleOf) : [...list].sort((a, b) => b.updatedAt - a.updatedAt);
     const ordered = memoryOn ? [...ranked.filter((n) => !vault.isMemoryNote(n)), ...ranked.filter((n) => vault.isMemoryNote(n))] : ranked;
     return terms.length ? ordered : ordered.slice(0, RECENT);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [terms, version, withMemory, memoryOn, commandMode]);
+  }, [terms, version, withMemory, memoryOn, commandMode, remoteHits]);
 
   const tasks = useMemo(() => {
     if (commandMode || !terms.length) return [];
@@ -359,7 +358,7 @@ function SearchDialog({ onClose, commands }: { onClose: () => void; commands?: (
                   const TypeIcon = vault.isMemoryNote(n) ? Psychology : pdfNoteOf(n.content) ? FileType2 : isExcalidrawNote(n.content) ? Draw : FileText;
                   const group = groupName(n);
                   const where = [group, folder ? folderDisplayName(folder, lang) : ''].filter(Boolean).join(' / ');
-                  const snippet = snippetOf(n.content, terms);
+                  const snippet = snippets.get(n.id) ?? searchSnippet(n.content, terms);
                   return (
                     // The option itself is clickable: a button inside an option would be a control in a control (#63);
                     // the keyboard works through the combobox (arrows, Enter)

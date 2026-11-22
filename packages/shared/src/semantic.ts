@@ -338,8 +338,8 @@ function bestSnippet(plainBody: string, title: string, queryStems: Map<string, n
   return bestLineIdx > 0 ? `… ${acc}` : acc;
 }
 
-/** Indexed notes of earlier searches (bounded), and the last link index, so a search only indexes changed notes */
-const docMemo = new NoteMemo<IndexedDoc, LinkNote>(indexNote, 10_000);
+/** Indexed notes of earlier searches (shared with the corpora, so no extra memory), and the last link index, so a search only indexes changed notes */
+const docMemo = new NoteMemo<IndexedDoc, LinkNote>(indexNote);
 let lastIndex: LinkIndex | null = null;
 
 /** Document frequencies over a set of notes, updated note by note instead of recounted for every search */

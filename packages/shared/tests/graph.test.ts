@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildReview, filterGraph, graphNoteKind, LinkIndex, neighbourhood } from '../src/index.js';
+import { buildReview, edgeNeighbourhood, filterGraph, filterGraphData, graphNoteKind, LinkIndex, neighbourhood } from '../src/index.js';
 
 const DAY = 86_400_000;
 const note = (id: string, path: string, content = '', createdAt = 0, updatedAt = createdAt) => ({ id, path, content, createdAt, updatedAt });
@@ -79,5 +79,23 @@ describe('review orphans', () => {
     );
     expect(r.orphanNotes).toEqual(['x', 'y']);
     expect(r.orphanZettel).toEqual(['z']);
+  });
+});
+
+describe('filterGraphData', () => {
+  it('filters a graph built elsewhere (online mode) like filterGraph', () => {
+    const index = new LinkIndex(notes);
+    const byId = new Map(notes.map((n) => [n.id, n]));
+    const info = (id: string) => {
+      const n = byId.get(id);
+      return n ? { kind: graphNoteKind(n.path, n.content), tags: () => (n.content.match(/#[\w/]+/g) ?? []).map((t) => t.slice(1)), createdAt: n.createdAt, updatedAt: n.updatedAt } : undefined;
+    };
+    for (const filter of [{}, { tag: 'area' }, { onlyOrphans: true }, { focus: { id: 'b', depth: 1 } }, { kinds: ['zettel' as const] }]) {
+      const local = filterGraph(index, notes, filter);
+      const remote = filterGraphData(index.graph(), info, filter);
+      expect(remote.nodes.map((n) => n.id).sort()).toEqual(local.nodes.map((n) => n.id).sort());
+      expect(remote.edges.length).toBe(local.edges.length);
+    }
+    expect([...edgeNeighbourhood(index.graph().edges, 'c', 1)].sort()).toEqual(['b', 'c', 'd']);
   });
 });

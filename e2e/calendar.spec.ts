@@ -11,6 +11,22 @@ const day = (offset: number) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+/** A neighbouring day in the same week (Monday to Sunday) and month as today, so the week and month views show both */
+const near = (() => {
+  const today = new Date();
+  const week = (d: Date) => {
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return monday.toDateString();
+  };
+  for (const offset of [1, -1]) {
+    const d = new Date(today);
+    d.setDate(d.getDate() + offset);
+    if (d.getMonth() === today.getMonth() && week(d) === week(today)) return offset;
+  }
+  return 1;
+})();
+
 async function seed(request: APIRequestContext, path: string, content: string): Promise<string> {
   const id = hexId();
   const now = Date.now();
@@ -25,7 +41,7 @@ test('the calendar shows tasks and dated notes, reschedules by drag and drop and
   const other = `Steuer ${uid()}`;
   const meeting = `Meeting ${uid()}`;
   const id = await seed(page.request, `Kalender ${uid()}.md`, `- [ ] ${task} 📅 ${day(0)} ⏰ 09:30 #${tag}\n- [ ] ${other} 📅 ${day(1)}\n`);
-  await seed(page.request, `${meeting}.md`, `---\ndate: ${day(1)}\n---\nAgenda`);
+  await seed(page.request, `${meeting}.md`, `---\ndate: ${day(near)}\n---\nAgenda`);
 
   await page.goto('/calendar');
   const view = page.locator('[data-calendar-view]');
@@ -33,7 +49,7 @@ test('the calendar shows tasks and dated notes, reschedules by drag and drop and
   const entry = view.locator('[data-calendar-entry="task"]', { hasText: task });
   await expect(entry).toBeVisible();
   await expect(entry).toContainText('09:30');
-  await expect(view.locator(`[data-drop-day="${day(1)}"]`).getByText(meeting)).toBeVisible();
+  await expect(view.locator(`[data-drop-day="${day(near)}"]`).getByText(meeting)).toBeVisible();
 
   // The tag filter keeps only the tagged task
   await view.getByRole('combobox', { name: 'Filter by tag' }).click();
@@ -43,16 +59,16 @@ test('the calendar shows tasks and dated notes, reschedules by drag and drop and
   await view.getByRole('combobox', { name: 'Filter by tag' }).click();
   await page.getByRole('option', { name: 'All tags' }).click();
 
-  // Drag the task to tomorrow: its line gets the new due date
-  await entry.dragTo(view.locator(`[data-drop-day="${day(1)}"]`));
-  await expect(view.locator(`[data-drop-day="${day(1)}"]`).locator('[data-calendar-entry="task"]', { hasText: task })).toBeVisible();
+  // Drag the task to the next day: its line gets the new due date
+  await entry.dragTo(view.locator(`[data-drop-day="${day(near)}"]`));
+  await expect(view.locator(`[data-drop-day="${day(near)}"]`).locator('[data-calendar-entry="task"]', { hasText: task })).toBeVisible();
   await expect
     .poll(async () => {
       const res = await page.request.get('/api/sync?since=0');
       const body = (await res.json()) as { notes: { id: string; content: string }[] };
       return body.notes.find((c) => c.id === id)?.content ?? '';
     }, { timeout: 15_000 })
-    .toContain(`📅 ${day(1)}`);
+    .toContain(`📅 ${day(near)}`);
 
   // Week and agenda
   await view.getByRole('button', { name: 'Week' }).click();

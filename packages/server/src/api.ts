@@ -1,7 +1,9 @@
-import express, { Response } from 'express';
+import express, { Request, Response } from 'express';
+import zlib from 'zlib';
 import { APP_VERSION, extractMentions, isAccent, isReleaseBump, trimSlashes, type CommentThreadList } from '@kladde/shared';
-import type { ActivityList, NotePerson, MyStorage, AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
+import type { ActivityList, NotePerson, MyStorage, AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DailySettings, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
 import { Presence } from './Presence.js';
+import type { SpaceIndexes } from './online/SpaceIndex.js';
 import { FILE_URL_RE, attachmentUsageMap } from './cliActions.js';
 import { GroupError, GroupStore } from './GroupStore.js';
 import type { ActivityStore } from './ActivityStore.js';
@@ -77,6 +79,24 @@ export interface ApiRouterOptions {
   notifications?: NotificationStore;
   /** Comment threads on passages (#68) */
   comments?: CommentStore;
+  /** Online mode: the server's indexes per space (search, backlinks) */
+  spaces?: SpaceIndexes;
+}
+
+/**
+ * A large JSON answer (online mode: the catalog, the tasks), gzip-compressed when the client accepts it and it is worth
+ * it; compressed off the main thread
+ */
+function sendJson(req: Request, res: Response, body: unknown): void {
+  const json = Buffer.from(JSON.stringify(body));
+  if (json.length < 64 * 1024 || !/\bgzip\b/.test(String(req.headers['accept-encoding'] ?? ''))) {
+    res.type('application/json').send(json);
+    return;
+  }
+  zlib.gzip(json, { level: 4 }, (err, zipped) => {
+    if (err) return void res.type('application/json').send(json);
+    res.set({ 'Content-Type': 'application/json; charset=utf-8', 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' }).send(zipped);
+  });
 }
 
 export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, live: LiveUpdates, opts: ApiRouterOptions = {}): express.Router {
@@ -214,8 +234,74 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     res.json({ ok: presence.cursor(req.user!.id, clientId, body.noteId, pos) });
   });
 
+  // `light=1` (online mode): notes without their text, as a catalog; the device fetches texts with POST /sync/notes
   router.get('/sync', (req, res) => {
-    res.json(notes.pull(req.user!.id, Math.max(0, Number(req.query.since) || 0)));
+    const light = req.query.light === '1';
+    const since = Math.max(0, Number(req.query.since) || 0);
+    const pulled = notes.pull(req.user!.id, since, { light });
+    if (light) sendJson(req, res, pulled);
+    else res.json(pulled);
+    // A device that just loaded its catalog soon asks for search and backlinks: build the indexes meanwhile
+    if (light && since === 0 && opts.spaces) {
+      const spaces = opts.spaces;
+      const userId = req.user!.id;
+      res.on('finish', () => setTimeout(() => spaces.warm(userId), 50));
+    }
+  });
+
+  // Full texts of notes a device holds only as catalog entries (opened, or changed by others while open)
+  router.post('/sync/notes', express.json({ limit: '256kb' }), (req, res) => {
+    const ids = Array.isArray(req.body?.ids) ? (req.body.ids as unknown[]).filter((id): id is string => typeof id === 'string').slice(0, 500) : [];
+    res.json({ notes: notes.fetchNotes(req.user!.id, ids) });
+  });
+
+  // Online mode: the search overlay and the backlinks of a note, answered from the server's indexes
+  router.get('/online/search', (req, res) => {
+    if (!opts.spaces) return res.status(404).json({ error: 'Nur im Online-Modus.' });
+    const q = typeof req.query.q === 'string' ? req.query.q.slice(0, 400) : '';
+    const skip = typeof req.query.skip === 'string' && req.query.skip ? req.query.skip.slice(0, 400) : null;
+    res.json({ hits: opts.spaces.search(req.user!.id, q, skip) });
+  });
+
+  router.get('/online/backlinks/:id', (req, res) => {
+    if (!opts.spaces) return res.status(404).json({ error: 'Nur im Online-Modus.' });
+    const result = opts.spaces.backlinks(req.user!.id, req.params.id);
+    if (!result) return notFound(res);
+    res.json(result);
+  });
+
+  router.get('/online/tasks', (req, res) => {
+    if (!opts.spaces) return res.status(404).json({ error: 'Nur im Online-Modus.' });
+    const since = Number(req.query.since);
+    const sig = typeof req.query.sig === 'string' ? req.query.sig.slice(0, 64) : '';
+    sendJson(req, res, opts.spaces.tasks(req.user!.id, Number.isSafeInteger(since) ? since : 0, sig));
+  });
+
+  router.get('/online/graph', (req, res) => {
+    if (!opts.spaces) return res.status(404).json({ error: 'Nur im Online-Modus.' });
+    const have = typeof req.query.have === 'string' ? req.query.have.slice(0, 64) : '';
+    sendJson(req, res, opts.spaces.graph(req.user!.id, have));
+  });
+
+  router.post('/online/query', express.json({ limit: '64kb' }), (req, res) => {
+    if (!opts.spaces) return res.status(404).json({ error: 'Nur im Online-Modus.' });
+    const { src, daily, have } = (req.body ?? {}) as { src?: unknown; daily?: unknown; have?: unknown };
+    if (typeof src !== 'string' || src.length > 8000) return res.status(400).json({ error: 'Ungültige Anfrage.' });
+    const d = daily as Partial<DailySettings> | null | undefined;
+    const settings: DailySettings | null =
+      d && typeof d === 'object' && d.enabled === true && typeof d.folder === 'string' && typeof d.format === 'string' && d.folder.length <= 400 && d.format.length <= 100
+        ? { enabled: true, folder: d.folder, format: d.format }
+        : null;
+    sendJson(req, res, opts.spaces.query(req.user!.id, src, settings, typeof have === 'string' ? have.slice(0, 64) : ''));
+  });
+
+  // Online mode: links to a renamed note are rewritten on the server, in every note the user may edit
+  router.post('/sync/relink', express.json({ limit: '16kb' }), (req, res) => {
+    const { noteId, oldName, newName } = (req.body ?? {}) as { noteId?: unknown; oldName?: unknown; newName?: unknown };
+    if (typeof noteId !== 'string' || typeof oldName !== 'string' || typeof newName !== 'string' || oldName.length > 400 || newName.length > 400) {
+      return res.status(400).json({ error: 'Ungültige Anfrage.' });
+    }
+    res.json({ changed: notes.relink(req.user!.id, noteId, oldName, newName) });
   });
 
   router.post(

@@ -47,3 +47,4 @@ export * from './tickets.js';
 export * from './workflow.js';
 export * from './automations.js';
 export * from './codeInfo.js';
+export * from './textSearch.js';

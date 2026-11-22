@@ -21,10 +21,10 @@ const WORDS = (
 const FOLDERS = ['0 Inbox', '1 Projects/Website', '1 Projects/Umzug', '1 Projects/Garten', '2 Areas/Finanzen', '2 Areas/Gesundheit', '3 Resources/Rezepte', '3 Resources/Bücher', '3 Resources/Tech', '4 Archive/2024', 'Journal', 'Zettelkasten'];
 
 /**
- * @param {{ notes?: number, links?: number, tasks?: number, seed?: number, now?: number }} [opts]
+ * @param {{ notes?: number, links?: number, tasks?: number, seed?: number, now?: number, idPrefix?: string }} [opts]
  * @returns {{ id: string, path: string, content: string, createdAt: number, updatedAt: number }[]}
  */
-export function generateVault({ notes = 5000, links = 20000, tasks = 10000, seed = 64, now = Date.UTC(2026, 10, 18) } = {}) {
+export function generateVault({ notes = 5000, links = 20000, tasks = 10000, seed = 64, now = Date.UTC(2026, 10, 18), idPrefix = 'bench' } = {}) {
   const r = rng(seed);
   const pick = (arr) => arr[Math.floor(r() * arr.length)];
   const words = (n) => Array.from({ length: n }, () => pick(WORDS)).join(' ');
@@ -57,6 +57,6 @@ export function generateVault({ notes = 5000, links = 20000, tasks = 10000, seed
       lines.push(`- [${status}] ${words(4)}${due}${r() < 0.1 ? ' every:week' : ''}`);
     }
     const updatedAt = now - Math.floor(r() * 365) * 86400000;
-    return { id: `bench${String(i).padStart(6, '0')}`, path: `${folder}/${title}.md`, content: lines.join('\n') + '\n', createdAt: updatedAt, updatedAt };
+    return { id: `${idPrefix}${String(i).padStart(6, '0')}`, path: `${folder}/${title}.md`, content: lines.join('\n') + '\n', createdAt: updatedAt, updatedAt };
   });
 }

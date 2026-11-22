@@ -7,7 +7,11 @@ import { generateVault } from '../fixtures/largeVault.mjs';
 // Seeds 5,000 notes (20,000 links, 10,000 tasks) for the account `perf` and measures what users wait for.
 // The numbers go to the console and to test-results/perf-large-vault.json; compare them across changes.
 
+// `BENCH_ONLINE=1` measures against the test server in online mode (KLADDE_MODE=online): the device loads a catalog
+// of the notes and a note's text when it opens.
+
 const NOTES = Number(process.env.BENCH_NOTES ?? 5000);
+const ONLINE = process.env.BENCH_ONLINE === '1';
 
 interface Result {
   name: string;
@@ -16,9 +20,31 @@ interface Result {
 }
 
 test('large vault', async ({ browser }, testInfo) => {
-  test.setTimeout(10 * 60_000);
+  test.setTimeout(Number(process.env.BENCH_TIMEOUT ?? 10 * 60_000));
   const results: Result[] = [];
-  const record = (name: string, ms: number, note?: string) => results.push({ name, ms: Math.round(ms), note });
+  const out = path.join(testInfo.config.rootDir, '..', 'test-results', 'perf-large-vault.json');
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  // Written after every step, so a step that never finishes still leaves the earlier numbers
+  const record = (name: string, ms: number, note?: string) => {
+    results.push({ name, ms: Math.round(ms), note });
+    console.log(`  ${name}: ${Math.round(ms)} ms ${note ?? ''}`);
+    fs.writeFileSync(out, JSON.stringify({ notes: NOTES, online: ONLINE, at: new Date().toISOString(), results }, null, 2));
+  };
+  const stepTimeout = Number(process.env.BENCH_STEP_TIMEOUT ?? 60_000);
+  // `BENCH_PROFILE=open,typing` (or `1` for the typing): CPU profiles of those steps in test-results/perf-<step>.cpuprofile
+  // (open them in the Performance panel of Chrome DevTools)
+  const profiled = new Set((process.env.BENCH_PROFILE === '1' ? 'typing' : (process.env.BENCH_PROFILE ?? '')).split(',').filter(Boolean));
+  const startProfile = async (step: string) => {
+    if (!profiled.has(step)) return null;
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Profiler.enable');
+    await cdp.send('Profiler.start');
+    return async () => {
+      await page.waitForTimeout(1000);
+      const { profile } = await cdp.send('Profiler.stop');
+      fs.writeFileSync(path.join(path.dirname(out), `perf-${step}.cpuprofile`), JSON.stringify(profile));
+    };
+  };
 
   // Seed through the sync API, like a device that wrote all of it
   const context = await newContextAs(browser, testInfo, 'perf');
@@ -59,27 +85,48 @@ test('large vault', async ({ browser }, testInfo) => {
     );
 
   // 1. First start on a new device: download and store everything
+  const stopSync = await startProfile('sync');
   let t = Date.now();
   const pulled = page.waitForResponse((r) => r.url().includes('/api/sync?since=0'));
   await page.goto('/');
-  await (await pulled).finished();
-  record('first sync: notes downloaded', Date.now() - t);
+  const response = await pulled;
+  await response.finished();
+  const downloadMs = Date.now() - t;
+  // Large bodies leave the browser's cache: the size is measured again through the API, outside the timing
+  const syncUrl = response.url();
+  record('first sync: notes downloaded', downloadMs);
   await expect(page.getByRole('button', { name: 'Synced' }).first()).toBeVisible({ timeout: Number(process.env.BENCH_SYNC_TIMEOUT ?? 120_000) });
   await expect(page.getByRole('region', { name: 'Recently edited' })).toBeVisible();
   record('first sync: stored and home shown', Date.now() - t);
-  expect(await countLocal()).toBeGreaterThanOrEqual(NOTES);
+  await stopSync?.();
+  // Online mode keeps only opened notes on the device
+  if (!ONLINE) expect(await countLocal()).toBeGreaterThanOrEqual(NOTES);
 
   // 2. Start again: everything comes from IndexedDB
   t = Date.now();
   await page.reload();
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Hello');
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Recently edited' })).toBeVisible();
   record('start from IndexedDB (reload until home)', Date.now() - t);
+  // Home shows before the notes are read: wait until the folder tree has them
+  await expect(page.getByRole('complementary', { name: 'Folders' }).getByText(vault[0].path.split('/')[0], { exact: true }).first()).toBeVisible({ timeout: 300_000 });
+  record('start from IndexedDB (reload until the folder tree is filled)', Date.now() - t);
 
   // 3. Typing in a note with many backlinks: Event Timing gives the time from key press to the next paint
   const target = vault[0];
-  await page.goto(`/n/${target.id}`);
-  await expect(editor(page)).toBeVisible();
+  // Inside the app (like a click on a link), not a new page load: in online mode this loads the note's text
+  const stopOpen = await startProfile('open');
+  t = Date.now();
+  await page.evaluate((to) => {
+    history.pushState(null, '', to);
+    dispatchEvent(new PopStateEvent('popstate'));
+  }, `/n/${target.id}`);
+  // Checked in the page: Playwright's retries of toContainText build an accessibility snapshot of the whole page each
+  // time, which costs seconds with a large folder tree and would be part of the number
+  const line = target.content.split('\n').find((l) => l.length > 30 && !l.startsWith('-') && !l.startsWith('#'))!.slice(0, 20);
+  await page.waitForFunction((text) => document.querySelector('.cm-content')?.textContent?.includes(text), line, { timeout: 300_000, polling: 'raf' });
+  record('open a note (until its text shows)', Date.now() - t);
+  await stopOpen?.();
   await editor(page).click();
   await page.keyboard.press('ControlOrMeta+End');
   await page.evaluate(() => {
@@ -89,11 +136,13 @@ test('large vault', async ({ browser }, testInfo) => {
       for (const e of list.getEntries()) if (e.name === 'keydown') w.__keys.push(e.duration);
     }).observe({ type: 'event', durationThreshold: 16, buffered: false } as PerformanceObserverInit);
   });
+  const stopTyping = await startProfile('typing');
   const text = ' tippen im grossen vault';
   t = Date.now();
   for (const ch of text) await page.keyboard.type(ch, { delay: 30 });
   await expect(editor(page)).toContainText('tippen im grossen vault');
   const typedMs = Date.now() - t;
+  await stopTyping?.();
   await page.waitForTimeout(500);
   const slow = await page.evaluate(() => (window as unknown as { __keys: number[] }).__keys);
   // Event Timing reports from 16 ms on, so a keystroke missing here was faster than that
@@ -116,25 +165,29 @@ test('large vault', async ({ browser }, testInfo) => {
   t = Date.now();
   await page.goto('/tasks');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  await expect(page.getByRole('checkbox').first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('checkbox').first()).toBeVisible({ timeout: stepTimeout });
   record('task page (load until first task)', Date.now() - t);
 
   // 6. Knowledge graph
   t = Date.now();
   await page.goto('/graph');
-  await expect(page.locator('canvas').first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('canvas').first()).toBeVisible({ timeout: stepTimeout });
   await page.waitForFunction(() => {
     const c = document.querySelector('canvas');
     return !!c && c.width > 0;
   });
   record('graph page (load until canvas)', Date.now() - t);
+  // Large graphs are laid out in a worker behind a progress bar
+  await expect(page.getByRole('progressbar')).toHaveCount(0, { timeout: stepTimeout });
+  record('graph page (laid out and drawn)', Date.now() - t);
+
+  const size = (await (await api.get(syncUrl)).body()).length;
+  results[0].note = `${(size / 1e6).toFixed(1)} MB JSON`;
 
   const width = Math.max(...results.map((r) => r.name.length));
   const lines = results.map((r) => `${r.name.padEnd(width)}  ${String(r.ms).padStart(7)} ms  ${r.note ?? ''}`);
-  console.log(`\nLarge vault: ${NOTES} notes · ${testInfo.project.name}\n${lines.join('\n')}\n`);
-  const out = path.join(testInfo.config.rootDir, '..', 'test-results', 'perf-large-vault.json');
-  fs.mkdirSync(path.dirname(out), { recursive: true });
-  fs.writeFileSync(out, JSON.stringify({ notes: NOTES, at: new Date().toISOString(), results }, null, 2));
+  console.log(`\nLarge vault: ${NOTES} notes${ONLINE ? ' (online mode)' : ''} · ${testInfo.project.name}\n${lines.join('\n')}\n`);
+  fs.writeFileSync(out, JSON.stringify({ notes: NOTES, online: ONLINE, at: new Date().toISOString(), results }, null, 2));
   await testInfo.attach('results', { body: JSON.stringify(results, null, 2), contentType: 'application/json' });
   await context.close();
 });

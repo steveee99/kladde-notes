@@ -28,7 +28,7 @@ export interface EditorHost {
   openNote(id: string): void;
   /** The note an embed `![[target]]` shows (resolved like links), null if the reader has none by that name */
   resolveEmbed(target: string): EmbedNote | null;
-  runQuery(src: string): QueryResult | { error: string };
+  runQuery(src: string): QueryResult | { error: string } | { loading: true };
   toggleTask(noteId: string, line: number): void;
   /** Opens the note a task lives in, scrolled to the task's line */
   openTask(noteId: string, line: number): void;

@@ -85,6 +85,9 @@ npm run dev
 - **Dev login:** locally the sign-in page has a "Dev login" button (user `dev`, only with `DEV_LOGIN=1` and outside production)
 - On first start the server writes an invitation link to the log (`✉️ Erste Einladung …`). Passkeys work on `localhost` without HTTPS
 - Start over: delete `packages/server/data/`
+- **Online mode:** `npm run dev:online` starts the same with `KLADDE_MODE=online`
+- **Test data:** `npm run build`, then `npm run seed -- --notes 20000` adds a large vault with links and tasks to the account `dev`;
+  `--group Team --members 50` puts it into a group with the accounts `user01`…`user50` (password `kladde-test`), `--help` lists the options
 
 ```bash
 npm run build   # shared → server → client
@@ -157,6 +160,7 @@ Without access to the server you can import a local folder (e.g. an Obsidian vau
 | `BACKUP_KEEP` | Default for the daily full backup (database and encrypted attachments) in `data/backups`: how many to keep (default 7, `0` = off). Can be changed under Settings → Administration → Backups |
 | `BACKUP_DIR` | Where backups are stored (default `data/backups`) |
 | `EXPORT_DIR` | Plain-text mirror of the notes (e.g. NAS), empty = off |
+| `KLADDE_MODE` | `offline` (default): every device keeps a full offline copy of the notes. `online` (experimental, for teams that are always online with very large vaults): devices keep only a list of the notes and load a note's text when it opens; nothing can be read without a connection except notes opened before. The server searches every note, finds backlinks and mentions and sends the tasks of every note; database tables and ticket projects load their notes in full; the server also builds the graph and runs query blocks (at most 2,000 rows each) |
 | `TRASH_RETENTION_DAYS` | Days deleted notes stay in the trash before they are purged (default 30, `0` = until emptied by hand) |
 | `STORAGE_QUOTA_MB` | Optional default storage limit per account and group in MB (notes, attachments, history and trash count; unset or `0` = unlimited). Uploads over the limit are refused with a clear message (offline uploads stay queued). Admins see the usage and set own limits under Settings → Administration |
 | `TRANSCRIBE_URL` | Optional speech-to-text for voice notes: an OpenAI-compatible transcription endpoint you run yourself, e.g. a local Whisper (`http://whisper:8000/v1/audio/transcriptions`). Unset = no transcription; recordings never go to a third-party service by default. `TRANSCRIBE_MODEL` (default `whisper-1`) and `TRANSCRIBE_API_KEY` are optional |
