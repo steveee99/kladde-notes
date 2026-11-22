@@ -82,6 +82,9 @@ npm run dev
 - **Dev-Login:** Auf der Anmeldeseite gibt es lokal den Button „Dev-Login“ (Benutzer `dev`, nur mit `DEV_LOGIN=1` und außerhalb von Production)
 - Beim ersten Start schreibt der Server einen Einladungslink ins Log (`✉️ Erste Einladung …`). Passkeys funktionieren auf `localhost` auch ohne HTTPS
 - Neu anfangen: `packages/server/data/` löschen
+- **Online-Modus:** `npm run dev:online` startet dasselbe mit `KLADDE_MODE=online`
+- **Testdaten:** `npm run build`, dann legt `npm run seed -- --notes 20000` einen großen Bestand mit Links und Aufgaben beim Konto `dev` an;
+  `--group Team --members 50` legt ihn in eine Gruppe mit den Konten `user01`…`user50` (Passwort `kladde-test`), `--help` zeigt die Optionen
 
 ```bash
 npm run build   # shared → server → client

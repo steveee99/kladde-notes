@@ -19,6 +19,7 @@
   ],
   "scripts": {
     "dev": "concurrently -n \"shared,server,client\" -c \"blue,green,magenta\" \"npm run build:watch --workspace=packages/shared\" \"npm run dev --workspace=packages/server\" \"npm run dev --workspace=packages/client\"",
+    "dev:online": "concurrently -n \"shared,server,client\" -c \"blue,green,magenta\" \"npm run build:watch --workspace=packages/shared\" \"npm run dev:online --workspace=packages/server\" \"npm run dev --workspace=packages/client\"",
     "build": "npm run build --workspace=packages/shared && npm run build --workspace=packages/server && npm run build --workspace=packages/client",
     "build:demo": "npm run build --workspace=packages/shared && npm run build:demo --workspace=packages/client",
     "build:desktop": "node scripts/build-desktop.mjs",
@@ -27,6 +28,7 @@
     "test:e2e": "playwright test",
     "bench": "node scripts/bench-vault.mjs",
     "bench:e2e": "playwright test --project=perf",
+    "seed": "node scripts/seed-vault.mjs",
     "cli": "node packages/server/dist/cli.js",
     "import": "node packages/server/dist/importCli.js",
     "release": "node scripts/release.mjs",
