@@ -73,3 +73,55 @@ test('loads notes when they open and keeps links working across renames', async 
   await expectOnServer(api, target.id, 'Das Ziel.');
   await context.close();
 });
+
+// Stage 3: tasks of notes the device never opened come from the server; database folders load in full
+test('shows tasks from the server and database folders with their rows', async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ baseURL, viewport: { width: 1280, height: 800 } });
+  const api = context.request;
+  expect((await api.post('/api/auth/password/login', { data: { username: 'cara', password: E2E_PASSWORD } })).ok()).toBe(true);
+
+  const me = (await (await api.get('/api/auth/me')).json()) as { id: string };
+  const tag = uid();
+  const now = Date.now();
+  const id = (n: number) => `onl3${tag.replace(/[^A-Za-z0-9]/g, '')}${n}`.slice(0, 40);
+  const folder = `Bücher ${tag}`;
+  const notes = [
+    { id: id(1), path: `Inbox/Liste ${tag}.md`, content: `# Liste\n\n- [ ] Aufgabe vom Server ${tag}\n` },
+    { id: id(2), path: `${folder}/_database-${crypto.randomUUID()}.md`, content: '---\ntype: database\nproperties:\n  - name: Pages\n    type: number\nviews:\n  - name: Table\n    type: table\n---\n' },
+    { id: id(3), path: `${folder}/Alpha ${tag}.md`, content: '---\nPages: 300\n---\nAlpha' },
+  ];
+  const res = await api.post('/api/sync', { data: { changes: notes.map((n) => ({ ...n, baseVersion: 0, deleted: false, createdAt: now, updatedAt: now })) } });
+  expect(res.ok()).toBe(true);
+
+  const page = await context.newPage();
+  await page.goto('/');
+  await page.evaluate(() => localStorage.setItem('kladde_lang', 'en'));
+  await page.goto('/tasks');
+  await expectSynced(page);
+
+  // The task's note was never opened: the row comes from the server's index, ticking it loads the note and writes it
+  const row = page.getByText(`Aufgabe vom Server ${tag}`);
+  await expect(row).toBeVisible({ timeout: 15_000 });
+  const held = await page.evaluate(
+    async ({ dbName, noteId }) =>
+      new Promise<boolean>((resolve) => {
+        const open = indexedDB.open(dbName);
+        open.onsuccess = () => {
+          const req = open.result.transaction('notes').objectStore('notes').get(noteId);
+          req.onsuccess = () => resolve(!!req.result);
+          req.onerror = () => resolve(false);
+        };
+      }),
+    { dbName: `kladde-online-${me.id}`, noteId: notes[0].id }
+  );
+  expect(held).toBe(false);
+  await page.getByRole('checkbox', { name: `Aufgabe vom Server ${tag}` }).first().click();
+  await expectOnServer(api, notes[0].id, `- [x] Aufgabe vom Server ${tag}`);
+
+  // The database folder's notes are on the device: the table shows the row's value
+  await page.goto(`/f/${encodeURIComponent(folder)}`);
+  const db = page.locator('[data-database]');
+  await expect(db.getByText(`Alpha ${tag}`, { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(db.getByLabel(`Pages: Alpha ${tag}`)).toHaveValue('300');
+  await context.close();
+});

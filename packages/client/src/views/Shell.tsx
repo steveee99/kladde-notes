@@ -938,8 +938,30 @@ function SectionHeader({
 /** The sort order per folder from the last render: a folder whose notes and names stayed is not sorted again (#64) */
 const folderOrder = new Map<string, { lang: string; ids: string[]; names: string[]; order: number[] }>();
 
+/** The grouping by the last path change: a change of a text only takes the notes' current objects (#64) */
+let grouped: { stamp: number; lang: string; ids: Map<string, string[]> } | null = null;
+
 /** Own notes by folder (database notes left out), each list sorted by name */
 function groupByFolder(notes: LocalNote[], lang: Lang): Map<string, LocalNote[]> {
+  const stamp = vault.getPathStamp();
+  if (grouped && grouped.stamp === stamp && grouped.lang === lang) {
+    const out = new Map<string, LocalNote[]>();
+    for (const [folder, ids] of grouped.ids) {
+      const list: LocalNote[] = [];
+      for (const id of ids) {
+        const n = vault.get(id);
+        if (n) list.push(n);
+      }
+      out.set(folder, list);
+    }
+    return out;
+  }
+  const map = sortedByFolder(notes, lang);
+  grouped = { stamp, lang, ids: new Map([...map].map(([folder, list]) => [folder, list.map((n) => n.id)])) };
+  return map;
+}
+
+function sortedByFolder(notes: LocalNote[], lang: Lang): Map<string, LocalNote[]> {
   const map = new Map<string, LocalNote[]>();
   const names = new Map<LocalNote, string>();
   for (const n of notes) {

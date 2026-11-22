@@ -4,6 +4,9 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: In online mode the task page, home and the navigation badge show the tasks of every note, also of notes a device never opened: the server sends them, and after the first time only what changed. Database tables and ticket projects (with their milestones) load their notes in full, so tables, boards, the backlog and "My tickets" see every row. With 100,000 notes and 200,000 tasks the task page shows after half a second. The catalog and the tasks travel compressed (20 MB become 2 MB).
+- Changed: Task lists sort and group faster with very many tasks (search, home, the task page and the badge recomputed every task's due date group and sorted with a slow comparison after every change), and the folder tree is grouped again only when a path changed, in both modes.
+
 - New: In online mode the server searches every note and finds the backlinks and unlinked mentions of a note, also of notes a device never opened. It keeps one index per group or account, shared by everybody who sees it. With 100,000 notes opening a note takes under 3 instead of 5.5 seconds.
 
 - New: Online mode for teams that are always online with very large vaults (`KLADDE_MODE=online`, experimental). Devices keep only a list of the notes and load a note's text when it opens, instead of a full offline copy: with 100,000 notes the first start takes 8 instead of 13 seconds and a restart 2 instead of 10. Renaming a note rewrites the links in every note on the server. Without a connection only notes opened before can be read. Search finds the other notes only by title so far; backlinks, tasks, the graph, tickets and database tables only see opened notes (the next steps move them to the server).

@@ -147,6 +147,27 @@ export interface PushChange {
   trashFolder?: string;
 }
 
+/**
+ * Online mode: one task as a tuple, to keep `GET /api/online/tasks` small with many notes:
+ * [line, status, text, due, repeat, time, doneDate, indent]; trailing nulls and the indentation "- " are left out
+ */
+export type OnlineTaskTuple = [number, 'open' | 'doing' | 'blocked' | 'done', string, (string | null)?, (string | null)?, (string | null)?, (string | null)?, string?];
+
+/** Online mode: the tasks of one note, with its frontmatter title (the device knows the path from its catalog) */
+export interface OnlineTaskNote {
+  id: string;
+  title?: string;
+  tasks: OnlineTaskTuple[];
+}
+
+/** `GET /api/online/tasks?since=&sig=`: notes changed since the cursor, or all with tasks when `reset` */
+export interface OnlineTasks {
+  cursor: number;
+  sig: string;
+  reset: boolean;
+  notes: OnlineTaskNote[];
+}
+
 /** A deleted note in its owner's trash (`GET /api/trash`); restorable until it is purged */
 /** An export of the whole account as a ZIP archive (#93), made in the background and downloadable once */
 export interface AccountExportStatus {

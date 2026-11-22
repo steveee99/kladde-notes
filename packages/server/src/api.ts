@@ -1,4 +1,5 @@
-import express, { Response } from 'express';
+import express, { Request, Response } from 'express';
+import zlib from 'zlib';
 import { APP_VERSION, extractMentions, isAccent, isReleaseBump, trimSlashes, type CommentThreadList } from '@kladde/shared';
 import type { ActivityList, NotePerson, MyStorage, AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
 import { Presence } from './Presence.js';
@@ -80,6 +81,22 @@ export interface ApiRouterOptions {
   comments?: CommentStore;
   /** Online mode: the server's indexes per space (search, backlinks) */
   spaces?: SpaceIndexes;
+}
+
+/**
+ * A large JSON answer (online mode: the catalog, the tasks), gzip-compressed when the client accepts it and it is worth
+ * it; compressed off the main thread
+ */
+function sendJson(req: Request, res: Response, body: unknown): void {
+  const json = Buffer.from(JSON.stringify(body));
+  if (json.length < 64 * 1024 || !/\bgzip\b/.test(String(req.headers['accept-encoding'] ?? ''))) {
+    res.type('application/json').send(json);
+    return;
+  }
+  zlib.gzip(json, { level: 4 }, (err, zipped) => {
+    if (err) return void res.type('application/json').send(json);
+    res.set({ 'Content-Type': 'application/json; charset=utf-8', 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' }).send(zipped);
+  });
 }
 
 export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, live: LiveUpdates, opts: ApiRouterOptions = {}): express.Router {
@@ -221,7 +238,9 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
   router.get('/sync', (req, res) => {
     const light = req.query.light === '1';
     const since = Math.max(0, Number(req.query.since) || 0);
-    res.json(notes.pull(req.user!.id, since, { light }));
+    const pulled = notes.pull(req.user!.id, since, { light });
+    if (light) sendJson(req, res, pulled);
+    else res.json(pulled);
     // A device that just loaded its catalog soon asks for search and backlinks: build the indexes meanwhile
     if (light && since === 0 && opts.spaces) {
       const spaces = opts.spaces;
@@ -249,6 +268,13 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     const result = opts.spaces.backlinks(req.user!.id, req.params.id);
     if (!result) return notFound(res);
     res.json(result);
+  });
+
+  router.get('/online/tasks', (req, res) => {
+    if (!opts.spaces) return res.status(404).json({ error: 'Nur im Online-Modus.' });
+    const since = Number(req.query.since);
+    const sig = typeof req.query.sig === 'string' ? req.query.sig.slice(0, 64) : '';
+    sendJson(req, res, opts.spaces.tasks(req.user!.id, Number.isSafeInteger(since) ? since : 0, sig));
   });
 
   // Online mode: links to a renamed note are rewritten on the server, in every note the user may edit

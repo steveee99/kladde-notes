@@ -1,4 +1,5 @@
-import { LinkIndex, MAX_SEARCH_RESULTS, SYSTEM_PREFIX, isDatabasePath, projectTitleOf, searchSnippet, searchTerms, splitPath, type LinkNote } from '@kladde/shared';
+import crypto from 'crypto';
+import { LinkIndex, MAX_SEARCH_RESULTS, SYSTEM_PREFIX, isDatabasePath, parseFrontmatter, parseTasks, projectTitleOf, searchSnippet, searchTerms, splitPath, type LinkNote, type OnlineTaskNote, type OnlineTasks, type OnlineTaskTuple } from '@kladde/shared';
 import type { NoteStore } from '../NoteStore.js';
 
 /**
@@ -9,11 +10,16 @@ import type { NoteStore } from '../NoteStore.js';
  * A space is brought up to date before every question: the notes with a newer seq are decrypted again, and when the
  * number of notes no longer matches (a note moved to another space) the ids are compared. Spaces nobody asked about for
  * `IDLE_MS` are dropped. Links resolve inside a note's own space; a link from another visible space counts as a
- * backlink when that space has no note of the name itself.
+ * backlink when that space has no note of the name itself. Tasks are parsed once per note version and sent to devices
+ * as changes since their last question.
  */
 
 interface IndexedNote extends LinkNote {
   updatedAt: number;
+  seq: number;
+  /** The note's tasks, parsed on the first question for them (without a default due date: the device adds it) */
+  tasks?: OnlineTaskNote;
+  tasksDay?: string;
   /** Title, path and text in lower case, as the search compares them; made on the first search */
   hay?: string;
 }
@@ -21,6 +27,25 @@ interface IndexedNote extends LinkNote {
 /** A space nobody asked about for this long is dropped (and built again on the next question) */
 const IDLE_MS = 12 * 60 * 60_000;
 const MAX_MENTIONS = 100;
+
+/** A note's tasks as compact tuples (see `OnlineTaskTuple`), with its frontmatter title */
+function tasksOf(n: IndexedNote, day: string): OnlineTaskNote {
+  // "due:heute" resolves to a date: parsed again on the next day
+  if (n.tasks && n.tasksDay === day) return n.tasks;
+  n.tasksDay = day;
+  const tasks: OnlineTaskTuple[] = parseTasks(n.content).map((t) => {
+    const tuple: OnlineTaskTuple = [t.line, t.status, t.text, t.due, t.repeat, t.time, t.doneDate, t.indent];
+    // Trailing defaults are left out: most tasks have no time, done date or unusual indentation
+    while (tuple.length > 3 && (tuple[tuple.length - 1] === null || (tuple.length === 8 && tuple[7] === '- '))) tuple.pop();
+    return tuple;
+  });
+  const out: OnlineTaskNote = { id: n.id, tasks };
+  if (tasks.length) {
+    const title = parseFrontmatter(n.content).data.title;
+    if (typeof title === 'string' && title) out.title = title;
+  }
+  return (n.tasks = out);
+}
 
 /** What the search compares: title, path and text in lower case, kept with the note */
 function hayOf(n: IndexedNote): string {
@@ -36,7 +61,7 @@ class Space {
 
   constructor(
     private readonly store: NoteStore,
-    private readonly ownerId: string
+    readonly ownerId: string
   ) {}
 
   /** System notes of the space (settings, folders): counted, not indexed */
@@ -52,7 +77,7 @@ class Space {
         this.system.delete(n.id);
         if (n.deleted) continue;
         if (n.path.startsWith(SYSTEM_PREFIX)) this.system.add(n.id);
-        else this.notes.set(n.id, { id: n.id, path: n.path, content: n.content, updatedAt: n.updatedAt });
+        else this.notes.set(n.id, { id: n.id, path: n.path, content: n.content, updatedAt: n.updatedAt, seq: n.seq });
       }
       this.stale = true;
     }
@@ -66,6 +91,11 @@ class Space {
         this.stale = true;
       }
     }
+  }
+
+  /** Highest seq the space has taken in */
+  get cursor(): number {
+    return this.seq;
   }
 
   links(): LinkIndex {
@@ -105,13 +135,17 @@ export class SpaceIndexes {
   }
 
   /**
-   * Builds the user's spaces and their link indexes ahead of the first question (after the device loaded its catalog),
-   * so opening the first note does not wait for it
+   * Builds the user's spaces, their link indexes and tasks ahead of the first question (after the device loaded its
+   * catalog), so opening the first note and the task list do not wait for it
    */
   warm(userId: string): void {
     for (const { space } of this.visible(userId)) {
       space.links();
-      for (const n of space.notes.values()) hayOf(n);
+      const day = new Date().toDateString();
+      for (const n of space.notes.values()) {
+        hayOf(n);
+        tasksOf(n, day);
+      }
     }
   }
 
@@ -179,5 +213,34 @@ export class SpaceIndexes {
       }
     }
     return { backlinks: [...new Set(backlinks)], mentions };
+  }
+
+  /**
+   * The tasks of every note the user may see, for the task page, home and the badge of a device that holds only a
+   * catalog. `since` is the cursor of the device's previous answer: then only notes changed since come (also those
+   * that have no tasks left), unless the visible spaces or the day changed (`sig`), which sends all again.
+   */
+  tasks(userId: string, since: number, sig: string): OnlineTasks {
+    const visible = [...this.visible(userId)];
+    const key = visible
+      .map((v) => `${v.space.ownerId}:${v.only ? [...v.only].sort().join(',') : '*'}`)
+      .sort()
+      .join('|');
+    // A new day sends everything again (tasks due "today" or "tomorrow" move)
+    const day = new Date().toDateString();
+    const current = crypto.createHash('sha256').update(`${day}|${key}`).digest('base64url').slice(0, 16);
+    const reset = since <= 0 || sig !== current;
+    const notes: OnlineTaskNote[] = [];
+    let cursor = 0;
+    for (const { space, only } of visible) {
+      cursor = Math.max(cursor, space.cursor);
+      for (const n of space.notes.values()) {
+        if (only && !only.has(n.id)) continue;
+        if (!reset && n.seq <= since) continue;
+        const entry = tasksOf(n, day);
+        if (entry.tasks.length || !reset) notes.push(entry);
+      }
+    }
+    return { cursor, sig: current, reset, notes };
   }
 }

@@ -11,7 +11,7 @@ import { TaskBuckets, TaskKanban, TaskQuickAdd, collectTasks, type TaskRow } fro
 import { PageBody, PageHeader } from './PageHeader';
 import { Dropdown } from './Dropdown';
 import { Switch } from './Switch';
-import { folderDisplayName, t, useLang } from '../lib/i18n';
+import { compareText, folderDisplayName, t, useLang } from '../lib/i18n';
 
 type Sort = 'due' | 'note' | 'text';
 type StatusFilter = 'all' | Exclude<TaskStatus, 'done'>;
@@ -50,9 +50,13 @@ function readPrefs(): TaskPagePrefs {
 
 /** Ordering inside a bucket */
 function compare(sort: Sort): (a: TaskRow, b: TaskRow) => number {
-  if (sort === 'note') return (a, b) => a.noteTitle.localeCompare(b.noteTitle) || a.line - b.line;
-  if (sort === 'text') return (a, b) => a.text.localeCompare(b.text);
-  return (a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999') || a.noteTitle.localeCompare(b.noteTitle) || a.line - b.line;
+  if (sort === 'note') return (a, b) => compareText(a.noteTitle, b.noteTitle) || a.line - b.line;
+  if (sort === 'text') return (a, b) => compareText(a.text, b.text);
+  return (a, b) => {
+    const x = a.due ?? '9999';
+    const y = b.due ?? '9999';
+    return x < y ? -1 : x > y ? 1 : compareText(a.noteTitle, b.noteTitle) || a.line - b.line;
+  };
 }
 
 export function TasksView() {
@@ -71,7 +75,7 @@ export function TasksView() {
     });
 
   const all = collectTasks(version);
-  const folders = useMemo(() => [...new Set(all.map((tk) => tk.folder))].sort((a, b) => a.localeCompare(b)), [all]);
+  const folders = useMemo(() => [...new Set(all.map((tk) => tk.folder))].sort(compareText), [all]);
   // A remembered folder that no longer has tasks falls back to "all folders"
   const folder = prefs.folder === '*' || folders.includes(prefs.folder) ? prefs.folder : '*';
 

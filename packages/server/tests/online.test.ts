@@ -71,4 +71,36 @@ describe('SpaceIndexes', () => {
     expect(r?.mentions).toEqual(['note-men-01']);
     expect(spaces.backlinks(ben.id, 'note-tgt-01')).toBeNull();
   });
+
+  it('sends the tasks of visible notes, then only what changed', () => {
+    const { notes, groups, spaces, anna, ben, cleo } = setup();
+    const g = groups.create(anna.id, 'Team');
+    groups.setMember(anna.id, g.id, ben.id, 'editor');
+    notes.push(anna.id, [
+      note('note-own-01', 'Inbox/A.md', '---\ntitle: Alpha\n---\n- [ ] eins due:2026-11-20\n  * [x] zwei ✅ 2026-11-19'),
+      note('note-own-02', 'Inbox/B.md', 'ohne Aufgaben'),
+      note('note-grp-01', 'Plan.md', '- [/] nicht\n- [o] im Team', 0, { group: g.id }),
+    ]);
+    notes.push(cleo.id, [note('note-clo-01', 'Inbox/C.md', '- [ ] fremd')]);
+
+    const first = spaces.tasks(anna.id, 0, '');
+    expect(first.reset).toBe(true);
+    const own = first.notes.find((n) => n.id === 'note-own-01');
+    expect(own).toEqual({ id: 'note-own-01', title: 'Alpha', tasks: [[3, 'open', 'eins', '2026-11-20'], [4, 'done', 'zwei', null, null, null, '2026-11-19', '  * ']] });
+    expect(first.notes.map((n) => n.id).sort()).toEqual(['note-grp-01', 'note-own-01']);
+    expect(spaces.tasks(ben.id, 0, '').notes.map((n) => n.id)).toEqual(['note-grp-01']);
+
+    // Nothing changed: nothing comes; a removed task comes as a note without tasks
+    expect(spaces.tasks(anna.id, first.cursor, first.sig).notes).toEqual([]);
+    notes.push(anna.id, [note('note-own-01', 'Inbox/A.md', 'alles erledigt', 1)]);
+    const next = spaces.tasks(anna.id, first.cursor, first.sig);
+    expect(next.reset).toBe(false);
+    expect(next.notes).toEqual([{ id: 'note-own-01', tasks: [] }]);
+
+    // A note shared with anna changes the visible spaces: everything again
+    notes.share(cleo.id, 'note-clo-01', anna.id, false);
+    const shared = spaces.tasks(anna.id, next.cursor, next.sig);
+    expect(shared.reset).toBe(true);
+    expect(shared.notes.map((n) => n.id).sort()).toEqual(['note-clo-01', 'note-grp-01']);
+  });
 });

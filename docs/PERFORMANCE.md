@@ -173,6 +173,36 @@ browser (filtering the 100,000 catalog entries), not on the server. The open-not
 (`waitForFunction`): Playwright's retries of `toContainText` build an accessibility snapshot of the whole page each
 time, which cost seconds with a large folder tree.
 
+## Online mode, stage 3: tasks, tickets and database tables (Unreleased)
+
+The space index also keeps the tasks of every note, parsed once per version of the note (and again on a new day, for
+`due:heute`). `GET /api/online/tasks?since=&sig=` sends them as compact tuples (`OnlineTaskTuple`): the first time all
+notes with tasks, then only the notes changed since the cursor of the previous answer; a change of the visible spaces
+(a share, a group) or of the day sends everything again. The device asks once per sync and merges the rows with the
+ones it parses itself from the notes whose text it holds. Database folders (the database note, the notes directly in
+its folder and a project's `Meilensteine/`) are loaded in full and kept beside the 300 opened notes, so tables, boards
+and tickets work as before. The catalog and the tasks are sent gzip-compressed (19.5 MB catalog: 1.8 MB; 13.7 MB of
+tasks: 2.4 MB).
+
+Server side alone (100,000 notes, 200,000 tasks): parsing every task 628 ms (once, done while warming the space), all
+tasks again 41 ms, the changes since the last answer 29 ms.
+
+In the browser (`BENCH_ONLINE=1 BENCH_NOTES=100000 npm run bench:e2e`, one run, production build):
+
+| Step | Stage 2 | Stage 3 |
+| --- | ---: | ---: |
+| First sync until home is shown | 9,679 ms | 10,075 ms |
+| Start until the folder tree is filled | 1,894 ms | 2,937 ms (2,068 ms in the run before) |
+| Open a note until its text shows | 2,764 ms | 2,712 ms |
+| Search overlay: results for two words | 1,122 ms | 628 ms |
+| Task page until the first task (stage 2: only opened notes; stage 3: all 200,000 tasks) | 2,037 ms | 467 ms |
+
+With every task on the device, the lists that are computed over all of them showed: `collectTasks` sorted with
+`localeCompare` (seconds for 200,000 tasks; ISO dates now compare as strings), `bucketOf` built today's date for every
+task, the sorted list was built again on every change of the vault, and the folder tree grouped 100,000 notes after
+every keystroke. The rows from the server are now kept until a path, an answer or the day changes, the sorted list
+while no note's rows changed, today's date for a second, and the folder grouping until a path changes.
+
 ## Not done
 
 - No Web Worker: with the incremental indexes the remaining work per keystroke is a few milliseconds, which does not

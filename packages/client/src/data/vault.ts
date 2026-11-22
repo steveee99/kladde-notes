@@ -103,6 +103,7 @@ import {
   isDatabasePath,
   newDatabaseNoteContent,
   parseDatabase,
+  MILESTONE_FOLDER,
 } from '@kladde/shared';
 import { api, ApiError } from '../lib/api';
 import { compareText, getLang, locale, t } from '../lib/i18n';
@@ -171,6 +172,9 @@ class Vault {
 
   getVersion = () => this.version;
 
+  /** Changes whenever a note's path, existence or access changed (caches of the folder tree key on it) */
+  getPathStamp = () => this.pathStamp;
+
   /** The open local database and its account (the upload queue shares it) */
   localDb(): { db: LocalDb; userId: string } | null {
     return this.db && this.ready ? { db: this.db, userId: this.userId } : null;
@@ -193,6 +197,11 @@ class Vault {
   mentions(search: string): boolean {
     for (const note of this.notes.values()) if (!note.deleted && note.content.includes(search)) return true;
     return false;
+  }
+
+  /** Re-renders the views after data that lives beside the notes changed (online mode: tasks from the server) */
+  refreshViews(): void {
+    this.emit();
   }
 
   private emit() {
@@ -377,7 +386,7 @@ class Vault {
   }
 
   /** Texts from the server, in batches; local edits made meanwhile (a move, a deletion) are kept */
-  private async fetchFull(ids: string[]): Promise<void> {
+  private async fetchFull(ids: string[], opts: { keep?: boolean } = {}): Promise<void> {
     for (let i = 0; i < ids.length; i += FETCH_BATCH) {
       const { notes } = await api<{ notes: SyncedNote[] }>('/sync/notes', { method: 'POST', json: { ids: ids.slice(i, i + FETCH_BATCH) } });
       const now = Date.now();
@@ -389,7 +398,7 @@ class Vault {
           // Moved or deleted here before the text came: the text joins the pending change
           const { partial: _p, ...rest } = local;
           full.push({ ...rest, content: server.content, version: server.version, base: server.content, basePath: server.path, cachedAt: now });
-        } else full.push({ ...server, dirty: false, cachedAt: now });
+        } else full.push(opts.keep ? { ...server, dirty: false } : { ...server, dirty: false, cachedAt: now });
       }
       await this.storeMany(full);
     }
@@ -404,6 +413,42 @@ class Vault {
     if (!this.db) return;
     const tx = this.db.transaction('notes', 'readwrite');
     await Promise.all([...list.map((n) => (n.partial && !n.dirty ? tx.store.delete(n.id) : tx.store.put(n))), ...removed.map((id) => tx.store.delete(id)), tx.done]);
+  }
+
+  /** `pathStamp` of the last look at the database folders (online mode) */
+  private databaseStamp = -1;
+
+  /**
+   * Online mode: tables and ticket projects need the frontmatter of every row, so the notes of database folders (the
+   * database note, the notes directly in its folder and a project's milestones) are loaded in full and kept, not
+   * counted among the MAX_CACHED opened notes. Looked at again when a path changed.
+   */
+  private async loadDatabaseFolders(): Promise<void> {
+    const stamp = this.pathStamp;
+    if (this.databaseStamp === stamp) return;
+    const spaceOf = (n: LocalNote) => (n.group ? `g:${n.group}` : n.owner ? `u:${n.owner}` : '');
+    const folders = new Set<string>();
+    for (const n of this.notes.values()) if (!n.deleted && isDatabasePath(n.path)) folders.add(`${spaceOf(n)}|${splitPath(n.path).folder}`);
+    if (!folders.size) {
+      this.databaseStamp = stamp;
+      return;
+    }
+    const ids: string[] = [];
+    for (const n of this.notes.values()) {
+      if (n.deleted) continue;
+      const folder = splitPath(n.path).folder;
+      const space = spaceOf(n);
+      const inDatabase =
+        folders.has(`${space}|${folder}`) ||
+        (folder.endsWith(`/${MILESTONE_FOLDER}`) && folders.has(`${space}|${folder.slice(0, -MILESTONE_FOLDER.length - 1)}`));
+      if (!inDatabase) continue;
+      if (n.partial) ids.push(n.id);
+      // Opened before: no longer one of the opened notes that make room for others
+      else if (n.cachedAt) this.notes.set(n.id, { ...n, cachedAt: undefined });
+    }
+    // Set only once loaded: when the server cannot be reached, the next sync tries again
+    if (ids.length) await this.fetchFull(ids, { keep: true });
+    this.databaseStamp = stamp;
   }
 
   /** Keeps the texts of at most MAX_CACHED opened notes; the ones opened longest ago become catalog entries again */
@@ -1646,6 +1691,7 @@ class Vault {
       const firstPull = this.online ? this.memCursor === null && this.notes.size === 0 : (await this.db.get('meta', 'cursor')) === undefined;
       await this.pull();
       if (this.relinks.length) await this.sendRelinks();
+      if (this.online) await this.loadDatabaseFolders();
       if (firstPull && !this.notes.has(this.foldersNoteId())) await this.seed();
       else if (this.notes.has(this.foldersNoteId()) && this.setting(FEATURES_SETTING) === undefined && !isReadOnly()) {
         await this.setSetting(FEATURES_SETTING, this.features());
