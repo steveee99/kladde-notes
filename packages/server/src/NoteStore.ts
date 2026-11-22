@@ -542,6 +542,49 @@ export class NoteStore {
     return changed;
   }
 
+  // ------------------------------------------------------------------ online mode: spaces for the server's indexes
+
+  /** Highest seq and number of live notes of a space (a user's or a group's notes): the index refreshes when they move */
+  spaceState(ownerId: string): { maxSeq: number; count: number } {
+    const r = this.db.prepare('SELECT MAX(seq) AS maxSeq, SUM(deleted = 0) AS count FROM notes WHERE owner_id = ?').get(ownerId) as { maxSeq: number | null; count: number | null };
+    return { maxSeq: r.maxSeq ?? 0, count: r.count ?? 0 };
+  }
+
+  /** The notes of a space changed after `since` (deleted ones without text), decrypted for the server's index */
+  spaceChanges(ownerId: string, since: number): { id: string; path: string; content: string; updatedAt: number; seq: number; deleted: boolean }[] {
+    const rows = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND seq > ? ORDER BY seq').all(ownerId, since) as unknown as NoteRow[];
+    return rows.map((r) => {
+      if (r.deleted) return { id: r.id, path: '', content: '', updatedAt: r.updated_at, seq: r.seq, deleted: true };
+      const p = this.payload(r);
+      return { id: r.id, path: p.path, content: p.content, updatedAt: r.updated_at, seq: r.seq, deleted: false };
+    });
+  }
+
+  /** Ids of the live notes of a space (notes moved to another space leave it without a new seq here) */
+  spaceIds(ownerId: string): string[] {
+    return (this.db.prepare('SELECT id FROM notes WHERE owner_id = ? AND deleted = 0').all(ownerId) as { id: string }[]).map((r) => r.id);
+  }
+
+  /**
+   * The spaces a user sees: the own space, every group they are a member of, and the notes other users share with
+   * them (only those ids of the owner's space)
+   */
+  visibleSpaces(userId: string): { ownerId: string; only?: Set<string> }[] {
+    const groups = (this.db.prepare('SELECT group_id FROM group_members WHERE user_id = ?').all(userId) as { group_id: string }[]).map((g) => ({ ownerId: g.group_id }));
+    const shared = new Map<string, Set<string>>();
+    for (const r of this.db.prepare('SELECT notes.owner_id, notes.id FROM shares JOIN notes ON notes.id = shares.note_id WHERE shares.user_id = ? AND notes.deleted = 0').all(userId) as { owner_id: string; id: string }[]) {
+      if (!shared.has(r.owner_id)) shared.set(r.owner_id, new Set());
+      shared.get(r.owner_id)!.add(r.id);
+    }
+    return [{ ownerId: userId }, ...groups, ...[...shared].map(([ownerId, only]) => ({ ownerId, only }))];
+  }
+
+  /** The space (owner id) of a live note the user may see, null otherwise */
+  spaceOf(userId: string, noteId: string): string | null {
+    const row = ID_PATTERN.test(noteId) ? this.getRow(noteId) : undefined;
+    return row && !row.deleted && this.accessOf(userId, row) ? row.owner_id : null;
+  }
+
   /** Paths of catalog entries by note id and seq: a light pull decrypts only notes that changed since the last one */
   private catalogPaths = new Map<string, { seq: number; path: string }>();
 

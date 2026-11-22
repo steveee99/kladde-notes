@@ -121,7 +121,10 @@ test('large vault', async ({ browser }, testInfo) => {
     history.pushState(null, '', to);
     dispatchEvent(new PopStateEvent('popstate'));
   }, `/n/${target.id}`);
-  await expect(editor(page)).toContainText(target.content.split('\n').find((l) => l.length > 30 && !l.startsWith('-') && !l.startsWith('#'))!.slice(0, 20), { timeout: 300_000 });
+  // Checked in the page: Playwright's retries of toContainText build an accessibility snapshot of the whole page each
+  // time, which costs seconds with a large folder tree and would be part of the number
+  const line = target.content.split('\n').find((l) => l.length > 30 && !l.startsWith('-') && !l.startsWith('#'))!.slice(0, 20);
+  await page.waitForFunction((text) => document.querySelector('.cm-content')?.textContent?.includes(text), line, { timeout: 300_000, polling: 'raf' });
   record('open a note (until its text shows)', Date.now() - t);
   await stopOpen?.();
   await editor(page).click();

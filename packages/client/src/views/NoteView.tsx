@@ -91,6 +91,7 @@ import {
   memoryMeta,
 } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
+import { useOnlineBacklinks } from '../data/online';
 import type { LocalNote } from '../data/db';
 import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
@@ -1180,6 +1181,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
       vault.markSeen(id);
     };
   }, [id]);
+  // Asked once the text is here: the text matters first, the server may still be building its index
+  const onlineLinks = useOnlineBacklinks(id, vault.online && !!note && !note.partial && note.version > 0);
   // Online mode: the device has only the catalog entry; the text loads when the note opens
   const partial = !!note?.partial;
   const [fetchFailed, setFetchFailed] = useState(false);
@@ -1430,7 +1433,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
     statsTimer.current = setTimeout(() => setStatsTick((n) => n + 1), 150);
   };
   const index = vault.links();
-  const allBacklinks = index.backlinks(id).map((b) => vault.get(b)!).filter(Boolean);
+  // Online mode: the device has only some texts, so the server knows who links here
+  const allBacklinks = (onlineLinks ? onlineLinks.backlinks : index.backlinks(id)).map((b) => vault.get(b)!).filter(Boolean);
   // Links from the AI memory (#94) get their own section under the user's own notes
   const inMemory = vault.isMemoryNote(note);
   // Tickets that document their work here get their own section instead of plain backlinks
@@ -1440,7 +1444,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const ticketIds = new Set(ticketLinks.map((tk) => tk.note.id));
   const backlinks = (inMemory ? allBacklinks : allBacklinks.filter((b) => !vault.isMemoryNote(b))).filter((b) => !ticketIds.has(b.id));
   const memoryBacklinks = inMemory ? [] : allBacklinks.filter((b) => vault.isMemoryNote(b));
-  const mentions = index.unlinkedMentions(id).map((m) => vault.get(m)!).filter((n) => n && n.access !== 'read');
+  const mentions = (onlineLinks ? onlineLinks.mentions : index.unlinkedMentions(id)).map((m) => vault.get(m)!).filter((n) => n && n.access !== 'read');
   const local = index.localGraph(id, graphDepth);
   /** Exports of a versioned note contain its latest release with the placeholders filled in (#53) */
   const exportContent = async (): Promise<string> => {

@@ -2,7 +2,7 @@ import { test, expect, editor, expectOnServer, expectSynced, noteTitle, uid } fr
 import { E2E_PASSWORD } from './accounts.mjs';
 
 // Online mode (KLADDE_MODE=online, its own test server): the device keeps a catalog of the notes and loads a note's
-// text when it opens; renames rewrite links on the server
+// text when it opens; search and backlinks come from the server, renames rewrite links there
 test('loads notes when they open and keeps links working across renames', async ({ browser, baseURL }) => {
   const context = await browser.newContext({ baseURL, viewport: { width: 1280, height: 800 } });
   const api = context.request;
@@ -39,6 +39,20 @@ test('loads notes when they open and keeps links working across renames', async 
         }),
       { dbName: `kladde-online-${me.id}`, noteId: source.id }
     );
+  expect(await stored()).toBeNull();
+
+  // The server searches the texts the device does not hold
+  await page.keyboard.press('ControlOrMeta+k');
+  const box = page.getByRole('combobox', { name: 'Search' });
+  await box.fill(`nur auf dem Server`);
+  await expect(page.getByRole('option', { name: new RegExp(`Alt ${tag}`) })).toBeVisible();
+  await expect(page.getByRole('option', { name: new RegExp(`Alt ${tag}`) })).toContainText('nur auf dem Server');
+  await page.keyboard.press('Escape');
+  expect(await stored()).toBeNull();
+
+  // The target's backlink comes from the server: the linking note's text is still not on the device
+  await page.goto(`/n/${target.id}`);
+  await expect(page.getByRole('heading', { name: 'Backlinks · 1' })).toBeVisible();
   expect(await stored()).toBeNull();
 
   // Opening loads the text; an edit reaches the server with the rest of the text

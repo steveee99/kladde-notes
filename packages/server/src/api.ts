@@ -2,6 +2,7 @@ import express, { Response } from 'express';
 import { APP_VERSION, extractMentions, isAccent, isReleaseBump, trimSlashes, type CommentThreadList } from '@kladde/shared';
 import type { ActivityList, NotePerson, MyStorage, AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
 import { Presence } from './Presence.js';
+import type { SpaceIndexes } from './online/SpaceIndex.js';
 import { FILE_URL_RE, attachmentUsageMap } from './cliActions.js';
 import { GroupError, GroupStore } from './GroupStore.js';
 import type { ActivityStore } from './ActivityStore.js';
@@ -77,6 +78,8 @@ export interface ApiRouterOptions {
   notifications?: NotificationStore;
   /** Comment threads on passages (#68) */
   comments?: CommentStore;
+  /** Online mode: the server's indexes per space (search, backlinks) */
+  spaces?: SpaceIndexes;
 }
 
 export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, live: LiveUpdates, opts: ApiRouterOptions = {}): express.Router {
@@ -216,13 +219,36 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
 
   // `light=1` (online mode): notes without their text, as a catalog; the device fetches texts with POST /sync/notes
   router.get('/sync', (req, res) => {
-    res.json(notes.pull(req.user!.id, Math.max(0, Number(req.query.since) || 0), { light: req.query.light === '1' }));
+    const light = req.query.light === '1';
+    const since = Math.max(0, Number(req.query.since) || 0);
+    res.json(notes.pull(req.user!.id, since, { light }));
+    // A device that just loaded its catalog soon asks for search and backlinks: build the indexes meanwhile
+    if (light && since === 0 && opts.spaces) {
+      const spaces = opts.spaces;
+      const userId = req.user!.id;
+      res.on('finish', () => setTimeout(() => spaces.warm(userId), 50));
+    }
   });
 
   // Full texts of notes a device holds only as catalog entries (opened, or changed by others while open)
   router.post('/sync/notes', express.json({ limit: '256kb' }), (req, res) => {
     const ids = Array.isArray(req.body?.ids) ? (req.body.ids as unknown[]).filter((id): id is string => typeof id === 'string').slice(0, 500) : [];
     res.json({ notes: notes.fetchNotes(req.user!.id, ids) });
+  });
+
+  // Online mode: the search overlay and the backlinks of a note, answered from the server's indexes
+  router.get('/online/search', (req, res) => {
+    if (!opts.spaces) return res.status(404).json({ error: 'Nur im Online-Modus.' });
+    const q = typeof req.query.q === 'string' ? req.query.q.slice(0, 400) : '';
+    const skip = typeof req.query.skip === 'string' && req.query.skip ? req.query.skip.slice(0, 400) : null;
+    res.json({ hits: opts.spaces.search(req.user!.id, q, skip) });
+  });
+
+  router.get('/online/backlinks/:id', (req, res) => {
+    if (!opts.spaces) return res.status(404).json({ error: 'Nur im Online-Modus.' });
+    const result = opts.spaces.backlinks(req.user!.id, req.params.id);
+    if (!result) return notFound(res);
+    res.json(result);
   });
 
   // Online mode: links to a renamed note are rewritten on the server, in every note the user may edit

@@ -35,6 +35,7 @@ import { pushRouter } from './push/router.js';
 import { inQuietHours, localClock, runReminders, vapidSubject } from './push/reminders.js';
 import { allowedPushHosts, sendPush } from './push/webpush.js';
 import { EmbeddedAsset, ensureStandaloneUser } from './standalone.js';
+import { SpaceIndexes } from './online/SpaceIndex.js';
 import { trashRetentionDays } from './trash.js';
 import { transcriberFromEnv } from './transcribe.js';
 import { AttachmentTextStore } from './attachments/AttachmentTextStore.js';
@@ -379,7 +380,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       })
     );
   }
-  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db), activity, notifications, comments: opts.standalone ? undefined : new CommentStore(opts.db, cipher, users) }));
+  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db), spaces: online ? new SpaceIndexes(notes) : undefined, activity, notifications, comments: opts.standalone ? undefined : new CommentStore(opts.db, cipher, users) }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
   if (opts.seaAssets && opts.seaAssets.size > 0) {

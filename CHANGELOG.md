@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: In online mode the server searches every note and finds the backlinks and unlinked mentions of a note, also of notes a device never opened. It keeps one index per group or account, shared by everybody who sees it. With 100,000 notes opening a note takes under 3 instead of 5.5 seconds.
+
 - New: Online mode for teams that are always online with very large vaults (`KLADDE_MODE=online`, experimental). Devices keep only a list of the notes and load a note's text when it opens, instead of a full offline copy: with 100,000 notes the first start takes 8 instead of 13 seconds and a restart 2 instead of 10. Renaming a note rewrites the links in every note on the server. Without a connection only notes opened before can be read. Search finds the other notes only by title so far; backlinks, tasks, the graph, tickets and database tables only see opened notes (the next steps move them to the server).
 - Changed: The folder tree, the feature settings and the folder counts are no longer recomputed for every folder and every render, which makes large vaults quicker in both modes.
 

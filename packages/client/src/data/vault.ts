@@ -216,6 +216,7 @@ class Vault {
     if (this.userId !== userId) return;
     this.db = db;
     for (const n of await this.db.getAll('notes')) this.notes.set(n.id, n);
+    this.pathStamp++;
     this.sharedFolders = ((await this.db.get('meta', 'sharedFolders')) as SharedFolder[] | undefined) ?? [];
     this.groups = ((await this.db.get('meta', 'groups')) as GroupInfo[] | undefined) ?? [];
     this.ready = true;
@@ -237,6 +238,7 @@ class Vault {
     this.events = null;
     presence.reset();
     this.notes.clear();
+    this.pathStamp++;
     this.memCursor = null;
     this.fetching.clear();
     this.relinks = [];
@@ -397,6 +399,7 @@ class Vault {
   private async storeMany(list: LocalNote[], removed: string[] = []): Promise<void> {
     if (!list.length && !removed.length) return;
     for (const n of list) this.notes.set(n.id, n);
+    this.pathStamp++;
     this.emit();
     if (!this.db) return;
     const tx = this.db.transaction('notes', 'readwrite');
@@ -427,8 +430,11 @@ class Vault {
 
   /** Visible notes (no system notes, no deleted ones) */
   list(): LocalNote[] {
-    return [...this.notes.values()].filter((n) => !n.deleted && !n.path.startsWith(SYSTEM_PREFIX));
+    // Kept until the next change: many views ask on every render (#64). Callers filter or copy before sorting
+    if (this.listCache?.version !== this.version) this.listCache = { version: this.version, notes: [...this.notes.values()].filter((n) => !n.deleted && !n.path.startsWith(SYSTEM_PREFIX)) };
+    return this.listCache.notes;
   }
+  private listCache: { version: number; notes: LocalNote[] } | null = null;
 
   get(id: string): LocalNote | undefined {
     const n = this.notes.get(id);
@@ -445,15 +451,18 @@ class Vault {
     return `sysfolders-${this.userId}`;
   }
 
-  private foldersCache: { version: number; lang: string; folders: string[] } | null = null;
+  private foldersCache: { stamp: number; stored: string | undefined; lang: string; folders: string[] } | null = null;
 
   /** All folders of the own space, sorted; kept until the next change, since every view with a folder list asks (#64) */
   folders(): string[] {
     const lang = getLang();
-    if (this.foldersCache?.version === this.version && this.foldersCache.lang === lang) return this.foldersCache.folders;
+    // Depends only on the paths and the stored folder list, not on texts: typing keeps it
+    const stored = this.notes.get(this.foldersNoteId())?.content;
+    const c = this.foldersCache;
+    if (c && c.stamp === this.pathStamp && c.stored === stored && c.lang === lang) return c.folders;
     // Shared between callers: frozen, so nobody changes it by accident
     const folders = Object.freeze(this.computeFolders()) as string[];
-    this.foldersCache = { version: this.version, lang, folders };
+    this.foldersCache = { stamp: this.pathStamp, stored, lang, folders };
     return folders;
   }
 
@@ -486,9 +495,36 @@ class Vault {
    */
   links(): LinkIndex {
     if (!this.indexCache || this.indexCache.version !== this.version) {
-      this.indexCache = { version: this.version, index: new LinkIndex(this.list(), this.roleConfig(), this.indexCache?.index) };
+      // Online mode: only the notes whose text is here; links to the others resolve through the catalog (their names
+      // and paths), backlinks and mentions come from the server (`onlineBacklinks`)
+      const notes = this.online ? this.list().filter((n) => !n.partial) : this.list();
+      const index = new LinkIndex(notes, this.roleConfig(), this.indexCache?.index);
+      if (this.online) index.fallback = (link) => this.catalogResolve(link);
+      this.indexCache = { version: this.version, index };
     }
     return this.indexCache.index;
+  }
+
+  /** Bumped when a note is added, removed, moved or renamed: the catalog lookup is built again only then */
+  private pathStamp = 0;
+  private catalogCache: { stamp: number; byName: Map<string, string>; byPath: Map<string, string> } | null = null;
+
+  /** Online mode: a link by name or path to a note the device holds only as a catalog entry */
+  private catalogResolve(link: string): string | null {
+    if (this.catalogCache?.stamp !== this.pathStamp) {
+      const byName = new Map<string, string>();
+      const byPath = new Map<string, string>();
+      for (const n of this.notes.values()) {
+        if (n.deleted || n.path.startsWith(SYSTEM_PREFIX)) continue;
+        const path = n.path.replace(/\.md$/i, '').toLowerCase();
+        byPath.set(path, n.id);
+        const name = path.slice(path.lastIndexOf('/') + 1);
+        if (!byName.has(name)) byName.set(name, n.id);
+      }
+      this.catalogCache = { stamp: this.pathStamp, byName, byPath };
+    }
+    const key = link.trim().toLowerCase().replace(/^\.?\/+/, '').replace(/\.md$/, '');
+    return this.catalogCache.byName.get(key) ?? this.catalogCache.byPath.get(key) ?? null;
   }
 
   findByTitle(title: string): LocalNote | undefined {
@@ -505,6 +541,7 @@ class Vault {
     // Online mode: a catalog entry has no text, so a text computed from it would replace the real one. Code that
     // changes a text loads the note first (`ensureFull`); a path change or deletion goes out without the text
     if (note.partial && previous?.partial && note.content !== previous.content) note = { ...note, content: previous.content };
+    if (!previous || previous.path !== note.path || previous.deleted !== note.deleted) this.pathStamp++;
     if (!note.dirty) {
       // Synced: the content itself is the base
       if (note.base !== undefined || note.basePath !== undefined) {
@@ -766,7 +803,8 @@ class Vault {
     const written: LocalNote[] = [];
     for (const c of changes) {
       const before = this.notes.get(c.id);
-      if (!before || before.deleted || before.access === 'read' || before.content === c.content) continue;
+      // Online mode: a catalog entry's text is not here, so a new text for it was computed from nothing
+      if (!before || before.deleted || before.partial || before.access === 'read' || before.content === c.content) continue;
       let note: LocalNote = { ...before, content: c.content, updatedAt: now, dirty: true };
       if (note.base === undefined && note.version > 0 && !before.dirty) note = { ...note, base: before.content, basePath: before.path };
       this.notes.set(note.id, note);
@@ -1495,11 +1533,11 @@ class Vault {
     return this.folderCounts().get(folder) ?? 0;
   }
 
-  private countsCache: { version: number; counts: Map<string, number> } | null = null;
+  private countsCache: { stamp: number; counts: Map<string, number> } | null = null;
 
   /** Own notes per folder, its subfolders included; once per change instead of once per folder row (#64) */
   private folderCounts(): Map<string, number> {
-    if (this.countsCache?.version === this.version) return this.countsCache.counts;
+    if (this.countsCache?.stamp === this.pathStamp) return this.countsCache.counts;
     const counts = new Map<string, number>();
     for (const n of this.notes.values()) {
       if (n.deleted || n.access !== 'owner' || n.path.startsWith(SYSTEM_PREFIX)) continue;
@@ -1510,7 +1548,7 @@ class Vault {
         f = cut < 0 ? '' : f.slice(0, cut);
       }
     }
-    this.countsCache = { version: this.version, counts };
+    this.countsCache = { stamp: this.pathStamp, counts };
     return counts;
   }
 
@@ -1676,6 +1714,7 @@ class Vault {
         const unchanged = current.updatedAt === sent.updatedAt;
         if (current.deleted && unchanged) {
           this.notes.delete(r.id);
+          this.pathStamp++;
           await this.db!.delete('notes', r.id);
         } else if (unchanged) await this.put({ ...current, version: r.version, dirty: false, ...(r.content !== undefined && !current.partial ? { content: r.content } : {}) });
         // Edited again while the push was underway: the pushed state is the new base (with what the server changed)
@@ -1826,6 +1865,7 @@ class Vault {
         continue;
       } else if (server.deleted) {
         this.notes.delete(server.id);
+        this.pathStamp++;
         removed.push(server.id);
       } else if (server.partial) {
         // Online mode: catalog entries stay in memory
@@ -1840,6 +1880,7 @@ class Vault {
     removed.push(...dropped);
     for (const id of res.revoked) {
       this.notes.delete(id);
+      this.pathStamp++;
       removed.push(id);
     }
     if (wanted.length) {
@@ -1868,6 +1909,7 @@ class Vault {
       this.groups = res.groups;
       await this.db!.put('meta', res.groups, 'groups');
     }
+    if (res.notes.length || res.revoked.length) this.pathStamp++;
     if (this.online) this.memCursor = res.cursor;
     else await this.db!.put('meta', res.cursor, 'cursor');
     this.emit();
@@ -1881,6 +1923,7 @@ class Vault {
   private async accept(server: SyncedNote) {
     if (server.deleted) {
       this.notes.delete(server.id);
+      this.pathStamp++;
       await this.db!.delete('notes', server.id);
     } else await this.put({ ...server, dirty: false });
   }

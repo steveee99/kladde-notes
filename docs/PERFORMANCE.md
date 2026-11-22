@@ -135,6 +135,44 @@ Both modes also gained from the changes made for it: the folder tree sorts a fol
 changed (100,000 notes were sorted after every change), the folder counts come from one pass per change instead of a
 pass per folder row, and the feature settings are parsed once per change.
 
+## Online mode, stage 2: search and backlinks on the server (Unreleased)
+
+The server keeps one index per space (a user's own notes or a group's) in memory (`server/src/online/SpaceIndex.ts`):
+the decrypted texts, a `LinkIndex` and the lower-cased search text per note. Everybody who sees a space shares its
+index, so a group of 100,000 notes is held once however many members work in it. Before every question a space takes
+the notes with a newer `seq` and compares its number of notes; it is built right after a device loaded its catalog
+(`warm`) and dropped after 12 hours without questions. `GET /api/online/search` answers the search overlay and
+`GET /api/online/backlinks/:id` the backlinks and unlinked mentions of a note. Links resolve inside a note's space; a
+link from another visible space counts as a backlink when that space has no note of the name itself.
+
+On the device the link index holds only the notes whose text is there; links to the others resolve through the
+catalog (names and paths). The note list, the folders, the folder counts and the feature settings are kept until the
+next change of a path instead of being computed again for every keystroke, in both modes.
+
+Server side alone (`node` with 100,000 notes in one space, 600 MB heap in total):
+
+| Step | Time |
+| --- | ---: |
+| Light pull, cold (decrypts every note) / warm (cached paths) | 3,083 / 476 ms |
+| Building the space (decrypt, link index, search text) | 3,476 ms |
+| Search for two words | 144 ms |
+| Backlinks and mentions of a note | 104 ms |
+
+In the browser, online mode (`BENCH_ONLINE=1 BENCH_NOTES=100000 npm run bench:e2e`, one run):
+
+| Step | Stage 1 | Stage 2 |
+| --- | ---: | ---: |
+| First sync until home is shown | 8,211 ms | 9,679 ms |
+| Start until the folder tree is filled | 1,692 ms | 1,894 ms |
+| Open a note until its text shows | 5,508 ms | 2,764 ms |
+| Search overlay: results for two words (now every note, not only opened ones) | 1,367 ms | 1,122 ms |
+
+The first sync is slower because the server builds the space index right after it; that blocks the server for about
+3 seconds once, instead of the first opened note waiting for it. The search overlay spends most of its time in the
+browser (filtering the 100,000 catalog entries), not on the server. The open-note step is measured in the page
+(`waitForFunction`): Playwright's retries of `toContainText` build an accessibility snapshot of the whole page each
+time, which cost seconds with a large folder tree.
+
 ## Not done
 
 - No Web Worker: with the incremental indexes the remaining work per keystroke is a few milliseconds, which does not

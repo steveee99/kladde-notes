@@ -443,6 +443,8 @@ function taskRowsByNote(version: number): TaskRow[][] {
   // Rows per note are kept until the note, the day, its default due date or the folder roles change (#64)
   const prefix = `${day}|${JSON.stringify(roleConfig)}|`;
   for (const n of vault.list()) {
+    // Online mode: a catalog entry has no text, so no tasks (they come with the text when the note is opened)
+    if (n.partial) continue;
     const defaultDue = n.access === 'owner' ? dueOf(n.path) : null;
     const noteRows = rowMemo.get(n, defaultDue ? prefix + defaultDue : prefix, () => {
       if (roleOfPath(n.path, roleConfig) === 'archive') return EMPTY;

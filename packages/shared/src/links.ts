@@ -104,6 +104,11 @@ export class LinkIndex {
   private incoming = new Map<string, Set<string>>();
   private parsed = new Map<string, ParsedNote>();
   private readonly configKey: string;
+  /**
+   * Asked when no note of the index has the link's title, id or path (online mode: the notes the device has only as
+   * catalog entries); set after construction, so the index's own link lists never use it
+   */
+  fallback: ((link: string) => string | null) | null = null;
 
   /**
    * With `previous` (the index before a change) notes whose path and text are unchanged are not parsed again;
@@ -190,8 +195,11 @@ export class LinkIndex {
     if (this.byTitle.has(key)) return this.byTitle.get(key)!;
     const zid = ZETTEL_ID_PATTERN.exec(key)?.[1];
     if (zid && this.byId.has(zid)) return this.byId.get(zid)!;
-    if (key.includes('/')) return this.resolvePath(key);
-    return null;
+    if (key.includes('/')) {
+      const byPath = this.resolvePath(key);
+      if (byPath) return byPath;
+    }
+    return this.fallback?.(link) ?? null;
   }
 
   /** Note id for a path or path suffix ("Produkte/Foo", "/Produkte/Foo.md"), or null */
