@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- Changed: Faster with very large vaults (measured with 100,000 notes): the first sync, the start until the folder tree is filled, search, the task page and the graph take a third less time. Notes above 20,000 were parsed again on every change.
+
 ## [2.17.0] – 2026-11-21
 
 - New: Milestones have a status: Planned, Active, Done or Cancelled. Without one set by hand it follows the tickets (nothing started: planned; all finished: done), so an empty milestone shows "Planned". Closing a milestone while tickets are open shows how many are left; done and cancelled milestones are no longer "at risk".

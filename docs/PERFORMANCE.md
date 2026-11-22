@@ -79,6 +79,33 @@ languages and the icons.
 - **Long lists** (task buckets on home and the task page, Kanban columns) show 100 rows and more on request.
 - **Graph** with more than 1,500 notes settles in fewer steps and labels only the notes in focus.
 
+## 100,000 notes (Unreleased)
+
+`BENCH_NOTES=100000 npm run bench:e2e` (400,000 links, 200,000 tasks, 92 MB of sync JSON), one run each:
+
+| Step | Before | After |
+| --- | ---: | ---: |
+| First sync until the notes are stored and home is shown | 20,916 ms | 13,411 ms |
+| Start from IndexedDB until home | 193 ms | 254 ms |
+| Start from IndexedDB until the folder tree is filled | 12,641 ms | 9,596 ms |
+| Typing: median keystroke, key press to paint | 32 ms | 24 ms |
+| Typing: 30 keystrokes with 30 ms pauses | 881 ms | 881 ms |
+| Search overlay: results for two words | 4,993 ms | 3,031 ms |
+| Task page until the first task | 12,860 ms | 7,069 ms |
+| Graph page until the canvas | 49,849 ms | 33,903 ms |
+
+The per-note memos (`NoteMemo`) held at most 20,000 notes (the semantic search 10,000). A pass over more notes than
+that evicts every entry before it is needed again, so above that size every pass parsed every note again. The limit is
+now 250,000 (`MEMO_MAX_NOTES`), and a hit no longer moves its entry to the end of the map. The navigation badge counts
+urgent tasks per note instead of building and sorting the list of all tasks on every change.
+
+The benchmark runs without Playwright's trace: its DOM snapshots after every action made typing look like 114 s for
+30 keystrokes, while key press to paint stayed below 40 ms. `BENCH_PROFILE=1` writes a CPU profile of the typing to
+`test-results/perf-typing.cpuprofile` (open it in the Performance panel of Chrome DevTools).
+
+What stays slow at this size is the work over every note on the device: storing and reading 100,000 notes, the folder
+tree, the task page and the graph.
+
 ## Not done
 
 - No Web Worker: with the incremental indexes the remaining work per keystroke is a few milliseconds, which does not

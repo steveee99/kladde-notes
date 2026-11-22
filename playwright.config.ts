@@ -62,7 +62,8 @@ export default defineConfig({
             name: 'perf',
             dependencies: ['setup'],
             testMatch: /\.perf\.ts$/,
-            use: { viewport: { width: 1280, height: 800 } },
+            // No trace: its DOM snapshots after every action would be part of the measured times
+            use: { viewport: { width: 1280, height: 800 }, trace: 'off' as const, screenshot: 'off' as const },
           },
         ]
       : []),
