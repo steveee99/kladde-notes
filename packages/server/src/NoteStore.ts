@@ -551,12 +551,12 @@ export class NoteStore {
   }
 
   /** The notes of a space changed after `since` (deleted ones without text), decrypted for the server's index */
-  spaceChanges(ownerId: string, since: number): { id: string; path: string; content: string; updatedAt: number; seq: number; deleted: boolean }[] {
+  spaceChanges(ownerId: string, since: number): { id: string; path: string; content: string; createdAt: number; updatedAt: number; seq: number; deleted: boolean }[] {
     const rows = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND seq > ? ORDER BY seq').all(ownerId, since) as unknown as NoteRow[];
     return rows.map((r) => {
-      if (r.deleted) return { id: r.id, path: '', content: '', updatedAt: r.updated_at, seq: r.seq, deleted: true };
+      if (r.deleted) return { id: r.id, path: '', content: '', createdAt: r.created_at, updatedAt: r.updated_at, seq: r.seq, deleted: true };
       const p = this.payload(r);
-      return { id: r.id, path: p.path, content: p.content, updatedAt: r.updated_at, seq: r.seq, deleted: false };
+      return { id: r.id, path: p.path, content: p.content, createdAt: r.created_at, updatedAt: r.updated_at, seq: r.seq, deleted: false };
     });
   }
 

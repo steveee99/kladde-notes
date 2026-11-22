@@ -1,5 +1,32 @@
 import crypto from 'crypto';
-import { LinkIndex, MAX_SEARCH_RESULTS, SYSTEM_PREFIX, isDatabasePath, parseFrontmatter, parseTasks, projectTitleOf, searchSnippet, searchTerms, splitPath, type LinkNote, type OnlineTaskNote, type OnlineTasks, type OnlineTaskTuple } from '@kladde/shared';
+import {
+  LinkIndex,
+  MAX_SEARCH_RESULTS,
+  SYSTEM_PREFIX,
+  capQueryResult,
+  dailyDueResolver,
+  extractMeta,
+  isDatabasePath,
+  isExcalidrawNote,
+  parseFrontmatter,
+  parseQuery,
+  parseTasks,
+  pdfNoteOf,
+  projectTitleOf,
+  runQuery,
+  searchSnippet,
+  searchTerms,
+  splitPath,
+  type DailySettings,
+  type LinkNote,
+  type OnlineGraph,
+  type OnlineGraphNode,
+  type OnlineTaskNote,
+  type OnlineTasks,
+  type OnlineTaskTuple,
+  type QueryNote,
+  type QueryResult,
+} from '@kladde/shared';
 import type { NoteStore } from '../NoteStore.js';
 
 /**
@@ -15,6 +42,7 @@ import type { NoteStore } from '../NoteStore.js';
  */
 
 interface IndexedNote extends LinkNote {
+  createdAt: number;
   updatedAt: number;
   seq: number;
   /** The note's tasks, parsed on the first question for them (without a default due date: the device adds it) */
@@ -22,6 +50,8 @@ interface IndexedNote extends LinkNote {
   tasksDay?: string;
   /** Title, path and text in lower case, as the search compares them; made on the first search */
   hay?: string;
+  /** Type and tags for the graph, made on the first question for it */
+  graph?: { kind: 0 | 1 | 2; tags: string[] };
 }
 
 /** A space nobody asked about for this long is dropped (and built again on the next question) */
@@ -45,6 +75,11 @@ function tasksOf(n: IndexedNote, day: string): OnlineTaskNote {
     if (typeof title === 'string' && title) out.title = title;
   }
   return (n.tasks = out);
+}
+
+/** Type (0 note, 1 PDF, 2 drawing) and tags of a note for the graph, kept with the note */
+function graphOf(n: IndexedNote): { kind: 0 | 1 | 2; tags: string[] } {
+  return (n.graph ??= { kind: isExcalidrawNote(n.content) ? 2 : pdfNoteOf(n.content) ? 1 : 0, tags: extractMeta(n.path, n.content).tags });
 }
 
 /** What the search compares: title, path and text in lower case, kept with the note */
@@ -77,7 +112,7 @@ class Space {
         this.system.delete(n.id);
         if (n.deleted) continue;
         if (n.path.startsWith(SYSTEM_PREFIX)) this.system.add(n.id);
-        else this.notes.set(n.id, { id: n.id, path: n.path, content: n.content, updatedAt: n.updatedAt, seq: n.seq });
+        else this.notes.set(n.id, { id: n.id, path: n.path, content: n.content, createdAt: n.createdAt, updatedAt: n.updatedAt, seq: n.seq });
       }
       this.stale = true;
     }
@@ -135,7 +170,7 @@ export class SpaceIndexes {
   }
 
   /**
-   * Builds the user's spaces, their link indexes and tasks ahead of the first question (after the device loaded its
+   * Builds the user's spaces, their link indexes, tasks and graph data ahead of the first question (after the device loaded its
    * catalog), so opening the first note and the task list do not wait for it
    */
   warm(userId: string): void {
@@ -145,6 +180,7 @@ export class SpaceIndexes {
       for (const n of space.notes.values()) {
         hayOf(n);
         tasksOf(n, day);
+        graphOf(n);
       }
     }
   }
@@ -213,6 +249,88 @@ export class SpaceIndexes {
       }
     }
     return { backlinks: [...new Set(backlinks)], mentions };
+  }
+
+  /** A stamp of what the user sees: changes when a visible space takes a change or the visible notes change */
+  private stampOf(visible: { space: Space; only?: Set<string> }[], extra = ''): string {
+    const key = visible
+      .map((v) => `${v.space.ownerId}@${v.space.cursor}/${v.space.notes.size}:${v.only ? [...v.only].sort().join(',') : '*'}`)
+      .sort()
+      .join('|');
+    return crypto.createHash('sha256').update(`${extra}|${key}`).digest('base64url').slice(0, 16);
+  }
+
+  /**
+   * The knowledge graph over every note the user may see: nodes with title, type and tags, edges as index pairs.
+   * Links resolve inside a note's space; a link that its space cannot resolve goes to a note of that name in another
+   * visible space. `have`: the stamp of the device's graph, answered with `same` while nothing changed.
+   */
+  graph(userId: string, have = ''): OnlineGraph {
+    const visible = [...this.visible(userId)];
+    const stamp = this.stampOf(visible, 'graph');
+    if (have && have === stamp) return { stamp, same: true };
+    const nodes: OnlineGraphNode[] = [];
+    const at = new Map<string, number>();
+    const indexes = visible.map((v) => ({ ...v, index: v.space.links() }));
+    for (const { space, only, index } of indexes) {
+      for (const n of index.notes.values()) {
+        if ((only && !only.has(n.id)) || at.has(n.id) || isDatabasePath(n.path)) continue;
+        const own = space.notes.get(n.id);
+        if (!own) continue;
+        const g = graphOf(own);
+        at.set(n.id, nodes.length);
+        nodes.push(g.tags.length ? [n.id, n.title, g.kind, g.tags] : [n.id, n.title, g.kind]);
+      }
+    }
+    const edges: number[] = [];
+    for (const { index } of indexes) {
+      for (const n of index.notes.values()) {
+        const from = at.get(n.id);
+        if (from === undefined) continue;
+        const seen = new Set<number>();
+        const add = (id: string | null) => {
+          const to = id ? at.get(id) : undefined;
+          if (to === undefined || to === from || seen.has(to)) return;
+          seen.add(to);
+          edges.push(from, to);
+        };
+        for (const target of index.outgoing(n.id)) add(target);
+        if (indexes.length < 2) continue;
+        for (const link of n.links) {
+          if (index.resolve(link)) continue;
+          for (const other of indexes) {
+            if (other.index === index) continue;
+            const id = other.index.resolve(link);
+            if (id && at.has(id)) {
+              add(id);
+              break;
+            }
+          }
+        }
+      }
+    }
+    return { stamp, nodes, edges };
+  }
+
+  /**
+   * A query block (```query```) over every note the user may see; `daily`: the user's daily notes, whose tasks are due
+   * on the note's day. The rows are cut to `ONLINE_QUERY_ROWS`. `have`: answered with `same` while nothing changed.
+   */
+  query(userId: string, src: string, daily: DailySettings | null, have = ''): { stamp: string; same?: boolean; result?: QueryResult | { error: string } } {
+    const visible = [...this.visible(userId)];
+    const day = new Date().toDateString();
+    const stamp = this.stampOf(visible, `query|${day}|${JSON.stringify(daily)}|${src}`);
+    if (have && have === stamp) return { stamp, same: true };
+    const notes: QueryNote[] = [];
+    for (const { space, only } of visible) {
+      for (const n of space.notes.values()) if (!only || only.has(n.id)) notes.push(n);
+    }
+    try {
+      const query = parseQuery(src);
+      return { stamp, result: capQueryResult(runQuery(query, notes, new Date(), { defaultDue: daily ? dailyDueResolver(daily) : undefined })) };
+    } catch (e) {
+      return { stamp, result: { error: (e as Error).message } };
+    }
   }
 
   /**

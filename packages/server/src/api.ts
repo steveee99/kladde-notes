@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import zlib from 'zlib';
 import { APP_VERSION, extractMentions, isAccent, isReleaseBump, trimSlashes, type CommentThreadList } from '@kladde/shared';
-import type { ActivityList, NotePerson, MyStorage, AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
+import type { ActivityList, NotePerson, MyStorage, AttachmentInfo, AttachmentSearchResponse, CursorAnnounce, DailySettings, DeleteFilesResponse, Me, PresenceAnnounce, PushChange, TrashConflict, TrashList } from '@kladde/shared';
 import { Presence } from './Presence.js';
 import type { SpaceIndexes } from './online/SpaceIndex.js';
 import { FILE_URL_RE, attachmentUsageMap } from './cliActions.js';
@@ -275,6 +275,24 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     const since = Number(req.query.since);
     const sig = typeof req.query.sig === 'string' ? req.query.sig.slice(0, 64) : '';
     sendJson(req, res, opts.spaces.tasks(req.user!.id, Number.isSafeInteger(since) ? since : 0, sig));
+  });
+
+  router.get('/online/graph', (req, res) => {
+    if (!opts.spaces) return res.status(404).json({ error: 'Nur im Online-Modus.' });
+    const have = typeof req.query.have === 'string' ? req.query.have.slice(0, 64) : '';
+    sendJson(req, res, opts.spaces.graph(req.user!.id, have));
+  });
+
+  router.post('/online/query', express.json({ limit: '64kb' }), (req, res) => {
+    if (!opts.spaces) return res.status(404).json({ error: 'Nur im Online-Modus.' });
+    const { src, daily, have } = (req.body ?? {}) as { src?: unknown; daily?: unknown; have?: unknown };
+    if (typeof src !== 'string' || src.length > 8000) return res.status(400).json({ error: 'Ungültige Anfrage.' });
+    const d = daily as Partial<DailySettings> | null | undefined;
+    const settings: DailySettings | null =
+      d && typeof d === 'object' && d.enabled === true && typeof d.folder === 'string' && typeof d.format === 'string' && d.folder.length <= 400 && d.format.length <= 100
+        ? { enabled: true, folder: d.folder, format: d.format }
+        : null;
+    sendJson(req, res, opts.spaces.query(req.user!.id, src, settings, typeof have === 'string' ? have.slice(0, 64) : ''));
   });
 
   // Online mode: links to a renamed note are rewritten on the server, in every note the user may edit

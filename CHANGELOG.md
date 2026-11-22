@@ -4,6 +4,9 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: In online mode the graph shows every note and link, also of notes a device never opened: the server builds it (once per change, shared by everybody who sees the same notes) and the page shows a loading bar until it is there. Query blocks run on the server over every note; they show a loading bar on first sight and at most 2,000 rows (with a hint to narrow the query). Tables that take in their subfolders load those rows too.
+- Changed: Large graphs no longer freeze the page: above 1,500 notes the layout runs in the background behind a progress bar, and above 8,000 notes the notes are grouped by folder instead of simulated (with 100,000 notes 80 ms instead of over 30 seconds). Drawing is batched and skips what is out of view, and the graph is laid out again only when its notes or links change.
+
 - New: In online mode the task page, home and the navigation badge show the tasks of every note, also of notes a device never opened: the server sends them, and after the first time only what changed. Database tables and ticket projects (with their milestones) load their notes in full, so tables, boards, the backlog and "My tickets" see every row. With 100,000 notes and 200,000 tasks the task page shows after half a second. The catalog and the tasks travel compressed (20 MB become 2 MB).
 - Changed: Task lists sort and group faster with very many tasks (search, home, the task page and the badge recomputed every task's due date group and sorted with a slow comparison after every change), and the folder tree is grouped again only when a path changed, in both modes.
 

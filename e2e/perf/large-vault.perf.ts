@@ -177,6 +177,9 @@ test('large vault', async ({ browser }, testInfo) => {
     return !!c && c.width > 0;
   });
   record('graph page (load until canvas)', Date.now() - t);
+  // Large graphs are laid out in a worker behind a progress bar
+  await expect(page.getByRole('progressbar')).toHaveCount(0, { timeout: stepTimeout });
+  record('graph page (laid out and drawn)', Date.now() - t);
 
   const size = (await (await api.get(syncUrl)).body()).length;
   results[0].note = `${(size / 1e6).toFixed(1)} MB JSON`;

@@ -420,19 +420,39 @@ class Vault {
 
   /**
    * Online mode: tables and ticket projects need the frontmatter of every row, so the notes of database folders (the
-   * database note, the notes directly in its folder and a project's milestones) are loaded in full and kept, not
+   * database note, the notes in its folder (with `subfolders: true` also below it) and a project's milestones) are loaded in full and kept, not
    * counted among the MAX_CACHED opened notes. Looked at again when a path changed.
    */
   private async loadDatabaseFolders(): Promise<void> {
     const stamp = this.pathStamp;
     if (this.databaseStamp === stamp) return;
     const spaceOf = (n: LocalNote) => (n.group ? `g:${n.group}` : n.owner ? `u:${n.owner}` : '');
-    const folders = new Set<string>();
-    for (const n of this.notes.values()) if (!n.deleted && isDatabasePath(n.path)) folders.add(`${spaceOf(n)}|${splitPath(n.path).folder}`);
-    if (!folders.size) {
+    const databases = [...this.notes.values()].filter((n) => !n.deleted && isDatabasePath(n.path));
+    if (!databases.length) {
       this.databaseStamp = stamp;
       return;
     }
+    // The database notes first: whether a table takes in its subfolders is written in them
+    const missing = databases.filter((n) => n.partial).map((n) => n.id);
+    if (missing.length) await this.fetchFull(missing, { keep: true });
+    const folders = new Set<string>();
+    const deep = new Set<string>();
+    for (const d of databases) {
+      const key = `${spaceOf(d)}|${splitPath(d.path).folder}`;
+      folders.add(key);
+      // Not for a table over the whole space (at the top with subfolders): that would load every note
+      if (splitPath(d.path).folder && parseDatabase(this.notes.get(d.id)?.content ?? '')?.subfolders) deep.add(key);
+    }
+    /** A folder inside a database that takes in its subfolders */
+    const inDeep = (space: string, folder: string) => {
+      if (!deep.size) return false;
+      for (let f = folder; ; ) {
+        const cut = f.lastIndexOf('/');
+        f = cut < 0 ? '' : f.slice(0, cut);
+        if (deep.has(`${space}|${f}`)) return true;
+        if (!f) return false;
+      }
+    };
     const ids: string[] = [];
     for (const n of this.notes.values()) {
       if (n.deleted) continue;
@@ -440,7 +460,8 @@ class Vault {
       const space = spaceOf(n);
       const inDatabase =
         folders.has(`${space}|${folder}`) ||
-        (folder.endsWith(`/${MILESTONE_FOLDER}`) && folders.has(`${space}|${folder.slice(0, -MILESTONE_FOLDER.length - 1)}`));
+        (folder.endsWith(`/${MILESTONE_FOLDER}`) && folders.has(`${space}|${folder.slice(0, -MILESTONE_FOLDER.length - 1)}`)) ||
+        (folder !== '' && inDeep(space, folder));
       if (!inDatabase) continue;
       if (n.partial) ids.push(n.id);
       // Opened before: no longer one of the opened notes that make room for others

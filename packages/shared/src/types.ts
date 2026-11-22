@@ -168,6 +168,23 @@ export interface OnlineTasks {
   notes: OnlineTaskNote[];
 }
 
+/**
+ * A node of the online graph: id, title, type (0 note, 1 PDF, 2 drawing; Zettel the device finds by the folder) and
+ * the note's tags when it has any. Folder and dates come from the device's catalog.
+ */
+export type OnlineGraphNode = [id: string, title: string, kind: 0 | 1 | 2, tags?: string[]];
+
+/**
+ * `GET /api/online/graph?have=`: the graph of every note the user may see; `edges` are pairs of indexes into `nodes`
+ * (source, target, source, target, …). `same` (without nodes and edges) when `have` names the stamp of an unchanged graph.
+ */
+export interface OnlineGraph {
+  stamp: string;
+  same?: boolean;
+  nodes?: OnlineGraphNode[];
+  edges?: number[];
+}
+
 /** A deleted note in its owner's trash (`GET /api/trash`); restorable until it is purged */
 /** An export of the whole account as a ZIP archive (#93), made in the background and downloadable once */
 export interface AccountExportStatus {

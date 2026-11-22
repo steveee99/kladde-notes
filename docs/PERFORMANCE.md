@@ -203,9 +203,33 @@ task, the sorted list was built again on every change of the vault, and the fold
 every keystroke. The rows from the server are now kept until a path, an answer or the day changes, the sorted list
 while no note's rows changed, today's date for a second, and the folder grouping until a path changes.
 
+## Online mode, stage 4: graph and query blocks (Unreleased)
+
+The space index also builds the graph: `GET /api/online/graph` sends every visible note as `[id, title, kind, tags?]`
+and the edges as pairs of indexes (links that a space cannot resolve go to a note of that name in another visible
+space). A stamp of the visible spaces answers `same` while nothing changed. Query blocks run on the server
+(`POST /api/online/query`, at most 2,000 rows per result, group or lane; totals count every row).
+
+Server side alone (100,000 notes, 400,000 links): the graph 250 ms (type and tags are parsed while warming the space),
+14.3 MB JSON, 3.8 MB gzipped.
+
+Graphs above 1,500 notes are laid out in a Web Worker behind a progress bar (`client/lib/graphLayout.ts`). One step of
+d3-force costs about 0.6 s at 100,000 nodes (Barnes–Hut charge 0.47 s, links 0.09 s), so above 8,000 notes the notes
+are placed by folder instead (one sunflower disc per folder, the most linked notes in its middle): 80 ms. Drawing
+batches lines and circles into a few paths and skips what is out of view.
+
+In the browser (`npm run bench:e2e` with `BENCH_NOTES=100000`, page reloaded before the step, one run each):
+
+| Step | Before | Stage 4 |
+| --- | ---: | ---: |
+| Online: graph until laid out and drawn (before: only opened notes) | 135 ms | 7,552 ms (canvas at 5,285 ms) |
+| Offline: graph until laid out and drawn | 29,980 ms | 13,683 ms |
+
+Online, most of the time before the canvas is the app starting next to it after the reload (100,000 catalog entries,
+the first sync); the request itself takes about 0.6 s on the server. Moving to the graph inside the app skips that.
+
 ## Not done
 
 - No Web Worker: with the incremental indexes the remaining work per keystroke is a few milliseconds, which does not
   justify moving the vault to a worker and syncing state across.
 - The note list and folder tree are not virtualized; they stay usable at 5,000 notes but render every row.
-- The graph of all notes still simulates every node on the main thread (about 2 s until the canvas at 5,000 notes).

@@ -7,6 +7,7 @@ import { INBOX_FOLDER, Me, projectTitleOf, runQuery } from '@kladde/shared';
 import { api, ApiError, uploadFile } from './lib/api';
 import { match, navigate, usePath } from './lib/router';
 import { vault } from './data/vault';
+import { onlineQueries } from './data/onlineQueries';
 import { uploads } from './data/uploads';
 import { recordVoice } from './views/VoiceRecorder';
 import { getLang } from './lib/i18n';
@@ -84,6 +85,8 @@ Object.assign(editorHost, {
     return { id: note.id, title: links.notes.get(note.id)?.title ?? target, content: note.content, canWrite: note.access !== 'read' && !isReadOnly() && !note.partial };
   },
   runQuery: (src: string) => {
+    // Online mode: over every note on the server (the device has the texts of only the notes it loaded)
+    if (vault.online) return onlineQueries.get(src);
     try {
       return runQuery(src, vault.list(), new Date(), { defaultDue: vault.taskDueResolver() });
     } catch (e) {

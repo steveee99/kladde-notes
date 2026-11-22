@@ -2105,6 +2105,33 @@ span.cm-checkbox {
   opacity: 0.4;
   cursor: not-allowed;
 }
+/* Loading bar without a known share (views/LoadBar.tsx) */
+@keyframes load-bar-run {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+.load-bar-run {
+  animation: load-bar-run 1.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .load-bar-run {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}
+.wz-query-loading {
+  padding: 12px;
+}
+.wz-query-more {
+  padding: 6px 2px 0;
+  font-size: 0.85em;
+  color: rgb(var(--muted));
+}
 .wz-query-error {
   padding: 10px 12px;
   border-radius: 10px;

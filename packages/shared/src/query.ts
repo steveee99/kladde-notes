@@ -87,6 +87,24 @@ export interface QueryResult {
   totals?: Record<string, unknown>;
   /** Grouped TABLE of only the group field and aggregates: one row per group instead of the notes */
   summary?: boolean;
+  /** Online mode: the number of rows before the server cut them to `ONLINE_QUERY_ROWS` (totals count all) */
+  total?: number;
+}
+
+/** Online mode: rows the server sends at most per query (per group or lane), so a query without LIMIT stays small */
+export const ONLINE_QUERY_ROWS = 2000;
+
+/** Cuts a result to `max` rows (per group and lane) for sending it; `total` keeps the number of rows found */
+export function capQueryResult(result: QueryResult, max = ONLINE_QUERY_ROWS): QueryResult {
+  const over = result.rows.length > max || result.groups?.some((g) => g.rows.length > max) || result.lanes?.some((l) => l.rows.length > max);
+  if (!over) return result;
+  return {
+    ...result,
+    total: result.rows.length,
+    rows: result.rows.slice(0, max),
+    groups: result.groups?.map((g) => ({ ...g, rows: g.rows.slice(0, max) })),
+    lanes: result.lanes?.map((l) => ({ ...l, rows: l.rows.slice(0, max) })),
+  };
 }
 
 export class QueryError extends Error {}
