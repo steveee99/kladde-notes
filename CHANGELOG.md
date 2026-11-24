@@ -4,6 +4,10 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- Fixed: Images in the PDF and Word export and in print keep their proportions and are never enlarged; portrait images take at most about half of the page height. Photos stored sideways (EXIF) are no longer stretched, text no longer overlaps the image before it, and a heading stays with its image or diagram.
+- Fixed: Mermaid diagrams and mind maps in the PDF, slide and Word export and in print have a readable size instead of a thumbnail (small ones grow a little, large ones fit the page), and always use light colors on white.
+- Fixed: Printing a note (menu or Ctrl+P) includes the whole note: the end of long notes and images further down were missing. Headings printed from the dark scheme are readable, and galleries and carousels are no longer cropped.
+
 ## [2.18.0] – 2026-11-22
 
 - New: Online mode for teams that are always online with very large vaults (`KLADDE_MODE=online`, experimental). Devices keep only a list of the notes and load a note's text when it opens, instead of a full offline copy: with 100,000 notes the first start takes 8 instead of 13 seconds and a restart 2 instead of 10. Renaming a note rewrites the links in every note on the server. Without a connection only notes opened before can be read; the local graph beside a note shows only opened notes so far.

@@ -29,7 +29,7 @@ import { getLang, locale, tl, type Lang } from '../lib/i18n';
 import { dataTable, groupedTable, openTableCell, parseMarkdownTable, stripInline, type CellRef, type DataRow, type TableEditing } from './datatable';
 import { editorHost, type TicketChip } from './host';
 import { embedContext } from './embedContext';
-import { DiagramKind, drawDiagram, openDiagram } from './diagram';
+import { DiagramKind, drawDiagram, isPrinting, openDiagram } from './diagram';
 import { CALLOUT_ICON_PATHS } from './calloutIcons';
 
 /** Moves the cursor into a block so it shows its source (the "✎" button of block widgets) */
@@ -429,7 +429,7 @@ export class GalleryWidget extends BlockWidget {
       const img = document.createElement('img');
       img.src = url;
       img.alt = alt;
-      img.loading = 'lazy';
+      img.loading = isPrinting() ? 'eager' : 'lazy';
       img.addEventListener('click', () => openLightbox(url));
       grid.append(img);
     }
@@ -466,7 +466,7 @@ export class CarouselWidget extends BlockWidget {
       const img = document.createElement('img');
       img.src = url;
       img.alt = alt;
-      img.loading = 'lazy';
+      img.loading = isPrinting() ? 'eager' : 'lazy';
       img.draggable = false;
       // Portrait images stay portrait: the card takes the image's aspect ratio instead of cropping it
       img.addEventListener('load', () => {
@@ -1194,7 +1194,7 @@ export class ImageWidget extends WidgetType {
     img.className = 'cm-img';
     img.src = src;
     img.alt = this.alt;
-    img.loading = 'lazy';
+    img.loading = isPrinting() ? 'eager' : 'lazy';
     img.addEventListener('click', () => openLightbox(src));
     return img;
   }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom';
 import { Download, FileCode, FileSpreadsheet, FileText, Loader2, PictureAsPdf, Printer } from '../lib/icons';
 import { safeExportFilename, stripFrontmatter } from '@kladde/shared';
+import { printNote, usePrintable } from '../lib/printing';
 import { t, tl, useLang } from '../lib/i18n';
 
 interface ExportMenuProps {
@@ -13,6 +14,7 @@ interface ExportMenuProps {
 
 export function ExportMenu({ title, content, slides = false }: ExportMenuProps) {
   const lang = useLang();
+  usePrintable(content);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<'word' | 'pdf' | 'slides' | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -179,7 +181,7 @@ export function ExportMenu({ title, content, slides = false }: ExportMenuProps) 
               className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
               onClick={() => {
                 setOpen(false);
-                requestAnimationFrame(() => window.print());
+                void printNote();
               }}
             >
               <Printer size={16} className="shrink-0" />

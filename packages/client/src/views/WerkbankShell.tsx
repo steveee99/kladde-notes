@@ -394,7 +394,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
       </div>
       {/* Status bar (desktop): sync state, counts, version */}
       {!focus && (
-        <footer aria-label={t('nav.statusBar')} className="m3-status hidden h-6 shrink-0 items-center gap-4 border-t border-line bg-bar px-2.5 font-mono text-[11px] text-muted nav:flex">
+        <footer aria-label={t('nav.statusBar')} className="no-print m3-status hidden h-6 shrink-0 items-center gap-4 border-t border-line bg-bar px-2.5 font-mono text-[11px] text-muted nav:flex">
           <SyncBadge status />
           <span key={ownNotes} className="num-tick">{t('nav.noteCount', { n: ownNotes.toLocaleString(locale(lang)) })}</span>
           <span className="ml-auto">v{APP_VERSION}</span>
