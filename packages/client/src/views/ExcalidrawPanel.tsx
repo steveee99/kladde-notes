@@ -149,7 +149,8 @@ export default function ExcalidrawPanel({
     <div
       className={
         fullscreen
-          ? 'fixed inset-0 z-[95] bg-surface'
+          ? // Above the navigation and its drawer (z-40), below dialogs (z-50 and up); see .excalidraw-fullscreen in index.css
+            'excalidraw-fullscreen fixed inset-0 z-[45] bg-surface safe-top safe-x safe-bottom'
           : 'excalidraw-host relative mb-4 h-[calc(100dvh-11rem)] min-h-[420px] overflow-hidden rounded-xl border border-outline-variant anim-fade-in'
       }
     >

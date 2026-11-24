@@ -482,6 +482,21 @@ progress {
 .vt-main {
   view-transition-name: main;
 }
+/*
+ * A view transition name makes the element a stacking context, so a full-screen drawing inside it would stay below
+ * the sticky bars outside (z-20) whatever its z-index. Without the name its z-index counts for the whole page, and
+ * the canvas keeps its place in the DOM (moving it into a portal would reset embeds and the focus).
+ */
+.vt-main:has(.excalidraw-fullscreen) {
+  view-transition-name: none;
+}
+/* The full-screen frame already keeps clear of the safe areas; Excalidraw would add them once more */
+.excalidraw-fullscreen .excalidraw {
+  --sat: 0px;
+  --sar: 0px;
+  --sab: 0px;
+  --sal: 0px;
+}
 
 /* Set for a moment after a reload for an update (lib/update.ts) */
 .no-anim *,
