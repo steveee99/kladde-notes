@@ -9,7 +9,7 @@ import { MAX_FILE_BYTES } from '@kladde/shared';
 import { ApiError, uploadFile } from '../lib/api';
 import { t } from '../lib/i18n';
 import type { LocalDb, PendingUpload } from './db';
-import { vault } from './vault';
+import { newId, vault } from './vault';
 
 export const PENDING_SCHEME = 'kladde-pending:';
 
@@ -91,7 +91,7 @@ class UploadQueue {
   async enqueue(file: File): Promise<Uploaded> {
     if (file.size > MAX_FILE_BYTES) throw new Error(t('uploads.tooLarge', { mb: Math.round(MAX_FILE_BYTES / 1024 / 1024) }));
     if (!this.db) throw new Error(t('note.uploadOnlineOnly'));
-    const id = crypto.randomUUID().replace(/-/g, '');
+    const id = newId();
     const item: PendingUpload = { id, name: file.name || 'Datei', mime: file.type || 'application/octet-stream', size: file.size, blob: file, createdAt: Date.now() };
     await this.db.put('uploads', item);
     this.items.set(id, item);

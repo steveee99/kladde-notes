@@ -42,3 +42,13 @@ export function trimSlashes(s: string): string {
   while (to > from && s[to - 1] === '/') to--;
   return s.slice(from, to);
 }
+
+/** An RFC 4122 version 4 UUID from 16 random bytes */
+export function uuidV4(random: Uint8Array): string {
+  if (random.length !== 16) throw new RangeError('uuidV4 needs 16 bytes');
+  const bytes = Uint8Array.from(random);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
