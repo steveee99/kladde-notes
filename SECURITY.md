@@ -43,3 +43,4 @@ Out of scope: problems that need a fully compromised server or browser, missing 
 - Run Kladde behind HTTPS (passkeys require it) and set `PUBLIC_URL` and `TRUST_PROXY` correctly.
 - Pass `DATA_KEY` as a secret instead of keeping the key file next to the database, and back the key up. Without it the notes cannot be decrypted.
 - `DEV_LOGIN` is for local development only and is ignored in production mode. Never set it on a public instance.
+- GitLab/GitHub notes (`REMOTE_*_TOKEN`, Administration → GitLab/GitHub): every user can read whatever the token can read. Use read-only project or group tokens and `REMOTE_ALLOWED_PATHS`.

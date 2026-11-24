@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Backup, Ban, Check, Copy, KeyRound, Mail, RotateCcw, ScrollText, ShieldCheck, ShieldOff, Smartphone, Trash2, UserCheck, Users } from '../lib/icons';
+import { Backup, Ban, Check, Copy, KeyRound, Mail, RemoteDoc, RotateCcw, ScrollText, ShieldCheck, ShieldOff, Smartphone, Trash2, UserCheck, Users } from '../lib/icons';
 import type { AdminAuditEntry, AdminInvite, AdminStatus, AdminUser, Me } from '@kladde/shared';
 import { copyText } from '../lib/clipboard';
 import { api } from '../lib/api';
 import { I18nKey, Lang, locale, tl, useLang } from '../lib/i18n';
 import { Avatar } from './Avatar';
 import { BackupsTab } from './AdminBackups';
+import { RemoteTab } from './AdminRemote';
 import { GroupsStorageTab, QuotaEditor } from './AdminStorage';
 import { StorageMeter } from './StorageMeter';
 import { PageBody, PageHeader } from './PageHeader';
 
-type Tab = 'users' | 'groups' | 'invites' | 'backups' | 'audit';
+type Tab = 'users' | 'groups' | 'invites' | 'remote' | 'backups' | 'audit';
 
 function since(ms: number, lang: Lang): string {
   const min = Math.round((Date.now() - ms) / 60_000);
@@ -350,6 +351,7 @@ export function AdminView({ me }: { me: Me }) {
     { id: 'users', label: tl(lang, 'admin.tabUsers'), Icon: Users },
     { id: 'groups', label: tl(lang, 'admin.tabGroups'), Icon: Users },
     { id: 'invites', label: tl(lang, 'admin.tabInvites'), Icon: Mail },
+    { id: 'remote', label: tl(lang, 'remote.admin.tab'), Icon: RemoteDoc },
     { id: 'backups', label: tl(lang, 'admin.tabBackups'), Icon: Backup },
     { id: 'audit', label: tl(lang, 'admin.tabAudit'), Icon: ScrollText },
   ];
@@ -392,6 +394,7 @@ export function AdminView({ me }: { me: Me }) {
       {tab === 'users' && <UsersTab me={me} onError={setError} />}
       {tab === 'groups' && <GroupsStorageTab onError={setError} />}
       {tab === 'invites' && <InvitesTab onError={setError} />}
+      {tab === 'remote' && <RemoteTab onError={setError} />}
       {tab === 'backups' && <BackupsTab onError={setError} />}
       {tab === 'audit' && <AuditTab onError={setError} />}
       </PageBody>

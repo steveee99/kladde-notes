@@ -12,6 +12,8 @@ export type DialogState =
   | { kind: 'zettel' }
   | { kind: 'recipe'; url?: string }
   | { kind: 'clip'; url?: string; title?: string; selection?: string }
+  /** A new remote note (GitLab/GitHub), or with `noteId` the source of an existing one */
+  | { kind: 'remote'; folder?: string; title?: string; shared?: SharedFolder; group?: string; noteId?: string; onCreated?: (title: string) => void }
   | { kind: 'variables'; space: string; folder: string }
   | { kind: 'attachment'; onPick: (file: UploadedFile) => void }
   | null;

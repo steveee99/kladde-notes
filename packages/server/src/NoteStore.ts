@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, assignTicketNumber, canTransition, isSchemaPath, isTicketContent, parseProject, runAutomations, setTicketFields, hasVariables, isVariablesPath, usedVariables, variableDefinitions, variableScope, type VariableDefinitions, type VariableScope, subtaskProgress, ticketEvents, ticketMeta, workflowStatus, type ProjectConfig, contentHash, embedsOf, extractMeta, numberedTicketId, parseGroupFeatures, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, splitPath, renameWikiLinks } from '@kladde/shared';
+import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, assignTicketNumber, canTransition, isSchemaPath, isTicketContent, parseProject, runAutomations, setTicketFields, hasVariables, isVariablesPath, usedVariables, variableDefinitions, variableScope, type VariableDefinitions, type VariableScope, subtaskProgress, ticketEvents, ticketMeta, workflowStatus, type ProjectConfig, contentHash, embedsOf, extractMeta, numberedTicketId, parseGroupFeatures, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, publicRemoteContent, remoteNoteOf, type RemoteSource, splitPath, renameWikiLinks } from '@kladde/shared';
 import { DataCipher, randomToken } from './crypto.js';
 import { transaction } from './db.js';
 
@@ -611,6 +611,18 @@ export class NoteStore {
   spaceOf(userId: string, noteId: string): string | null {
     const row = ID_PATTERN.test(noteId) ? this.getRow(noteId) : undefined;
     return row && !row.deleted && this.accessOf(userId, row) ? row.owner_id : null;
+  }
+
+  /**
+   * The source of a remote note as the user sees the note (readers of a versioned one: its latest release), with the
+   * space and folder its variables come from; null when the user may not see it or it is no remote note.
+   */
+  remoteSource(userId: string, noteId: string): { source: RemoteSource; ownerId: string; folder: string } | null {
+    const row = ID_PATTERN.test(noteId) ? this.getRow(noteId) : undefined;
+    const access = row && !row.deleted ? this.accessOf(userId, row) : null;
+    if (!row || !access) return null;
+    const source = remoteNoteOf(this.syncedFor(row, userId, access).content);
+    return source && { source, ownerId: row.owner_id, folder: splitPath(this.payload(row).path).folder };
   }
 
   /** Paths of catalog entries by note id and seq: a light pull decrypts only notes that changed since the last one */
@@ -1281,7 +1293,9 @@ export class NoteStore {
       .get(token) as (NoteRow & { owner_name: string; owner_avatar: string | null }) | undefined;
     if (!row) return null;
     // A versioned note shows its latest release, like to read-only share recipients (#53)
-    const note = this.toSynced(row, 'read');
+    const synced = this.toSynced(row, 'read');
+    // A remote note's source stays inside: guests see a placeholder, and nothing is fetched for them
+    const note = { ...synced, content: publicRemoteContent(synced.content) };
     const embeds = this.publicEmbeds(row.owner_id, row.id, note.content);
     return {
       path: note.path,
@@ -1308,7 +1322,7 @@ export class NoteStore {
     const published = new Map(
       rows.map((r) => {
         const p = this.payload(r);
-        return [r.id, { path: p.path, content: this.published(r.id, p.content), id: r.id, token: r.public_token }];
+        return [r.id, { path: p.path, content: publicRemoteContent(this.published(r.id, p.content)), id: r.id, token: r.public_token }];
       })
     );
     const index = new LinkIndex([...published.values()]);

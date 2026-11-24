@@ -28,6 +28,10 @@ export interface EditorHost {
   openNote(id: string): void;
   /** The note an embed `![[target]]` shows (resolved like links), null if the reader has none by that name */
   resolveEmbed(target: string): EmbedNote | null;
+  /** The document of a remote note (embeds), prepared for showing */
+  loadRemote(id: string): Promise<{ text: string } | { problem: string }>;
+  /** "GitLab/GitHub note" from the slash menu: made next to the note, `onCreated` gets its title */
+  newRemoteNote(besideId: string, onCreated: (title: string) => void): void;
   runQuery(src: string): QueryResult | { error: string } | { loading: true };
   toggleTask(noteId: string, line: number): void;
   /** Opens the note a task lives in, scrolled to the task's line */
@@ -64,6 +68,8 @@ export const editorHost: EditorHost = {
   wikiExists: () => true,
   openNote: () => {},
   resolveEmbed: () => null,
+  loadRemote: () => Promise.resolve({ problem: t('editor.notAvailable') }),
+  newRemoteNote: () => {},
   runQuery: () => ({ error: t('editor.notAvailable') }),
   toggleTask: () => {},
   openTask: () => {},

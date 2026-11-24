@@ -9,10 +9,13 @@ import {
   SYSTEM_PREFIX,
   extractMeta,
   joinPath,
+  keepRemoteBody,
   normalizeDueWords,
   parseTasks,
   runQuery,
   semanticSearch,
+  remoteNoteOf,
+  remoteOwnText,
   splitPath,
   toDateString,
   toggleTask,
@@ -256,6 +259,15 @@ function checkSize(content: string): void {
   if (Buffer.byteLength(content) > MAX_NOTE_BYTES) throw new ToolError('Die Notiz wäre größer als 2 MB.');
 }
 
+/** A remote note shows a file from GitLab/GitHub: only its frontmatter (`source`, `ref`) can be written */
+function guardRemote(before: string | null, after: string): void {
+  const isRemote = !!remoteNoteOf(after);
+  const was = before !== null && !!remoteNoteOf(before);
+  const ownText = remoteOwnText(after);
+  if (was ? isRemote && ownText === remoteOwnText(before) : !isRemote || before !== null || !ownText) return;
+  throw new ToolError('Diese Notiz zeigt ein Dokument aus GitLab/GitHub und ist schreibgeschützt: nur „source“ und „ref“ im Frontmatter lassen sich ändern, der Text wird in der Quelle bearbeitet.');
+}
+
 /** Saves through the normal sync path: next seq, live ping to the user's devices, export mirror */
 function save(ctx: ToolContext, note: SpaceNote, content: string) {
   return saveWithContent(ctx, note, content).saved;
@@ -264,6 +276,7 @@ function save(ctx: ToolContext, note: SpaceNote, content: string) {
 /** Saves and also returns the text as stored (the server numbers tickets and runs their automations) */
 function saveWithContent(ctx: ToolContext, note: SpaceNote, content: string) {
   writable(note);
+  guardRemote(note.content, content);
   const memory = memoryWrite(ctx, note.realPath === undefined && note.access === 'owner' ? note.path : null, note.content, content);
   content = memory.content;
   checkSize(content);
@@ -426,6 +439,7 @@ function createNote(ctx: ToolContext, opts: { title: string; content: string; fo
         .filter((n) => n.group === group.id)
         .map((n) => ({ ...n, path: n.realPath ?? n.path }))
     : ctx.notes.ownedNotes(ctx.userId);
+  guardRemote(null, content);
   const path = uniquePath(taken, folder, opts.title);
   const memory = memoryWrite(ctx, group ? null : path, null, content);
   content = memory.content;
@@ -714,12 +728,16 @@ export const TOOLS: ToolDef[] = [
       const note = findNote(notes, args);
       const index = new LinkIndex(notes);
       const titleOf = (id: string) => index.notes.get(id)?.title ?? id;
+      const remote = remoteNoteOf(note.content);
       return {
         ...summary(note),
         version: note.version,
         created: iso(note.createdAt),
         links: index.outgoing(note.id).map(titleOf),
         backlinks: index.backlinks(note.id).map(titleOf),
+        ...(remote
+          ? { remote: { ...remote, hint: 'Remote note: shows this document from GitLab/GitHub live and read-only. Its text is not stored in Kladde; only source and ref can be changed.' } }
+          : {}),
         content: note.content,
       };
     },
@@ -984,7 +1002,7 @@ export const TOOLS: ToolDef[] = [
       const changed: string[] = [];
       for (const n of space(ctx)) {
         if (n.access !== 'owner' || n.realPath !== undefined) continue;
-        const content = renameTag(n.content, from, to);
+        const content = keepRemoteBody(n.content, renameTag(n.content, from, to));
         if (content === n.content) continue;
         save(ctx, n, content);
         changed.push(n.path);

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
-import { EMPTY_VARIABLE_SCOPE, PublicNote as PublicNoteData, type VariableScope, excalidrawSceneOf, extractMeta, fillReleasePlaceholders, fixedVariableScope, isPresentationNote } from '@kladde/shared';
+import { EMPTY_VARIABLE_SCOPE, PublicNote as PublicNoteData, type VariableScope, excalidrawSceneOf, extractMeta, fillReleasePlaceholders, fixedVariableScope, isPresentationNote, remoteNoteOf } from '@kladde/shared';
 import { api } from '../lib/api';
 import { locale, tl, useLang } from '../lib/i18n';
 import { Editor } from '../editor/Editor';
@@ -7,7 +7,7 @@ import type { EmbedResolver } from '../editor/embedContext';
 import { Avatar } from './Avatar';
 import { ExportMenu } from './ExportMenu';
 import { releaseRenderOptions } from '../editor/releases';
-import { Slideshow } from '../lib/icons';
+import { RemoteDoc, Slideshow } from '../lib/icons';
 
 const ExcalidrawPanel = lazy(() => import('./ExcalidrawPanel'));
 const Presentation = lazy(() => import('./Presentation'));
@@ -45,6 +45,8 @@ export function PublicNote({ token }: { token: string }) {
   const drawing = excalidrawSceneOf(note.content);
   // Notes the owner set up as a presentation (frontmatter `presentation`, #87) can be presented from the link
   const slides = drawing === null && isPresentationNote(note.content);
+  // A remote note: guests never see the document, it is read with the server's own access
+  const remote = !!remoteNoteOf(note.content);
   const variables = scopeOf(note.variables);
   const exported = note.versioning ? fillReleasePlaceholders(note.content, note.releases ?? [], releaseRenderOptions(lang)) : note.content;
   const releases = note.versioning ? (note.releases ?? []) : null;
@@ -61,10 +63,14 @@ export function PublicNote({ token }: { token: string }) {
             {tl(lang, 'present.start')}
           </button>
         )}
-        <ExportMenu title={title} slides={slides} content={exported} variables={variables} />
+        {!remote && <ExportMenu title={title} slides={slides} content={exported} variables={variables} />}
       </div>
       <h1 className="font-display mb-4 break-words text-[34px] leading-tight">{title}</h1>
-      {drawing !== null ? (
+      {remote ? (
+        <p data-remote-public className="flex items-center justify-center gap-2 rounded-lg border border-line bg-panel px-4 py-8 text-center text-body-m text-muted">
+          <RemoteDoc size={18} className="shrink-0" /> {tl(lang, 'remote.public')}
+        </p>
+      ) : drawing !== null ? (
         <Suspense fallback={<div className="p-8 text-center text-on-surface-variant">{tl(lang, 'common.loading')}</div>}>
           <ExcalidrawPanel scene={drawing} readOnly lang={lang} />
         </Suspense>

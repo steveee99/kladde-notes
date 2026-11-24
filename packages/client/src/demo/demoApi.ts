@@ -126,6 +126,7 @@ function handle(path: string, method: string, body: unknown): Response {
   if (path === '/files' && method === 'GET') return json([]);
   // The demo has no server that reads PDFs (#37)
   if (path === '/attachments/search') return json({ hits: [], pending: 0 });
+  if (path === '/remote-notes/hosts') return json([]);
   // Confluence (#48) needs a server: the client hides it after this answer
   if (path === '/confluence' || path.startsWith('/confluence/')) return unavailable();
   if (path === '/trash') {

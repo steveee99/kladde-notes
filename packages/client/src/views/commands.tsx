@@ -22,6 +22,7 @@ import {
   VerticalSplit,
   X,
   Kanban,
+  RemoteDoc,
 } from '../lib/icons';
 import { t } from '../lib/i18n';
 import { navigate } from '../lib/router';
@@ -34,6 +35,7 @@ import { closeOtherTabs, neighborTab, tabIds } from '../lib/tabs';
 import { DEMO } from '../demo/demoApi';
 import { ticketsAnywhere } from '../data/tickets';
 import { closeNoteTab, openNoteOfPath } from './NoteTabs';
+import { openDialog } from '../lib/dialogs';
 import { folderOfRoute, newNote, openTodayDailyNote } from './Shell';
 
 /** One entry of the command palette (Ctrl/⌘+K, then `>`) */
@@ -57,6 +59,7 @@ export function buildCommands(path: string): Command[] {
   const i = (node: ReactNode) => node;
   const list: (Command | false)[] = [
     !locked && { id: 'new-note', label: t('cmd.newNote'), icon: i(<Pencil size={16} />), keywords: 'create neu anlegen', run: () => newNote(folderOfRoute(path) ?? undefined) },
+    !locked && { id: 'new-remote', label: t('cmd.newRemote'), icon: i(<RemoteDoc size={16} />), keywords: 'gitlab github remote readme repository', run: () => openDialog({ kind: 'remote', folder: folderOfRoute(path) ?? undefined }) },
     features.daily.enabled && { id: 'daily', label: t('cmd.dailyNote'), icon: i(<CalendarDays size={16} />), hint: 'Ctrl/⌘+Shift+D', keywords: 'today heute journal', run: () => void openTodayDailyNote() },
     { id: 'go-home', label: t('cmd.goHome'), icon: i(<Home size={16} />), run: () => navigate('/') },
     { id: 'go-tasks', label: t('cmd.goTasks'), icon: i(<ListChecks size={16} />), keywords: 'todo', run: () => navigate('/tasks') },

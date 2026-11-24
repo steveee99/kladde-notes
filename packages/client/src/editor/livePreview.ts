@@ -33,7 +33,7 @@ import {
   WikiWidget,
 } from './widgets';
 import { editorHost } from './host';
-import { embedContext } from './embedContext';
+import { embedContext, foreignFacet } from './embedContext';
 import { embedWidgetFor } from './embed';
 import { markerStatus } from './taskStatus';
 import { CODE_COLLAPSE_FALLBACK, getCodeBlockPrefs, getLigatures } from '../lib/prefs';
@@ -202,7 +202,7 @@ function build(state: EditorState): DecorationSet {
   const filled = (text: string) => (variables && hasVariables(text) ? resolveVariables(text, variables) : text);
   /** A link; its URL is complete before it is checked by `safeUrl` */
   const linkWidget = (text: string, rawUrl: string) => {
-    if (!variables || !hasVariables(text + rawUrl)) return new LinkWidget(text, rawUrl);
+    if (!variables || !hasVariables(text + rawUrl)) return new LinkWidget(text, rawUrl, true, null, foreign);
     const { url, complete } = resolveVariableUrl(rawUrl, variables);
     const masked = maskVariables(text, variables);
     return new LinkWidget(text, url, complete, text ? masked.fill(stripInline(masked.text)) : null);
@@ -228,8 +228,10 @@ function build(state: EditorState): DecorationSet {
   const touches = (from: number, to: number) => !all && state.selection.ranges.some((r) => r.from <= to && r.to >= from);
 
   const decos: Range<Decoration>[] = [];
-  const people = editorHost.people(state.facet(noteIdFacet));
-  const ticketRe = ticketPattern(editorHost.ticketKeys());
+  // Text from outside the vault: nothing in it is looked up in the reader's notes
+  const foreign = state.facet(foreignFacet);
+  const people = foreign ? [] : editorHost.people(state.facet(noteIdFacet));
+  const ticketRe = foreign ? null : ticketPattern(editorHost.ticketKeys());
   /** Replaced ranges: nothing else may be replaced inside them */
   const replaced: [number, number][] = [];
   const protectedRanges: [number, number][] = [];
@@ -435,7 +437,7 @@ function build(state: EditorState): DecorationSet {
             return false;
           }
           if (!isActive(node.from, node.to)) {
-            blockWidget(node, Decoration.replace({ widget: new TableWidget(text(), lang, !state.readOnly, hasVariables(text()) ? variables : null), block: true }));
+            blockWidget(node, Decoration.replace({ widget: new TableWidget(text(), lang, !state.readOnly, hasVariables(text()) ? variables : null, foreign), block: true }));
             return false;
           }
           return;
@@ -453,7 +455,7 @@ function build(state: EditorState): DecorationSet {
             blockWidget(node, Decoration.replace({ widget: new TableWidget(releaseHistoryTable(release.releases, releaseOpts!), lang, false), block: true }));
             return false;
           }
-          if (!editing && (langInfo === 'query' || langInfo === 'gallery' || langInfo === 'carousel')) {
+          if (!editing && !foreign && (langInfo === 'query' || langInfo === 'gallery' || langInfo === 'carousel')) {
             const widget =
               langInfo === 'query' ? new QueryWidget(body, stamp, state.readOnly, lang) : langInfo === 'carousel' ? new CarouselWidget(body, lang) : new GalleryWidget(body, lang);
             blockWidget(node, Decoration.replace({ widget, block: true }));
@@ -527,7 +529,7 @@ function build(state: EditorState): DecorationSet {
     const lineActive = !all && active.has(l);
 
     // ![[Note]], ![[Note#Heading]], ![[Note#^block]] on their own line: the referenced text, read-only
-    const embed = lineActive ? null : parseEmbedLine(ln.text);
+    const embed = lineActive || foreign ? null : parseEmbedLine(ln.text);
     if (embed && free(ln.from, ln.to)) {
       replace(ln.from, ln.to, Decoration.replace({ widget: embedWidgetFor(state, embed, state.facet(noteIdFacet), lang), block: true }));
       continue;
@@ -558,7 +560,7 @@ function build(state: EditorState): DecorationSet {
       continue;
     }
 
-    for (const m of ln.text.matchAll(/\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g)) {
+    for (const m of foreign ? [] : ln.text.matchAll(/\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g)) {
       const from = ln.from + m.index!;
       const to = from + m[0].length;
       protectedRanges.push([from, to]);
@@ -644,8 +646,8 @@ function build(state: EditorState): DecorationSet {
         replace(ln.from + start, ln.from + m.index! + m[0].length);
       }
     }
-    const matcher = getAutoLinkMatcher(state.facet(noteIdFacet), stamp);
-    if (matcher.regex) {
+    const matcher = foreign ? null : getAutoLinkMatcher(state.facet(noteIdFacet), stamp);
+    if (matcher?.regex) {
       matcher.regex.lastIndex = 0;
       for (const m of ln.text.matchAll(matcher.regex)) {
         const from = ln.from + m.index!;
