@@ -7,6 +7,7 @@ All user-visible changes to Kladde.
 ### Fixed
 
 - Database notes (`_database-<uuid>`, which hold the settings of a database or project) no longer show in the folder tree of groups, in both modes. They, and numbered or conflict copies of them, also stay out of note counts, favorites, tabs, link suggestions, backlinks, query results, the weekly review, the activity of a group and the MCP lists and searches.
+- Full screen of a drawing covers the whole app: the top bar (and on phones and tablets the bottom bar) no longer stays visible over the canvas, also in the split view. The canvas keeps clear of the notch and the home indicator.
 
 ## [2.18.0] – 2026-11-22
 

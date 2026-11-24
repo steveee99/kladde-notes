@@ -69,13 +69,13 @@ export default defineConfig({
       // Tablet in portrait: phone-style layout with the bottom bar and its extra destinations
       name: 'tablet',
       dependencies: ['setup'],
-      testMatch: /(layout|notes|a11y)\.spec\.ts/,
+      testMatch: /(layout|notes|a11y|drawing)\.spec\.ts/,
       use: { viewport: { width: 820, height: 1180 }, ...touch },
     },
     {
       name: 'phone',
       dependencies: ['setup'],
-      testMatch: /(layout|notes|a11y)\.spec\.ts/,
+      testMatch: /(layout|notes|a11y|drawing)\.spec\.ts/,
       use: { viewport: { width: 390, height: 844 }, ...touch },
     },
     ...(PERF
