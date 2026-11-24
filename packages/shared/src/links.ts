@@ -217,7 +217,8 @@ export class LinkIndex {
   }
 
   backlinks(id: string): string[] {
-    return [...(this.incoming.get(id) ?? [])];
+    // A folder's settings (database notes) are no note somebody wrote a link in
+    return [...(this.incoming.get(id) ?? [])].filter((from) => !isDatabasePath(this.notes.get(from)?.path ?? ''));
   }
 
   /** Names a note may be mentioned by: its title and, for Zettel, the title without the id in front */
@@ -237,7 +238,7 @@ export class LinkIndex {
     const quick = names.map(mentionPattern);
     const out: string[] = [];
     for (const [other, n] of this.notes) {
-      if (other === id || linked.has(other)) continue;
+      if (other === id || linked.has(other) || isDatabasePath(n.path)) continue;
       if (!quick.some((re) => re.test(n.content))) continue;
       if (names.some((name) => hasPlainMention(n.content, name))) out.push(other);
     }
@@ -293,7 +294,7 @@ export class LinkIndex {
   autoLinkTargets(excludeId?: string): { name: string; target: string }[] {
     const map = new Map<string, string>();
     for (const [id, note] of this.notes) {
-      if (excludeId && id === excludeId) continue;
+      if ((excludeId && id === excludeId) || isDatabasePath(note.path)) continue;
       const target = note.title;
       for (const name of this.mentionNames(id)) {
         const key = name.toLowerCase();

@@ -101,6 +101,7 @@ import {
   type ReleaseBump,
   findDatabaseNote,
   isDatabasePath,
+  isSchemaPath,
   newDatabaseNoteContent,
   parseDatabase,
   MILESTONE_FOLDER,
@@ -427,7 +428,7 @@ class Vault {
     const stamp = this.pathStamp;
     if (this.databaseStamp === stamp) return;
     const spaceOf = (n: LocalNote) => (n.group ? `g:${n.group}` : n.owner ? `u:${n.owner}` : '');
-    const databases = [...this.notes.values()].filter((n) => !n.deleted && isDatabasePath(n.path));
+    const databases = [...this.notes.values()].filter((n) => !n.deleted && isSchemaPath(n.path));
     if (!databases.length) {
       this.databaseStamp = stamp;
       return;

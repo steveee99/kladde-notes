@@ -1,4 +1,4 @@
-import { test, expect, enableFeature, serverNote, serverNotes, uid } from './helpers';
+import { test, expect, enableFeature, expectDatabasesHidden, groupWithDatabases, serverNote, serverNotes, uid } from './helpers';
 import type { APIRequestContext, Page } from '@playwright/test';
 
 const hexId = () => [...Array(16)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
@@ -103,6 +103,11 @@ test('group projects follow the group switch for every member', async ({ page, o
   // "Projects" shows the group's project
   await ben.goto('/projects');
   await expect(ben.locator(`[data-project-link="${key}"]`)).toBeVisible();
+});
+
+test('database notes of a group are in no list, its project still works', async ({ page }) => {
+  const group = await groupWithDatabases(page.request);
+  await expectDatabasesHidden(page, group);
 });
 
 test('workflow: enforced order, a rule from a template and a GitLab webhook that moves the ticket', async ({ page }) => {

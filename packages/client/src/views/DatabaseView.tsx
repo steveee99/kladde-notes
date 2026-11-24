@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  isDatabasePath,
   FILTER_OPS,
   PROPERTY_TYPES,
   VIEW_TYPES,
@@ -405,7 +406,7 @@ export function DatabaseView({ folder, dbNote }: { folder: string; dbNote: Local
       </div>
       {hasLink && (
         <datalist id="db-link-targets">
-          {vault.list().map((n) => (
+          {vault.list().filter((n) => !isDatabasePath(n.path)).map((n) => (
             <option key={n.id} value={n.path.replace(/^.*\//, '').replace(/\.md$/, '')} />
           ))}
         </datalist>

@@ -65,7 +65,7 @@ export function HomeView() {
   const tasks = useMemo(() => allTasks.filter((tk) => !tk.done), [allTasks]);
   const undated = useMemo(() => collectTasks(version).filter((tk) => !tk.done && !tk.due).length, [version]);
 
-  const own = notes.filter((n) => n.access === 'owner');
+  const own = notes.filter((n) => n.access === 'owner' && !isDatabasePath(n.path));
   const features = vault.features();
   const dailyNote = features.daily.enabled ? vault.findDailyNote() : undefined;
   const showDailyBtn = features.daily.enabled && (!locked || !!dailyNote);

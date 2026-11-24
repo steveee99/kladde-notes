@@ -3,7 +3,7 @@ import { AccountExportView } from './views/AccountExport';
 import { applyAccentOf } from './lib/accent';
 import { openNoteLink } from './lib/panes';
 import { SplitNoteView } from './views/SplitView';
-import { INBOX_FOLDER, Me, projectTitleOf, runQuery } from '@kladde/shared';
+import { isDatabasePath, INBOX_FOLDER, Me, projectTitleOf, runQuery } from '@kladde/shared';
 import { api, ApiError, uploadFile } from './lib/api';
 import { match, navigate, usePath } from './lib/router';
 import { vault } from './data/vault';
@@ -98,7 +98,10 @@ Object.assign(editorHost, {
   setFrontmatter: (id: string, updates: Record<string, string | null>) => void vault.setFrontmatter(id, updates),
   noteTitles: () => {
     const rc = vault.roleConfig();
-    return vault.list().map((n) => projectTitleOf(n.path, n.content, rc));
+    return vault
+      .list()
+      .filter((n) => !isDatabasePath(n.path))
+      .map((n) => projectTitleOf(n.path, n.content, rc));
   },
   tags: () => vault.tagCounts(),
   people: (noteId: string) => (vault.features().mentions.enabled ? vault.peopleOf(noteId) : []),

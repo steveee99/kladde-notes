@@ -689,8 +689,12 @@ function GroupFolderStar({ groupId, folder }: { groupId: string; folder: string 
  */
 function GroupTreeItem({ groupId, current, activeNoteId, onNavigate }: { groupId: string; current: string; activeNoteId: string | null; onNavigate?: () => void }) {
   const group = vault.group(groupId)!;
-  const notes = vault.groupNotes(groupId);
-  const activeNote = activeNoteId ? notes.find((n) => n.id === activeNoteId) : undefined;
+  const all = vault.groupNotes(groupId);
+  // Like in the own folder tree: database notes are settings of their folder
+  const notes = all.filter((n) => !isDatabasePath(n.path));
+  const folders = vault.groupFolders(groupId);
+  const expandable = notes.length > 0 || folders.length > 0;
+  const activeNote = activeNoteId ? all.find((n) => n.id === activeNoteId) : undefined;
   const lang = useLang();
   const byFolder = new Map<string, LocalNote[]>();
   for (const n of notes) {
@@ -718,10 +722,10 @@ function GroupTreeItem({ groupId, current, activeNoteId, onNavigate }: { groupId
       <div className={`group flex min-w-0 items-center rounded-md pr-1.5 text-sm transition-colors ${active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'}`}>
         <button
           type="button"
-          className={`shrink-0 p-1.5 transition-transform duration-200 ${notes.length ? '' : 'invisible'} ${open ? 'rotate-90' : ''}`}
+          className={`shrink-0 p-1.5 transition-transform duration-200 ${expandable ? '' : 'invisible'} ${open ? 'rotate-90' : ''}`}
           onClick={() => setOpen(!open)}
           aria-label={`${group.name}: ${open ? t('nav.collapseFolder') : t('nav.expandFolder')}`}
-          aria-expanded={notes.length ? open : undefined}
+          aria-expanded={expandable ? open : undefined}
         >
           <ChevronRight size={14} />
         </button>
@@ -745,9 +749,9 @@ function GroupTreeItem({ groupId, current, activeNoteId, onNavigate }: { groupId
         )}
         <NavBadge tone="plain" count={notes.length} />
       </div>
-      {open && notes.length > 0 && (
+      {open && expandable && (
         <ul className="anim-fade-in">
-          {buildTree(vault.groupFolders(groupId)).map((n) => folderNode(n, 1))}
+          {buildTree(folders).map((n) => folderNode(n, 1))}
           {rootNotes.map((n) => (
             <SidebarNoteRow key={n.id} note={n} active={activeNoteId === n.id} depth={1} onNavigate={onNavigate} />
           ))}
@@ -1010,7 +1014,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
   const rootDrop = useDropTarget('');
   const path = usePath();
   const folders = vault.folders();
-  const notes = vault.list();
+  const notes = vault.list().filter((n) => !isDatabasePath(n.path));
   const features = vault.features();
   const roleConfig = vault.roleConfig();
   const activeNoteId = path.startsWith('/n/') ? decodeURIComponent(path.slice(3)) : null;
@@ -1086,7 +1090,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
     ? vault
         .favoriteIds()
         .map((id) => vault.get(id))
-        .filter((n): n is LocalNote => !!n)
+        .filter((n): n is LocalNote => !!n && !isDatabasePath(n.path))
     : [];
   // Group folders (#58) as favorites: "Group/Folder"
   const favoriteGroupFolders = features.favorites.enabled ? vault.favoriteGroupFolders() : [];

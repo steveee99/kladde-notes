@@ -69,7 +69,7 @@ export function GroupsView() {
                 <Users size={18} className="shrink-0 text-primary" />
                 <span className="min-w-0 flex-1 truncate font-medium">{g.name}</span>
                 <span className="chip shrink-0">{groupRoleLabel(g.role)}</span>
-                <span className="text-xs text-on-surface-variant">{vault.groupNotes(g.id).length}</span>
+                <span className="text-xs text-on-surface-variant">{vault.groupNotes(g.id).filter((n) => !isDatabasePath(n.path)).length}</span>
                 <ChevronRight size={16} className="shrink-0 text-on-surface-variant" />
               </button>
             </li>
@@ -120,7 +120,7 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
   const project = folder ? projectAt({ group: groupId }, folder) : undefined;
   const canMakeProject = writer && !!folder && !!group.features?.tickets && !findDatabaseNote(folder, notes);
   const subfolders = vault.groupFolders(groupId).filter((f) => (folder ? f.startsWith(`${folder}/`) && !f.slice(folder.length + 1).includes('/') : !f.includes('/')));
-  const countIn = (f: string) => notes.filter((n) => splitPath(n.path).folder === f || splitPath(n.path).folder.startsWith(`${f}/`)).length;
+  const countIn = (f: string) => notes.filter((n) => !isDatabasePath(n.path) && (splitPath(n.path).folder === f || splitPath(n.path).folder.startsWith(`${f}/`))).length;
   const parent = folder ? (folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) : '') : null;
   return (
     <div>

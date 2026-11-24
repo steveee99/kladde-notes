@@ -1,4 +1,4 @@
-import { test, expect, editor, expectOnServer, expectSynced, noteTitle, uid } from './helpers';
+import { test, expect, editor, expectDatabasesHidden, groupWithDatabases, expectOnServer, expectSynced, noteTitle, uid } from './helpers';
 import { E2E_PASSWORD } from './accounts.mjs';
 
 // Online mode (KLADDE_MODE=online, its own test server): the device keeps a catalog of the notes and loads a note's
@@ -184,5 +184,16 @@ test('builds the graph and runs query blocks on the server, loads rows of subfol
   await page.goto(`/f/${encodeURIComponent(shelf)}`);
   const db = page.locator('[data-database]');
   await expect(db.getByLabel(`Pages: Tief ${tag}`)).toHaveValue('42', { timeout: 15_000 });
+  await context.close();
+});
+
+test('database notes of a group are in no list, its project still works', async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ baseURL, viewport: { width: 1280, height: 800 } });
+  expect((await context.request.post('/api/auth/password/login', { data: { username: 'cara', password: E2E_PASSWORD } })).ok()).toBe(true);
+  const group = await groupWithDatabases(context.request);
+  const page = await context.newPage();
+  await page.goto('/');
+  await page.evaluate(() => localStorage.setItem('kladde_lang', 'en'));
+  await expectDatabasesHidden(page, group);
   await context.close();
 });

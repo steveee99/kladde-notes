@@ -243,7 +243,7 @@ export class SpaceIndexes {
         if (space === homeEntry.space) continue;
         const other = space.links();
         for (const n of other.notes.values()) {
-          if (!allowed(only, n.id)) continue;
+          if (!allowed(only, n.id) || isDatabasePath(n.path)) continue;
           if (n.links.some((l) => names.has(l.toLowerCase()) && !other.resolve(l))) backlinks.push(n.id);
         }
       }
