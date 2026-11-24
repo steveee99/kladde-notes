@@ -358,7 +358,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
   };
   const subfolders = mode === 'folder' ? vault.folders().filter((f) => f.startsWith(`${folder}/`) && !f.slice(folder!.length + 1).includes('/')) : [];
   // Notes in a folder and all its subfolders (owned ones, like the list itself)
-  const countIn = (f: string) => vault.list().filter((n) => n.access === 'owner' && (splitPath(n.path).folder === f || splitPath(n.path).folder.startsWith(`${f}/`))).length;
+  const countIn = (f: string) => vault.list().filter((n) => n.access === 'owner' && !isDatabasePath(n.path) && (splitPath(n.path).folder === f || splitPath(n.path).folder.startsWith(`${f}/`))).length;
   const parent = mode === 'folder' && folder ? (folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) : '') : null;
   const title = mode === 'all' ? t('list.allNotes') : mode === 'shared' ? t('list.sharedWithMe') : folder ? folderLeafDisplayName(folder, lang) : t('list.parentLevel');
   const features = vault.features();

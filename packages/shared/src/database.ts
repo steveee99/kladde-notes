@@ -32,6 +32,8 @@ import { safeUrl } from './util.js';
 /** The schema note is `_database-<uuid>.md` (a name a person is unlikely to type); the plain `_database.md` of the first version still works */
 export const DATABASE_PREFIX = '_database';
 const DATABASE_NAME = /^_database(?:-[0-9a-f][0-9a-f-]{7,})?\.md$/i;
+/** Also its copies: a taken path gets a number ("_database-… 2.md"), a sync conflict a note in brackets */
+const DATABASE_OR_COPY = /^_database(?:-[0-9a-f][0-9a-f-]{7,})?(?: \d+| \([^()]*\))*\.md$/i;
 
 /** File name for a new database note; `id` is a random UUID */
 export const databaseFileName = (id: string): string => `${DATABASE_PREFIX}-${id}.md`;
@@ -97,11 +99,15 @@ export interface DbRow {
   cover: string | null;
 }
 
-export const isDatabasePath = (path: string): boolean => DATABASE_NAME.test(path.slice(path.lastIndexOf('/') + 1));
+/** Whether a note is hidden as a database note: the schema note of a folder, or a numbered or conflict copy of one */
+export const isDatabasePath = (path: string): boolean => DATABASE_OR_COPY.test(path.slice(path.lastIndexOf('/') + 1));
+
+/** Whether a note can be its folder's schema note; copies of one are hidden (`isDatabasePath`) but never define a database */
+export const isSchemaPath = (path: string): boolean => DATABASE_NAME.test(path.slice(path.lastIndexOf('/') + 1));
 
 /** The database note of a folder, if there is one */
 export function findDatabaseNote<T extends { path: string; content: string }>(folder: string, notes: Iterable<T>): T | null {
-  for (const n of notes) if (isDatabasePath(n.path) && splitPath(n.path).folder === folder && parseDatabase(n.content)) return n;
+  for (const n of notes) if (isSchemaPath(n.path) && splitPath(n.path).folder === folder && parseDatabase(n.content)) return n;
   return null;
 }
 

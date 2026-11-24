@@ -4,6 +4,10 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+### Fixed
+
+- Database notes (`_database-<uuid>`, which hold the settings of a database or project) no longer show in the folder tree of groups, in both modes. They, and numbered or conflict copies of them, also stay out of note counts, favorites, tabs, link suggestions, backlinks, query results, the weekly review, the activity of a group and the MCP lists and searches.
+
 ## [2.18.0] – 2026-11-22
 
 - New: Online mode for teams that are always online with very large vaults (`KLADDE_MODE=online`, experimental). Devices keep only a list of the notes and load a note's text when it opens, instead of a full offline copy: with 100,000 notes the first start takes 8 instead of 13 seconds and a restart 2 instead of 10. Renaming a note rewrites the links in every note on the server. Without a connection only notes opened before can be read; the local graph beside a note shows only opened notes so far.

@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, assignTicketNumber, canTransition, isDatabasePath, isTicketContent, parseProject, runAutomations, setTicketFields, subtaskProgress, ticketEvents, ticketMeta, workflowStatus, type ProjectConfig, contentHash, embedsOf, extractMeta, numberedTicketId, parseGroupFeatures, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, splitPath, renameWikiLinks } from '@kladde/shared';
+import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, assignTicketNumber, canTransition, isSchemaPath, isTicketContent, parseProject, runAutomations, setTicketFields, subtaskProgress, ticketEvents, ticketMeta, workflowStatus, type ProjectConfig, contentHash, embedsOf, extractMeta, numberedTicketId, parseGroupFeatures, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, splitPath, renameWikiLinks } from '@kladde/shared';
 import { DataCipher, randomToken } from './crypto.js';
 import { transaction } from './db.js';
 
@@ -265,7 +265,7 @@ export class NoteStore {
     const rows = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND deleted = 0 ORDER BY created_at, id').all(ownerId) as unknown as NoteRow[];
     for (const r of rows) {
       const p = this.payload(r);
-      if (!isDatabasePath(p.path)) continue;
+      if (!isSchemaPath(p.path)) continue;
       const config = parseProject(p.content);
       const folder = splitPath(p.path).folder;
       if (config && !found.has(folder)) found.set(folder, { id: r.id, config });
@@ -279,7 +279,7 @@ export class NoteStore {
     const row = ID_PATTERN.test(noteId) ? this.getRow(noteId) : undefined;
     if (!row || row.deleted) return null;
     const p = this.payload(row);
-    const config = isDatabasePath(p.path) ? parseProject(p.content) : null;
+    const config = isSchemaPath(p.path) ? parseProject(p.content) : null;
     return config ? { ownerId: row.owner_id, folder: splitPath(p.path).folder, config } : null;
   }
 
@@ -723,7 +723,7 @@ export class NoteStore {
           let flow: Omit<ReturnType<NoteStore['applyWorkflow']>, 'content'> = {};
           if (!change.deleted) {
             content = this.numberTicket(ownerId, content);
-            if (isDatabasePath(path)) this.projectCache.delete(ownerId);
+            if (isSchemaPath(path)) this.projectCache.delete(ownerId);
             const { content: next, ...rest } = this.applyWorkflow(ownerId, change.id, path, null, content, userId, !!opts.trusted);
             content = next;
             flow = rest;
@@ -755,7 +755,7 @@ export class NoteStore {
         // Only the owner moves or renames a note: it lives in their space. Deleting also needs the folder share's permission
         const path = manager ? cleanPath(change.path) : old.path;
         const deleted = !!change.deleted;
-        if (isDatabasePath(path) || isDatabasePath(old.path)) this.projectCache.delete(row.owner_id);
+        if (isSchemaPath(path) || isSchemaPath(old.path)) this.projectCache.delete(row.owner_id);
         let flow: Omit<ReturnType<NoteStore['applyWorkflow']>, 'content'> = {};
         if (!deleted) {
           content = this.numberTicket(row.owner_id, content);

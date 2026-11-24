@@ -18,6 +18,7 @@
  * Values: "text", numbers, YYYY-MM-DD, today, tomorrow, true/false.
  */
 
+import { isDatabasePath } from './database.js';
 import { extractMeta, type NoteMeta } from './markdown.js';
 import { NoteMemo } from './noteMemo.js';
 import { memoryMeta } from './memory.js';
@@ -306,6 +307,8 @@ export function runQuery(src: string | Query, notes: QueryNote[], today = new Da
   const query = typeof src === 'string' ? parseQuery(src) : src;
   let rows: QueryRow[] = [];
   for (const note of notes) {
+    // Database notes hold a folder's settings
+    if (isDatabasePath(note.path)) continue;
     if (query.from !== null && !(note.path.startsWith(`${query.from}/`) || query.from === '')) continue;
     const meta = metaMemo.get(note);
     if (query.fromTag !== null && !meta.tags.some((tag) => tagMatches(tag, query.fromTag!))) continue;

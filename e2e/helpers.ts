@@ -124,3 +124,54 @@ export async function enableFeature(page: Page, id: string): Promise<void> {
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
 }
+
+export interface DatabaseGroup {
+  id: string;
+  key: string;
+  ticket: string;
+}
+
+/** A group with tickets on, a project in `Plan` and database notes (also copies of one) at the top and in the folder (#58, #76) */
+export async function groupWithDatabases(request: APIRequestContext): Promise<DatabaseGroup> {
+  const key = `H${[...Array(4)].map(() => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join('')}`;
+  const { id } = (await (await request.post('/api/groups', { data: { name: `Hidden ${key}` } })).json()) as { id: string };
+  expect((await request.put(`/api/groups/${id}/features`, { data: { tickets: true } })).ok()).toBe(true);
+  const ticket = `Ticket ${key}`;
+  const db = `_database-${crypto.randomUUID()}`;
+  const project = `---\ntype: database\nproject:\n  key: ${key}\n  workflow: [Open, Done]\n  active: []\n  done: [Done]\n---\n`;
+  const plain = '---\ntype: database\nviews:\n  - name: Table\n    type: table\n---\n';
+  const now = Date.now();
+  const notes = [
+    { path: `Plan/${db}.md`, content: project },
+    { path: `Plan/${db} 2.md`, content: project },
+    { path: `Plan/${db} (Conflict 1-2-26, 3-04 PM).md`, content: project },
+    { path: `Plan/${ticket}.md`, content: `---\ntype: ticket\nid: ${key}-?\nstatus: Open\n---\n` },
+    { path: `_database-${crypto.randomUUID()}.md`, content: plain },
+    { path: `Top ${key}.md`, content: '# Top' },
+  ];
+  const changes = notes.map((n) => ({ ...n, id: crypto.randomUUID().replace(/-/g, ''), baseVersion: 0, deleted: false, createdAt: now, updatedAt: now, group: id }));
+  expect((await request.post('/api/sync', { data: { changes } })).ok()).toBe(true);
+  return { id, key, ticket };
+}
+
+/** The database notes of `groupWithDatabases` show nowhere, its project still works */
+export async function expectDatabasesHidden(page: Page, group: DatabaseGroup): Promise<void> {
+  const tree = page.locator(`[data-tree-group="${group.id}"]`);
+  const none = () => expect(page.getByText('_database')).toHaveCount(0);
+  await page.goto(`/g/${group.id}/Plan`);
+  await expect(page.locator(`[data-project="${group.key}"]`).getByText(group.ticket, { exact: true }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(tree.getByText(group.ticket, { exact: true })).toBeVisible();
+  await none();
+  await page.goto(`/g/${group.id}`);
+  await expect(tree.getByText(`Top ${group.key}`, { exact: true })).toBeVisible();
+  await none();
+  await page.goto(`/activity?group=${group.id}`);
+  await expect(page.locator('[data-activity-kind="created"]').first()).toBeVisible();
+  await none();
+  for (const path of ['/groups', '/projects', '/notes', '/']) {
+    await page.goto(path);
+    await expect(tree).toBeVisible();
+    await expect(page.getByRole('main').getByRole('heading').first()).toBeVisible();
+    await none();
+  }
+}

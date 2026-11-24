@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { projectTitleOf } from '@kladde/shared';
+import { isDatabasePath, projectTitleOf } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { Plus, X } from '../lib/icons';
 import { t, useLang } from '../lib/i18n';
@@ -40,6 +40,12 @@ function useTabShortcuts(activeId: string | null) {
   }, []);
 }
 
+/** Notes get a tab, database notes (a folder's settings) do not */
+const hasTab = (id: string): boolean => {
+  const note = vault.get(id);
+  return !!note && !isDatabasePath(note.path);
+};
+
 /**
  * Tab row of open notes above the content (desktop). Opening a note adds a tab next to the active one; a click
  * switches, the × or a middle click closes, tabs can be dragged into another order.
@@ -58,13 +64,13 @@ export function NoteTabs() {
   // Opening a note gives it a tab (next to the tab that was active before)
   useEffect(() => {
     if (!activeId) return;
-    if (vault.get(activeId)) touchTab(activeId, lastActive.current);
+    if (hasTab(activeId)) touchTab(activeId, lastActive.current);
     lastActive.current = activeId;
   }, [activeId, version]);
 
   // Notes that are gone lose their tab once the vault has loaded
   useEffect(() => {
-    if (vault.list().length) pruneTabs((id) => !!vault.get(id));
+    if (vault.list().length) pruneTabs(hasTab);
   }, [version]);
 
   // The active tab stays in view

@@ -2,7 +2,7 @@ import { createContext, lazy, Suspense, useContext, useEffect, useRef, useState 
 import { useModal } from '../lib/modal';
 import { Bell, CalendarCheck, CalendarDays, CalendarMonth, FileText, Home, Inbox as InboxIcon, Kanban, ListChecks, Menu, Network, PanelLeftClose, PanelLeftOpen, Pencil, Search as SearchIcon, Share2, Tags, Users, X } from '../lib/icons';
 import { openSearch, SearchDialogHost } from './SearchDialog';
-import { APP_VERSION, INBOX_FOLDER, Me, splitPath } from '@kladde/shared';
+import { isDatabasePath, APP_VERSION, INBOX_FOLDER, Me, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { navigate, usePath } from '../lib/router';
 import { toggleMaterialSidebarMode, useMaterialSidebarMode } from '../lib/sidebarMode';
@@ -190,14 +190,16 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
   const [rightHost, setRightHost] = useState<HTMLDivElement | null>(null);
   const path = usePath();
   const noteId = path.startsWith('/n/') ? decodeURIComponent(path.slice(3)) : null;
-  const inboxCount = vault.list().filter((n) => n.access === 'owner' && splitPath(n.path).folder === INBOX_FOLDER).length;
+  // Counts of what the lists show: database notes are in none of them
+  const listed = vault.list().filter((n) => !isDatabasePath(n.path));
+  const inboxCount = listed.filter((n) => n.access === 'owner' && splitPath(n.path).folder === INBOX_FOLDER).length;
   const inboxBadge = inboxZero && inboxCount > 0 ? <NavBadge tone="warn" count={inboxCount} /> : undefined;
   // Overdue and today's open tasks (#45)
   const urgentTasks = urgentTaskCount(version);
   const taskBadge = urgentTasks ? <NavBadge tone="warn" count={urgentTasks} /> : undefined;
-  const sharedCount = vault.list().filter((n) => n.access !== 'owner' && !n.group).length;
+  const sharedCount = listed.filter((n) => n.access !== 'owner' && !n.group).length;
   const showShared = (sharedCount > 0 || vault.sharedFolders.length > 0) && !vault.standalone;
-  const ownNotes = vault.list().filter((n) => n.access === 'owner').length;
+  const ownNotes = listed.filter((n) => n.access === 'owner').length;
   const sidebarWidth = useSidebarWidth();
   const features = vault.features();
   // Mentions and comments (#69, #68): only with an account on a server

@@ -8,7 +8,7 @@ import {
   MILESTONE_FOLDER,
   RELEASE_NOTES_FOLDER,
   databaseFileName,
-  isDatabasePath,
+  isSchemaPath,
   isMilestoneContent,
   isTicketContent,
   milestoneMeta,
@@ -141,7 +141,7 @@ function build(): Index {
   const projects: ProjectInfo[] = [];
   const projectAt = new Map<string, ProjectInfo>();
   for (const n of notes) {
-    if (!isDatabasePath(n.path) || !ticketsActiveIn(n)) continue;
+    if (!isSchemaPath(n.path) || !ticketsActiveIn(n)) continue;
     const config = parseProject(n.content);
     if (!config) continue;
     const folder = splitPath(n.path).folder;
