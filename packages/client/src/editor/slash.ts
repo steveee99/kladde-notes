@@ -112,6 +112,19 @@ function commands(insertFiles: FileInserter, lang: Lang): SlashCommand[] {
     },
     { label: tl(lang, 'editor.slash.webLink'), detail: '[ ]( )', keywords: 'url web link', template: '[|](https://)' },
     { label: tl(lang, 'editor.slash.variable'), detail: '{{var: }}', keywords: 'variable platzhalter placeholder wert value', template: '{{var:|}}', openCompletions: true },
+    {
+      label: tl(lang, 'remote.kind'),
+      detail: tl(lang, 'remote.slashDetail'),
+      keywords: 'gitlab github remote extern readme repository dokument einbetten embed',
+      run: (view, from, to) => {
+        view.dispatch({ changes: { from, to, insert: '' } });
+        editorHost.newRemoteNote(view.state.facet(noteIdFacet), (title) => {
+          const line = view.state.doc.lineAt(Math.min(from, view.state.doc.length));
+          const insert = `${line.text.trim() ? '\n' : ''}![[${title}]]\n`;
+          view.dispatch({ changes: { from: line.to, insert }, selection: { anchor: line.to + insert.length } });
+        });
+      },
+    },
     { label: tl(lang, 'editor.slash.today'), detail: 'YYYY-MM-DD', keywords: 'date today heute datum', template: () => `${toDateString(new Date())}|` },
     {
       label: tl(lang, 'editor.slash.upload'),

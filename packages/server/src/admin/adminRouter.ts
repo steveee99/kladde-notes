@@ -5,6 +5,8 @@ import { AuditLog } from '../security/AuditLog.js';
 import { handle, requireUser } from '../http.js';
 import type { BackupService } from '../backup/BackupService.js';
 import type { StorageStore } from '../StorageStore.js';
+import type { RemoteInstances } from '../remote/RemoteInstances.js';
+import type { RemoteFetcher } from '../remote/RemoteFetcher.js';
 import { tarSize, writeTar } from '../backup/tar.js';
 
 export interface AdminRouterOptions {
@@ -13,6 +15,8 @@ export interface AdminRouterOptions {
   storage: StorageStore;
   audit: AuditLog;
   status: () => AdminStatus;
+  /** Access to GitLab and GitHub for remote notes */
+  remote?: { instances: RemoteInstances; fetcher: RemoteFetcher };
   /** Backups (#65); missing for an in-memory database */
   backups?: BackupService;
   /** Called after a restore was prepared and answered: the server has to restart to apply it */
@@ -22,7 +26,7 @@ export interface AdminRouterOptions {
 }
 
 /** Admin area of the web app: accounts, invites, password resets and the audit log (admins only) */
-export function adminRouter({ users, storage, audit, status, backups, onRestore, enterMaintenance }: AdminRouterOptions): express.Router {
+export function adminRouter({ users, storage, audit, status, remote, backups, onRestore, enterMaintenance }: AdminRouterOptions): express.Router {
   const router = express.Router();
   const authed = requireUser(users);
   router.use(authed, (req, res, next) => {
@@ -217,6 +221,52 @@ export function adminRouter({ users, storage, audit, status, backups, onRestore,
       res.json({ restarting: true, safetyBackup: safetyBackup.id });
     })
   );
+
+  // ---------------------------------------------------------------- GitLab and GitHub access for remote notes
+
+  if (remote) {
+    const { instances, fetcher } = remote;
+    const urlOf = (id: string) => instances.list().find((i) => i.id === id)?.url ?? '';
+    // Tokens go in, never out: every answer is the list without them
+    router.get('/remote', (_req, res) => res.json(instances.list()));
+
+    router.post(
+      '/remote',
+      handle((req, res) => {
+        const id = instances.put(null, req.body);
+        record(req, `gitlab/github-zugang angelegt ${urlOf(id)}`);
+        res.json(instances.list());
+      })
+    );
+
+    router.put(
+      '/remote/:id',
+      handle((req, res) => {
+        const id = instances.put(String(req.params.id), req.body);
+        record(req, `gitlab/github-zugang geändert ${urlOf(id)}`);
+        res.json(instances.list());
+      })
+    );
+
+    router.delete(
+      '/remote/:id',
+      handle((req, res) => {
+        const url = instances.remove(String(req.params.id));
+        if (!url) throw new AccountError('Diesen Zugang gibt es nicht.', 404);
+        record(req, `gitlab/github-zugang gelöscht ${url}`);
+        res.json(instances.list());
+      })
+    );
+
+    router.post(
+      '/remote/:id/test',
+      handle(async (req, res) => {
+        const instance = instances.get(String(req.params.id));
+        if (!instance) throw new AccountError('Diesen Zugang gibt es nicht.', 404);
+        res.json(await fetcher.test(instance));
+      })
+    );
+  }
 
   // ---------------------------------------------------------------- audit log
 

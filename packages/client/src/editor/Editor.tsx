@@ -11,7 +11,7 @@ import { tags as t } from '@lezer/highlight';
 import { commentHighlights } from './comments';
 import { calloutsFacet, hidePropertiesFacet, livePreview, noteIdFacet, previewAll, refreshEffect, slideBreakLabel } from './livePreview';
 import { configureEmbeds } from './embed';
-import { embedResolverFacet, type EmbedResolver } from './embedContext';
+import { embedResolverFacet, foreignFacet, type EmbedResolver } from './embedContext';
 import { statusTaskList } from './taskStatus';
 import { useCodeBlockPrefs, useLigatures } from '../lib/prefs';
 import { sourceHighlight } from './sourceHighlight';
@@ -194,6 +194,7 @@ function pasteLink(e: ClipboardEvent, view: EditorView): boolean {
 function fileHandlers() {
   return EditorView.domEventHandlers({
     paste(e, view) {
+      if (view.state.readOnly) return false;
       const files = [...(e.clipboardData?.files ?? [])].filter((f) => /^(image\/|application\/pdf)/.test(f.type));
       if (!files.length) return pasteLink(e, view);
       e.preventDefault();
@@ -201,6 +202,11 @@ function fileHandlers() {
       return true;
     },
     drop(e, view) {
+      if (view.state.readOnly) {
+        // Nothing is inserted, and the browser must not open the file instead of the note
+        e.preventDefault();
+        return true;
+      }
       const files = [...(e.dataTransfer?.files ?? [])].filter((f) => /^(image\/|application\/pdf|audio\/)/.test(f.type));
       if (!files.length) return false;
       e.preventDefault();
@@ -281,9 +287,11 @@ export interface EditorProps {
   callouts?: boolean;
   /** Hide the frontmatter row in the live preview (the note shows its fields above the text, e.g. tickets) */
   hideProperties?: boolean;
+  /** The text comes from outside the vault (remote notes): nothing in it is looked up in the reader's notes */
+  foreign?: boolean;
 }
 
-export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote, dim = false, onActivity, resolveEmbed, releases = null, variables = null, slideBreaks = '', callouts = true, hideProperties = false }: EditorProps) {
+export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote, dim = false, onActivity, resolveEmbed, releases = null, variables = null, slideBreaks = '', callouts = true, hideProperties = false, foreign = false }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const changeRef = useRef(onChange);
@@ -373,6 +381,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           presenceNote ? remoteCursors(presenceNote) : [],
           commentHighlights,
           resolveEmbed ? embedResolverFacet.of(resolveEmbed) : [],
+          foreign ? foreignFacet.of(true) : [],
         ],
       }),
     });

@@ -36,6 +36,7 @@ const API_GROUPS = new Set([
   'me',
   'export',
   'confluence',
+  'remote-notes',
   'share',
   'public',
 ]);

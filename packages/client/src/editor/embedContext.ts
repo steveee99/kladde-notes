@@ -20,6 +20,12 @@ export type EmbedResolver = (target: string) => EmbedNote | null;
 /** Overrides `editorHost.resolveEmbed` (public links resolve only from what the server sent) */
 export const embedResolverFacet = Facet.define<EmbedResolver, EmbedResolver | null>({ combine: (v) => v[0] ?? null });
 
+/**
+ * The text comes from outside the vault (a remote note): nothing in it is looked up in the reader's notes – no [[links]],
+ * embeds, queries, tickets, mentions, automatic links or variables
+ */
+export const foreignFacet = Facet.define<boolean, boolean>({ combine: (v) => v.some(Boolean) });
+
 /** Where an editor sits inside embeds: the notes above it (cycles) and, for a nested editor, its source */
 export interface EmbedContext {
   depth: number;

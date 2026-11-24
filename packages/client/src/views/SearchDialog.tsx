@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { isHiddenPath, isExcalidrawNote, pdfNoteOf, projectTitleOf, searchNotes, searchSnippet, searchTerms, splitPath } from '@kladde/shared';
+import { isHiddenPath, isExcalidrawNote, pdfNoteOf, remoteNoteOf, projectTitleOf, searchNotes, searchSnippet, searchTerms, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { api } from '../lib/api';
 import type { LocalNote } from '../data/db';
-import { CheckSquare, Draw, FileText, FileType2, Psychology, Search as SearchIcon, Users, X } from '../lib/icons';
+import { CheckSquare, Draw, FileText, FileType2, Psychology, RemoteDoc, Search as SearchIcon, Users, X } from '../lib/icons';
 import { openInSide, splitAvailable } from '../lib/panes';
 import { formatDue } from '../editor/widgets';
 import { collectTasks, type TaskRow } from './TaskParts';
@@ -355,7 +355,7 @@ function SearchDialog({ onClose, commands }: { onClose: () => void; commands?: (
                   const { folder } = splitPath(n.path);
                   const title = projectTitleOf(n.path, n.content, roleConfig);
                   const icon = vault.noteIcon(n);
-                  const TypeIcon = vault.isMemoryNote(n) ? Psychology : pdfNoteOf(n.content) ? FileType2 : isExcalidrawNote(n.content) ? Draw : FileText;
+                  const TypeIcon = vault.isMemoryNote(n) ? Psychology : remoteNoteOf(n.content) ? RemoteDoc : pdfNoteOf(n.content) ? FileType2 : isExcalidrawNote(n.content) ? Draw : FileText;
                   const group = groupName(n);
                   const where = [group, folder ? folderDisplayName(folder, lang) : ''].filter(Boolean).join(' / ');
                   const snippet = snippets.get(n.id) ?? searchSnippet(n.content, terms);

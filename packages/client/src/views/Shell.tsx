@@ -5,6 +5,7 @@ import {
   CalendarCheck,
   CalendarMonth,
   Globe,
+  RemoteDoc,
   ListChecks,
   Kanban,
   CalendarDays,
@@ -47,6 +48,7 @@ import {
   isHiddenPath,
   Me,
   pdfNoteOf,
+  remoteNoteOf,
   projectTitleOf,
   splitPath,
   toDateString,
@@ -204,6 +206,7 @@ function NewNoteButton({
           >
             {menuItem(FileText, t('nav.newNoteShort'), () => newNote(folder ?? undefined))}
             {zettel && menuItem(Lightbulb, 'Zettel', newZettel, t('nav.zettelTitle'))}
+            {menuItem(RemoteDoc, t('remote.kind'), () => openDialog({ kind: 'remote', folder: folder ?? undefined }), t('remote.kindHint'))}
             {menuItem(Globe, t('clip.kind'), () => openDialog({ kind: 'clip' }), t('clip.title'))}
             {recipe && menuItem(ChefHat, t('nav.recipe'), () => importRecipe(), t('quick.recipeTitle'))}
             {menuItem(Draw, t('nav.drawingNote'), () => void createDrawingNote(folder ?? INBOX_FOLDER), t('nav.drawingNoteTitle'))}
@@ -397,7 +400,7 @@ function SidebarNoteRow({
   onNavigate?: () => void;
 }) {
   const name = label ?? splitPath(note.path).name;
-  const Icon = pdfNoteOf(note.content) ? FileType2 : isExcalidrawNote(note.content) ? Draw : FileText;
+  const Icon = remoteNoteOf(note.content) ? RemoteDoc : pdfNoteOf(note.content) ? FileType2 : isExcalidrawNote(note.content) ? Draw : FileText;
   const icon = vault.noteIcon(note);
   const openNote = () => {
     navigate(`/n/${note.id}`);

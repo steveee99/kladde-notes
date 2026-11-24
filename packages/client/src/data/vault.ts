@@ -84,6 +84,7 @@ import {
   dailyDueResolver,
   toDateString,
   zettelId,
+  keepRemoteBody,
   normalizeDueWords,
   splitPath,
   toggleTask,
@@ -837,7 +838,8 @@ class Vault {
       const cur = splitPath(note.path);
       path = this.uniquePath(patch.folder ?? cur.folder, patch.title ?? cur.name, id, spaceOf(note));
     }
-    const content = patch.content !== undefined ? normalizeDueWords(patch.content) : note.content;
+    // A remote note's text is never written: whatever wants to (a task, a mention, an old tab) changes its frontmatter at most
+    const content = patch.content !== undefined ? keepRemoteBody(note.content, normalizeDueWords(patch.content)) : note.content;
     if (content === note.content && path === note.path) return;
     await this.put({ ...note, content, path, updatedAt: Date.now(), dirty: true });
     const oldName = splitPath(note.path).name;
@@ -891,7 +893,7 @@ class Vault {
       const before = this.notes.get(c.id);
       // Online mode: a catalog entry's text is not here, so a new text for it was computed from nothing
       if (!before || before.deleted || before.partial || before.access === 'read' || before.content === c.content) continue;
-      let note: LocalNote = { ...before, content: c.content, updatedAt: now, dirty: true };
+      let note: LocalNote = { ...before, content: keepRemoteBody(before.content, c.content), updatedAt: now, dirty: true };
       if (note.base === undefined && note.version > 0 && !before.dirty) note = { ...note, base: before.content, basePath: before.path };
       this.notes.set(note.id, note);
       written.push(note);

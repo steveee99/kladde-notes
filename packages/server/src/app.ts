@@ -44,6 +44,9 @@ import { ocrFromEnv } from './attachments/ocr.js';
 import { ConfluenceStore } from './confluence/ConfluenceStore.js';
 import { ConfluenceSync } from './confluence/ConfluenceSync.js';
 import { httpsTransport, type HttpTransport } from './confluence/ConfluenceClient.js';
+import { RemoteInstances } from './remote/RemoteInstances.js';
+import { RemoteFetcher } from './remote/RemoteFetcher.js';
+import { remoteRouter } from './remote/router.js';
 import { confluenceRouter } from './confluence/router.js';
 import { BackupService } from './backup/BackupService.js';
 import { ServerSettings } from './ServerSettings.js';
@@ -364,6 +367,10 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   const accountExports = new AccountExportService({ notes, files, dataDir: opts.dataDir });
   app.use('/api/account-export', accountExportRouter({ users, exports: accountExports, audit, standaloneUser }));
   app.use('/api/confluence', confluenceRouter({ users, sync: confluence, audit, allowPrivate: confluenceAllowPrivate, standaloneUser }));
+  // Remote notes: Markdown from GitLab/GitHub, read live with the access configured for everyone
+  const remoteInstances = new RemoteInstances(env, new ServerSettings(opts.db), cipher);
+  const remoteFetcher = new RemoteFetcher(remoteInstances);
+  app.use('/api/remote-notes', remoteRouter({ users, notes, instances: remoteInstances, fetcher: remoteFetcher, standaloneUser }));
   if (!opts.standalone) {
     app.use(
       '/api/admin',
@@ -372,6 +379,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
         storage,
         audit,
         status,
+        remote: { instances: remoteInstances, fetcher: remoteFetcher },
         backups,
         onRestore: opts.onRestart,
         enterMaintenance: () => {

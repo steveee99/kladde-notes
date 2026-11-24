@@ -1,10 +1,10 @@
 import { EditorState, Extension } from '@codemirror/state';
 import { EditorView, WidgetType } from '@codemirror/view';
-import { MAX_EMBED_DEPTH, embedSection, stripBlockIds, type EmbedRef } from '@kladde/shared';
+import { MAX_EMBED_DEPTH, embedSection, remoteNoteOf, stripBlockIds, type EmbedRef } from '@kladde/shared';
 import { getLang, tl, type Lang } from '../lib/i18n';
 import { appUrl, navigate } from '../lib/router';
 import { editorHost } from './host';
-import { embedContext, embedResolverFacet, type EmbedNote, type EmbedResolver } from './embedContext';
+import { embedContext, embedResolverFacet, foreignFacet, type EmbedNote, type EmbedResolver } from './embedContext';
 import { editButton } from './widgets';
 import { variablesFacet } from './variables';
 
@@ -14,6 +14,8 @@ let nestedExtensions: (noteId: string) => Extension = () => [];
 export function configureEmbeds(fn: (noteId: string) => Extension): void {
   nestedExtensions = fn;
 }
+
+type EmbedDom = HTMLElement & { cmEmbed?: EditorView; embedGone?: boolean };
 
 export type EmbedProblem = 'missing' | 'cycle' | 'deep' | 'section';
 
@@ -26,6 +28,8 @@ export class EmbedWidget extends WidgetType {
   readonly text: string;
   readonly startLine: number;
   readonly problem: EmbedProblem | null;
+  /** The embedded note is a remote one: its stored text (the source), the document itself is loaded when drawn */
+  readonly remote: string | null;
 
   constructor(
     readonly ref: EmbedRef,
@@ -40,10 +44,11 @@ export class EmbedWidget extends WidgetType {
     let problem: EmbedProblem | null = null;
     let text = '';
     let startLine = 0;
+    this.remote = note && remoteNoteOf(note.content) ? note.content : null;
     if (!note) problem = 'missing';
     else if (chain.includes(note.id)) problem = 'cycle';
     else if (depth >= MAX_EMBED_DEPTH) problem = 'deep';
-    else {
+    else if (this.remote === null) {
       const section = embedSection(note.content, ref);
       if (!section) problem = 'section';
       else {
@@ -68,6 +73,7 @@ export class EmbedWidget extends WidgetType {
       o.note?.href === this.note?.href &&
       o.note?.variables === this.note?.variables &&
       o.problem === this.problem &&
+      o.remote === this.remote &&
       o.text === this.text &&
       o.startLine === this.startLine &&
       o.depth === this.depth &&
@@ -116,6 +122,8 @@ export class EmbedWidget extends WidgetType {
     if (this.problem) {
       body.classList.add('wz-embed-problem');
       body.textContent = tl(this.lang, `embed.${this.problem}`);
+    } else if (note && this.remote !== null) {
+      this.loadRemote(view, body, note);
     } else if (note) {
       const nested = new EditorView({
         parent: body,
@@ -129,15 +137,50 @@ export class EmbedWidget extends WidgetType {
           ],
         }),
       });
-      (wrap as HTMLElement & { cmEmbed?: EditorView }).cmEmbed = nested;
+      (wrap as EmbedDom).cmEmbed = nested;
     }
     wrap.append(body);
     if (view.state.facet(EditorView.editable)) wrap.append(editButton(view, () => view.posAtDOM(wrap), this.lang));
     return wrap;
   }
 
+  /** The document of an embedded remote note, read-only and without anything of the reader's vault */
+  private loadRemote(view: EditorView, body: HTMLElement, note: EmbedNote): void {
+    const message = (text: string) => {
+      body.classList.add('wz-embed-problem');
+      body.textContent = text;
+    };
+    // Public links: nothing is fetched for guests
+    if (this.resolver) return message(tl(this.lang, 'remote.public'));
+    body.setAttribute('role', 'status');
+    message(tl(this.lang, 'remote.loading'));
+    void editorHost.loadRemote(note.id).then((loaded) => {
+      const wrap = body.closest<EmbedDom>('.wz-embed');
+      if (!wrap || wrap.embedGone) return;
+      body.removeAttribute('role');
+      if ('problem' in loaded) message(loaded.problem);
+      else {
+        const section = embedSection(loaded.text, this.ref);
+        if (!section) message(tl(this.lang, 'embed.section'));
+        else {
+          body.classList.remove('wz-embed-problem');
+          body.textContent = '';
+          wrap.cmEmbed = new EditorView({
+            parent: body,
+            state: EditorState.create({
+              doc: stripBlockIds(section.text),
+              extensions: [nestedExtensions(note.id), foreignFacet.of(true), embedContext.of({ depth: this.depth + 1, chain: [...this.chain, note.id], source: null })],
+            }),
+          });
+        }
+      }
+      view.requestMeasure();
+    });
+  }
+
   destroy(dom: HTMLElement) {
-    (dom as HTMLElement & { cmEmbed?: EditorView }).cmEmbed?.destroy();
+    (dom as EmbedDom).embedGone = true;
+    (dom as EmbedDom).cmEmbed?.destroy();
   }
 
   ignoreEvent() {

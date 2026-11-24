@@ -88,12 +88,14 @@ export class TableWidget extends BlockWidget {
     src: string,
     lang: Lang = getLang(),
     readonly canEdit = false,
-    readonly variables: VariableScope | null = null
+    readonly variables: VariableScope | null = null,
+    /** Text from outside the vault: [[links]] stay text */
+    readonly foreign = false
   ) {
     super(src, lang);
   }
   eq(other: TableWidget) {
-    return other.src === this.src && other.lang === this.lang && other.canEdit === this.canEdit && other.variables === this.variables;
+    return other.foreign === this.foreign && other.src === this.src && other.lang === this.lang && other.canEdit === this.canEdit && other.variables === this.variables;
   }
   toDOM(view: EditorView) {
     const t = parseMarkdownTable(this.src);
@@ -135,7 +137,7 @@ export class TableWidget extends BlockWidget {
       dataTable(
         t.headers,
         t.rows.map((r) => ({ cells: r, keys: r.map((c) => (this.variables ? resolveVariables(c, this.variables) : stripInline(c))), raw: r })),
-        { variables: this.variables, align: t.align, onWiki: (w) => editorHost.openWiki(w), edit }
+        { variables: this.variables, align: t.align, plain: this.foreign, onWiki: (w) => editorHost.openWiki(w), edit }
       )
     );
     return frame;
@@ -879,19 +881,21 @@ export class LinkWidget extends WidgetType {
     /** The URL may be opened (false: it has a variable without a value) */
     readonly complete = true,
     /** Link text to show as it is (with the values of variables) instead of `text` as Markdown */
-    readonly label: string | null = null
+    readonly label: string | null = null,
+    /** Text from outside the vault: no path in it names one of the reader's notes */
+    readonly foreign = false
   ) {
     super();
   }
   eq(o: LinkWidget) {
-    return o.text === this.text && o.url === this.url && o.complete === this.complete && o.label === this.label;
+    return o.foreign === this.foreign && o.text === this.text && o.url === this.url && o.complete === this.complete && o.label === this.label;
   }
   private shown(): string {
     return (this.label ?? stripInline(this.text)).trim();
   }
   toDOM() {
     // A path link to a note (OKF bundles in the AI memory, #94) opens the note like a [[link]]
-    const notePath = this.complete ? localNotePath(this.url) : null;
+    const notePath = this.complete && !this.foreign ? localNotePath(this.url) : null;
     if (notePath && editorHost.wikiExists(notePath)) {
       const s = document.createElement('span');
       s.className = 'cm-wikilink';

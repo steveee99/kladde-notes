@@ -6,6 +6,7 @@ import {
   hasVariables,
   isVariablesPath,
   markdownToConfluence,
+  remoteNoteOf,
   runQuery,
   type ConfluenceNoteState,
   type ConfluenceOverview,
@@ -410,7 +411,9 @@ export class ConfluenceSync {
     const names = new Map<string, string>();
     const used = new Set<string>();
     const dueOf = taskDueOf(this.notes, userId);
-    return markdownToConfluence(note.path, note.content, {
+    // A remote note's document stays behind the access it is read with: the page only says what the note is
+    const content = remoteNoteOf(note.content) ? 'Diese Notiz zeigt ein Dokument aus GitLab/GitHub. / This note shows a document from GitLab/GitHub.\n' : note.content;
+    return markdownToConfluence(note.path, content, {
       spaceKey: sync.spaceKey,
       variables: this.notes.variablesOf(userId, folderOf(note.path)),
       linkTitle: (target) => {
