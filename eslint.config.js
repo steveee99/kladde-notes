@@ -17,6 +17,16 @@ export default tseslint.config(
     rules: { 'react-hooks/rules-of-hooks': 'error', 'react-hooks/exhaustive-deps': 'off' },
   },
   {
+    // Code that runs in the browser must also work on plain HTTP, where `crypto.randomUUID` does not exist
+    files: ['packages/client/src/**/*.{ts,tsx}', 'packages/shared/src/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        { selector: "MemberExpression[property.name='randomUUID']", message: 'randomUUID is missing on plain HTTP: use newUuid (client/lib/uuid.ts).' },
+      ],
+    },
+  },
+  {
     files: ['**/tests/**'],
     rules: { '@typescript-eslint/no-explicit-any': 'off' },
   },

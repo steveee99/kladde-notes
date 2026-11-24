@@ -41,6 +41,7 @@ import {
   type StatusCategory,
   type TicketMeta,
 } from '@kladde/shared';
+import { newUuid } from '../lib/uuid';
 import { vault } from './vault';
 import type { LocalNote } from './db';
 import { compareText, getLang, t } from '../lib/i18n';
@@ -389,7 +390,7 @@ async function createIn(space: TicketSpace, folder: string, title: string, conte
 /** Turns a folder into a project: a database note with the project settings */
 export async function createProject(space: TicketSpace, folder: string, key: string, requireDocs = false): Promise<LocalNote> {
   guard();
-  return createIn(space, folder, databaseFileName(crypto.randomUUID()).replace(/\.md$/, ''), newProjectContent(key, getLang(), requireDocs));
+  return createIn(space, folder, databaseFileName(newUuid()).replace(/\.md$/, ''), newProjectContent(key, getLang(), requireDocs));
 }
 
 /**

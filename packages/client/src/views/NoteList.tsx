@@ -6,6 +6,7 @@ import type { SharedFolder } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { navigate } from '../lib/router';
+import { newUuid } from '../lib/uuid';
 import { openDialog } from '../lib/dialogs';
 import { FolderNameInput, newNote } from './Shell';
 import { dragSource, useDropTarget } from '../lib/dnd';
@@ -354,7 +355,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
   const project = dbNote && folder ? projectAt({}, folder) : undefined;
   const makeDatabase = () => {
     const keys = inferPropertyKeys(folder!, vault.list());
-    void vault.create(folder!, databaseFileName(crypto.randomUUID()).replace(/\.md$/, ''), newDatabaseContent(keys)).catch((err: Error) => alert(err.message));
+    void vault.create(folder!, databaseFileName(newUuid()).replace(/\.md$/, ''), newDatabaseContent(keys)).catch((err: Error) => alert(err.message));
   };
   const subfolders = mode === 'folder' ? vault.folders().filter((f) => f.startsWith(`${folder}/`) && !f.slice(folder!.length + 1).includes('/')) : [];
   // Notes in a folder and all its subfolders (owned ones, like the list itself)
