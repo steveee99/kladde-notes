@@ -26,6 +26,7 @@ import {
 } from '@kladde/shared';
 import { vault } from '../data/vault';
 import { createTicketHook, listTicketHooks, removeTicketHook, saveProject, ticketsOf, type ProjectInfo } from '../data/tickets';
+import { copyText } from '../lib/clipboard';
 import { useModal } from '../lib/modal';
 import { locale, t, type I18nKey } from '../lib/i18n';
 import { AlertTriangle, ArrowDown, ArrowRight, ArrowUp, Check, Copy, Info, Loader2, Plus, Route, Settings, Trash2, Webhook, X, Zap } from '../lib/icons';
@@ -811,7 +812,8 @@ function CopyField({ label, value, secret }: { label: string; value: string; sec
           type="button"
           className="btn-outlined shrink-0"
           onClick={() =>
-            void navigator.clipboard?.writeText(value).then(() => {
+            void copyText(value).then((ok) => {
+              if (!ok) return;
               setCopied(true);
               setTimeout(() => setCopied(false), 1500);
             })

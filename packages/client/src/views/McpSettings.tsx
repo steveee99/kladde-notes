@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Bot, Check, Copy, KeyRound, Plus, Trash2 } from '../lib/icons';
 import type { McpConnection, McpTokenCreated } from '@kladde/shared';
+import { copyText } from '../lib/clipboard';
 import { api } from '../lib/api';
 import { locale, tl, useLang } from '../lib/i18n';
 import { SettingsPage } from './SettingsPage';
@@ -18,9 +19,11 @@ export function CopyField({ value, label }: { value: string; label?: string }) {
         className="btn-outlined shrink-0  px-3"
         title={label ?? tl(lang, 'common.copy')}
         onClick={() => {
-          void navigator.clipboard?.writeText(value);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
+          void copyText(value).then((ok) => {
+            if (!ok) return;
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          });
         }}
       >
         {copied ? <Check size={15} className="text-ok" /> : <Copy size={15} />}

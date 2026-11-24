@@ -25,6 +25,7 @@ import {
   type QueryRow,
   type TaskStatus,
 } from '@kladde/shared';
+import { copyText } from '../lib/clipboard';
 import { getLang, locale, tl, type Lang } from '../lib/i18n';
 import { dataTable, groupedTable, openTableCell, parseMarkdownTable, stripInline, type CellRef, type DataRow, type TableEditing } from './datatable';
 import { editorHost, type TicketChip } from './host';
@@ -603,7 +604,8 @@ export class CodeHeaderWidget extends WidgetType {
     copy.textContent = tl(this.uiLang, 'editor.codeCopy');
     copy.addEventListener('mousedown', (e) => {
       e.preventDefault();
-      void navigator.clipboard?.writeText(this.code).then(() => {
+      void copyText(this.code).then((ok) => {
+        if (!ok) return;
         copy.textContent = tl(this.uiLang, 'editor.codeCopied');
         setTimeout(() => (copy.textContent = tl(this.uiLang, 'editor.codeCopy')), 1200);
       });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Backup, Ban, Check, Copy, KeyRound, Mail, RotateCcw, ScrollText, ShieldCheck, ShieldOff, Smartphone, Trash2, UserCheck, Users } from '../lib/icons';
 import type { AdminAuditEntry, AdminInvite, AdminStatus, AdminUser, Me } from '@kladde/shared';
+import { copyText } from '../lib/clipboard';
 import { api } from '../lib/api';
 import { I18nKey, Lang, locale, tl, useLang } from '../lib/i18n';
 import { Avatar } from './Avatar';
@@ -26,7 +27,8 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
     <button
       className="btn-outlined px-3 py-1 text-xs"
       onClick={() => {
-        void navigator.clipboard?.writeText(text).then(() => {
+        void copyText(text).then((ok) => {
+          if (!ok) return;
           setDone(true);
           setTimeout(() => setDone(false), 1500);
         });

@@ -93,6 +93,7 @@ import {
 import { useVault, vault } from '../data/vault';
 import { useOnlineBacklinks } from '../data/online';
 import type { LocalNote } from '../data/db';
+import { copyText } from '../lib/clipboard';
 import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
 import { Editor, insertAtLineStart, insertText, toggleCode, toggleWrap, wrapSelection } from '../editor/Editor';
@@ -1466,14 +1467,10 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
 
   const copyMarkdown = async () => {
     const clean = stripFrontmatter(note.content);
-    try {
-      await navigator.clipboard.writeText(clean);
-      setCopiedMd(true);
-      if (copyTimer.current) clearTimeout(copyTimer.current);
-      copyTimer.current = setTimeout(() => setCopiedMd(false), 1800);
-    } catch {
-      /* ignore */
-    }
+    if (!(await copyText(clean))) return;
+    setCopiedMd(true);
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => setCopiedMd(false), 1800);
   };
 
   const jumpToPos = (pos: number, closeSheet = false) => {

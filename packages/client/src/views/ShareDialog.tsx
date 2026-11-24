@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { copyText } from '../lib/clipboard';
 import { useModal } from '../lib/modal';
 import { createPortal } from 'react-dom';
 import { Copy, Folder, Globe, Trash2, UserPlus, X } from '../lib/icons';
@@ -202,9 +203,11 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose:
               <button
                 className="mt-2.5 flex w-full items-center gap-2 rounded-xl bg-surface-container-high px-3 py-2 text-left text-xs text-on-surface-variant anim-fade-in"
                 onClick={() => {
-                  void navigator.clipboard?.writeText(link);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
+                  void copyText(link).then((ok) => {
+                    if (!ok) return;
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  });
                 }}
               >
                 <span className="flex-1 truncate">{link}</span>
