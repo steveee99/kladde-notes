@@ -75,16 +75,16 @@ describe('database schema', () => {
     expect(isDatabasePath(databaseFileName('0b9f6c1e-3d52-4c0e'))).toBe(true);
   });
 
-  it('hides numbered and conflict copies of a database note, which never define a database', () => {
+  it('hides numbered copies of a database note, which never define a database, but not conflict copies', () => {
     const name = '_database-0b9f6c1e-3d52-4c0e-9a7e-5f1d2c3b4a69';
-    for (const copy of [`${name} 2`, `${name} (2)`, `${name} (Konflikt 24.11.26, 12-30)`, `${name} (Conflict 11-24-26, 12-30 PM) 2`, '_database 2']) {
+    for (const copy of [`${name} 2`, '_database 2']) {
       const path = `Team/Books/${copy}.md`;
       expect(isDatabasePath(path)).toBe(true);
       expect(isSchemaPath(path)).toBe(false);
       expect(findDatabaseNote('Team/Books', [{ path, content: newDatabaseContent() }])).toBeNull();
     }
     expect(isSchemaPath(`${name}.md`)).toBe(true);
-    for (const other of ['_database notes', '_databases 2', '_database-notes (2)', 'my_database 2']) expect(isDatabasePath(`Books/${other}.md`)).toBe(false);
+    for (const other of ['_database notes', '_databases 2', '_database-notes (2)', `${name} (Konflikt 24.11.26, 12-30)`, `${name} (Conflict 11-24-26, 12-30 PM) 2`, 'my_database 2']) expect(isDatabasePath(`Books/${other}.md`)).toBe(false);
   });
 
   it('keeps database notes out of query rows, backlinks, mentions and link suggestions', () => {

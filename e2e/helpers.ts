@@ -144,7 +144,6 @@ export async function groupWithDatabases(request: APIRequestContext): Promise<Da
   const notes = [
     { path: `Plan/${db}.md`, content: project },
     { path: `Plan/${db} 2.md`, content: project },
-    { path: `Plan/${db} (Conflict 1-2-26, 3-04 PM).md`, content: project },
     { path: `Plan/${ticket}.md`, content: `---\ntype: ticket\nid: ${key}-?\nstatus: Open\n---\n` },
     { path: `_database-${crypto.randomUUID()}.md`, content: plain },
     { path: `Top ${key}.md`, content: '# Top' },
