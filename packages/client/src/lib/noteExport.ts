@@ -32,6 +32,7 @@ import {
   slideFormatOf,
   slideRatio,
   splitSlides,
+  type VariableScope,
   stripFrontmatter,
   svgNaturalSize,
   type CalloutKind,
@@ -377,8 +378,8 @@ const docxAlign = (a: TableAlign) =>
   a === 'center' ? AlignmentType.CENTER : a === 'right' ? AlignmentType.RIGHT : AlignmentType.LEFT;
 
 /** Exports a note as a Word (.docx) document without frontmatter */
-export async function exportNoteAsWord(title: string, content: string): Promise<void> {
-  const parsed = parseMarkdownForExport(title, content);
+export async function exportNoteAsWord(title: string, content: string, variables?: VariableScope): Promise<void> {
+  const parsed = parseMarkdownForExport(title, content, variables);
   const { images, diagrams, icons } = await preloadMedia(parsed.blocks);
   if (collectMath(parsed.blocks).length) await prepareMath();
 
@@ -1298,8 +1299,8 @@ function drawPdfBlocks(f: PdfFrame, blocks: ExportBlock[]) {
 }
 
 /** Exports a note directly as a clean downloadable PDF without frontmatter */
-export async function exportNoteAsPdf(title: string, content: string): Promise<void> {
-  const parsed = parseMarkdownForExport(title, content);
+export async function exportNoteAsPdf(title: string, content: string, variables?: VariableScope): Promise<void> {
+  const parsed = parseMarkdownForExport(title, content, variables);
   const media = await preloadMedia(parsed.blocks);
   pdfMath = await rasterizeMath(collectMath(parsed.blocks));
 
@@ -1362,11 +1363,11 @@ const SLIDE_MIN_SCALE = 1;
  * Exports a note as slides: one landscape (or square/portrait) page per slide in the format chosen on the note,
  * large text that shrinks only as far as a full slide needs, title slides centered, speaker notes left out.
  */
-export async function exportNoteAsSlides(title: string, content: string): Promise<void> {
+export async function exportNoteAsSlides(title: string, content: string, variables?: VariableScope): Promise<void> {
   const format = slideFormatOf(content);
   const slideW = Math.round(SLIDE_H * slideRatio(format));
   const slides = splitSlides(content, title).map((slide) => ({
-    blocks: parseMarkdownForExport('', slide.markdown).blocks,
+    blocks: parseMarkdownForExport('', slide.markdown, variables).blocks,
     title: isTitleSlide(slide.markdown),
   }));
   const media = await preloadMedia(slides.flatMap((sl) => sl.blocks));

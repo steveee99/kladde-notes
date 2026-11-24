@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { isDatabasePath, projectTitleOf } from '@kladde/shared';
+import { isHiddenPath, projectTitleOf } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { Plus, X } from '../lib/icons';
 import { t, useLang } from '../lib/i18n';
@@ -43,7 +43,7 @@ function useTabShortcuts(activeId: string | null) {
 /** Notes get a tab, database notes (a folder's settings) do not */
 const hasTab = (id: string): boolean => {
   const note = vault.get(id);
-  return !!note && !isDatabasePath(note.path);
+  return !!note && !isHiddenPath(note.path);
 };
 
 /**

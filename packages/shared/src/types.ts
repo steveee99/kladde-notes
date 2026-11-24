@@ -444,6 +444,8 @@ export interface PublicNote {
   owner: string;
   ownerAvatar?: string | null;
   updatedAt: number;
+  /** Values of the variables (`{{var:name}}`) the note uses, resolved from its folders; nothing else of them is sent */
+  variables?: Record<string, string>;
   /** Notes the public note embeds (`![[…]]`) that the owner published too; others show "Not available" */
   embeds?: PublicEmbed[];
   /** Versioned note (#53): the content is its latest release; the releases fill the placeholders */
@@ -458,6 +460,8 @@ export interface PublicEmbed {
   target: string;
   title: string;
   content: string;
+  /** Values of the variables it uses */
+  variables?: Record<string, string>;
   /** Its own public link */
   token: string;
 }

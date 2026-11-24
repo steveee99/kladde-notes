@@ -4,6 +4,7 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Variables: folders and groups define variables that their subfolders inherit and can override ("Variables …" in the folder header, the folder menu or the group). `{{var:name}}` in notes and templates always shows the current value, also in link and image addresses, tables, embeds, presentations, exports and on public links; `{{var:name|fallback}}` sets a value for where it is not defined. Typing `{{` offers the variables of the note's folder. See [docs/VARIABLES.md](docs/VARIABLES.md).
 - Fixed: Database notes (`_database-<uuid>`, which hold the settings of a database or project) no longer show in the folder tree of groups, in both modes. They, and numbered copies of them, also stay out of note counts, favorites, tabs, link suggestions, backlinks, query results, the weekly review, the activity of a group and the MCP lists and searches.
 - Fixed: Full screen of a drawing covers the whole app: the top bar (and on phones and tablets the bottom bar) no longer stays visible over the canvas, also in the split view. The canvas keeps clear of the notch and the home indicator.
 - Fixed: Creating ticket projects and databases and adding attachments offline works again when Kladde is opened over plain HTTP; they failed with “crypto.randomUUID is not a function”.

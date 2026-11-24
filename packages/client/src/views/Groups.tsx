@@ -4,8 +4,8 @@
  * renames and deletes the group, and the move sheet moves own notes or folders into a group.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { GROUP_ROLES, canWriteInGroup, findDatabaseNote, isDatabasePath, splitPath, type GroupDetails, type GroupInfo, type GroupRole } from '@kladde/shared';
-import { Activity as ActivityIcon, ArrowLeft, ChevronRight, CornerLeftUp, Folder, FolderInput, FolderPlus, Kanban, Loader2, Plus, Settings, Star, Trash2, Users } from '../lib/icons';
+import { GROUP_ROLES, canWriteInGroup, findDatabaseNote, isHiddenPath, splitPath, type GroupDetails, type GroupInfo, type GroupRole } from '@kladde/shared';
+import { Activity as ActivityIcon, ArrowLeft, ChevronRight, CornerLeftUp, Folder, FolderInput, FolderPlus, Kanban, Loader2, Plus, Settings, Star, Trash2, Users, Variables } from '../lib/icons';
 import { projectAt } from '../data/tickets';
 import { MakeProjectSheet, ProjectView } from './ProjectView';
 import { Switch } from './Switch';
@@ -69,7 +69,7 @@ export function GroupsView() {
                 <Users size={18} className="shrink-0 text-primary" />
                 <span className="min-w-0 flex-1 truncate font-medium">{g.name}</span>
                 <span className="chip shrink-0">{groupRoleLabel(g.role)}</span>
-                <span className="text-xs text-on-surface-variant">{vault.groupNotes(g.id).filter((n) => !isDatabasePath(n.path)).length}</span>
+                <span className="text-xs text-on-surface-variant">{vault.groupNotes(g.id).filter((n) => !isHiddenPath(n.path)).length}</span>
                 <ChevronRight size={16} className="shrink-0 text-on-surface-variant" />
               </button>
             </li>
@@ -115,12 +115,12 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
   const writer = canWriteInGroup(group.role);
   const notes = vault.groupNotes(groupId);
   // Database notes (#76) are no entries of the folder
-  const here = notes.filter((n) => splitPath(n.path).folder === folder && !isDatabasePath(n.path)).sort((a, b) => b.updatedAt - a.updatedAt);
+  const here = notes.filter((n) => splitPath(n.path).folder === folder && !isHiddenPath(n.path)).sort((a, b) => b.updatedAt - a.updatedAt);
   // A project folder of a group where the owners switched tickets on
   const project = folder ? projectAt({ group: groupId }, folder) : undefined;
   const canMakeProject = writer && !!folder && !!group.features?.tickets && !findDatabaseNote(folder, notes);
   const subfolders = vault.groupFolders(groupId).filter((f) => (folder ? f.startsWith(`${folder}/`) && !f.slice(folder.length + 1).includes('/') : !f.includes('/')));
-  const countIn = (f: string) => notes.filter((n) => !isDatabasePath(n.path) && (splitPath(n.path).folder === f || splitPath(n.path).folder.startsWith(`${f}/`))).length;
+  const countIn = (f: string) => notes.filter((n) => !isHiddenPath(n.path) && (splitPath(n.path).folder === f || splitPath(n.path).folder.startsWith(`${f}/`))).length;
   const parent = folder ? (folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) : '') : null;
   return (
     <div>
@@ -150,6 +150,9 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
               <ActivityIcon size={16} /> <span className="hidden sm:inline">{t('activity.title')}</span>
             </button>
           )}
+          <button className="btn-ghost shrink-0 phone:!px-2.5" title={t('vars.menu')} aria-label={t('vars.menu')} onClick={() => openDialog({ kind: 'variables', space: `group:${groupId}`, folder })} data-open-variables>
+            <Variables size={16} /> <span className="hidden sm:inline">{t('vars.label')}</span>
+          </button>
           <button className="btn-ghost shrink-0 phone:!px-2.5" onClick={() => navigate(groupManagePath(groupId))} title={t('groups.manage')}>
             <Settings size={16} /> <span className="hidden sm:inline">{t('groups.manage')}</span>
           </button>

@@ -45,7 +45,7 @@ import {
   type FeatureSettings,
   type GroupInfo,
   type SyncedNote,
-  isDatabasePath,
+  isHiddenPath,
   isSchemaPath,
   isMilestoneContent,
   isTicketContent,
@@ -131,7 +131,7 @@ function space(ctx: ToolContext): SpaceNote[] {
 }
 
 /** The notes to list and search: without the database notes, which hold a folder's settings (read_note still opens them) */
-const listed = (ctx: ToolContext): SpaceNote[] => space(ctx).filter((n) => !isDatabasePath(n.path));
+const listed = (ctx: ToolContext): SpaceNote[] => space(ctx).filter((n) => !isHiddenPath(n.path));
 
 /** Write tools refuse notes the user may only read (groups in which they are a reader) */
 function writable(note: SpaceNote): SpaceNote {
@@ -607,7 +607,7 @@ export const TOOLS: ToolDef[] = [
       const limit = int(args, 'limit', 100, 500);
       const notes = space(ctx);
       const all = notes
-        .filter((n) => !isDatabasePath(n.path) && (!folder || n.path.startsWith(`${folder}/`)) && (!group || n.group === group.id))
+        .filter((n) => !isHiddenPath(n.path) && (!folder || n.path.startsWith(`${folder}/`)) && (!group || n.group === group.id))
         .sort((a, b) => b.updatedAt - a.updatedAt);
       const folders = [...new Set(notes.map((n) => splitPath(n.path).folder).filter(Boolean))].sort();
       const groups = ctx.notes.groupsOf(ctx.userId).map((g) => ({ name: g.name, role: g.role, read_only: !canWriteInGroup(g.role) }));

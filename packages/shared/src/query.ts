@@ -18,7 +18,7 @@
  * Values: "text", numbers, YYYY-MM-DD, today, tomorrow, true/false.
  */
 
-import { isDatabasePath } from './database.js';
+import { isHiddenPath } from './database.js';
 import { extractMeta, type NoteMeta } from './markdown.js';
 import { NoteMemo } from './noteMemo.js';
 import { memoryMeta } from './memory.js';
@@ -157,7 +157,8 @@ export function parseQuery(src: string): Query {
       // `SUM(hours)` is one token; `SUM( hours )` or `SUM (hours)` are put back together
       if (/^(count|sum|avg|min|max)$/i.test(t) && tokens[i]?.startsWith('(')) t += next();
       if (/^(count|sum|avg|min|max)\(/i.test(t)) {
-        while (!t.endsWith(')') && i < tokens.length && tokens[i] !== ',') t += next();
+        // Looks at the last token, not at the growing text (quadratic on long input)
+        for (let last = t; !last.endsWith(')') && i < tokens.length && tokens[i] !== ','; ) t += last = next();
         const agg = parseAggregate(t);
         if (!agg) throw new QueryError(`Ungültige Aggregation "${t}", z. B. COUNT, SUM(stunden), AVG(bewertung)`);
         q.fields.push(agg.field ? `${agg.fn}(${agg.field})` : agg.fn);
@@ -307,8 +308,8 @@ export function runQuery(src: string | Query, notes: QueryNote[], today = new Da
   const query = typeof src === 'string' ? parseQuery(src) : src;
   let rows: QueryRow[] = [];
   for (const note of notes) {
-    // Database notes hold a folder's settings
-    if (isDatabasePath(note.path)) continue;
+    // Database and variables notes hold a folder's settings
+    if (isHiddenPath(note.path)) continue;
     if (query.from !== null && !(note.path.startsWith(`${query.from}/`) || query.from === '')) continue;
     const meta = metaMemo.get(note);
     if (query.fromTag !== null && !meta.tags.some((tag) => tagMatches(tag, query.fromTag!))) continue;

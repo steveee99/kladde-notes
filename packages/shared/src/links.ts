@@ -2,7 +2,7 @@ import { escapeRegExp } from './util.js';
 import { extractMeta, mapOutsideCode, splitPath } from './markdown.js';
 import { PARA, RoleFolderMap, ZETTEL_ID_PATTERN, isFolderProjectHome } from './para.js';
 import { okfLinkTarget } from './memory.js';
-import { isDatabasePath } from './database.js';
+import { isHiddenPath } from './database.js';
 
 /**
  * Link resolution. A [[link]] matches, in this order: a note title, a frontmatter `id`
@@ -218,7 +218,7 @@ export class LinkIndex {
 
   backlinks(id: string): string[] {
     // A folder's settings (database notes) are no note somebody wrote a link in
-    return [...(this.incoming.get(id) ?? [])].filter((from) => !isDatabasePath(this.notes.get(from)?.path ?? ''));
+    return [...(this.incoming.get(id) ?? [])].filter((from) => !isHiddenPath(this.notes.get(from)?.path ?? ''));
   }
 
   /** Names a note may be mentioned by: its title and, for Zettel, the title without the id in front */
@@ -238,7 +238,7 @@ export class LinkIndex {
     const quick = names.map(mentionPattern);
     const out: string[] = [];
     for (const [other, n] of this.notes) {
-      if (other === id || linked.has(other) || isDatabasePath(n.path)) continue;
+      if (other === id || linked.has(other) || isHiddenPath(n.path)) continue;
       if (!quick.some((re) => re.test(n.content))) continue;
       if (names.some((name) => hasPlainMention(n.content, name))) out.push(other);
     }
@@ -246,9 +246,9 @@ export class LinkIndex {
   }
 
   graph(): { nodes: GraphNode[]; edges: GraphEdge[] } {
-    // Database notes (`_database-<uuid>.md`) hold a folder's settings; they are no notes of their own in the graph
+    // Database and variables notes (`_database-<uuid>.md`, `_variables-<uuid>.md`) hold a folder's settings; they are no notes of their own in the graph
     const hidden = new Set<string>();
-    for (const n of this.notes.values()) if (isDatabasePath(n.path)) hidden.add(n.id);
+    for (const n of this.notes.values()) if (isHiddenPath(n.path)) hidden.add(n.id);
     const edges: GraphEdge[] = [];
     for (const [id, targets] of this.outgoingCache) {
       if (hidden.has(id)) continue;
@@ -294,7 +294,7 @@ export class LinkIndex {
   autoLinkTargets(excludeId?: string): { name: string; target: string }[] {
     const map = new Map<string, string>();
     for (const [id, note] of this.notes) {
-      if ((excludeId && id === excludeId) || isDatabasePath(note.path)) continue;
+      if ((excludeId && id === excludeId) || isHiddenPath(note.path)) continue;
       const target = note.title;
       for (const name of this.mentionNames(id)) {
         const key = name.toLowerCase();

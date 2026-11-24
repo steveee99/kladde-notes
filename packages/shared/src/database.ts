@@ -28,6 +28,7 @@
 import { splitPath } from './markdown.js';
 import { readFrontmatterYaml, setFrontmatterValues, type YamlMap, type YamlValue } from './yaml.js';
 import { safeUrl } from './util.js';
+import { isVariablesPath } from './variables.js';
 
 /** The schema note is `_database-<uuid>.md` (a name a person is unlikely to type); the plain `_database.md` of the first version still works */
 export const DATABASE_PREFIX = '_database';
@@ -104,6 +105,9 @@ export const isDatabasePath = (path: string): boolean => DATABASE_OR_COPY.test(p
 
 /** Whether a note can be its folder's schema note; copies of one are hidden (`isDatabasePath`) but never define a database */
 export const isSchemaPath = (path: string): boolean => DATABASE_NAME.test(path.slice(path.lastIndexOf('/') + 1));
+
+/** Notes that only hold a folder's settings (database schema, variables): kept out of lists, the tree, search and the graph */
+export const isHiddenPath = (path: string): boolean => isDatabasePath(path) || isVariablesPath(path);
 
 /** The database note of a folder, if there is one */
 export function findDatabaseNote<T extends { path: string; content: string }>(folder: string, notes: Iterable<T>): T | null {
@@ -183,7 +187,7 @@ export function newDatabaseContent(keys: string[] = []): string {
 export function inferPropertyKeys(folder: string, notes: Iterable<{ path: string; content: string }>): string[] {
   const seen = new Map<string, string>();
   for (const n of notes) {
-    if (splitPath(n.path).folder !== folder || isDatabasePath(n.path)) continue;
+    if (splitPath(n.path).folder !== folder || isHiddenPath(n.path)) continue;
     const fm = readFrontmatterYaml(n.content);
     if (!fm) continue;
     for (const k of Object.keys(fm.data)) {
@@ -269,7 +273,7 @@ export function databaseRows(db: Database, folder: string, notes: Iterable<DbNot
   for (const n of notes) {
     const { folder: f, name } = splitPath(n.path);
     const inside = f === folder || (db.subfolders && (folder === '' || f.startsWith(`${folder}/`)));
-    if (!inside || isDatabasePath(n.path)) continue;
+    if (!inside || isHiddenPath(n.path)) continue;
     const fm = readFrontmatterYaml(n.content);
     const data = fm?.data ?? {};
     const values: Record<string, DbValue> = {};

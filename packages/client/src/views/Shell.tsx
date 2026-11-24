@@ -39,11 +39,12 @@ import {
   Tags,
   Trash2,
   Users,
+  Variables,
 } from '../lib/icons';
 import {
   isExcalidrawNote,
   INBOX_FOLDER,
-  isDatabasePath,
+  isHiddenPath,
   Me,
   pdfNoteOf,
   projectTitleOf,
@@ -544,6 +545,7 @@ function FolderItem({
         { icon: Pencil, label: t('nav.renameFolder'), onSelect: () => setMode('rename') },
         ...(iconsEnabled ? [{ icon: Mood, label: t('icons.setFolder'), onSelect: () => setPickingIcon(true) }] : []),
         ...(!vault.standalone ? [{ icon: Share2, label: t('nav.shareFolder'), onSelect: () => setSharing(true) }] : []),
+        { icon: Variables, label: t('vars.menu'), onSelect: () => openDialog({ kind: 'variables', space: 'own', folder: node.path }) },
         ...(confluenceConnected && !empty ? [{ icon: Cloud, label: t('confluence.menu'), onSelect: () => setConfluenceOpen(true) }] : []),
         ...(empty ? [{ icon: Trash2, label: t('nav.deleteEmptyFolder'), danger: true, onSelect: () => void vault.deleteFolder(node.path) }] : []),
       ];
@@ -691,13 +693,14 @@ function GroupTreeItem({ groupId, current, activeNoteId, onNavigate }: { groupId
   const group = vault.group(groupId)!;
   const all = vault.groupNotes(groupId);
   // Like in the own folder tree: database notes are settings of their folder
-  const notes = all.filter((n) => !isDatabasePath(n.path));
+  const notes = all.filter((n) => !isHiddenPath(n.path));
   const folders = vault.groupFolders(groupId);
   const expandable = notes.length > 0 || folders.length > 0;
   const activeNote = activeNoteId ? all.find((n) => n.id === activeNoteId) : undefined;
   const lang = useLang();
   const byFolder = new Map<string, LocalNote[]>();
   for (const n of notes) {
+    if (isHiddenPath(n.path)) continue;
     const f = splitPath(n.path).folder;
     const list = byFolder.get(f);
     if (list) list.push(n);
@@ -802,6 +805,7 @@ function GroupFolderNode({
   const actions: MenuAction[] = [
     ...(favorites ? [{ icon: Star, label: fav ? t('groups.unfavorite') : t('groups.favorite'), onSelect: () => void vault.toggleFavoriteGroupFolder(groupId, node.path).catch(() => undefined) }] : []),
     ...(iconsEnabled && !locked ? [{ icon: Mood, label: t('icons.setFolder'), onSelect: () => setPickingIcon(true) }] : []),
+    { icon: Variables, label: t('vars.menu'), onSelect: () => openDialog({ kind: 'variables', space: `group:${groupId}`, folder: node.path }) },
   ];
   const menu = useItemMenu(actions, t('nav.folderActions', { name: node.name }));
   return (
@@ -969,7 +973,7 @@ function sortedByFolder(notes: LocalNote[], lang: Lang): Map<string, LocalNote[]
   const map = new Map<string, LocalNote[]>();
   const names = new Map<LocalNote, string>();
   for (const n of notes) {
-    if (n.access !== 'owner' || isDatabasePath(n.path)) continue;
+    if (n.access !== 'owner' || isHiddenPath(n.path)) continue;
     const { folder, name } = splitPath(n.path);
     names.set(n, name);
     const list = map.get(folder);
@@ -1014,7 +1018,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
   const rootDrop = useDropTarget('');
   const path = usePath();
   const folders = vault.folders();
-  const notes = vault.list().filter((n) => !isDatabasePath(n.path));
+  const notes = vault.list().filter((n) => !isHiddenPath(n.path));
   const features = vault.features();
   const roleConfig = vault.roleConfig();
   const activeNoteId = path.startsWith('/n/') ? decodeURIComponent(path.slice(3)) : null;
@@ -1090,7 +1094,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
     ? vault
         .favoriteIds()
         .map((id) => vault.get(id))
-        .filter((n): n is LocalNote => !!n && !isDatabasePath(n.path))
+        .filter((n): n is LocalNote => !!n && !isHiddenPath(n.path))
     : [];
   // Group folders (#58) as favorites: "Group/Folder"
   const favoriteGroupFolders = features.favorites.enabled ? vault.favoriteGroupFolders() : [];

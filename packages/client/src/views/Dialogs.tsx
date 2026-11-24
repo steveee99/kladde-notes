@@ -12,6 +12,7 @@ import { isCoarsePointer, useVisualViewport } from '../lib/viewport';
 import { useModal } from '../lib/modal';
 import { Dropdown } from './Dropdown';
 import { AttachmentPicker } from './AttachmentPicker';
+import { VariablesDialog } from './VariablesDialog';
 import { WebClipDialog } from './WebClipDialog';
 
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
@@ -343,6 +344,7 @@ export function Dialogs() {
     );
   if (dialog?.kind === 'zettel') return <ZettelDialog />;
   if (dialog?.kind === 'recipe') return <RecipeDialog initialUrl={dialog.url} />;
+  if (dialog?.kind === 'variables') return <VariablesDialog key={`${dialog.space}/${dialog.folder}`} space={dialog.space} folder={dialog.folder} onClose={closeDialog} />;
   if (dialog?.kind === 'attachment') return <AttachmentPicker onPick={dialog.onPick} />;
   if (dialog?.kind === 'clip') return <WebClipDialog key={dialog.url ?? ''} initialUrl={dialog.url} title={dialog.title} selection={dialog.selection} />;
   return null;

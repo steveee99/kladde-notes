@@ -783,6 +783,26 @@ progress {
 .cm-release-placeholder {
   color: rgb(var(--primary));
 }
+/* Variables: a filled-in {{var:name}}, one without a value, and the raw placeholder while the cursor is in it */
+.cm-variable {
+  text-decoration: underline dotted rgb(var(--edge));
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.22em;
+}
+.cm-variable-unknown {
+  border-radius: 4px;
+  background: rgb(var(--amber-bg));
+  color: rgb(var(--amber));
+  text-decoration: none;
+}
+.cm-variable-src {
+  color: rgb(var(--acc));
+}
+@media print {
+  .cm-variable {
+    text-decoration: none;
+  }
+}
 /* A section folded from the outline: a small tonal pill after the heading, click to unfold */
 .cm-editor .cm-foldPlaceholder {
   margin-left: 0.5em;

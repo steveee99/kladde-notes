@@ -2,6 +2,7 @@ import { parseCalloutLine, type CalloutHeader } from './callout.js';
 import { parseCodeInfo } from './codeInfo.js';
 import { extractHeadings, parseFrontmatter, TOC_ANCHOR_RE } from './markdown.js';
 import { INLINE_MATH_SOURCE, findMath } from './math.js';
+import { maskVariables, type VariableScope } from './variables.js';
 
 export type TableAlign = 'left' | 'center' | 'right' | null;
 
@@ -164,9 +165,14 @@ function parseTableAlignRow(line: string): TableAlign[] | null {
   return aligns;
 }
 
-/** Parses Markdown without frontmatter into structured blocks for Word/PDF export */
-export function parseMarkdownForExport(title: string, content: string): ExportDocument {
-  const body = stripFrontmatter(content);
+/** Parses Markdown without frontmatter into structured blocks for Word/PDF export, variables filled in as plain text */
+export function parseMarkdownForExport(title: string, content: string, variables?: VariableScope): ExportDocument {
+  if (!variables) return parseBlocks(title, stripFrontmatter(content));
+  const masked = maskVariables(stripFrontmatter(content), variables);
+  return masked.fillAll(parseBlocks(title, masked.text));
+}
+
+function parseBlocks(title: string, body: string): ExportDocument {
   const headings = extractHeadings(body).map((h) => ({ level: h.level, text: h.text }));
   const lines = body.split('\n');
   const blocks: ExportBlock[] = [];

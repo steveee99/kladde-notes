@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CalendarDays, CalendarRange, FilePlus2, LayoutTemplate, Pencil, Trash2 } from '../lib/icons';
-import { INBOX_FOLDER, PERIODIC_PLACEHOLDERS, Template, TEMPLATE_PLACEHOLDERS, type PeriodKind } from '@kladde/shared';
+import { INBOX_FOLDER, PERIODIC_PLACEHOLDERS, Template, TEMPLATE_PLACEHOLDERS, variablePlaceholder, type PeriodKind } from '@kladde/shared';
+import { useVariables } from '../data/variables';
 import { useVault, vault } from '../data/vault';
 import { folderDisplayName, tl, useLang, type I18nKey } from '../lib/i18n';
 import { useReadOnly } from '../lib/readOnly';
@@ -141,6 +142,10 @@ function TemplateEditor({ template, isNew, daily: dailyOnly, period, onDone }: {
   const [content, setContent] = useState(template.content);
   const folders = [...new Set([folder, ...vault.folders(), ''])];
 
+  // Variables of the folder the notes go to; the placeholder stays in the new note, so it follows the variable
+  const scope = useVariables({ space: 'own', folder: period ? (period === 'week' ? vault.features().weekly.folder : vault.features().monthly.folder) : folder });
+  const variables = scope.list();
+
   const placeholderLabel = (token: string, fallback: string) => {
     if (token === '{{title}}') return tl(lang, daily ? 'templates.placeholder.dailyTitle' : 'templates.placeholder.title');
     if (token === '{{date}}') return tl(lang, daily ? 'templates.placeholder.dailyDate' : 'templates.placeholder.date');
@@ -230,6 +235,20 @@ function TemplateEditor({ template, isNew, daily: dailyOnly, period, onDone }: {
           </span>
         ))}
       </div>
+      )}
+      {variables.length > 0 && (
+        <div className="text-xs text-on-surface-variant" data-template-variables>
+          {tl(lang, 'vars.templateLabel')}{' '}
+          {variables.map((e, i) => (
+            <span key={e.name}>
+              {i > 0 && ' · '}
+              <button type="button" className="font-mono text-on-surface-variant hover:text-primary" title={tl(lang, 'templates.insertEndTitle')} onClick={() => setContent((c) => c + variablePlaceholder(e.name))}>
+                {variablePlaceholder(e.name)}
+              </button>{' '}
+              {scope.resolve(e.name).text}
+            </span>
+          ))}
+        </div>
       )}
       <div className="flex gap-2">
         <button className="btn-primary px-5" disabled={!daily && !label.trim()}>

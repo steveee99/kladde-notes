@@ -1,7 +1,7 @@
 import { useState, useSyncExternalStore } from 'react';
-import { Activity as ActivityIcon, Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, Kanban, LayoutGrid, List, Plus, Table2, Trash2, Users } from '../lib/icons';
+import { Activity as ActivityIcon, Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, Kanban, LayoutGrid, List, Plus, Table2, Trash2, Users, Variables } from '../lib/icons';
 import { PageBody, PageHeader } from './PageHeader';
-import { INBOX_FOLDER, archiveTarget, excerpt, extractMeta, findDatabaseNote, databaseFileName, inferPropertyKeys, isDatabasePath, newDatabaseContent, projectTitleOf, restoreTarget, splitPath } from '@kladde/shared';
+import { INBOX_FOLDER, archiveTarget, excerpt, extractMeta, findDatabaseNote, databaseFileName, inferPropertyKeys, isHiddenPath, newDatabaseContent, projectTitleOf, resolveVariables, restoreTarget, splitPath } from '@kladde/shared';
 import type { SharedFolder } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
@@ -17,6 +17,7 @@ import { MoveToGroupSheet } from './Groups';
 import { DatabaseView } from './DatabaseView';
 import { MakeProjectSheet, ProjectView } from './ProjectView';
 import { projectAt } from '../data/tickets';
+import { variablesOfNote } from '../data/variables';
 import { DEMO } from '../demo/demoApi';
 import { compareText, folderDisplayName, folderLeafDisplayName, locale, t, useLang, type I18nKey, type Lang } from '../lib/i18n';
 
@@ -205,7 +206,7 @@ export function NoteCard({ note }: { note: LocalNote }) {
         )}
         {note.dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title={t('list.unsynced')} />}
       </div>
-      <p className="mt-1 line-clamp-2 break-words text-sm text-on-surface-variant">{excerpt(note.content) || t('common.empty')}</p>
+      <p className="mt-1 line-clamp-2 break-words text-sm text-on-surface-variant">{resolveVariables(excerpt(note.content), variablesOfNote(note)) || t('common.empty')}</p>
       <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-on-surface-variant">
         <span>{fmtDate(note.updatedAt, lang)}</span>
         {meta.tags.slice(0, 4).map((tag) => (
@@ -342,7 +343,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
   if (mode === 'shared') notes = notes.filter((n) => n.access !== 'owner' && !n.group);
   else notes = notes.filter((n) => n.access === 'owner');
   // The schema note of a database (#76) is edited through the database view, not listed
-  notes = notes.filter((n) => !isDatabasePath(n.path));
+  notes = notes.filter((n) => !isHiddenPath(n.path));
   if (mode === 'folder' && folder !== undefined) notes = notes.filter((n) => splitPath(n.path).folder === folder);
   notes.sort((a, b) =>
     sort === 'updated'
@@ -359,7 +360,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
   };
   const subfolders = mode === 'folder' ? vault.folders().filter((f) => f.startsWith(`${folder}/`) && !f.slice(folder!.length + 1).includes('/')) : [];
   // Notes in a folder and all its subfolders (owned ones, like the list itself)
-  const countIn = (f: string) => vault.list().filter((n) => n.access === 'owner' && !isDatabasePath(n.path) && (splitPath(n.path).folder === f || splitPath(n.path).folder.startsWith(`${f}/`))).length;
+  const countIn = (f: string) => vault.list().filter((n) => n.access === 'owner' && !isHiddenPath(n.path) && (splitPath(n.path).folder === f || splitPath(n.path).folder.startsWith(`${f}/`))).length;
   const parent = mode === 'folder' && folder ? (folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) : '') : null;
   const title = mode === 'all' ? t('list.allNotes') : mode === 'shared' ? t('list.sharedWithMe') : folder ? folderLeafDisplayName(folder, lang) : t('list.parentLevel');
   const features = vault.features();
@@ -447,6 +448,11 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
           {mode === 'folder' && folder && !dbNote && features.database.enabled && !protectedFolders.has(folder) && (
             <button className="edit-only btn-ghost shrink-0 phone:!px-2.5" title={t('db.makeTitle')} onClick={makeDatabase} data-make-database>
               <Table2 size={16} /> <span className="hidden sm:inline">{t('db.makeBtn')}</span>
+            </button>
+          )}
+          {mode !== 'shared' && (
+            <button className="btn-ghost shrink-0 phone:!px-2.5" title={t('vars.menu')} aria-label={t('vars.menu')} onClick={() => openDialog({ kind: 'variables', space: 'own', folder: folder ?? '' })} data-open-variables>
+              <Variables size={16} /> <span className="hidden sm:inline">{t('vars.label')}</span>
             </button>
           )}
           {mode !== 'shared' && (

@@ -1,4 +1,5 @@
 import { Facet } from '@codemirror/state';
+import type { VariableScope } from '@kladde/shared';
 
 /** A note an embed (`![[…]]`) can show */
 export interface EmbedNote {
@@ -9,6 +10,8 @@ export interface EmbedNote {
   canWrite: boolean;
   /** App path the header link goes to instead of the note (public links: the embedded note's own public link) */
   href?: string;
+  /** The variables of the embedded note's own folder */
+  variables?: VariableScope | null;
 }
 
 /** Resolves an embed target; null = not available to this reader */

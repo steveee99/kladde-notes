@@ -111,6 +111,7 @@ function commands(insertFiles: FileInserter, lang: Lang): SlashCommand[] {
       },
     },
     { label: tl(lang, 'editor.slash.webLink'), detail: '[ ]( )', keywords: 'url web link', template: '[|](https://)' },
+    { label: tl(lang, 'editor.slash.variable'), detail: '{{var: }}', keywords: 'variable platzhalter placeholder wert value', template: '{{var:|}}', openCompletions: true },
     { label: tl(lang, 'editor.slash.today'), detail: 'YYYY-MM-DD', keywords: 'date today heute datum', template: () => `${toDateString(new Date())}|` },
     {
       label: tl(lang, 'editor.slash.upload'),

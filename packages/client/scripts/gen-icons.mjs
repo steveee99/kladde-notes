@@ -12,7 +12,7 @@ const out = join(dirname(fileURLToPath(import.meta.url)), '../src/lib/icons.tsx'
 
 /** Component name → Material Symbols name */
 const MAP = {
-  Ticket: 'confirmation_number', Flag: 'flag', PriorityHigh: 'keyboard_double_arrow_up', PriorityLow: 'keyboard_double_arrow_down', PriorityMedium: 'drag_handle', DragIndicator: 'drag_indicator', Person: 'person', TableRows: 'table_rows', ViewTimeline: 'view_timeline', AddLink: 'add_link',
+  Variables: 'data_object', Ticket: 'confirmation_number', Flag: 'flag', PriorityHigh: 'keyboard_double_arrow_up', PriorityLow: 'keyboard_double_arrow_down', PriorityMedium: 'drag_handle', DragIndicator: 'drag_indicator', Person: 'person', TableRows: 'table_rows', ViewTimeline: 'view_timeline', AddLink: 'add_link',
   AlertTriangle: 'warning', AlignJustify: 'density_small', FormatAlignCenter: 'format_align_center', FormatAlignJustify: 'format_align_justify', FormatAlignLeft: 'format_align_left', FormatAlignRight: 'format_align_right', Archive: 'archive', ArchiveRestore: 'unarchive',
   ArrowDownAZ: 'sort_by_alpha', ArrowDownToLine: 'vertical_align_bottom', ArrowLeft: 'arrow_back', ArrowRight: 'arrow_forward',
   Backup: 'backup', Ban: 'block', Bell: 'notifications', Bold: 'format_bold', CenterFocus: 'center_focus_strong', CloseFullscreen: 'fullscreen_exit', Bot: 'smart_toy', Briefcase: 'work', CalendarCheck: 'event_available',
