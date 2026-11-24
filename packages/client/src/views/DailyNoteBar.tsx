@@ -10,7 +10,7 @@ import {
   shiftDateString,
   splitPath,
   toDateString,
-  isDatabasePath,
+  isHiddenPath,
 } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { folderDisplayName, locale, tl, useLang, weekdaysShort } from '../lib/i18n';
@@ -362,7 +362,7 @@ export function DailyNoteEmptyView({ date }: { date?: string }) {
   const dayEnd = parseDate(shiftDateString(targetDate, 1)).getTime();
   const notesOnDay = vault
     .list()
-    .filter((n) => n.access === 'owner' && !isDatabasePath(n.path) && ((n.createdAt >= dayStart && n.createdAt < dayEnd) || (n.updatedAt >= dayStart && n.updatedAt < dayEnd)))
+    .filter((n) => n.access === 'owner' && !isHiddenPath(n.path) && ((n.createdAt >= dayStart && n.createdAt < dayEnd) || (n.updatedAt >= dayStart && n.updatedAt < dayEnd)))
     .sort((a, b) => b.updatedAt - a.updatedAt);
 
   return (

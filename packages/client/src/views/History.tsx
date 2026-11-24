@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useModal } from '../lib/modal';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, RotateCcw, X } from '../lib/icons';
-import { diffLines, diffStats, NoteVersion, NoteVersionInfo, splitPath } from '@kladde/shared';
+import { diffLines, diffStats, NoteVersion, NoteVersionInfo, splitPath, type VariableScope } from '@kladde/shared';
 import { api } from '../lib/api';
 import { vault } from '../data/vault';
 import { Editor } from '../editor/Editor';
@@ -12,7 +12,7 @@ import { useVisualViewport } from '../lib/viewport';
 type Mode = 'diff' | 'rendered';
 
 /** Version history of one note: pick a version, see what changed (git-diff style) or the rendered text */
-export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId: string; current: string; canRestore: boolean; onClose: () => void }) {
+export function HistoryDialog({ noteId, variables, current, canRestore, onClose }: { noteId: string; variables: VariableScope; current: string; canRestore: boolean; onClose: () => void }) {
   const lang = useLang();
   const loc = locale(lang);
   const fmt = (t: number) => new Date(t).toLocaleString(loc, { dateStyle: 'medium', timeStyle: 'short' });
@@ -145,7 +145,7 @@ export function HistoryDialog({ noteId, current, canRestore, onClose }: { noteId
                   <div className="p-6 text-center text-on-surface-variant">{tl(lang, 'common.loading')}</div>
                 ) : mode === 'rendered' ? (
                   <div className="px-4 py-3 sm:px-8">
-                    <Editor docKey={`history:${version!.id}`} value={version!.content} readOnly />
+                    <Editor docKey={`history:${version!.id}`} value={version!.content} readOnly variables={variables} />
                   </div>
                 ) : !lines.some((l) => l.kind !== 'same') ? (
                   <div className="p-6 text-center text-on-surface-variant">{tl(lang, 'history.noChanges')}</div>

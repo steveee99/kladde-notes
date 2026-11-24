@@ -21,7 +21,8 @@ import { slashCompletion } from './slash';
 import { remoteCursors } from './remoteCursors';
 import { focusDim } from './focusDim';
 import { releaseFacet } from './releases';
-import type { NoteReleaseInfo } from '@kladde/shared';
+import { variableCompletion, variablesFacet } from './variables';
+import type { NoteReleaseInfo, VariableScope } from '@kladde/shared';
 import { outlineSupport } from './outline';
 import { useReadOnly } from '../lib/readOnly';
 import { t as i18n, useLang } from '../lib/i18n';
@@ -272,6 +273,8 @@ export interface EditorProps {
   onActivity?: (view: EditorView) => void;
   /** Release versioning (#53) is on: the releases fill the placeholders ({{version}}, ```versions, …); null/undefined: off */
   releases?: NoteReleaseInfo[] | null;
+  /** The variables of the note's folder (`{{var:name}}`); without them the placeholders show as written */
+  variables?: VariableScope | null;
   /** Presentation mode (#87) is on: rules show as slide breaks with this label (`{n}`: slide number) */
   slideBreaks?: string;
   /** Callouts (#86): `> [!type]` quotes as callouts (default) or, with the feature off, as plain quotes */
@@ -280,7 +283,7 @@ export interface EditorProps {
   hideProperties?: boolean;
 }
 
-export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote, dim = false, onActivity, resolveEmbed, releases = null, slideBreaks = '', callouts = true, hideProperties = false }: EditorProps) {
+export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote, dim = false, onActivity, resolveEmbed, releases = null, variables = null, slideBreaks = '', callouts = true, hideProperties = false }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const changeRef = useRef(onChange);
@@ -310,6 +313,9 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
   hidePropsRef.current = hideProperties;
   const releasesRef = useRef(releases);
   releasesRef.current = releases;
+  const variableConf = useRef(new Compartment());
+  const variablesRef = useRef(variables);
+  variablesRef.current = variables;
   const releaseKey = releases ? JSON.stringify(releases) : '';
   const dimRef = useRef(dim);
   dimRef.current = dim;
@@ -348,10 +354,11 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           lockConf.current.of(readOnlyExtensions(lockedRef.current)),
           EditorView.contentAttributes.of({ spellcheck: 'true', autocapitalize: 'sentences' }),
           placeholderConf.current.of(placeholderAndLabel(resolvedPlaceholder)),
-          autocompletion({ override: [wikiCompletion, tagCompletion, mentionCompletion, slashCompletion(insertFiles)], icons: false }),
+          autocompletion({ override: [wikiCompletion, variableCompletion, tagCompletion, mentionCompletion, slashCompletion(insertFiles)], icons: false }),
           fileHandlers(),
           dimConf.current.of(dimRef.current ? focusDim : []),
           releaseConf.current.of(releaseFacet.of(releasesRef.current ? { releases: releasesRef.current } : null)),
+          variableConf.current.of(variablesFacet.of(variablesRef.current)),
           outlineSupport,
           slideConf.current.of(slideBreakLabel.of(slideRef.current)),
           calloutConf.current.of(calloutsFacet.of(calloutRef.current)),
@@ -446,6 +453,16 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
       effects: [releaseConf.current.reconfigure(releaseFacet.of(releasesRef.current ? { releases: releasesRef.current } : null)), refreshEffect.of(Date.now())],
     });
   }, [releaseKey]);
+
+  // A variable changed or the note moved: the values are drawn again
+  const firstVariables = useRef(true);
+  useEffect(() => {
+    if (firstVariables.current) {
+      firstVariables.current = false;
+      return;
+    }
+    view.current?.dispatch({ effects: [variableConf.current.reconfigure(variablesFacet.of(variables)), refreshEffect.of(Date.now())] });
+  }, [variables]);
 
   // Reconfigure placeholder cleanly when language or custom placeholder changes
   useEffect(() => {

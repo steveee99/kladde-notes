@@ -6,7 +6,7 @@ import {
   capQueryResult,
   dailyDueResolver,
   extractMeta,
-  isDatabasePath,
+  isHiddenPath,
   isExcalidrawNote,
   parseFrontmatter,
   parseQuery,
@@ -207,7 +207,7 @@ export class SpaceIndexes {
       const own = !only && space === this.spaces.get(userId);
       for (const n of space.notes.values()) {
         if (only && !only.has(n.id)) continue;
-        if (isDatabasePath(n.path) || !matches(n)) continue;
+        if (isHiddenPath(n.path) || !matches(n)) continue;
         if (own && skipFolder && (n.path.startsWith(`${skipFolder}/`) || splitPath(n.path).folder === skipFolder)) continue;
         pool.push(n);
       }
@@ -274,7 +274,7 @@ export class SpaceIndexes {
     const indexes = visible.map((v) => ({ ...v, index: v.space.links() }));
     for (const { space, only, index } of indexes) {
       for (const n of index.notes.values()) {
-        if ((only && !only.has(n.id)) || at.has(n.id) || isDatabasePath(n.path)) continue;
+        if ((only && !only.has(n.id)) || at.has(n.id) || isHiddenPath(n.path)) continue;
         const own = space.notes.get(n.id);
         if (!own) continue;
         const g = graphOf(own);

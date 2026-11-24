@@ -1,4 +1,4 @@
-import { test, expect, editor, expectOnServer, expectSynced, noteTitle, uid } from './helpers';
+import { test, expect, editor, expectOnServer, expectSynced, noteTitle, serverNotes, uid } from './helpers';
 import { E2E_PASSWORD } from './accounts.mjs';
 
 // Online mode (KLADDE_MODE=online, its own test server): the device keeps a catalog of the notes and loads a note's
@@ -184,5 +184,28 @@ test('builds the graph and runs query blocks on the server, loads rows of subfol
   await page.goto(`/f/${encodeURIComponent(shelf)}`);
   const db = page.locator('[data-database]');
   await expect(db.getByLabel(`Pages: Tief ${tag}`)).toHaveValue('42', { timeout: 15_000 });
+  await context.close();
+});
+
+test('loads variable definitions so notes show their values', async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ baseURL, viewport: { width: 1280, height: 800 } });
+  const api = context.request;
+  expect((await api.post('/api/auth/password/login', { data: { username: 'cara', password: E2E_PASSWORD } })).ok()).toBe(true);
+  const tag = uid().replace(/[^A-Za-z0-9]/g, '');
+  const now = Date.now();
+  const def = (value: string) => `---\ntype: variables\nvariables:\n  customer: ${value}\n---\n`;
+  const push = async (id: string, path: string, content: string, baseVersion: number) =>
+    expect((await api.post('/api/sync', { data: { changes: [{ id, path, content, baseVersion, deleted: false, createdAt: now, updatedAt: now }] } })).ok()).toBe(true);
+  await push(`onlv${tag}1`, `Kunde ${tag}/_variables-${crypto.randomUUID()}.md`, def('ACME'), 0);
+  await push(`onlv${tag}2`, `Kunde ${tag}/Tief/Angebot.md`, 'Für {{var:customer}}.', 0);
+  const page = await context.newPage();
+  await page.goto('/');
+  await page.evaluate(() => localStorage.setItem('kladde_lang', 'en'));
+  await page.goto(`/n/onlv${tag}2`);
+  await expect(editor(page)).toContainText('Für ACME.', { timeout: 15_000 });
+  // Changed elsewhere: the definition is loaded again
+  const path = (await serverNotes(api)).find((n) => n.id === `onlv${tag}1`)!.path;
+  await push(`onlv${tag}1`, path, def('Beta'), 1);
+  await expect(editor(page)).toContainText('Für Beta.', { timeout: 15_000 });
   await context.close();
 });

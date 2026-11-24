@@ -123,7 +123,7 @@ export function TrashView() {
 
   const actions = (key: string, onRestore: () => void, onPurge: () => void, restoreLabel = t('trash.restore')) => (
     <div className="flex shrink-0 flex-wrap items-center gap-1">
-      <button type="button" className="btn-tonal h-9 !px-3" disabled={locked || busy !== null} onClick={onRestore}>
+      <button type="button" className="btn-tonal h-9 !px-3" aria-label={restoreLabel} disabled={locked || busy !== null} onClick={onRestore}>
         {busy === key ? <Loader2 size={16} className="animate-spin" /> : <Undo2 size={16} />}
         <span className="hidden sm:inline">{restoreLabel}</span>
       </button>

@@ -39,11 +39,12 @@ import {
   Tags,
   Trash2,
   Users,
+  Variables,
 } from '../lib/icons';
 import {
   isExcalidrawNote,
   INBOX_FOLDER,
-  isDatabasePath,
+  isHiddenPath,
   Me,
   pdfNoteOf,
   projectTitleOf,
@@ -544,6 +545,7 @@ function FolderItem({
         { icon: Pencil, label: t('nav.renameFolder'), onSelect: () => setMode('rename') },
         ...(iconsEnabled ? [{ icon: Mood, label: t('icons.setFolder'), onSelect: () => setPickingIcon(true) }] : []),
         ...(!vault.standalone ? [{ icon: Share2, label: t('nav.shareFolder'), onSelect: () => setSharing(true) }] : []),
+        { icon: Variables, label: t('vars.menu'), onSelect: () => openDialog({ kind: 'variables', space: 'own', folder: node.path }) },
         ...(confluenceConnected && !empty ? [{ icon: Cloud, label: t('confluence.menu'), onSelect: () => setConfluenceOpen(true) }] : []),
         ...(empty ? [{ icon: Trash2, label: t('nav.deleteEmptyFolder'), danger: true, onSelect: () => void vault.deleteFolder(node.path) }] : []),
       ];
@@ -694,6 +696,7 @@ function GroupTreeItem({ groupId, current, activeNoteId, onNavigate }: { groupId
   const lang = useLang();
   const byFolder = new Map<string, LocalNote[]>();
   for (const n of notes) {
+    if (isHiddenPath(n.path)) continue;
     const f = splitPath(n.path).folder;
     const list = byFolder.get(f);
     if (list) list.push(n);
@@ -798,6 +801,7 @@ function GroupFolderNode({
   const actions: MenuAction[] = [
     ...(favorites ? [{ icon: Star, label: fav ? t('groups.unfavorite') : t('groups.favorite'), onSelect: () => void vault.toggleFavoriteGroupFolder(groupId, node.path).catch(() => undefined) }] : []),
     ...(iconsEnabled && !locked ? [{ icon: Mood, label: t('icons.setFolder'), onSelect: () => setPickingIcon(true) }] : []),
+    { icon: Variables, label: t('vars.menu'), onSelect: () => openDialog({ kind: 'variables', space: `group:${groupId}`, folder: node.path }) },
   ];
   const menu = useItemMenu(actions, t('nav.folderActions', { name: node.name }));
   return (
@@ -965,7 +969,7 @@ function sortedByFolder(notes: LocalNote[], lang: Lang): Map<string, LocalNote[]
   const map = new Map<string, LocalNote[]>();
   const names = new Map<LocalNote, string>();
   for (const n of notes) {
-    if (n.access !== 'owner' || isDatabasePath(n.path)) continue;
+    if (n.access !== 'owner' || isHiddenPath(n.path)) continue;
     const { folder, name } = splitPath(n.path);
     names.set(n, name);
     const list = map.get(folder);

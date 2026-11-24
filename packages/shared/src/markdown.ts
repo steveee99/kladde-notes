@@ -122,7 +122,8 @@ export function cleanHeadingText(raw: string): string {
     .replace(/\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g, (_, target: string, alias?: string) => (alias ?? target).trim())
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-    .replace(/(\*\*|__|~~|\*|_)/g, '')
+    // A variable's name keeps its underscores
+    .replace(/(\{\{var:[^{}\n]{1,600}\}\})|\*\*|__|~~|\*|_/g, (_, variable?: string) => variable ?? '')
     .replace(/\s+/g, ' ')
     .trim();
 }

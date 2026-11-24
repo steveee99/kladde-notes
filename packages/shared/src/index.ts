@@ -39,6 +39,7 @@ export * from './memory.js';
 export * from './zip.js';
 export * from './noteMemo.js';
 export * from './accent.js';
+export * from './variables.js';
 export * from './database.js';
 export * from './presentation.js';
 export * from './callout.js';

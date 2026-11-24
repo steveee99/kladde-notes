@@ -12,6 +12,7 @@ export type DialogState =
   | { kind: 'zettel' }
   | { kind: 'recipe'; url?: string }
   | { kind: 'clip'; url?: string; title?: string; selection?: string }
+  | { kind: 'variables'; space: string; folder: string }
   | { kind: 'attachment'; onPick: (file: UploadedFile) => void }
   | null;
 

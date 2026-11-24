@@ -1,5 +1,5 @@
 import { useId, useMemo, useRef, useState } from 'react';
-import { isDatabasePath, isTicketContent, splitPath } from '@kladde/shared';
+import { isHiddenPath, isTicketContent, splitPath } from '@kladde/shared';
 import { vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { folderDisplayName, t, useLang } from '../lib/i18n';
@@ -30,7 +30,7 @@ export function NoteSearchField({ onPick, exclude, label, placeholder, className
   const terms = searchTerms(q);
   const hits = useMemo(() => {
     if (!terms.length) return [];
-    const pool = vault.list().filter((n) => !isDatabasePath(n.path) && !n.path.startsWith('.') && !exclude?.has(n.id) && !isTicketContent(n.content));
+    const pool = vault.list().filter((n) => !isHiddenPath(n.path) && !n.path.startsWith('.') && !exclude?.has(n.id) && !isTicketContent(n.content));
     return searchNotes(pool, terms, (n) => vault.links().notes.get(n.id)?.title ?? splitPath(n.path).name).slice(0, MAX);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, exclude]);

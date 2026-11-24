@@ -4,6 +4,10 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+### Added
+
+- Variables: folders and groups define variables that their subfolders inherit and can override ("Variables …" in the folder header, the folder menu or the group). `{{var:name}}` in notes and templates always shows the current value, also in link and image addresses, tables, embeds, presentations, exports and on public links; `{{var:name|fallback}}` sets a value for where it is not defined. Typing `{{` offers the variables of the note's folder. See [docs/VARIABLES.md](docs/VARIABLES.md).
+
 ## [2.18.0] – 2026-11-22
 
 - New: Online mode for teams that are always online with very large vaults (`KLADDE_MODE=online`, experimental). Devices keep only a list of the notes and load a note's text when it opens, instead of a full offline copy: with 100,000 notes the first start takes 8 instead of 13 seconds and a restart 2 instead of 10. Renaming a note rewrites the links in every note on the server. Without a connection only notes opened before can be read; the local graph beside a note shows only opened notes so far.

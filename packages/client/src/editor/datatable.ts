@@ -1,4 +1,6 @@
+import type { VariableScope } from '@kladde/shared';
 import { getLang, locale, t } from '../lib/i18n';
+import { setMaskedHtml } from './variables';
 
 /** Interactive table (sort by header click, filter field) used for Markdown tables and query results */
 
@@ -51,6 +53,11 @@ export function renderInline(text: string): string {
     .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a class="cm-link" href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 }
 
+function setInline(el: HTMLElement, text: string, variables?: VariableScope | null): void {
+  if (variables) setMaskedHtml(el, text, variables, renderInline);
+  else el.innerHTML = renderInline(text);
+}
+
 export function stripInline(text: string): string {
   return text.replace(/[*_`~]|\[\[|\]\]/g, '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
 }
@@ -81,6 +88,8 @@ export function dataTable(
     edit?: TableEditing;
     /** A summary row below the body (query aggregates, #77); it is not sorted or filtered */
     footer?: string[];
+    /** Fills `{{var:name}}` in the cells */
+    variables?: VariableScope | null;
   } = {}
 ): HTMLElement {
   const wrap = document.createElement('div');
@@ -121,7 +130,8 @@ export function dataTable(
   const headRow = document.createElement('tr');
   headers.forEach((h, i) => {
     const th = document.createElement('th');
-    th.innerHTML = `<span>${renderInline(h)}</span><i class="wz-sort"></i>`;
+    th.innerHTML = '<span></span><i class="wz-sort"></i>';
+    setInline(th.firstElementChild as HTMLElement, h, opts.variables);
     if (opts.align?.[i]) th.style.textAlign = opts.align[i]!;
     if (edit) {
       th.dataset.row = '-1';
@@ -305,7 +315,7 @@ export function dataTable(
             td.dataset.col = String(i);
           }
           if (opts.align?.[i]) td.style.textAlign = opts.align[i]!;
-          if (typeof c === 'string') td.innerHTML = renderInline(c);
+          if (typeof c === 'string') setInline(td, c, opts.variables);
           else td.append(c);
           tr.append(td);
         });

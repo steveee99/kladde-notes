@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { isDatabasePath, isExcalidrawNote, pdfNoteOf, projectTitleOf, searchNotes, searchSnippet, searchTerms, splitPath } from '@kladde/shared';
+import { isHiddenPath, isExcalidrawNote, pdfNoteOf, projectTitleOf, searchNotes, searchSnippet, searchTerms, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { api } from '../lib/api';
 import type { LocalNote } from '../data/db';
@@ -144,7 +144,7 @@ function SearchDialog({ onClose, commands }: { onClose: () => void; commands?: (
 
   const notes = useMemo(() => {
     if (commandMode) return [];
-    const list = vault.list().filter((n) => !isDatabasePath(n.path) && (withMemory || !vault.isMemoryNote(n)));
+    const list = vault.list().filter((n) => !isHiddenPath(n.path) && (withMemory || !vault.isMemoryNote(n)));
     const titleOf = (n: LocalNote) => projectTitleOf(n.path, n.content, roleConfig);
     let ranked: LocalNote[];
     if (vault.online && terms.length) {

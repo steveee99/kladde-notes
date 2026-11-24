@@ -72,6 +72,9 @@ import {
   createPeriodicExtractor,
   parseFrontmatter,
   fillReleasePlaceholders,
+  fillVariables,
+  resolveVariables,
+  type VariableScope,
   type NoteRelease,
   isFolderProjectHome,
   isProjectNote,
@@ -127,6 +130,7 @@ import { refreshConfluence, useConfluence } from '../lib/confluence';
 import { ConfluenceDialog } from './ConfluenceDialog';
 import { ReleaseDialog, releaseChipLabel } from './ReleaseDialog';
 import { releaseRenderOptions } from '../editor/releases';
+import { useVariables, variablesOfNote } from '../data/variables';
 import { DEMO } from '../demo/demoApi';
 import { useComments } from '../data/comments';
 import { onCommentOpen, setCommentRanges } from '../editor/comments';
@@ -378,6 +382,7 @@ function NoteOverflowMenu({
   onAddProperty,
   onConfluence,
   onVersioning,
+  variables,
   exportContent,
   align,
   onAlign,
@@ -423,6 +428,8 @@ function NoteOverflowMenu({
   align: NoteAlign;
   /** Only for editable notes */
   onAlign?: (align: NoteAlign) => void;
+  /** Fills `{{var:name}}` in exports */
+  variables: VariableScope;
   /** Presentation mode (#87) is on: "Start presentation" and the slide PDF among the exports */
   onPresent?: () => void;
 }) {
@@ -489,7 +496,7 @@ function NoteOverflowMenu({
 
   const exportMarkdown = async () => {
     setOpen(false);
-    const body = stripFrontmatter(exportContent ? await exportContent() : content);
+    const body = stripFrontmatter(fillVariables(exportContent ? await exportContent() : content, variables));
     const finalText = body && !body.endsWith('\n') ? `${body}\n` : body;
     const url = URL.createObjectURL(new Blob([finalText], { type: 'text/markdown;charset=utf-8' }));
     const a = document.createElement('a');
@@ -507,9 +514,9 @@ function NoteOverflowMenu({
     try {
       const mod = await import('../lib/noteExport');
       const text = exportContent ? await exportContent() : content;
-      if (kind === 'word') await mod.exportNoteAsWord(title, text);
-      else if (kind === 'slides') await mod.exportNoteAsSlides(title, text);
-      else await mod.exportNoteAsPdf(title, text);
+      if (kind === 'word') await mod.exportNoteAsWord(title, text, variables);
+      else if (kind === 'slides') await mod.exportNoteAsSlides(title, text, variables);
+      else await mod.exportNoteAsPdf(title, text, variables);
     } catch (err) {
       alert(t('export.failed', { error: (err as Error).message }));
     } finally {
@@ -926,6 +933,7 @@ function MoveNoteSheet({
 function NoteInspectorPane({
   noteId,
   outline,
+  variables,
   tasks,
   view,
   canEdit,
@@ -943,6 +951,7 @@ function NoteInspectorPane({
   tickets?: TicketInfo[];
   noteId: string;
   outline: Outline;
+  variables: VariableScope;
   tasks: Task[];
   view: EditorView | null;
   canEdit: boolean;
@@ -1012,7 +1021,7 @@ function NoteInspectorPane({
 
       <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto scrollbar-thin pr-0.5 pt-2">
         {shown === 'comments' && commentsTab?.panel}
-        {shown === 'toc' && <OutlinePanel outline={outline} view={view} canEdit={canEdit} onJump={onJump} />}
+        {shown === 'toc' && <OutlinePanel outline={outline} variables={variables} view={view} canEdit={canEdit} onJump={onJump} />}
         {shown === 'tasks' && <NoteTasksPanel noteId={noteId} tasks={tasks} view={view} canEdit={canEdit} onJump={onJump} />}
 
         {shown === 'links' && (
@@ -1033,7 +1042,7 @@ function NoteInspectorPane({
                     <li key={b.id}>
                       <button className={item} onClick={() => navigate(`/n/${b.id}`)}>
                         <div className="truncate text-body-l text-on-surface">{projectTitleOf(b.path, b.content, rc)}</div>
-                        {excerpt(b.content, 85) && <div className="mt-0.5 line-clamp-2 text-body-m text-on-surface-variant">{excerpt(b.content, 85)}</div>}
+                        {excerpt(b.content, 85) && <div className="mt-0.5 line-clamp-2 text-body-m text-on-surface-variant">{resolveVariables(excerpt(b.content, 85), variablesOfNote(b))}</div>}
                       </button>
                     </li>
                   ))}
@@ -1369,6 +1378,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
     if (pane === 'main') history.replaceState(null, '', location.pathname);
   }, [view, hasNote]);
 
+  // Variables of the note's folder (`{{var:name}}`): change with them and when the note moves
+  const variables = useVariables(note);
   // Headings for the outline, live from the editor while the side panel is open
   const outline = useOutline(splitOpen && !focusMode ? view : null, note?.content ?? '');
   // Tasks of the note for the tasks tab, live from the editor as well
@@ -1628,6 +1639,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 onConfluence={isOwner && confluence?.connection ? () => setConfluenceOpen(true) : undefined}
                 onHistory={() => setShowHistory(true)}
                 onVersioning={!DEMO && (note.access === 'owner' || groupManager || note.versioning) ? () => setReleaseOpen(true) : undefined}
+                variables={variables}
                 exportContent={note.versioning ? exportContent : undefined}
                 onMove={() => setMoving(true)}
                 onMoveToGroup={isOwner && !vault.standalone && !DEMO ? () => setMovingToGroup(true) : undefined}
@@ -1762,6 +1774,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               presenceNote={id}
               dim={focus && features.focus.dim}
               releases={note.versioning ? (note.releases ?? []) : null}
+              variables={variables}
               onChange={(content) => {
                 // Echoes of synced or programmatic changes equal the stored text; only real typing counts
                 if (content !== vault.get(id)?.content) memoryEdit.current.edited = true;
@@ -1795,7 +1808,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                     {memoryBacklinks.map((b) => (
                       <button key={b.id} className="w-full min-w-0 rounded-xl border border-dashed border-outline-variant p-3 text-left text-sm transition hover:border-primary/40" onClick={() => navigate(`/n/${b.id}`)}>
                         <div className="truncate font-medium">{memoryMeta(b.content, b.path).title}</div>
-                        <div className="line-clamp-1 break-words text-on-surface-variant">{memoryMeta(b.content, b.path).description || excerpt(b.content, 90)}</div>
+                        <div className="line-clamp-1 break-words text-on-surface-variant">{memoryMeta(b.content, b.path).description || resolveVariables(excerpt(b.content, 90), variablesOfNote(b))}</div>
                       </button>
                     ))}
                   </div>
@@ -1808,7 +1821,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                     {backlinks.map((b) => (
                       <button key={b.id} className="w-full min-w-0 rounded-xl border border-outline-variant p-3 text-left text-sm transition hover:border-primary/40" onClick={() => navigate(`/n/${b.id}`)}>
                         <div className="truncate font-medium">{projectTitleOf(b.path, b.content, rc)}</div>
-                        <div className="line-clamp-1 break-words text-on-surface-variant">{excerpt(b.content, 90)}</div>
+                        <div className="line-clamp-1 break-words text-on-surface-variant">{resolveVariables(excerpt(b.content, 90), variablesOfNote(b))}</div>
                       </button>
                     ))}
                   </div>
@@ -1864,6 +1877,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             <NoteInspectorPane
               noteId={id}
               outline={outline}
+              variables={variables}
               tasks={noteTasks}
               view={view}
               canEdit={!readOnly && !showPdf}
@@ -1914,6 +1928,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               <NoteInspectorPane
                 noteId={id}
                 outline={outline}
+              variables={variables}
                 tasks={noteTasks}
               view={view}
               canEdit={!readOnly && !showPdf}
@@ -1973,6 +1988,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             title={title || displayName}
             content={note.content}
             releases={note.versioning ? (note.releases ?? []) : null}
+            variables={variables}
             callouts={features.callouts.enabled}
             onFormat={!readOnly && view ? (format) => applyFrontmatter(view, { presentation: format }) : undefined}
             onClose={() => setPresenting(false)}
@@ -1980,7 +1996,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
         </Suspense>
       )}
       {releaseOpen && <ReleaseDialog note={note} locked={locked} onClose={() => setReleaseOpen(false)} />}
-      {showHistory && <HistoryDialog noteId={id} current={note.content} canRestore={!readOnly} onClose={() => setShowHistory(false)} />}
+      {showHistory && <HistoryDialog noteId={id} variables={variables} current={note.content} canRestore={!readOnly} onClose={() => setShowHistory(false)} />}
       {pickingIcon && (
         <IconPickerDialog
           title={t('icons.noteTitle')}

@@ -6,6 +6,7 @@ import { appUrl, navigate } from '../lib/router';
 import { editorHost } from './host';
 import { embedContext, embedResolverFacet, type EmbedNote, type EmbedResolver } from './embedContext';
 import { editButton } from './widgets';
+import { variablesFacet } from './variables';
 
 /** Extensions of the read-only editor inside an embed; set by Editor.tsx (avoids an import cycle) */
 let nestedExtensions: (noteId: string) => Extension = () => [];
@@ -65,6 +66,7 @@ export class EmbedWidget extends WidgetType {
       o.note?.title === this.note?.title &&
       o.note?.canWrite === this.note?.canWrite &&
       o.note?.href === this.note?.href &&
+      o.note?.variables === this.note?.variables &&
       o.problem === this.problem &&
       o.text === this.text &&
       o.startLine === this.startLine &&
@@ -121,6 +123,7 @@ export class EmbedWidget extends WidgetType {
           doc: this.text,
           extensions: [
             nestedExtensions(note.id),
+            variablesFacet.of(note.variables ?? null),
             embedContext.of({ depth: this.depth + 1, chain: [...this.chain, note.id], source: { noteId: note.id, startLine: this.startLine, canWrite: note.canWrite } }),
             this.resolver ? embedResolverFacet.of(this.resolver) : [],
           ],
