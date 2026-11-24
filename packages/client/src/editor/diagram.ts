@@ -1,4 +1,4 @@
-import { mindmapToMermaid } from '@kladde/shared';
+import { fitPrintDiagram, mindmapToMermaid, svgNaturalSize } from '@kladde/shared';
 import { t } from '../lib/i18n';
 
 /**
@@ -17,7 +17,13 @@ let counter = 0;
 const cache = new Map<string, { svg?: string; error?: string }>();
 
 const isDark = () => document.documentElement.dataset.scheme !== 'light';
-const themeKey = () => `${document.documentElement.dataset.theme ?? 'werkbank'}-${isDark() ? 'dark' : 'light'}-${document.documentElement.dataset.accent ?? 'blue'}`;
+/** Colors for paper (print and exports) instead of the app's scheme */
+const PAPER = 'paper';
+const screenKey = () => `${document.documentElement.dataset.theme ?? 'werkbank'}-${isDark() ? 'dark' : 'light'}-${document.documentElement.dataset.accent ?? 'blue'}`;
+
+/** The browser is printing: diagrams on the page take their paper colors and size */
+let printing = false;
+export const isPrinting = () => printing;
 
 /** "R G B" variable → #rrggbb (Mermaid's color math needs hex) */
 function cssColor(name: string): string {
@@ -26,8 +32,24 @@ function cssColor(name: string): string {
   return `#${parts.map((n) => Math.round(n).toString(16).padStart(2, '0')).join('')}`;
 }
 
-function themeVariables() {
-  const v = {
+/** The light scheme on white, whatever scheme the app shows */
+const PAPER_COLORS = {
+  bg: '#ffffff',
+  surface: '#ffffff',
+  raised: '#f1eee7',
+  line: '#d2ccc0',
+  ink: '#211f1c',
+  muted: '#645f57',
+  accent: '#2642ba',
+  onAccent: '#ffffff',
+  accent2: '#6941c6',
+  ok: '#1a7444',
+  warn: '#8a5800',
+  danger: '#b42318',
+};
+
+function themeVariables(paper: boolean) {
+  const v = paper ? PAPER_COLORS : {
     bg: cssColor('--surface'),
     surface: cssColor('--surface-container-low'),
     raised: cssColor('--surface-container-high'),
@@ -50,8 +72,9 @@ function themeVariables() {
     extra[`pie${i + 1}`] = scale[i % scale.length];
   }
   return {
-    darkMode: isDark(),
-    fontFamily: getComputedStyle(document.body).fontFamily,
+    darkMode: !paper && isDark(),
+    // An exported SVG becomes an image, where web fonts do not load: its labels are measured with a font that is there
+    fontFamily: paper ? 'Arial, Helvetica, sans-serif' : getComputedStyle(document.body).fontFamily,
     fontSize: '14px',
     background: v.surface,
     primaryColor: v.raised,
@@ -96,10 +119,9 @@ function themeVariables() {
   };
 }
 
-async function mermaid(): Promise<Mermaid> {
+async function mermaid(theme: string): Promise<Mermaid> {
   loading ??= import('mermaid').then((m) => m.default);
   const m = await loading;
-  const theme = themeKey();
   if (configuredFor !== theme) {
     m.initialize({
       startOnLoad: false,
@@ -107,7 +129,7 @@ async function mermaid(): Promise<Mermaid> {
       securityLevel: 'strict',
       suppressErrorRendering: true,
       theme: 'base',
-      themeVariables: themeVariables(),
+      themeVariables: themeVariables(theme === PAPER),
       flowchart: { htmlLabels: true, curve: 'basis' },
     });
     configuredFor = theme;
@@ -120,17 +142,32 @@ export function diagramSource(kind: DiagramKind, src: string): string {
 }
 
 export function cachedDiagram(kind: DiagramKind, src: string) {
-  return cache.get(`${themeKey()}\n${kind}\n${src}`);
+  const screen = cache.get(`${screenKey()}\n${kind}\n${src}`);
+  return printing ? (cache.get(`${PAPER}\n${kind}\n${src}`) ?? screen) : screen;
 }
 
-export async function renderDiagram(kind: DiagramKind, src: string): Promise<{ svg?: string; error?: string }> {
-  const key = `${themeKey()}\n${kind}\n${src}`;
+/** Diagrams are drawn one after the other: Mermaid has one configuration, and paper and screen differ */
+let queue: Promise<unknown> = Promise.resolve();
+
+export function renderDiagram(kind: DiagramKind, src: string, paper = false): Promise<{ svg?: string; error?: string }> {
+  const theme = paper ? PAPER : screenKey();
+  const hit = cache.get(`${theme}\n${kind}\n${src}`);
+  if (hit) return Promise.resolve(hit);
+  const job = queue.then(() => draw(kind, src, theme));
+  queue = job;
+  return job;
+}
+
+async function draw(kind: DiagramKind, src: string, theme: string): Promise<{ svg?: string; error?: string }> {
+  // The scheme may have changed while the diagram waited for its turn: the cache must not mix the colors
+  if (theme !== PAPER) theme = screenKey();
+  const key = `${theme}\n${kind}\n${src}`;
   const hit = cache.get(key);
   if (hit) return hit;
   let result: { svg?: string; error?: string };
   const id = `wz-mermaid-${++counter}`;
   try {
-    const m = await mermaid();
+    const m = await mermaid(theme);
     const code = diagramSource(kind, src);
     if (!code.trim()) result = { error: t('editor.diagramEmpty') };
     else result = { svg: (await m.render(id, code)).svg };
@@ -145,14 +182,27 @@ export async function renderDiagram(kind: DiagramKind, src: string): Promise<{ s
   return result;
 }
 
+/** Room for a diagram on an A4 page with the margins of the print styles, in CSS pixels */
+const PRINT_PAGE = { width: 640, height: 1000 };
+
+function sizeForPaper(el: HTMLElement) {
+  const svg = el.querySelector('svg');
+  const natural = svg && svgNaturalSize({ viewBox: svg.getAttribute('viewBox') });
+  if (!svg || !natural) return;
+  svg.style.width = `${fitPrintDiagram(natural, PRINT_PAGE).width}px`;
+  svg.style.maxWidth = '100%';
+}
+
 /** Fills `el` with the diagram (or its error); `done` runs once the size is final */
 export function drawDiagram(el: HTMLElement, kind: DiagramKind, src: string, done?: () => void): void {
   el.dataset.kind = kind;
   el.dataset.src = src;
   const show = (r: { svg?: string; error?: string }) => {
     el.classList.toggle('wz-diagram-failed', !!r.error);
-    if (r.svg) el.innerHTML = r.svg;
-    else {
+    if (r.svg) {
+      el.innerHTML = r.svg;
+      if (printing) sizeForPaper(el);
+    } else {
       const err = document.createElement('div');
       err.className = 'wz-query-error';
       err.textContent = t('editor.diagramError', { error: (r.error ?? '').split('\n')[0] });
@@ -171,19 +221,28 @@ export function drawDiagram(el: HTMLElement, kind: DiagramKind, src: string, don
     wait.textContent = t('editor.diagramDrawing');
     el.replaceChildren(wait);
   }
-  void renderDiagram(kind, src).then((r) => {
+  void renderDiagram(kind, src, printing).then((r) => {
     // A newer source may have arrived meanwhile
     if (el.dataset.src === src && el.dataset.kind === kind) show(r);
   });
 }
 
+function redrawAll() {
+  document.querySelectorAll<HTMLElement>('.wz-diagram[data-kind][data-src]').forEach((el) => {
+    drawDiagram(el, el.dataset.kind as DiagramKind, el.dataset.src ?? '');
+  });
+}
+
+/** Switches the diagrams on the page to their paper colors while printing, and back */
+export function setPaperDiagrams(on: boolean): void {
+  if (printing === on) return;
+  printing = on;
+  redrawAll();
+}
+
 // Redraw the diagrams on screen in the new colors when the color scheme changes
 if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined') {
-  new MutationObserver(() => {
-    document.querySelectorAll<HTMLElement>('.wz-diagram[data-kind][data-src]').forEach((el) => {
-      drawDiagram(el, el.dataset.kind as DiagramKind, el.dataset.src ?? '');
-    });
-  }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-scheme', 'data-accent'] });
+  new MutationObserver(redrawAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-scheme', 'data-accent'] });
 }
 
 /** Full-screen view for large diagrams */

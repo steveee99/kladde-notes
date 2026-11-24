@@ -48,3 +48,4 @@ export * from './workflow.js';
 export * from './automations.js';
 export * from './codeInfo.js';
 export * from './textSearch.js';
+export * from './printSize.js';

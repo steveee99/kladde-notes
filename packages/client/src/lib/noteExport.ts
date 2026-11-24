@@ -20,18 +20,25 @@ import { jsPDF } from 'jspdf';
 import {
   CALLOUT_TONES,
   calloutTypeTitle,
+  fitInto,
+  fitPrintDiagram,
+  fitPrintImage,
   isKnownCalloutType,
   isTitleSlide,
+  jpegOrientation,
   parseMarkdownForExport,
+  PX_TO_PT,
   safeExportFilename,
   slideFormatOf,
   slideRatio,
   splitSlides,
   stripFrontmatter,
+  svgNaturalSize,
   type CalloutKind,
   type CalloutTone,
   type ExportBlock,
   type ExportInline,
+  type Size,
   type TableAlign,
 } from '@kladde/shared';
 import { CALLOUT_ICON_PATHS } from '../editor/calloutIcons';
@@ -125,37 +132,60 @@ async function loadHtmlImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/**
- * Draws an image into a PNG. `oversample` renders vector images (diagrams) with that many pixels per unit so they stay
- * sharp when a slide shows them larger; the reported size stays the drawing's own.
- */
-async function rasterizeToPng(src: string, maxDim = 1600, background?: string, oversample = 1): Promise<LoadedImage> {
+/** Draws an image into a PNG (photos: a JPEG), at most `maxDim` pixels wide or high */
+async function rasterizeToPng(src: string, maxDim = 1600, background?: string, jpeg = false): Promise<LoadedImage> {
   const img = await loadHtmlImage(src);
   const w0 = Math.max(1, img.naturalWidth || img.width || 800);
   const h0 = Math.max(1, img.naturalHeight || img.height || 400);
   const scale = Math.min(1, maxDim / Math.max(w0, h0));
-  const pixels = Math.min(oversample, Math.max(1, (maxDim * oversample) / Math.max(w0 * scale, h0 * scale)));
   const width = Math.max(1, Math.round(w0 * scale));
   const height = Math.max(1, Math.round(h0 * scale));
+  return drawToCanvas(img, { width, height }, { width, height }, background, jpeg);
+}
 
+/** Pixels per CSS pixel of rasterized vector images, so they stay sharp in print and when a slide shows them larger */
+const SVG_OVERSAMPLE = 3;
+/** Longest side of a rasterized vector image in pixels */
+const SVG_MAX_PIXELS = 4500;
+
+/** Draws an SVG into a PNG. The reported size is the drawing's own (its `viewBox`, see svgNaturalSize) */
+async function rasterizeSvg(svg: string): Promise<LoadedImage> {
+  const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+  const el = doc.documentElement;
+  if (el.nodeName.toLowerCase() !== 'svg') throw new Error('Kein SVG');
+  if (!el.getAttribute('xmlns')) el.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  const size = svgNaturalSize({ width: el.getAttribute('width'), height: el.getAttribute('height'), viewBox: el.getAttribute('viewBox') });
+  if (size) {
+    // Without a size of its own the image would be the browser's default of 300 × 150
+    el.setAttribute('width', String(size.width));
+    el.setAttribute('height', String(size.height));
+  }
+  const img = await loadHtmlImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(el))}`);
+  const natural = size ?? { width: img.naturalWidth || 800, height: img.naturalHeight || 400 };
+  const scale = Math.min(SVG_OVERSAMPLE, SVG_MAX_PIXELS / Math.max(natural.width, natural.height));
+  return drawToCanvas(img, natural, { width: natural.width * scale, height: natural.height * scale });
+}
+
+async function drawToCanvas(img: HTMLImageElement, size: Size, pixels: Size, background = '#ffffff', jpeg = false): Promise<LoadedImage> {
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(width * pixels);
-  canvas.height = Math.round(height * pixels);
+  canvas.width = Math.max(1, Math.round(pixels.width));
+  canvas.height = Math.max(1, Math.round(pixels.height));
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Kein Canvas-Kontext');
-  ctx.fillStyle = background ?? '#ffffff';
+  ctx.fillStyle = background;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-  const dataUrl = canvas.toDataURL('image/png');
-  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'));
+  const mime = jpeg ? 'image/jpeg' : 'image/png';
+  const dataUrl = canvas.toDataURL(mime, 0.92);
+  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, mime, 0.92));
   if (!blob) throw new Error('PNG-Konvertierung fehlgeschlagen');
   return {
     bytes: new Uint8Array(await blob.arrayBuffer()),
-    docxType: 'png',
-    pdfFormat: 'PNG',
-    width,
-    height,
+    docxType: jpeg ? 'jpg' : 'png',
+    pdfFormat: jpeg ? 'JPEG' : 'PNG',
+    width: Math.max(1, size.width),
+    height: Math.max(1, size.height),
     dataUrl,
   };
 }
@@ -170,9 +200,12 @@ async function fetchNoteImage(url: string): Promise<LoadedImage | null> {
     const dataUrl = await blobToDataUrl(blob);
     if (blob.type === 'image/jpeg' || blob.type === 'image/png') {
       try {
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        // Phone photos stored sideways (EXIF): PDF and Word would stretch them into the turned size
+        if (blob.type === 'image/jpeg' && jpegOrientation(bytes) > 1) return await rasterizeToPng(dataUrl, 2400, undefined, true);
         const img = await loadHtmlImage(dataUrl);
         return {
-          bytes: new Uint8Array(await blob.arrayBuffer()),
+          bytes,
           docxType: blob.type === 'image/jpeg' ? 'jpg' : 'png',
           pdfFormat: blob.type === 'image/jpeg' ? 'JPEG' : 'PNG',
           width: Math.max(1, img.naturalWidth || 600),
@@ -183,7 +216,8 @@ async function fetchNoteImage(url: string): Promise<LoadedImage | null> {
         return null;
       }
     }
-    // WebP, AVIF, GIF, SVG -> rasterize to PNG
+    if (blob.type === 'image/svg+xml') return await rasterizeSvg(await blob.text());
+    // WebP, AVIF, GIF -> rasterize to PNG
     return await rasterizeToPng(dataUrl);
   } catch {
     return null;
@@ -192,20 +226,8 @@ async function fetchNoteImage(url: string): Promise<LoadedImage | null> {
 
 async function renderDiagramImage(kind: DiagramKind, src: string): Promise<LoadedImage | null> {
   try {
-    const res = await renderDiagram(kind, src);
-    if (!res.svg) return null;
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(res.svg, 'image/svg+xml');
-    const svgEl = doc.documentElement;
-    if (!svgEl.getAttribute('xmlns')) svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-
-    // Read current surface color so Mermaid/Mindmap diagrams retain theme contrast
-    const rawBg = getComputedStyle(document.documentElement).getPropertyValue('--surface-container-low').trim().split(/[\s/]+/).slice(0, 3).map(Number);
-    const bg = rawBg.length >= 3 && !rawBg.some(Number.isNaN) ? `rgb(${rawBg[0]}, ${rawBg[1]}, ${rawBg[2]})` : '#ffffff';
-
-    const serialized = new XMLSerializer().serializeToString(svgEl);
-    const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}`;
-    return await rasterizeToPng(svgUrl, 1600, bg, 3);
+    const res = await renderDiagram(kind, src, true);
+    return res.svg ? await rasterizeSvg(res.svg) : null;
   } catch {
     return null;
   }
@@ -269,10 +291,9 @@ async function preloadMedia(blocks: ExportBlock[]) {
   return { images, diagrams, icons };
 }
 
-function fitSize(w: number, h: number, maxW: number, maxH: number) {
-  const ratio = Math.min(1, maxW / w, maxH / h);
-  return { width: Math.max(1, Math.round(w * ratio)), height: Math.max(1, Math.round(h * ratio)) };
-}
+/** Text area of a Word page in pixels (A4, 2.5 cm margins) */
+const DOCX_PAGE: Size = { width: 600, height: 930 };
+const rounded = (s: Size): Size => ({ width: Math.round(s.width), height: Math.round(s.height) });
 
 // ------------------------------------------------------------------ Word (.docx) Export
 
@@ -380,6 +401,7 @@ export async function exportNoteAsWord(title: string, content: string): Promise<
           new Paragraph({
             heading: DOCX_HEADINGS[block.level - 1] ?? HeadingLevel.HEADING_6,
             spacing: { before: 220, after: 100 },
+            keepNext: true,
             children: docxRuns(block.inlines),
           })
         );
@@ -467,7 +489,7 @@ export async function exportNoteAsWord(title: string, content: string): Promise<
         if (block.lang === 'mermaid' || block.lang === 'mindmap') {
           const img = diagrams.get(`${block.lang}\n${block.code}`);
           if (img) {
-            const size = fitSize(img.width, img.height, 560, 420);
+            const size = rounded(fitPrintDiagram(img, DOCX_PAGE));
             children.push(
               new Paragraph({
                 spacing: { before: 80, after: 140 },
@@ -553,10 +575,11 @@ export async function exportNoteAsWord(title: string, content: string): Promise<
       case 'image': {
         const img = images.get(block.url);
         if (img) {
-          const size = fitSize(img.width, img.height, 560, 440);
+          const size = rounded(fitPrintImage(img, DOCX_PAGE));
           children.push(
             new Paragraph({
               spacing: { before: 80, after: block.alt ? 40 : 140 },
+              keepNext: !!block.alt,
               children: [new ImageRun({ type: img.docxType, data: img.bytes, transformation: size })],
             })
           );
@@ -961,12 +984,28 @@ function drawPdfBlocks(f: PdfFrame, blocks: ExportBlock[]) {
   const bodyLh = 15.5 * s;
   /** Room for an image or diagram: on a slide what is left of it (at least half), in the document a page */
   const mediaRoom = (extra: number) => (f.mode === 'flag' ? Math.max(f.limit - f.y - extra, (f.limit - f.top) * 0.5) : f.limit - f.top - extra);
-  const fitMedia = (w: number, h: number, maxW: number, maxH: number) => {
-    const ratio = Math.min(f.grow, maxW / w, maxH / h);
-    return { width: Math.max(1, Math.round(w * ratio)), height: Math.max(1, Math.round(h * ratio)) };
+  /** Image of an image block or diagram with its size on the page; null for other blocks and images that did not load */
+  const mediaOf = (block: ExportBlock | undefined): { img: LoadedImage; size: Size } | null => {
+    const diagram = block?.type === 'code' && (block.lang === 'mermaid' || block.lang === 'mindmap');
+    const img = block?.type === 'image' ? images.get(block.url) : diagram ? diagrams.get(`${block.lang}\n${block.code}`) : null;
+    if (!img) return null;
+    if (f.grow === 1) {
+      const page = { width: contentW, height: f.limit - f.top };
+      return { img, size: diagram ? fitPrintDiagram(img, page, PX_TO_PT) : fitPrintImage(img, page, PX_TO_PT) };
+    }
+    // Slides: what is left of the slide, enlarged to fill it
+    const unit = PX_TO_PT * (diagram ? s : 1);
+    return { img, size: fitInto({ width: img.width * unit, height: img.height * unit }, { width: contentW, height: mediaRoom((diagram ? 20 : 28) * s) }, f.grow) };
+  };
+  /** `f.y` is the baseline of the next line; images start where its letters would */
+  const ascent = bodySize * 0.8;
+  const drawMedia = ({ img, size }: { img: LoadedImage; size: Size }, centered: boolean) => {
+    const top = f.y - ascent;
+    pdf.addImage(img.dataUrl, img.pdfFormat, marginX + (centered ? (contentW - size.width) / 2 : 0), top, size.width, size.height, undefined, 'FAST');
+    f.y = top + size.height + 8 * s + ascent;
   };
 
-  for (const block of blocks) {
+  for (const [index, block] of blocks.entries()) {
     switch (block.type) {
       case 'heading': {
         const sizes = [21, 16, 13.5, 11.5, 11, 10.5];
@@ -976,7 +1015,9 @@ function drawPdfBlocks(f: PdfFrame, blocks: ExportBlock[]) {
         // On a slide the first heading starts at the top edge; there `y` is the baseline of body text, so a larger
         // heading moves down by its extra height
         if (!slide || f.y > f.top + bodySize) f.y += (block.level <= 2 ? 8 : 5) * s;
-        ensureSpace(f, lh + 18 * s); // Keep headings with following content
+        // Keep headings with the following text, image or diagram
+        const next = slide ? null : mediaOf(blocks[index + 1]);
+        ensureSpace(f, lh + (next ? next.size.height + 22 * s : 18 * s));
         const lines = wrapPdfSegs(
           pdf,
           inlinesToPdfSegs(block.inlines, 'normal', f.heading).map((seg) => ({
@@ -1060,12 +1101,10 @@ function drawPdfBlocks(f: PdfFrame, blocks: ExportBlock[]) {
 
       case 'code': {
         if (block.lang === 'mermaid' || block.lang === 'mindmap') {
-          const img = diagrams.get(`${block.lang}\n${block.code}`);
-          if (img) {
-            const size = fitMedia(img.width * 0.72 * s, img.height * 0.72 * s, contentW, mediaRoom(20 * s));
-            ensureSpace(f, size.height + 10 * s);
-            pdf.addImage(img.dataUrl, img.pdfFormat, marginX + (f.mode === 'flag' ? (contentW - size.width) / 2 : 0), f.y, size.width, size.height);
-            f.y += size.height + 10 * s;
+          const media = mediaOf(block);
+          if (media) {
+            ensureSpace(f, media.size.height);
+            drawMedia(media, true);
             break;
           }
         }
@@ -1162,19 +1201,16 @@ function drawPdfBlocks(f: PdfFrame, blocks: ExportBlock[]) {
       }
 
       case 'image': {
-        const img = images.get(block.url);
-        if (img) {
-          const caption = block.alt ? 18 * s : 8 * s;
-          const size = fitMedia(img.width * 0.72, img.height * 0.72, contentW, mediaRoom(28 * s));
-          ensureSpace(f, size.height + caption);
-          pdf.addImage(img.dataUrl, img.pdfFormat, marginX + (f.mode === 'flag' ? (contentW - size.width) / 2 : 0), f.y, size.width, size.height);
-          f.y += size.height + 6 * s;
+        const media = mediaOf(block);
+        if (media) {
+          ensureSpace(f, media.size.height + (block.alt ? 18 * s : 0));
+          drawMedia(media, f.mode === 'flag');
           if (block.alt) {
             pdf.setFont('helvetica', 'italic');
             pdf.setFontSize(9 * s);
             pdf.setTextColor(104, 102, 116);
-            pdf.text(pdfSafeText(block.alt), marginX, f.y + 6 * s);
-            f.y += 16 * s;
+            pdf.text(pdfSafeText(block.alt), marginX, f.y);
+            f.y += 18 * s;
           }
         } else {
           const label = pdfSafeText(block.alt ? `[${t('export.docAttachment')}: ${block.alt}]` : `[${t('export.docAttachment')}: ${block.url}]`);

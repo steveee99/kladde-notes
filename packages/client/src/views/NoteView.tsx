@@ -113,6 +113,7 @@ import { Avatar } from './Avatar';
 import { MoveToGroupSheet, groupPath, groupRoleLabel } from './Groups';
 import { PresenceBar, useAnnouncePresence } from './PresenceBar';
 import { folderDisplayName, t, useLang, type I18nKey, type Lang } from '../lib/i18n';
+import { printNote, usePrintable } from '../lib/printing';
 import { setLocalGraphDepth, setSourceMode, useLocalGraphDepth, useSourceMode, type NoteSplitTab } from '../lib/prefs';
 import { activePane, usePane, usePanePanel } from '../lib/panes';
 import { isCoarsePointer } from '../lib/viewport';
@@ -427,6 +428,7 @@ function NoteOverflowMenu({
   onPresent?: () => void;
 }) {
   useLang();
+  usePrintable(content);
   const [open, setOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [busy, setBusy] = useState<'word' | 'pdf' | 'slides' | null>(null);
@@ -787,7 +789,7 @@ function NoteOverflowMenu({
                   className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
                   onClick={() => {
                     setOpen(false);
-                    requestAnimationFrame(() => window.print());
+                    void printNote();
                   }}
                 >
                   <Printer size={15} className="shrink-0" />

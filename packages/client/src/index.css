@@ -2818,6 +2818,12 @@ span.cm-checkbox {
   :root,
   [data-theme='werkbank'],
   [data-theme='werkbank'][data-scheme] {
+    --strong: 23 21 18;
+    --text: 33 31 28;
+    --body: 48 45 40;
+    --soft: 68 64 58;
+    --muted: 100 95 87;
+    --faint: 112 106 98;
     --surface: 255 255 255;
     --surface-container-low: 255 255 255;
     --surface-container-high: 245 244 241;
@@ -2841,6 +2847,7 @@ span.cm-checkbox {
   /* Undo nested flex/overflow scroll containers so multi-page notes print completely */
   body > #root > div,
   body > #root > div > div,
+  #root div:has(main),
   main {
     display: block !important;
     height: auto !important;
@@ -2880,6 +2887,69 @@ span.cm-checkbox {
     break-inside: avoid;
     border-color: #d7d4ce !important;
     background: #fff !important;
+  }
+  /* Scroll and flex containers do not break across pages reliably: everything behind a page-high block would be lost
+     (CodeMirror sets display: flex with !important, hence the repeated class) */
+  .cm-editor,
+  .cm-editor .cm-scroller.cm-scroller.cm-scroller {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  /* Images and diagrams (shared/printSize.ts): never enlarged to the page width, a part of the page height at most */
+  .cm-img {
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: min(145mm, 55vh);
+    break-inside: avoid;
+  }
+  .wz-diagram {
+    overflow: visible;
+    padding: 8px;
+  }
+  .wz-diagram svg {
+    max-height: min(198mm, 75vh);
+  }
+  .cm-line:has(.cm-img) {
+    break-inside: avoid;
+  }
+  .cm-h1,
+  .cm-h2,
+  .cm-h3,
+  .cm-h4,
+  .cm-h5,
+  .cm-h6 {
+    break-after: avoid;
+  }
+  .wz-gallery {
+    align-items: start;
+  }
+  .wz-gallery img,
+  .wz-carousel-item img {
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: min(120mm, 45vh);
+    aspect-ratio: auto;
+    object-fit: contain;
+    break-inside: avoid;
+  }
+  .wz-carousel-track {
+    flex-wrap: wrap;
+    height: auto;
+    overflow: visible;
+  }
+  .wz-carousel .wz-carousel-item {
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    aspect-ratio: auto !important;
+    border-radius: 12px;
+    break-inside: avoid;
+  }
+  .wz-carousel-nav {
+    display: none;
   }
   .cm-inline-code {
     border-color: #d7d4ce !important;
