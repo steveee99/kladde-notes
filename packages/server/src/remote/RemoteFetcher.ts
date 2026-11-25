@@ -31,6 +31,9 @@ const FRESH_MS = 5_000;
 const IMAGE_FRESH_MS = 5 * 60_000;
 const CACHE_ENTRIES = 300;
 const CACHE_BYTES = 64 * 1024 * 1024;
+/** API answers of preview cards: kept a minute, at most this many */
+const JSON_FRESH_MS = 60_000;
+const JSON_ENTRIES = 500;
 
 export class RemoteError extends Error {
   constructor(readonly problem: RemoteProblem) {
@@ -81,6 +84,8 @@ export class RemoteFetcher {
   private readonly cache = new Map<string, CacheEntry>();
   private cacheBytes = 0;
   private readonly running = new Map<string, Promise<CacheEntry>>();
+  private readonly jsonCache = new Map<string, { value: { data: unknown; total: number | null }; at: number }>();
+  private readonly jsonRunning = new Map<string, Promise<{ data: unknown; total: number | null }>>();
 
   constructor(
     private readonly instances: RemoteInstances,
@@ -109,6 +114,40 @@ export class RemoteFetcher {
     const mime = sniffImage(entry.body, path);
     if (!mime) throw new RemoteError('unsupported');
     return { mime, data: entry.body, etag: `"${crypto.createHash('sha256').update(entry.body).digest('hex').slice(0, 32)}"` };
+  }
+
+  /**
+   * JSON of one API endpoint below the instance's root (preview cards). Answers are kept for `freshMs` per token and
+   * path; a failed answer is a RemoteError with the problem only.
+   */
+  async apiJson(instance: RemoteInstance, path: string, opts: { freshMs?: number; max?: number } = {}): Promise<{ data: unknown; total: number | null }> {
+    if (!path.startsWith('/') || /[\s#\\]|\.\.|\/\//.test(path)) throw new RemoteError('invalid_source');
+    const key = ['json', sha256(`${instance.apiBase}\n${instance.token}`), path].join('\n');
+    const freshMs = opts.freshMs ?? JSON_FRESH_MS;
+    const cached = this.jsonCache.get(key);
+    if (cached && Date.now() - cached.at < freshMs) return cached.value;
+    let job = this.jsonRunning.get(key);
+    if (!job) {
+      job = (async () => {
+        const res = await this.get(instance, path, { max: opts.max ?? 1024 * 1024, timeoutMs: 8_000 });
+        if (res.status !== 200) throw new RemoteError(problemOf(res));
+        if (!isJson(res)) throw new RemoteError('unreachable');
+        let data: unknown;
+        try {
+          data = JSON.parse(res.body.toString('utf8'));
+        } catch {
+          throw new RemoteError('unreachable');
+        }
+        const totalHeader = res.headers.get('x-total');
+        const total = totalHeader && /^\d{1,9}$/.test(totalHeader) ? Number(totalHeader) : null;
+        const value = { data, total };
+        this.jsonCache.set(key, { value, at: Date.now() });
+        if (this.jsonCache.size > JSON_ENTRIES) this.jsonCache.delete(this.jsonCache.keys().next().value!);
+        return value;
+      })().finally(() => this.jsonRunning.delete(key));
+      this.jsonRunning.set(key, job);
+    }
+    return job;
   }
 
   /** "Test access" in the admin area: does the instance answer and accept the token? */

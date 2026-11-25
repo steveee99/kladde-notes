@@ -1,8 +1,8 @@
 import { EditorState, Extension, Facet, Range, StateEffect, StateField } from '@codemirror/state';
-import { Decoration, DecorationSet, EditorView, WidgetType } from '@codemirror/view';
+import { Decoration, DecorationSet, EditorView, ViewPlugin, WidgetType } from '@codemirror/view';
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
-import { findMath, isHighlightedLine, parseCodeInfo, ticketIdPattern, type MathSpan, MENTION_RE, mentionName, CALLOUT_TONES, calloutTypeTitle, escapeRegExp, isKnownCalloutType, parseCalloutLine, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, findPlaceholders, hasVariables, maskVariables, resolveVariables, resolveVariableUrl, type NoteHeading, type ReleaseField } from '@kladde/shared';
+import { findMath, isHighlightedLine, parseCodeInfo, ticketIdPattern, type MathSpan, MENTION_RE, mentionName, CALLOUT_TONES, calloutTypeTitle, escapeRegExp, isKnownCalloutType, parseCalloutLine, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, cardLineUrl, parseGitlabUrl, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, findPlaceholders, hasVariables, maskVariables, resolveVariables, resolveVariableUrl, type NoteHeading, type ReleaseField } from '@kladde/shared';
 import { getLang, tl } from '../lib/i18n';
 import {
   AutoLinkWidget,
@@ -40,6 +40,7 @@ import { markerStatus } from './taskStatus';
 import { CODE_COLLAPSE_FALLBACK, getCodeBlockPrefs, getLigatures } from '../lib/prefs';
 import { releaseFacet, ReleaseFieldWidget, releaseRenderOptions } from './releases';
 import { VariableWidget, variablesFacet } from './variables';
+import { GitlabCardWidget } from './gitlabCard';
 import { MathWidget } from './math';
 import { stripInline } from './datatable';
 
@@ -241,6 +242,18 @@ function build(state: EditorState): DecorationSet {
   const codeRanges: [number, number][] = [];
   const inRanges = (ranges: [number, number][], from: number, to: number) => ranges.some(([a, b]) => from < b && to > a);
   const free = (from: number, to: number) => !replaced.some(([a, b]) => from < b && to > a);
+  /** GitLab preview cards: the address of a line that is only a GitLab link (variables filled in), else null */
+  const cardUrlOf = (lineText: string): string | null => {
+    if (foreign) return null;
+    const raw = cardLineUrl(lineText);
+    if (!raw) return null;
+    const url = variables && hasVariables(raw) ? resolveVariableUrl(raw, variables) : { url: raw, complete: true };
+    return url.complete && parseGitlabUrl(url.url, editorHost.remoteHosts()) ? url.url : null;
+  };
+  const isCardLine = (pos: number) => {
+    const ln = doc.lineAt(pos);
+    return (all || !active.has(ln.number)) && cardUrlOf(ln.text) !== null;
+  };
   const isProtected = (from: number, to: number) => !free(from, to) || protectedRanges.some(([a, b]) => from < b && to > a);
   const replace = (from: number, to: number, deco: Decoration = hide) => {
     if (from >= to || !free(from, to)) return;
@@ -344,7 +357,7 @@ function build(state: EditorState): DecorationSet {
           // <https://…>
           protectedRanges.push([node.from, node.to]);
           const url = node.getChild('URL');
-          if (!url || isActive(node.from, node.to)) return false;
+          if (!url || isActive(node.from, node.to) || isCardLine(node.from)) return false;
           replace(node.from, node.to, Decoration.replace({ widget: linkWidget('', doc.sliceString(url.from, url.to)) }));
           return false;
         }
@@ -353,7 +366,7 @@ function build(state: EditorState): DecorationSet {
           if (node.parent && /^(Link|Image|Autolink|LinkReference)$/.test(node.parent.name)) return;
           protectedRanges.push([node.from, node.to]);
           const url = text();
-          if (!/^https?:\/\//i.test(url) || isActive(node.from, node.to)) return;
+          if (!/^https?:\/\//i.test(url) || isActive(node.from, node.to) || isCardLine(node.from)) return;
           replace(node.from, node.to, Decoration.replace({ widget: linkWidget('', url) }));
           return;
         }
@@ -536,6 +549,13 @@ function build(state: EditorState): DecorationSet {
       continue;
     }
 
+    // A GitLab merge request, issue, project, group … alone on its line: a preview card
+    const cardUrl = lineActive ? null : cardUrlOf(ln.text);
+    if (cardUrl && free(ln.from, ln.to)) {
+      replace(ln.from, ln.to, Decoration.replace({ widget: new GitlabCardWidget(cardUrl, lang), block: true }));
+      continue;
+    }
+
     if (release && !lineActive && VERSION_HISTORY_LINE_RE.test(ln.text) && free(ln.from, ln.to)) {
       replace(ln.from, ln.to, Decoration.replace({ widget: new TableWidget(releaseHistoryTable(release.releases, releaseOpts!), lang, false), block: true }));
       continue;
@@ -689,8 +709,15 @@ const previewField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
+/** Draws again when the GitLab instances become known (preview cards need them to recognise addresses) */
+const remoteHostsWatcher = ViewPlugin.define((view) => {
+  const off = editorHost.onRemoteHosts(() => view.dispatch({ effects: refreshEffect.of(Date.now()) }));
+  return { destroy: off };
+});
+
 export function livePreview(): Extension {
   return [
+    remoteHostsWatcher,
     focusField,
     stampField,
     calloutFoldField,

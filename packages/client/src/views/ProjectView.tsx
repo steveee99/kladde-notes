@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PRIORITIES, TICKET_KINDS, PARENT_KINDS, cleanProjectKey, rankBetween, roadmapOffset, roadmapWeeks, type MilestoneStatus, type Priority, type TicketKind } from '@kladde/shared';
+import { PRIORITIES, TICKET_KINDS, PARENT_KINDS, checklistOf, cleanProjectKey, rankBetween, roadmapOffset, roadmapWeeks, type MilestoneStatus, type Priority, type TicketKind } from '@kladde/shared';
 import { vault, useVault } from '../data/vault';
 import {
   assignees,
@@ -22,7 +22,7 @@ import {
 import { useReadOnly } from '../lib/readOnly';
 import { navigate } from '../lib/router';
 import { compareText, locale, t, useLang, type I18nKey } from '../lib/i18n';
-import { AlertTriangle, Ban, DragIndicator, FileText, Flag, Kanban, Plus, PriorityHigh, PriorityLow, PriorityMedium, Settings, SubdirectoryArrowRight, TableRows, Ticket, ViewTimeline, X } from '../lib/icons';
+import { AlertTriangle, Ban, DragIndicator, ListChecks, FileText, Flag, Kanban, Plus, PriorityHigh, PriorityLow, PriorityMedium, Settings, SubdirectoryArrowRight, TableRows, Ticket, ViewTimeline, X } from '../lib/icons';
 import { NoteSearchField } from './NoteSearchField';
 import { Sheet } from './Dialogs';
 import { Dropdown, type DropdownOption } from './Dropdown';
@@ -559,6 +559,11 @@ export function NewTicketSheet({ project: fixed, onClose, milestone: presetMiles
           <Dropdown aria-label={t('tickets.colAssignee')} value={assignee} options={[{ value: '', label: t('tickets.unassigned') }, ...assignees(project).map((a) => ({ value: a, label: a }))]} onChange={setAssignee} />
         </div>
         {kind === 'subtask' && !parent && <p className="text-body-s text-amber">{t('tickets.parentNeeded')}</p>}
+        {checklistOf(project.config, kind).length > 0 && (
+          <p className="flex items-start gap-1.5 text-body-s text-muted" data-new-ticket-checklist>
+            <ListChecks size={16} className="mt-0.5 shrink-0" /> {t('tickets.checklistPreview', { items: checklistOf(project.config, kind).join(', ') })}
+          </p>
+        )}
         {docs.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {docs.map((d) => (

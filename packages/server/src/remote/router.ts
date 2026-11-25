@@ -1,11 +1,12 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
-import { resolveRemoteSource, type RemoteHost, type RemoteNoteResponse, type RemoteProblem } from '@kladde/shared';
+import { resolveRemoteSource, type GitlabCardResponse, type RemoteHost, type RemoteNoteResponse, type RemoteProblem } from '@kladde/shared';
 import { handle, requireUser } from '../http.js';
 import type { NoteStore } from '../NoteStore.js';
 import type { UserRecord, UserStore } from '../UserStore.js';
 import { RemoteError, type RemoteFetcher } from './RemoteFetcher.js';
 import type { RemoteInstances } from './RemoteInstances.js';
 import type { RemoteSync } from './RemoteSync.js';
+import type { GitlabCards } from './GitlabCards.js';
 
 /** Fixed window per account (all its devices share it) */
 function userLimit(limit: number, windowMs: number) {
@@ -31,6 +32,8 @@ export interface RemoteRouterOptions {
   fetcher: RemoteFetcher;
   /** Synced remote notes; without it every note is shown live only */
   sync?: RemoteSync;
+  /** Preview cards of GitLab links; without it none are shown */
+  cards?: GitlabCards;
   standaloneUser?: UserRecord;
 }
 
@@ -40,7 +43,7 @@ export interface RemoteRouterOptions {
  * never contain the filled-in address of a document that could not be read: whoever may write a shared note could
  * otherwise read the variables of its folder that way.
  */
-export function remoteRouter({ users, notes, instances, fetcher, sync, standaloneUser }: RemoteRouterOptions): express.Router {
+export function remoteRouter({ users, notes, instances, fetcher, sync, cards, standaloneUser }: RemoteRouterOptions): express.Router {
   const router = express.Router();
   router.use(requireUser(users, standaloneUser));
   router.use((_req, res, next) => {
@@ -65,6 +68,25 @@ export function remoteRouter({ users, notes, instances, fetcher, sync, standalon
   router.get('/config', (_req, res) => {
     res.json({ syncHours: sync ? sync.intervalMs / 3_600_000 : 0 });
   });
+
+  /**
+   * Preview card of a GitLab link (merge request, issue, project, group, …). The address comes from the request: it only
+   * reads what any signed-in user could already show as a remote note (the configured instances and their allowed
+   * paths, with the shared token), and the answer holds only plain fields, never GitLab's own messages.
+   */
+  router.get(
+    '/card',
+    userLimit(240, 60_000),
+    handle(async (req, res) => {
+      const url = req.query.url;
+      if (typeof url !== 'string' || !url || url.length > 2000) {
+        res.status(400).json({ error: 'Adresse fehlt.' });
+        return;
+      }
+      const answer: GitlabCardResponse = cards ? await cards.card(url, req.query.refresh === '1') : { state: 'host_not_configured' };
+      res.json(answer);
+    })
+  );
 
   /** "Sync now" of a synced remote note: anybody who sees the note; the new copy reaches every device with the note */
   router.post(

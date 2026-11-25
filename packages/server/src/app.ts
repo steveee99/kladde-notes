@@ -47,6 +47,7 @@ import { httpsTransport, type HttpTransport } from './confluence/ConfluenceClien
 import { RemoteInstances } from './remote/RemoteInstances.js';
 import { RemoteFetcher } from './remote/RemoteFetcher.js';
 import { remoteRouter } from './remote/router.js';
+import { GitlabCards } from './remote/GitlabCards.js';
 import { RemoteSnapshotStore, RemoteSync, remoteSyncHours } from './remote/RemoteSync.js';
 import { confluenceRouter } from './confluence/router.js';
 import { BackupService } from './backup/BackupService.js';
@@ -397,7 +398,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   const remoteFetcher = new RemoteFetcher(remoteInstances);
   // Synced ones (`sync: true`) are read every REMOTE_SYNC_HOURS and kept as an encrypted copy (search, offline)
   remoteSync = new RemoteSync(new RemoteSnapshotStore(opts.db, cipher), notes, remoteFetcher, remoteSyncHours(env) * 3_600_000);
-  app.use('/api/remote-notes', remoteRouter({ users, notes, instances: remoteInstances, fetcher: remoteFetcher, sync: remoteSync, standaloneUser }));
+  app.use('/api/remote-notes', remoteRouter({ users, notes, instances: remoteInstances, fetcher: remoteFetcher, sync: remoteSync, cards: new GitlabCards(remoteInstances, remoteFetcher), standaloneUser }));
   if (!opts.standalone) {
     app.use(
       '/api/admin',

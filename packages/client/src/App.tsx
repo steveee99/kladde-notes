@@ -7,6 +7,7 @@ import { INBOX_FOLDER, isHiddenPath, Me, projectTitleOf, runQuery, splitPath } f
 import { api, ApiError, uploadFile } from './lib/api';
 import { match, navigate, usePath } from './lib/router';
 import { loadRemoteEmbed } from './data/remoteNotes';
+import { loadGitlabCard, onRemoteHosts, remoteHosts } from './data/gitlabCards';
 import { variablesOfNote } from './data/variables';
 import { vault } from './data/vault';
 import { onlineQueries } from './data/onlineQueries';
@@ -88,6 +89,9 @@ Object.assign(editorHost, {
     return { id: note.id, title: links.notes.get(note.id)?.title ?? target, content: note.content, canWrite: note.access !== 'read' && !isReadOnly() && !note.partial, variables: variablesOfNote(note) };
   },
   loadRemote: loadRemoteEmbed,
+  remoteHosts,
+  onRemoteHosts,
+  loadGitlabCard,
   newRemoteNote: (besideId: string, onCreated: (title: string) => void) => {
     const beside = vault.get(besideId);
     const folder = beside ? splitPath(beside.path).folder : undefined;

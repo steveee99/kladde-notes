@@ -175,7 +175,8 @@ test('typing {{ offers the variables, templates keep the placeholder and embeds 
   // The template editor offers the template's placeholders and the variables of its folder
   await page.keyboard.type('Colour: {{var:colour}} of {{ti');
   await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('Title of the new note');
-  await page.keyboard.press('Enter');
+  await page.waitForTimeout(300);
+  await page.locator('.cm-tooltip-autocomplete li', { hasText: 'Title of the new note' }).click();
   await expect(template.locator('.cm-src-ph')).toHaveText('title');
   await page.keyboard.press('Enter');
   // A sync from the other tests may close the list in between
