@@ -117,7 +117,7 @@ export function variableCompletion(ctx: CompletionContext): CompletionResult | n
       label: named ? o.name : `var:${o.name}`,
       detail: shorten(o.value),
       info: o.builtin ? tl(lang, 'vars.builtinInfo') : undefined,
-      section: o.builtin ? tl(lang, 'vars.builtinSection') : tl(lang, 'vars.folderSection'),
+      section: o.builtin ? { name: tl(lang, 'vars.builtinSection'), rank: 1 } : { name: tl(lang, 'vars.folderSection'), rank: 0 },
       boost: o.builtin ? -i : 0,
       apply: (view: EditorView, _c, from, to) => {
         const closed = view.state.sliceDoc(to, to + 2) === '}}';
@@ -128,4 +128,39 @@ export function variableCompletion(ctx: CompletionContext): CompletionResult | n
   );
   if (!options.length) return null;
   return { from: m.from + 2 + (named ? 4 : 0), options, validFor: named ? /^[\p{L}\p{N}\p{M}_.-]*$/u : /^v?a?r?$/ };
+}
+
+/** A placeholder a template knows besides variables (`{{title}}`, `{{date}}`, `{{week}}`, …), with what it stands for */
+export interface TemplateToken {
+  token: string;
+  label: string;
+}
+
+/** The template placeholders of an editor (template editor only) */
+export const templateTokensFacet = Facet.define<readonly TemplateToken[], readonly TemplateToken[]>({ combine: (v) => v.flat() });
+
+/** `{{` in a template also offers its own placeholders */
+export function templateTokenCompletion(ctx: CompletionContext): CompletionResult | null {
+  const tokens = ctx.state.facet(templateTokensFacet);
+  if (!tokens.length) return null;
+  const m = ctx.matchBefore(/\{\{[\p{L}\p{N}_-]{0,40}/u);
+  if (!m) return null;
+  const lang = getLang();
+  return {
+    from: m.from + 2,
+    options: tokens.map(
+      (t): Completion => ({
+        label: t.token.slice(2, -2),
+        detail: t.label,
+        section: { name: tl(lang, 'templates.placeholderSection'), rank: -1 },
+        boost: 10,
+        apply: (view: EditorView, _c, from, to) => {
+          const closed = view.state.sliceDoc(to, to + 2) === '}}';
+          const insert = `${t.token.slice(2, -2)}${closed ? '' : '}}'}`;
+          view.dispatch({ changes: { from, to, insert }, selection: { anchor: from + insert.length + (closed ? 2 : 0) }, userEvent: 'input.complete' });
+        },
+      })
+    ),
+    validFor: /^[\p{L}\p{N}_-]*$/u,
+  };
 }

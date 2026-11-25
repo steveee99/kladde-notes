@@ -21,7 +21,7 @@ import { slashCompletion } from './slash';
 import { remoteCursors } from './remoteCursors';
 import { focusDim } from './focusDim';
 import { releaseFacet } from './releases';
-import { variableCompletion, variablesFacet } from './variables';
+import { templateTokenCompletion, templateTokensFacet, variableCompletion, variablesFacet, type TemplateToken } from './variables';
 import type { NoteReleaseInfo, VariableScope } from '@kladde/shared';
 import { outlineSupport } from './outline';
 import { useReadOnly } from '../lib/readOnly';
@@ -289,9 +289,11 @@ export interface EditorProps {
   hideProperties?: boolean;
   /** The text comes from outside the vault (remote notes): nothing in it is looked up in the reader's notes */
   foreign?: boolean;
+  /** Template editor: placeholders besides variables that `{{` offers (read when the editor is created) */
+  templateTokens?: readonly TemplateToken[];
 }
 
-export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote, dim = false, onActivity, resolveEmbed, releases = null, variables = null, slideBreaks = '', callouts = true, hideProperties = false, foreign = false }: EditorProps) {
+export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, onView, placeholder, autoFocus, source = false, presenceNote, dim = false, onActivity, resolveEmbed, releases = null, variables = null, slideBreaks = '', callouts = true, hideProperties = false, foreign = false, templateTokens }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const changeRef = useRef(onChange);
@@ -362,7 +364,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           lockConf.current.of(readOnlyExtensions(lockedRef.current)),
           EditorView.contentAttributes.of({ spellcheck: 'true', autocapitalize: 'sentences' }),
           placeholderConf.current.of(placeholderAndLabel(resolvedPlaceholder)),
-          autocompletion({ override: [wikiCompletion, variableCompletion, tagCompletion, mentionCompletion, slashCompletion(insertFiles)], icons: false }),
+          autocompletion({ override: [wikiCompletion, templateTokenCompletion, variableCompletion, tagCompletion, mentionCompletion, slashCompletion(insertFiles)], icons: false }),
           fileHandlers(),
           dimConf.current.of(dimRef.current ? focusDim : []),
           releaseConf.current.of(releaseFacet.of(releasesRef.current ? { releases: releasesRef.current } : null)),
@@ -382,6 +384,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           commentHighlights,
           resolveEmbed ? embedResolverFacet.of(resolveEmbed) : [],
           foreign ? foreignFacet.of(true) : [],
+          templateTokens?.length ? templateTokensFacet.of(templateTokens) : [],
         ],
       }),
     });

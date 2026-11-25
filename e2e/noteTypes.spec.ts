@@ -49,9 +49,13 @@ test('a type modelled in the settings is used by a template, shows its propertie
   await page.goto('/settings/templates');
   await page.getByRole('button', { name: 'New template' }).click();
   await page.getByPlaceholder('Name, e.g. Project').fill(label);
-  await page.locator('textarea').fill('Agenda\n');
+  const template = page.locator('[data-template-editor] .cm-content');
+  await template.click();
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.type('Agenda\n');
   await pick(page, page.locator('form'), 'Note type', name);
-  await expect(page.locator('textarea')).toHaveValue(`---\ntype: custom:${name}\n---\nAgenda\n`);
+  await expect(template).toContainText(`type: custom:${name}`);
+  await expect(template).toContainText('Agenda');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText(label, { exact: true })).toBeVisible();
   await page.goto('/notes');
