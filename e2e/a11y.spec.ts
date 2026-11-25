@@ -86,6 +86,11 @@ for (const scheme of SCHEMES) {
 
       await page.goto('/admin');
       await scan('admin');
+
+      await page.locator('[data-notifications-button]:visible').click();
+      await expect(page.getByRole('dialog', { name: 'Notifications' })).toBeVisible();
+      await scan('notifications panel');
+      await page.keyboard.press('Escape');
     } else {
       await page.goto('/');
       await page.getByRole('button', { name: 'Menu' }).click();

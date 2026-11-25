@@ -129,7 +129,8 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   let deliverPush: ((userId: string, d: Delivery, noteId: string) => void) | undefined;
   const notifications = new NotificationStore(opts.db, cipher, users, (userId, d) => {
     live.send([userId], 'notification', {});
-    const noteId = /^\/n\/([^?]+)/.exec(d.url)?.[1] ?? '';
+    // The note (or group) gives the push its tag, so a newer one replaces it on the device
+    const noteId = /^\/(?:n|groups)\/([^?]+)/.exec(d.url)?.[1] ?? '';
     deliverPush?.(userId, d, noteId);
   });
   const notes = new NoteStore(opts.db, cipher, (event) => {

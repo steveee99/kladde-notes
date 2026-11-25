@@ -1,6 +1,6 @@
 import { createContext, lazy, Suspense, useContext, useEffect, useRef, useState } from 'react';
 import { useModal } from '../lib/modal';
-import { Bell, CalendarCheck, CalendarDays, CalendarMonth, FileText, Home, Inbox as InboxIcon, Kanban, ListChecks, Menu, Network, PanelLeftClose, PanelLeftOpen, Pencil, Search as SearchIcon, Share2, Tags, Users, X } from '../lib/icons';
+import { CalendarCheck, CalendarDays, CalendarMonth, FileText, Home, Inbox as InboxIcon, Kanban, ListChecks, Menu, Network, PanelLeftClose, PanelLeftOpen, Pencil, Search as SearchIcon, Share2, Tags, Users, X } from '../lib/icons';
 import { openSearch, SearchDialogHost } from './SearchDialog';
 import { isHiddenPath, APP_VERSION, INBOX_FOLDER, Me, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
@@ -26,6 +26,7 @@ import { useReadOnly } from '../lib/readOnly';
 import { setFocusMode, useFocusMode } from '../lib/focus';
 import { isAdminPath, isSettingsPath, useSettingsNavInPanel } from '../lib/settingsRoutes';
 import { AdminNav } from './AdminNav';
+import { NotificationsButton } from './NotificationsPanel';
 
 const SettingsNav = lazy(() => import('./SettingsNav').then((m) => ({ default: m.SettingsNav })));
 
@@ -203,8 +204,8 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
   const ownNotes = listed.filter((n) => n.access === 'owner').length;
   const sidebarWidth = useSidebarWidth();
   const features = vault.features();
-  // Mentions and comments (#69, #68): only with an account on a server
-  const showNotifications = !vault.standalone && !DEMO && (features.mentions.enabled || features.comments.enabled);
+  // Notifications (#69, #68): only with an account on a server; group invitations arrive without mentions and comments too
+  const showNotifications = !vault.standalone && !DEMO;
   const dailyNote = features.daily.enabled ? vault.findDailyNote() : undefined;
   const dailyActive = path === '/daily' || path.startsWith('/daily/') || (!!dailyNote && noteId === dailyNote.id);
   const showDailyRail = features.daily.enabled && (!locked || !!dailyNote);
@@ -256,6 +257,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
           </button>
           <div className="m3-status flex shrink-0 items-center gap-1">
             <ReadOnlyToggle compact />
+            {showNotifications && <NotificationsButton />}
             <button
               type="button"
               onClick={() => navigate('/settings')}
@@ -292,15 +294,6 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
             {ticketsAnywhere() && <NavItem to="/projects" Icon={Kanban} label={t('nav.projects')} />}
             {features.calendarView.enabled && <NavItem to="/calendar" Icon={CalendarMonth} label={t('nav.calendar')} />}
             <NavItem to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} badgeLabel={t('nav.badgeInbox', { n: inboxCount })} />
-            {showNotifications && (
-              <NavItem
-                to="/notifications"
-                Icon={Bell}
-                label={t('notices.nav')}
-                badge={vault.unreadNotifications ? <NavBadge count={vault.unreadNotifications} /> : undefined}
-                badgeLabel={t('notices.badge', { n: vault.unreadNotifications })}
-              />
-            )}
             <RailDivider />
             <NavItem to="/graph" Icon={Network} label={t('nav.graphShort')} />
             <NavItem to="/tags" Icon={Tags} label={t('nav.tags')} />
@@ -360,6 +353,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
                 <SearchIcon size={22} />
               </button>
               <ReadOnlyToggle />
+              {showNotifications && <NotificationsButton />}
               <SyncBadge />
             </div>
           </header>

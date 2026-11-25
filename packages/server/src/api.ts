@@ -613,6 +613,11 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
         groups.setMember(req.user!.id, req.params.id, target.id, req.body?.role);
         const after = groups.roleOf(req.params.id, target.id);
         if (after && after !== before) opts.activity?.member(req.params.id, req.user!.id, before ? 'member_role' : 'member_added', target.username, after);
+        // The new member hears about it (not about a changed role, and not when adding oneself)
+        if (after && !before && target.id !== req.user!.id) {
+          const group = groups.details(req.user!.id, req.params.id);
+          opts.notifications?.add({ userId: target.id, kind: 'group_added', noteId: '', groupId: req.params.id, actorId: req.user!.id, path: group.name, text: after });
+        }
         live.notify(groups.memberIds(req.params.id));
         res.json(groups.details(req.user!.id, req.params.id));
       } catch (err) {
@@ -738,8 +743,11 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
 
   if (!standalone && opts.notifications) {
     const notifications = opts.notifications;
+    // ?limit=10 a page at a time, ?before=<next> the page after it
     router.get('/notifications', (req, res) => {
-      res.json(notifications.list(req.user!.id));
+      const limit = Number(req.query.limit) || undefined;
+      const before = typeof req.query.before === 'string' ? req.query.before.slice(0, 40) : null;
+      res.json(notifications.list(req.user!.id, limit, before));
     });
     // { ids } marks those, { noteId } the ones of a note, {} all
     router.post('/notifications/read', (req, res) => {

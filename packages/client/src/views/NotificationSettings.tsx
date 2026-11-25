@@ -2,53 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import type { PushDevice, PushSettings } from '@kladde/shared';
 import { Bell, Smartphone, Trash2 } from '../lib/icons';
 import { api } from '../lib/api';
-import { locale, tl, useLang, type Lang } from '../lib/i18n';
+import { locale, tl, useLang } from '../lib/i18n';
+import { defaultSettings, pushSupport, storeDeviceId, storedDeviceId, subscribeDevice } from '../lib/pushDevice';
 import { SettingsPage } from './SettingsPage';
 import { Switch } from './Switch';
-
-const DEVICE_KEY = 'kladde_push_device';
-
-function storedDeviceId(): string | null {
-  try {
-    return localStorage.getItem(DEVICE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function storeDeviceId(id: string | null) {
-  try {
-    if (id) localStorage.setItem(DEVICE_KEY, id);
-    else localStorage.removeItem(DEVICE_KEY);
-  } catch {
-    // ignore
-  }
-}
-
-/** Web Push needs a service worker and the Push API; on iPhone/iPad only in the app added to the Home Screen */
-function pushSupport(): 'ok' | 'ios-install' | 'unsupported' {
-  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
-  if (supported) return 'ok';
-  return ios ? 'ios-install' : 'unsupported';
-}
-
-/** "Chrome · Android": enough to tell devices apart in the list */
-function deviceName(): string {
-  const ua = navigator.userAgent;
-  const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
-  const os = /Android/.test(ua) ? 'Android' : /iPhone|iPad|iPod/.test(ua) ? 'iOS' : /Mac OS X/.test(ua) ? 'macOS' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : '';
-  return os ? `${browser} · ${os}` : browser;
-}
-
-function keyBytes(base64url: string): Uint8Array {
-  const raw = atob(base64url.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (base64url.length % 4)) % 4));
-  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
-}
-
-function defaultSettings(lang: Lang): PushSettings {
-  return { digestTime: null, quietStart: null, quietEnd: null, showText: false, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', lang };
-}
 
 /** Settings → Notifications: reminders for tasks with a time and a daily digest, per device (#26) */
 export function NotificationSettingsView({ embedded }: { embedded?: boolean } = {}) {
@@ -93,16 +50,7 @@ export function NotificationSettingsView({ embedded }: { embedded?: boolean } = 
 
   const enable = () =>
     run(async () => {
-      const reg = await navigator.serviceWorker.getRegistration();
-      if (!reg) throw new Error(tl(lang, 'notify.noWorker'));
-      if ((await Notification.requestPermission()) !== 'granted') throw new Error(tl(lang, 'notify.denied'));
-      const { publicKey } = await api<{ publicKey: string }>('/push/key');
-      const existing = await reg.pushManager.getSubscription();
-      // A subscription made for another server key cannot be reused
-      if (existing) await existing.unsubscribe();
-      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) as BufferSource });
-      const device = await api<PushDevice>('/push/devices', { method: 'POST', json: { subscription: sub.toJSON(), name: deviceName(), settings: defaultSettings(lang) } });
-      storeDeviceId(device.id);
+      await subscribeDevice(lang);
       await load();
     });
 

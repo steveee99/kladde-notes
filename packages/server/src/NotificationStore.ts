@@ -5,7 +5,8 @@ import type { NoteChangeEvent } from './NoteStore.js';
 import type { UserStore } from './UserStore.js';
 
 /*
- * Notifications (#69, #68): a mention in a note, a comment on one's note or a reply in a comment thread. They are
+ * Notifications (#69, #68): a mention in a note, a comment on one's note, a reply in a comment thread or being added
+ * to a group. They are
  * kept per user (the passage and text encrypted, `notification:<id>` as AAD), shown in the app and, with Web Push
  * turned on, sent to the user's devices. Nobody hears about a note they cannot open.
  */
@@ -19,6 +20,7 @@ interface NotificationRow {
   at: number;
   read_at: number | null;
   payload: Uint8Array;
+  rowid: number;
   actor_name?: string | null;
   actor_avatar?: string | null;
 }
@@ -28,6 +30,7 @@ interface NotificationPayload {
   line?: number;
   text: string;
   threadId?: string;
+  groupId?: string;
 }
 
 /** Kept this long, read or not */
@@ -36,12 +39,24 @@ const KEEP_DAYS = 90;
 export interface NewNotification {
   userId: string;
   kind: NotificationKind;
+  /** Empty for `group_added` */
   noteId: string;
   actorId: string;
+  /** Path of the note, or the group's name */
   path: string;
   line?: number;
   text: string;
   threadId?: string;
+  groupId?: string;
+}
+
+/** A page of the list holds at most this many */
+export const NOTIFICATION_PAGE_MAX = 100;
+
+/** App path a notification opens */
+export function notificationUrl(n: { noteId: string; line?: number; threadId?: string; groupId?: string }): string {
+  if (n.groupId) return `/groups/${encodeURIComponent(n.groupId)}`;
+  return `/n/${n.noteId}${n.threadId ? `?thread=${encodeURIComponent(n.threadId)}` : n.line !== undefined ? `?line=${n.line + 1}` : ''}`;
 }
 
 /** What a device needs to show a notification (its title is written in the device's language) */
@@ -65,7 +80,9 @@ export function notificationPush(d: Delivery, lang: 'de' | 'en', noteId: string)
       ? en ? `${d.actor} mentioned you` : `${d.actor} hat dich erwähnt`
       : d.kind === 'reply'
         ? en ? `${d.actor} replied to a comment` : `${d.actor} hat auf einen Kommentar geantwortet`
-        : en ? `${d.actor} commented` : `${d.actor} hat kommentiert`;
+        : d.kind === 'group_added'
+          ? en ? `${d.actor} added you to a group` : `${d.actor} hat dich zu einer Gruppe hinzugefügt`
+          : en ? `${d.actor} commented` : `${d.actor} hat kommentiert`;
   return { title, body: d.name, tag: `${d.kind}-${noteId}`, url: d.url, lang };
 }
 
@@ -79,15 +96,20 @@ export class NotificationStore {
 
   add(n: NewNotification, now = Date.now()): void {
     const id = randomToken(12);
-    const payload: NotificationPayload = { path: n.path, text: n.text.slice(0, 500), ...(n.line !== undefined ? { line: n.line } : {}), ...(n.threadId ? { threadId: n.threadId } : {}) };
+    const payload: NotificationPayload = {
+      path: n.path,
+      text: n.text.slice(0, 500),
+      ...(n.line !== undefined ? { line: n.line } : {}),
+      ...(n.threadId ? { threadId: n.threadId } : {}),
+      ...(n.groupId ? { groupId: n.groupId } : {}),
+    };
     this.db
       .prepare('INSERT INTO notifications (id, user_id, kind, note_id, actor_id, at, payload) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(id, n.userId, n.kind, n.noteId, n.actorId, now, this.cipher.encryptJson(payload, `notification:${id}`));
     this.db.prepare('DELETE FROM notifications WHERE user_id = ? AND at < ?').run(n.userId, now - KEEP_DAYS * 86_400_000);
     const actor = this.users.getUser(n.actorId)?.username ?? '';
-    const name = n.path.split('/').pop()?.replace(/\.md$/i, '') ?? '';
-    const url = `/n/${n.noteId}${n.threadId ? `?thread=${encodeURIComponent(n.threadId)}` : n.line !== undefined ? `?line=${n.line + 1}` : ''}`;
-    this.deliver(n.userId, { kind: n.kind, actor, name, url });
+    const name = n.groupId ? n.path : (n.path.split('/').pop()?.replace(/\.md$/i, '') ?? '');
+    this.deliver(n.userId, { kind: n.kind, actor, name, url: notificationUrl(n) });
   }
 
   /**
@@ -107,13 +129,24 @@ export class NotificationStore {
     }
   }
 
-  list(userId: string, limit = 100): NotificationList {
+  /**
+   * Newest first, `limit` at a time; `before` is the `next` of the page before (the time and row of its last one), so
+   * notifications arriving in between do not shift the pages
+   */
+  list(userId: string, limit = NOTIFICATION_PAGE_MAX, before?: string | null): NotificationList {
+    const take = Math.max(1, Math.min(NOTIFICATION_PAGE_MAX, Math.floor(limit) || NOTIFICATION_PAGE_MAX));
+    const cursor = /^(\d+)\.(\d+)$/.exec(before ?? '');
     const rows = this.db
       .prepare(
-        `SELECT notifications.*, users.username AS actor_name, users.avatar_id AS actor_avatar FROM notifications
-         LEFT JOIN users ON users.id = notifications.actor_id WHERE user_id = ? ORDER BY at DESC, notifications.rowid DESC LIMIT ?`
+        `SELECT notifications.*, notifications.rowid AS rowid, users.username AS actor_name, users.avatar_id AS actor_avatar FROM notifications
+         LEFT JOIN users ON users.id = notifications.actor_id WHERE user_id = ?
+         ${cursor ? 'AND (at < ? OR (at = ? AND notifications.rowid < ?))' : ''}
+         ORDER BY at DESC, notifications.rowid DESC LIMIT ?`
       )
-      .all(userId, limit) as unknown as NotificationRow[];
+      .all(userId, ...(cursor ? [Number(cursor[1]), Number(cursor[1]), Number(cursor[2])] : []), take + 1) as unknown as NotificationRow[];
+    const more = rows.length > take;
+    if (more) rows.length = take;
+    const last = rows[rows.length - 1];
     const items = rows.map((r): NotificationItem => {
       const p = this.cipher.decryptJson<NotificationPayload>(r.payload, `notification:${r.id}`);
       return {
@@ -128,9 +161,10 @@ export class NotificationStore {
         text: p.text,
         ...(p.line !== undefined ? { line: p.line } : {}),
         ...(p.threadId ? { threadId: p.threadId } : {}),
+        ...(p.groupId ? { groupId: p.groupId } : {}),
       };
     });
-    return { items, unread: this.unread(userId) };
+    return { items, unread: this.unread(userId), next: more && last ? `${last.at}.${last.rowid}` : null };
   }
 
   unread(userId: string): number {

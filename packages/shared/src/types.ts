@@ -803,9 +803,12 @@ export interface ActivityNews {
 
 // ---------------------------------------------------------------- notifications (#69, #68)
 
-export type NotificationKind = 'mention' | 'comment' | 'reply';
+export type NotificationKind = 'mention' | 'comment' | 'reply' | 'group_added';
 
-/** Something that happened for the user: a mention in a note, a comment on their note or a reply in a thread */
+/**
+ * Something that happened for the user: a mention in a note, a comment on their note, a reply in a thread, or
+ * someone added them to a group (`group_added`: `noteId` is empty, `path` is the group's name, `text` the role)
+ */
 export interface NotificationItem {
   id: string;
   kind: NotificationKind;
@@ -823,11 +826,15 @@ export interface NotificationItem {
   text: string;
   /** Comment thread (#68) */
   threadId?: string;
+  /** The group of `group_added` */
+  groupId?: string;
 }
 
 export interface NotificationList {
   items: NotificationItem[];
   unread: number;
+  /** Older notifications to ask for with `?before=<next>` */
+  next?: string | null;
 }
 
 /** Someone who can see a note: the people a mention can reach */

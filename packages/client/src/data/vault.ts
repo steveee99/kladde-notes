@@ -149,6 +149,9 @@ const FAVORITE_GROUP_FOLDERS_SETTING = 'favoriteGroupFolders';
  * pushed in the background; the server is asked for "everything after cursor N" on start, when coming
  * back online, on a live ping from another device and every minute.
  */
+/** Notifications loaded at a time (the panel and the list page load more on request) */
+export const NOTIFICATION_PAGE = 10;
+
 class Vault {
   notes = new Map<string, LocalNote>();
   state: SyncState = 'idle';
@@ -1926,19 +1929,45 @@ class Vault {
     this.peopleOf(noteId);
   }
 
+  /** The newest notifications, as many pages as were asked for */
   notifications: NotificationItem[] = [];
   unreadNotifications = 0;
+  /** Cursor of older notifications; null when all are loaded */
+  notificationsNext: string | null = null;
+  private notificationsMore: Promise<void> | null = null;
 
+  /** Loads the newest notifications again: one page, or as many as are loaded already */
   async loadNotifications(): Promise<void> {
     if (this.standalone) return;
     try {
-      const list = await api<NotificationList>('/notifications');
+      const limit = Math.max(NOTIFICATION_PAGE, Math.min(100, this.notifications.length));
+      const list = await api<NotificationList>(`/notifications?limit=${limit}`);
       this.notifications = list.items;
       this.unreadNotifications = list.unread;
+      this.notificationsNext = list.next ?? null;
       this.emit();
     } catch {
       // offline or an old server: keep what is there
     }
+  }
+
+  /** The next page of older notifications */
+  loadMoreNotifications(): Promise<void> {
+    const before = this.notificationsNext;
+    if (!before || this.standalone) return Promise.resolve();
+    this.notificationsMore ??= api<NotificationList>(`/notifications?limit=${NOTIFICATION_PAGE}&before=${encodeURIComponent(before)}`)
+      .then((list) => {
+        const known = new Set(this.notifications.map((n) => n.id));
+        this.notifications = [...this.notifications, ...list.items.filter((n) => !known.has(n.id))];
+        this.unreadNotifications = list.unread;
+        this.notificationsNext = list.next ?? null;
+        this.emit();
+      })
+      .catch(() => {})
+      .finally(() => {
+        this.notificationsMore = null;
+      });
+    return this.notificationsMore;
   }
 
   /** Marks notifications read: some by id, those of a note, or all */
