@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { contentHash, nextVersion, suggestedBump, MAX_RELEASE_NOTE, type NoteRelease, type ReleaseBump } from '@kladde/shared';
 import { ArrowLeft, Loader2, NewReleases } from '../lib/icons';
 import { api } from '../lib/api';
@@ -9,6 +9,43 @@ import { editorHost } from '../editor/host';
 import { Editor } from '../editor/Editor';
 import { locale, t, useLang, type I18nKey } from '../lib/i18n';
 import { Sheet } from './Dialogs';
+import { DiffStats, DiffView, useDiff } from './DiffView';
+
+/** `viewing` value of the draft (the note as it is now) */
+const DRAFT = '\u0000draft';
+
+/** What changed in one release (or the draft): a line diff with its numbers, or the text as it reads */
+function ReleaseChanges({ title, meta, before, after, rendered }: { title: string; meta: string | null; before: string; after: string; rendered: ReactNode }) {
+  const [mode, setMode] = useState<'diff' | 'rendered'>('diff');
+  const { lines, stats } = useDiff(before, after);
+  return (
+    <div className="mb-6" data-release-changes>
+      {meta && <p className="mb-3 text-body-s text-on-surface-variant">{meta}</p>}
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <div className="segmented" role="group" aria-label={t('release.viewAria')}>
+          {(['diff', 'rendered'] as const).map((m) => (
+            <button key={m} type="button" aria-pressed={mode === m} onClick={() => setMode(m)}>
+              {m === 'diff' ? t('history.tabDiff') : t('history.tabRendered')}
+            </button>
+          ))}
+        </div>
+        <span className="text-body-s text-muted">{title}</span>
+        {mode === 'diff' && (
+          <span className="ml-auto">
+            <DiffStats stats={stats} />
+          </span>
+        )}
+      </div>
+      {mode === 'diff' ? (
+        <div className="overflow-auto rounded-lg border border-line bg-bg">
+          <DiffView lines={lines} context={3} />
+        </div>
+      ) : (
+        <div className="rounded-lg border border-line bg-bg px-4 py-2">{rendered}</div>
+      )}
+    </div>
+  );
+}
 
 /** The draft (the note as it is) differs from the latest release */
 export function draftChanged(note: LocalNote): boolean {
@@ -55,7 +92,10 @@ export function ReleaseDialog({ note, locked = false, onClose }: { note: LocalNo
   };
 
   useEffect(() => {
-    if (viewing) fetchRelease(viewing).catch((e: Error) => setError(e.message));
+    if (!viewing) return;
+    const at = releases.findIndex((r) => r.version === viewing);
+    const previous = viewing === DRAFT ? latest : releases[at + 1]?.version;
+    for (const v of [viewing === DRAFT ? null : viewing, previous]) if (v) fetchRelease(v).catch((e: Error) => setError(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewing]);
 
@@ -99,22 +139,28 @@ export function ReleaseDialog({ note, locked = false, onClose }: { note: LocalNo
   };
 
   if (viewing) {
-    const r = loaded[viewing];
+    // The draft is compared with the latest release, every release with the one before it (the first with an empty note)
+    const draft = viewing === DRAFT;
+    const at = releases.findIndex((r) => r.version === viewing);
+    const previousVersion = draft ? latest : (releases[at + 1]?.version ?? null);
+    const r = draft ? null : loaded[viewing];
+    const previous = previousVersion ? loaded[previousVersion] : null;
+    const ready = (draft || !!r) && (!previousVersion || !!previous);
+    const after = ready ? (draft ? note.content : r!.content) : null;
     return (
-      <Sheet title={`v${viewing}`} onClose={onClose}>
+      <Sheet title={draft ? t('release.draftTitle') : `v${viewing}`} onClose={onClose}>
         <button type="button" className="btn-text -ml-3 mb-2" onClick={() => setViewing(null)}>
           <ArrowLeft size={16} /> {t('release.backToList')}
         </button>
-        {r ? (
-          <>
-            <p className="mb-3 text-body-s text-on-surface-variant">
-              {t('release.releasedMeta', { date: fmt(r.releasedAt), user: r.releasedBy || '—' })}
-              {r.note ? ` · ${r.note}` : ''}
-            </p>
-            <div className="mb-6 rounded-2xl border border-outline-variant bg-surface px-4 py-2">
-              <Editor docKey={`release:${note.id}:${viewing}`} value={r.content} readOnly releases={releases} variables={variables} />
-            </div>
-          </>
+        {ready ? (
+          <ReleaseChanges
+            key={viewing}
+            title={draft ? t('release.draftSince', { version: latest ?? '' }) : previousVersion ? t('release.changesSince', { version: previousVersion }) : t('release.firstRelease')}
+            meta={r ? `${t('release.releasedMeta', { date: fmt(r.releasedAt), user: r.releasedBy || '—' })}${r.note ? ` · ${r.note}` : ''}` : null}
+            before={previous?.content ?? ''}
+            after={after!}
+            rendered={<Editor docKey={`release:${note.id}:${viewing}`} value={after!} readOnly releases={releases} variables={variables} />}
+          />
         ) : (
           <div className="mb-6 flex justify-center py-8 text-on-surface-variant">{error || <Loader2 size={20} className="animate-spin" />}</div>
         )}
@@ -177,11 +223,20 @@ export function ReleaseDialog({ note, locked = false, onClose }: { note: LocalNo
           )}
 
           <section>
-            <h3 className="mb-2 text-title-s">{t('release.listTitle')}</h3>
+            <h3 className="mb-1 text-title-s">{t('release.listTitle')}</h3>
+            {releases.length > 0 && <p className="mb-2 text-body-s text-on-surface-variant">{t('release.listHint')}</p>}
             {releases.length === 0 ? (
               <p className="text-body-s text-on-surface-variant">{t('release.listEmpty')}</p>
             ) : (
               <ul className="space-y-1">
+                {changed && latest && (
+                  <li>
+                    <button type="button" className="flex w-full items-baseline gap-3 rounded-xl px-3 py-2 text-left hover:bg-surface-container" onClick={() => setViewing(DRAFT)} data-release-draft>
+                      <span className="chip shrink-0">{t('release.draft')}</span>
+                      <span className="min-w-0 flex-1 truncate text-body-m text-on-surface-variant">{t('release.draftSince', { version: latest })}</span>
+                    </button>
+                  </li>
+                )}
                 {releases.map((r) => (
                   <li key={r.version}>
                     <button type="button" className="flex w-full items-baseline gap-3 rounded-xl px-3 py-2 text-left hover:bg-surface-container" onClick={() => setViewing(r.version)}>

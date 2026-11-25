@@ -1449,6 +1449,13 @@ const de = {
   'history.tabRendered': 'Gerendert',
   'history.restoreConfirm': 'Notiz auf den Stand vom {date} zurücksetzen? Der aktuelle Text bleibt im Verlauf erhalten.',
   'history.noChanges': 'Keine Änderungen gegenüber dem Vorgänger.',
+  'history.unchangedLines': '{count} unveränderte Zeilen',
+  'release.draftTitle': 'Entwurf',
+  'release.draftSince': 'Änderungen seit v{version}',
+  'release.changesSince': 'Änderungen gegenüber v{version}',
+  'release.firstRelease': 'Erste Version: alles ist neu',
+  'release.viewAria': 'Darstellung',
+  'release.listHint': 'Ein Klick zeigt, was sich in der Version gegenüber der vorherigen geändert hat.',
 
   // Files
   'files.title': 'Anhänge',
@@ -3836,6 +3843,13 @@ const en: Record<I18nKey, string> = {
   'history.tabRendered': 'Rendered',
   'history.restoreConfirm': 'Restore note to version from {date}? The current text stays in history.',
   'history.noChanges': 'No changes compared to the previous version.',
+  'history.unchangedLines': '{count} unchanged lines',
+  'release.draftTitle': 'Draft',
+  'release.draftSince': 'Changes since v{version}',
+  'release.changesSince': 'Changes compared to v{version}',
+  'release.firstRelease': 'First version: everything is new',
+  'release.viewAria': 'View',
+  'release.listHint': 'Click a version to see what changed compared to the one before.',
 
   // Files
   'files.title': 'Attachments',
