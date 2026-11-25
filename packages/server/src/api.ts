@@ -1,3 +1,4 @@
+import type { JobLog } from './admin/JobLog.js';
 import express, { Request, Response } from 'express';
 import zlib from 'zlib';
 import { APP_VERSION, extractMentions, isAccent, isReleaseBump, trimSlashes, type CommentThreadList } from '@kladde/shared';
@@ -52,6 +53,11 @@ export class LiveUpdates {
     for (const id of new Set(userIds)) for (const res of this.clients.get(id) ?? []) res.write(frame);
   }
 
+  /** Users with an open stream and how many devices each has open */
+  online(): Map<string, number> {
+    return new Map([...this.clients].map(([id, set]) => [id, set.size]));
+  }
+
   get connections(): number {
     let n = 0;
     for (const s of this.clients.values()) n += s.size;
@@ -77,6 +83,8 @@ export interface ApiRouterOptions {
   activity?: ActivityStore;
   /** Mentions and comments (#69, #68) */
   notifications?: NotificationStore;
+  /** Recent jobs for the admin dashboard */
+  jobs?: JobLog;
   /** Comment threads on passages (#68) */
   comments?: CommentStore;
   /** Online mode: the server's indexes per space (search, backlinks) */
@@ -309,7 +317,13 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     express.json({ limit: '20mb' }),
     handle((req, res) => {
       const changes = Array.isArray(req.body?.changes) ? (req.body.changes as PushChange[]).slice(0, 500) : [];
-      res.json({ results: notes.push(req.user!.id, changes) });
+      const at = Date.now();
+      const results = notes.push(req.user!.id, changes);
+      if (changes.length && opts.jobs) {
+        const rejected = results.filter((r) => r.status !== 'ok').length;
+        opts.jobs.add({ kind: 'sync', at, durationMs: Date.now() - at, ok: true, user: req.user!.username, count: changes.length, ...(rejected ? { rejected } : {}) });
+      }
+      res.json({ results });
     })
   );
 
@@ -599,6 +613,11 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
         groups.setMember(req.user!.id, req.params.id, target.id, req.body?.role);
         const after = groups.roleOf(req.params.id, target.id);
         if (after && after !== before) opts.activity?.member(req.params.id, req.user!.id, before ? 'member_role' : 'member_added', target.username, after);
+        // The new member hears about it (not about a changed role, and not when adding oneself)
+        if (after && !before && target.id !== req.user!.id) {
+          const group = groups.details(req.user!.id, req.params.id);
+          opts.notifications?.add({ userId: target.id, kind: 'group_added', noteId: '', groupId: req.params.id, actorId: req.user!.id, path: group.name, text: after });
+        }
         live.notify(groups.memberIds(req.params.id));
         res.json(groups.details(req.user!.id, req.params.id));
       } catch (err) {
@@ -724,8 +743,11 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
 
   if (!standalone && opts.notifications) {
     const notifications = opts.notifications;
+    // ?limit=10 a page at a time, ?before=<next> the page after it
     router.get('/notifications', (req, res) => {
-      res.json(notifications.list(req.user!.id));
+      const limit = Number(req.query.limit) || undefined;
+      const before = typeof req.query.before === 'string' ? req.query.before.slice(0, 40) : null;
+      res.json(notifications.list(req.user!.id, limit, before));
     });
     // { ids } marks those, { noteId } the ones of a note, {} all
     router.post('/notifications/read', (req, res) => {

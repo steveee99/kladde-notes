@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Backup, Ban, Check, Copy, KeyRound, Mail, RemoteDoc, RotateCcw, ScrollText, ShieldCheck, ShieldOff, Smartphone, Trash2, UserCheck, Users } from '../lib/icons';
+import { ArrowLeft, Ban, Check, Copy, KeyRound, Mail, RotateCcw, ShieldCheck, ShieldOff, Smartphone, Trash2, UserCheck } from '../lib/icons';
 import type { AdminAuditEntry, AdminInvite, AdminStatus, AdminUser, Me } from '@kladde/shared';
 import { copyText } from '../lib/clipboard';
 import { api } from '../lib/api';
 import { I18nKey, Lang, locale, tl, useLang } from '../lib/i18n';
+import { navigate, usePath } from '../lib/router';
+import { adminSectionOf, useSettingsNavInPanel } from '../lib/settingsRoutes';
+import { ADMIN_ENTRIES, AdminNav, FIRST_ADMIN_SECTION } from './AdminNav';
 import { Avatar } from './Avatar';
 import { BackupsTab } from './AdminBackups';
+import { AdminOverviewTab } from './AdminOverview';
 import { RemoteTab } from './AdminRemote';
 import { GroupsStorageTab, QuotaEditor } from './AdminStorage';
 import { StorageMeter } from './StorageMeter';
 import { PageBody, PageHeader } from './PageHeader';
-
-type Tab = 'users' | 'groups' | 'invites' | 'remote' | 'backups' | 'audit';
 
 function since(ms: number, lang: Lang): string {
   const min = Math.round((Date.now() - ms) / 60_000);
@@ -335,33 +337,44 @@ function AuditTab({ onError }: { onError: (msg: string) => void }) {
   );
 }
 
-/** Admin area: accounts (reset, ban, roles), invites, backups and the audit log */
+/**
+ * Admin area: accounts (reset, ban, roles), invites, backups and the audit log. Its sections are pages of their own
+ * (`/settings/admin/<section>`), listed by `AdminNav` in the side panel or, on phones, on `/settings/admin`.
+ */
 export function AdminView({ me }: { me: Me }) {
   const lang = useLang();
-  const [tab, setTab] = useState<Tab>('users');
+  const path = usePath();
+  const inPanel = useSettingsNavInPanel();
   const [status, setStatus] = useState<AdminStatus | null>(null);
   const [error, setError] = useState('');
+  const section = adminSectionOf(path) ?? (inPanel ? FIRST_ADMIN_SECTION : null);
   useEffect(() => {
     api<AdminStatus>('/admin/status').then(setStatus, (e) => setError(e.message));
   }, []);
+  useEffect(() => setError(''), [section]);
 
   if (!me.isAdmin) return <div className="py-16 text-center text-on-surface-variant">{tl(lang, 'admin.onlyAdmin')}</div>;
 
-  const tabs: { id: Tab; label: string; Icon: typeof Users }[] = [
-    { id: 'users', label: tl(lang, 'admin.tabUsers'), Icon: Users },
-    { id: 'groups', label: tl(lang, 'admin.tabGroups'), Icon: Users },
-    { id: 'invites', label: tl(lang, 'admin.tabInvites'), Icon: Mail },
-    { id: 'remote', label: tl(lang, 'remote.admin.tab'), Icon: RemoteDoc },
-    { id: 'backups', label: tl(lang, 'admin.tabBackups'), Icon: Backup },
-    { id: 'audit', label: tl(lang, 'admin.tabAudit'), Icon: ScrollText },
-  ];
+  const entry = ADMIN_ENTRIES.find((e) => e.id === section);
+  // Phones: a section goes back to the list of sections, the list back to the settings; the side panel has its own way back
+  const back = inPanel ? null : section ? { to: '/settings/admin', label: tl(lang, 'admin.backToAdmin') } : { to: '/settings', label: tl(lang, 'templates.backToSettings') };
 
   return (
-    <div>
+    <div data-admin-section={section ?? 'index'}>
       <PageHeader
-        title={tl(lang, 'admin.title')}
+        title={
+          <span className="flex items-center gap-1.5">
+            {back && (
+              <button className="btn-icon -ml-2 h-8 w-8" onClick={() => navigate(back.to)} title={back.label} aria-label={back.label}>
+                <ArrowLeft size={18} />
+              </button>
+            )}
+            {entry ? tl(lang, entry.label) : tl(lang, 'admin.title')}
+          </span>
+        }
         subtitle={
           status &&
+          section !== 'overview' &&
           tl(lang, 'admin.statusSummary', {
             version: status.version,
             users: status.users,
@@ -370,33 +383,17 @@ export function AdminView({ me }: { me: Me }) {
             since: since(status.startedAt, lang),
           })
         }
-      >
-        <div className="-mb-3.5 mt-3 flex gap-1 overflow-x-auto scrollbar-thin" role="group" aria-label={tl(lang, 'admin.title')}>
-          {tabs.map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              onClick={() => {
-                setTab(id);
-                setError('');
-              }}
-              aria-pressed={tab === id}
-              className={`flex shrink-0 items-center gap-1.5 border-b-2 px-2.5 pb-2.5 pt-1.5 text-label-l outline-none transition-colors focus-visible:text-text ${
-                tab === id ? 'border-acc text-strong' : 'border-transparent text-muted hover:text-text'
-              }`}
-            >
-              <Icon size={15} className="shrink-0" /> {label}
-            </button>
-          ))}
-        </div>
-      </PageHeader>
+      />
       <PageBody>
-      {error && <p className="mb-4 text-sm text-error anim-fade-in">{error}</p>}
-      {tab === 'users' && <UsersTab me={me} onError={setError} />}
-      {tab === 'groups' && <GroupsStorageTab onError={setError} />}
-      {tab === 'invites' && <InvitesTab onError={setError} />}
-      {tab === 'remote' && <RemoteTab onError={setError} />}
-      {tab === 'backups' && <BackupsTab onError={setError} />}
-      {tab === 'audit' && <AuditTab onError={setError} />}
+        {error && <p className="mb-4 text-sm text-error anim-fade-in">{error}</p>}
+        {section === null && <AdminNav />}
+        {section === 'overview' && <AdminOverviewTab onError={setError} />}
+        {section === 'users' && <UsersTab me={me} onError={setError} />}
+        {section === 'groups' && <GroupsStorageTab onError={setError} />}
+        {section === 'invites' && <InvitesTab onError={setError} />}
+        {section === 'remote' && <RemoteTab onError={setError} />}
+        {section === 'backups' && <BackupsTab onError={setError} />}
+        {section === 'audit' && <AuditTab onError={setError} />}
       </PageBody>
     </div>
   );

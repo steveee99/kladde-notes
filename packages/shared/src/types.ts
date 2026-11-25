@@ -404,6 +404,46 @@ export interface AdminStatus {
   connections: number;
 }
 
+/** A job the server ran: a device's sync (only those that sent changes) or a background job */
+export type AdminJobKind = 'sync' | 'backup' | 'trash';
+
+export interface AdminJob {
+  kind: AdminJobKind;
+  at: number;
+  durationMs: number;
+  ok: boolean;
+  /** Account of a device sync */
+  user?: string;
+  /** Changes sent (sync), notes purged (trash) */
+  count?: number;
+  /** Changes the server did not take as sent (conflicts, refused) */
+  rejected?: number;
+  /** Short reason of a failed job */
+  error?: string;
+}
+
+/** The admin dashboard: what the server holds, how it runs, who is online and what it did lately */
+export interface AdminOverview {
+  version: string;
+  startedAt: number;
+  /** Notes count once, however many people they are shared with */
+  counts: { users: number; groups: number; notes: number; databases: number; shares: number; attachments: number; invites: number };
+  online: { connections: number; users: { username: string; avatarUrl?: string | null; devices: number }[] };
+  system: {
+    platform: string;
+    node: string;
+    cpu: { cores: number; model: string; load: [number, number, number]; /** 0..1 of all cores since the last look */ system: number | null; /** 0..1 of one core */ process: number | null };
+    memory: { total: number; free: number; rss: number; heap: number };
+    /** The disk of the data directory; null when it cannot be read */
+    disk: { total: number; free: number } | null;
+    /** Bytes Kladde holds: the database file, notes, attachments, history, trash */
+    storage: { database: number; notes: number; attachments: number; history: number; trash: number };
+  };
+  lastBackupAt: number | null;
+  /** Newest first, kept in memory since the start */
+  jobs: AdminJob[];
+}
+
 export interface NoteShare {
   username: string;
   avatarUrl?: string | null;
@@ -767,9 +807,12 @@ export interface ActivityNews {
 
 // ---------------------------------------------------------------- notifications (#69, #68)
 
-export type NotificationKind = 'mention' | 'comment' | 'reply';
+export type NotificationKind = 'mention' | 'comment' | 'reply' | 'group_added';
 
-/** Something that happened for the user: a mention in a note, a comment on their note or a reply in a thread */
+/**
+ * Something that happened for the user: a mention in a note, a comment on their note, a reply in a thread, or
+ * someone added them to a group (`group_added`: `noteId` is empty, `path` is the group's name, `text` the role)
+ */
 export interface NotificationItem {
   id: string;
   kind: NotificationKind;
@@ -787,11 +830,15 @@ export interface NotificationItem {
   text: string;
   /** Comment thread (#68) */
   threadId?: string;
+  /** The group of `group_added` */
+  groupId?: string;
 }
 
 export interface NotificationList {
   items: NotificationItem[];
   unread: number;
+  /** Older notifications to ask for with `?before=<next>` */
+  next?: string | null;
 }
 
 /** Someone who can see a note: the people a mention can reach */

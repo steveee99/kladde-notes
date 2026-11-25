@@ -32,7 +32,7 @@ import { ActivityView } from './views/ActivityView';
 import { NotificationsView } from './views/NotificationsView';
 import { CalendarView } from './views/ActivityHeatmap';
 import { TasksView } from './views/TasksView';
-import { settingsSectionOf } from './lib/settingsRoutes';
+import { isAdminPath, settingsSectionOf } from './lib/settingsRoutes';
 import { ProjectsView } from './views/ProjectsView';
 import { projectKeys, ticketById } from './data/tickets';
 
@@ -260,7 +260,7 @@ export function App() {
   else if (groupManage && !me.standalone) page = <GroupManageView key={path} groupId={groupManage.id} />;
   else if (groupRoute && !me.standalone) page = <GroupView key={path} groupId={groupRoute.id} folder={groupRoute.folder ?? ''} />;
   else if (path === '/search') page = <SearchView />;
-  else if ((path === '/admin' || path === '/settings/admin') && !me.standalone) page = <AdminView me={me} />;
+  else if (isAdminPath(path) && !me.standalone) page = <AdminView me={me} />;
   else if (path === '/settings/types') page = <NoteTypesView />;
   else if (path === '/settings/templates') page = <TemplatesView />;
   else if (path === '/settings/export') page = <AccountExportView />;

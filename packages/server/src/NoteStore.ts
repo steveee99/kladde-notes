@@ -1575,6 +1575,15 @@ export class NoteStore {
     });
   }
 
+  /** Database notes on the server (#76); reads every note, so callers keep the answer for a while */
+  countDatabases(): number {
+    let n = 0;
+    for (const row of this.db.prepare('SELECT id, payload FROM notes WHERE deleted = 0').iterate() as Iterable<NoteRow>) {
+      if (isSchemaPath(this.payload(row).path)) n++;
+    }
+    return n;
+  }
+
   counts(): { notes: number; shares: number } {
     const n = this.db.prepare('SELECT COUNT(*) AS n FROM notes WHERE deleted = 0').get() as { n: number };
     const s = this.db.prepare('SELECT COUNT(*) AS n FROM shares').get() as { n: number };

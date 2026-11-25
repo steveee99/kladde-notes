@@ -113,4 +113,32 @@ describe('mentions API (#69)', () => {
     expect(await (await call(benCookie, '/notifications/read', 'POST', { ids: [list.items[1].id] })).json()).toEqual({ unread: 1 });
     expect(await (await call(benCookie, '/notifications/read', 'POST', {})).json()).toEqual({ unread: 0 });
   });
+
+  it('tells people they were added to a group, once', async () => {
+    const g = ctx.groups.create(anna.id, 'Verein');
+    expect((await call(annaCookie, `/groups/${g.id}/members`, 'PUT', { username: 'ben', role: 'editor' })).status).toBe(200);
+    // A new role is no news
+    await call(annaCookie, `/groups/${g.id}/members`, 'PUT', { username: 'ben', role: 'reader' });
+    const list = (await (await call(benCookie, '/notifications')).json()) as NotificationList;
+    const added = list.items.filter((i) => i.kind === 'group_added');
+    expect(added).toHaveLength(1);
+    expect(added[0]).toMatchObject({ actor: 'anna', path: 'Verein', text: 'editor', groupId: g.id, noteId: '', read: false });
+    expect(ctx.delivered.at(-1)).toEqual({ userId: ben.id, d: { kind: 'group_added', actor: 'anna', name: 'Verein', url: `/groups/${g.id}` } });
+    // Anna added nobody but Ben
+    expect(((await (await call(annaCookie, '/notifications')).json()) as NotificationList).items.filter((i) => i.kind === 'group_added')).toEqual([]);
+  });
+
+  it('pages through the notifications', async () => {
+    for (let i = 0; i < 12; i++) ctx.notifications.add({ userId: anna.id, kind: 'comment', noteId: 'api-mention-01', actorId: ben.id, path: 'Privat.md', text: `c${i}` }, 1_000 + i);
+    const first = (await (await call(annaCookie, '/notifications?limit=5')).json()) as NotificationList;
+    expect(first.items.map((i) => i.text)).toEqual(['c11', 'c10', 'c9', 'c8', 'c7']);
+    expect(first.next).toBeTruthy();
+    // One arriving in between does not shift the next page
+    ctx.notifications.add({ userId: anna.id, kind: 'comment', noteId: 'api-mention-01', actorId: ben.id, path: 'Privat.md', text: 'new' }, 5_000);
+    const second = (await (await call(annaCookie, `/notifications?limit=5&before=${first.next}`)).json()) as NotificationList;
+    expect(second.items.map((i) => i.text)).toEqual(['c6', 'c5', 'c4', 'c3', 'c2']);
+    const third = (await (await call(annaCookie, `/notifications?limit=5&before=${second.next}`)).json()) as NotificationList;
+    expect(third.items.map((i) => i.text)).toEqual(['c1', 'c0']);
+    expect(third.next).toBeNull();
+  });
 });
