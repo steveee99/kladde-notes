@@ -1,5 +1,5 @@
 import express, { Request } from 'express';
-import type { AdminUser, AdminAuditEntry, AdminStatus } from '@kladde/shared';
+import type { AdminUser, AdminAuditEntry, AdminOverview, AdminStatus } from '@kladde/shared';
 import { AccountError, UserStore } from '../UserStore.js';
 import { AuditLog } from '../security/AuditLog.js';
 import { handle, requireUser } from '../http.js';
@@ -15,6 +15,8 @@ export interface AdminRouterOptions {
   storage: StorageStore;
   audit: AuditLog;
   status: () => AdminStatus;
+  /** The dashboard (counts, machine, online users, recent jobs) */
+  overview?: () => AdminOverview;
   /** Access to GitLab and GitHub for remote notes */
   remote?: { instances: RemoteInstances; fetcher: RemoteFetcher };
   /** Backups (#65); missing for an in-memory database */
@@ -26,7 +28,7 @@ export interface AdminRouterOptions {
 }
 
 /** Admin area of the web app: accounts, invites, password resets and the audit log (admins only) */
-export function adminRouter({ users, storage, audit, status, remote, backups, onRestore, enterMaintenance }: AdminRouterOptions): express.Router {
+export function adminRouter({ users, storage, audit, status, overview, remote, backups, onRestore, enterMaintenance }: AdminRouterOptions): express.Router {
   const router = express.Router();
   const authed = requireUser(users);
   router.use(authed, (req, res, next) => {
@@ -49,6 +51,7 @@ export function adminRouter({ users, storage, audit, status, remote, backups, on
   };
 
   router.get('/status', (_req, res) => res.json(status()));
+  router.get('/overview', (_req, res) => (overview ? res.json(overview()) : res.status(404).json({ error: 'Nicht verfügbar' })));
 
   // ---------------------------------------------------------------- accounts
 

@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from 'react';
-import { ArrowLeft, Backup, ChevronRight, Mail, RemoteDoc, ScrollText, Users } from '../lib/icons';
+import { ArrowLeft, Backup, ChevronRight, Dashboard, Mail, RemoteDoc, ScrollText, Users } from '../lib/icons';
 import { tl, useLang, type I18nKey } from '../lib/i18n';
 import { navigate, usePath } from '../lib/router';
 import { adminSectionOf, type AdminSection } from '../lib/settingsRoutes';
@@ -19,6 +19,7 @@ export interface AdminEntry {
 }
 
 export const ADMIN_ENTRIES: AdminEntry[] = [
+  { id: 'overview', Icon: Dashboard, label: 'admin.tabOverview', desc: 'admin.navOverviewDesc' },
   { id: 'users', Icon: Users, label: 'admin.tabUsers', desc: 'admin.navUsersDesc' },
   { id: 'groups', Icon: Users, label: 'admin.tabGroups', desc: 'admin.navGroupsDesc' },
   { id: 'invites', Icon: Mail, label: 'admin.tabInvites', desc: 'admin.navInvitesDesc' },

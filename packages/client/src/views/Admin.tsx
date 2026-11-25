@@ -9,6 +9,7 @@ import { adminSectionOf, useSettingsNavInPanel } from '../lib/settingsRoutes';
 import { ADMIN_ENTRIES, AdminNav, FIRST_ADMIN_SECTION } from './AdminNav';
 import { Avatar } from './Avatar';
 import { BackupsTab } from './AdminBackups';
+import { AdminOverviewTab } from './AdminOverview';
 import { RemoteTab } from './AdminRemote';
 import { GroupsStorageTab, QuotaEditor } from './AdminStorage';
 import { StorageMeter } from './StorageMeter';
@@ -373,6 +374,7 @@ export function AdminView({ me }: { me: Me }) {
         }
         subtitle={
           status &&
+          section !== 'overview' &&
           tl(lang, 'admin.statusSummary', {
             version: status.version,
             users: status.users,
@@ -385,6 +387,7 @@ export function AdminView({ me }: { me: Me }) {
       <PageBody>
         {error && <p className="mb-4 text-sm text-error anim-fade-in">{error}</p>}
         {section === null && <AdminNav />}
+        {section === 'overview' && <AdminOverviewTab onError={setError} />}
         {section === 'users' && <UsersTab me={me} onError={setError} />}
         {section === 'groups' && <GroupsStorageTab onError={setError} />}
         {section === 'invites' && <InvitesTab onError={setError} />}

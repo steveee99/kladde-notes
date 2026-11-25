@@ -53,6 +53,8 @@ import { ServerSettings } from './ServerSettings.js';
 import { AccountExportService } from './export/AccountExport.js';
 import { accountExportRouter } from './export/router.js';
 import { Metrics, metricsHandler, metricsTokenFromEnv, type MetricsSources } from './metrics.js';
+import { JobLog } from './admin/JobLog.js';
+import { overviewBuilder } from './admin/overview.js';
 
 export interface KladdeAppOptions {
   db: DatabaseSync;
@@ -95,6 +97,8 @@ export interface KladdeAppContext {
   backups?: BackupService;
   /** What the Prometheus metrics (#92) read; served on `/metrics` with `METRICS_TOKEN` or on `METRICS_PORT` */
   metrics: MetricsSources;
+  /** Recent jobs for the admin dashboard */
+  jobs: JobLog;
 }
 
 /**
@@ -225,6 +229,20 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     transcription: !!transcriber,
     lastBackupAt: () => (backups ? (backups.list()[0]?.createdAt ?? null) : null),
   };
+
+  // The admin dashboard: counts, the machine, who is online and the recent jobs
+  const jobs = new JobLog();
+  const overview = overviewBuilder({
+    db: opts.db,
+    dbPath: metricsSources.dbPath,
+    dataDir: opts.dataDir,
+    startedAt,
+    jobs,
+    online: () => live.online(),
+    connections: () => live.connections,
+    databases: () => notes.countDatabases(),
+    lastBackupAt: metricsSources.lastBackupAt,
+  });
 
   const app = express();
   app.disable('x-powered-by');
@@ -379,6 +397,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
         storage,
         audit,
         status,
+        overview,
         remote: { instances: remoteInstances, fetcher: remoteFetcher },
         backups,
         onRestore: opts.onRestart,
@@ -388,7 +407,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       })
     );
   }
-  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db), spaces: online ? new SpaceIndexes(notes) : undefined, activity, notifications, comments: opts.standalone ? undefined : new CommentStore(opts.db, cipher, users) }));
+  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db), spaces: online ? new SpaceIndexes(notes) : undefined, activity, notifications, jobs, comments: opts.standalone ? undefined : new CommentStore(opts.db, cipher, users) }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
   if (opts.seaAssets && opts.seaAssets.size > 0) {
@@ -442,5 +461,5 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
 
   const sendReminders = push ? (now?: Date) => runReminders(push, notes, pushSubject, now) : undefined;
-  return { app, users, notes, files, avatars, attachmentIndexer, confluence, audit, live, standaloneUser, sendReminders, backups, metrics: metricsSources };
+  return { app, users, notes, files, avatars, attachmentIndexer, confluence, audit, live, standaloneUser, sendReminders, backups, metrics: metricsSources, jobs };
 }

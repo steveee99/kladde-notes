@@ -400,6 +400,46 @@ export interface AdminStatus {
   connections: number;
 }
 
+/** A job the server ran: a device's sync (only those that sent changes) or a background job */
+export type AdminJobKind = 'sync' | 'backup' | 'trash';
+
+export interface AdminJob {
+  kind: AdminJobKind;
+  at: number;
+  durationMs: number;
+  ok: boolean;
+  /** Account of a device sync */
+  user?: string;
+  /** Changes sent (sync), notes purged (trash) */
+  count?: number;
+  /** Changes the server did not take as sent (conflicts, refused) */
+  rejected?: number;
+  /** Short reason of a failed job */
+  error?: string;
+}
+
+/** The admin dashboard: what the server holds, how it runs, who is online and what it did lately */
+export interface AdminOverview {
+  version: string;
+  startedAt: number;
+  /** Notes count once, however many people they are shared with */
+  counts: { users: number; groups: number; notes: number; databases: number; shares: number; attachments: number; invites: number };
+  online: { connections: number; users: { username: string; avatarUrl?: string | null; devices: number }[] };
+  system: {
+    platform: string;
+    node: string;
+    cpu: { cores: number; model: string; load: [number, number, number]; /** 0..1 of all cores since the last look */ system: number | null; /** 0..1 of one core */ process: number | null };
+    memory: { total: number; free: number; rss: number; heap: number };
+    /** The disk of the data directory; null when it cannot be read */
+    disk: { total: number; free: number } | null;
+    /** Bytes Kladde holds: the database file, notes, attachments, history, trash */
+    storage: { database: number; notes: number; attachments: number; history: number; trash: number };
+  };
+  lastBackupAt: number | null;
+  /** Newest first, kept in memory since the start */
+  jobs: AdminJob[];
+}
+
 export interface NoteShare {
   username: string;
   avatarUrl?: string | null;

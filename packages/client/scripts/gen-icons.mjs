@@ -39,6 +39,7 @@ const MAP = {
   Psychology: 'psychology', Mic: 'mic', Mood: 'mood', StopCircle: 'stop_circle', Subtitles: 'subtitles', TextFields: 'format_size', NewReleases: 'approval',
   Palette: 'palette', PanelLeftClose: 'left_panel_close', PanelLeftOpen: 'left_panel_open', Callout: 'chat_info', Extension: 'extension', Slideshow: 'slideshow', SpeakerNotes: 'speaker_notes', Fullscreen: 'fullscreen', AspectRatio: 'aspect_ratio', PictureAsPdf: 'picture_as_pdf', UserCheck: 'how_to_reg', UserPlus: 'person_add', Users: 'group', AccountCircle: 'account_circle', EditNote: 'edit_note', Sync: 'sync', X: 'close', Zap: 'bolt',
   ArrowUp: 'arrow_upward', ArrowDown: 'arrow_downward', Webhook: 'webhook', Route: 'route',
+  Dashboard: 'dashboard', Memory: 'memory', HardDrive: 'hard_drive', Database: 'database', Speed: 'speed', MarkRead: 'mark_email_read', NotificationsActive: 'notifications_active', NotificationsOff: 'notifications_off',
   BugReport: 'bug_report', SubdirectoryArrowRight: 'subdirectory_arrow_right', Stars: 'stars', AccountTree: 'account_tree',
 };
 

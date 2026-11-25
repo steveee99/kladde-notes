@@ -1,3 +1,4 @@
+import type { JobLog } from './admin/JobLog.js';
 import express, { Request, Response } from 'express';
 import zlib from 'zlib';
 import { APP_VERSION, extractMentions, isAccent, isReleaseBump, trimSlashes, type CommentThreadList } from '@kladde/shared';
@@ -52,6 +53,11 @@ export class LiveUpdates {
     for (const id of new Set(userIds)) for (const res of this.clients.get(id) ?? []) res.write(frame);
   }
 
+  /** Users with an open stream and how many devices each has open */
+  online(): Map<string, number> {
+    return new Map([...this.clients].map(([id, set]) => [id, set.size]));
+  }
+
   get connections(): number {
     let n = 0;
     for (const s of this.clients.values()) n += s.size;
@@ -77,6 +83,8 @@ export interface ApiRouterOptions {
   activity?: ActivityStore;
   /** Mentions and comments (#69, #68) */
   notifications?: NotificationStore;
+  /** Recent jobs for the admin dashboard */
+  jobs?: JobLog;
   /** Comment threads on passages (#68) */
   comments?: CommentStore;
   /** Online mode: the server's indexes per space (search, backlinks) */
@@ -309,7 +317,13 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     express.json({ limit: '20mb' }),
     handle((req, res) => {
       const changes = Array.isArray(req.body?.changes) ? (req.body.changes as PushChange[]).slice(0, 500) : [];
-      res.json({ results: notes.push(req.user!.id, changes) });
+      const at = Date.now();
+      const results = notes.push(req.user!.id, changes);
+      if (changes.length && opts.jobs) {
+        const rejected = results.filter((r) => r.status !== 'ok').length;
+        opts.jobs.add({ kind: 'sync', at, durationMs: Date.now() - at, ok: true, user: req.user!.username, count: changes.length, ...(rejected ? { rejected } : {}) });
+      }
+      res.json({ results });
     })
   );
 

@@ -130,7 +130,7 @@ async function main(): Promise<void> {
 
   // Set below: ends the process so the container's restart policy starts it again (a restore applies at start)
   let restart = () => {};
-  const { app, users, audit, live, notes, files, attachmentIndexer, confluence, sendReminders, backups, metrics } = createKladdeApp({
+  const { app, users, audit, live, notes, files, attachmentIndexer, confluence, sendReminders, backups, metrics, jobs } = createKladdeApp({
     db,
     dataDir: DATA_DIR,
     env,
@@ -169,11 +169,21 @@ async function main(): Promise<void> {
 
   // Daily full backup (#65) as set in the admin area (default from BACKUP_KEEP): checked hourly, taken when the last one is a day old
   if (backups) {
-    const runBackup = () =>
-      backups.runSchedule().then(
-        (b) => b && console.log(`💾 Sicherung ${b.id} erstellt`),
-        (err) => console.error('Backup failed:', err)
+    // Only backups that were taken (or failed) reach the dashboard's job list, not the hourly look
+    const runBackup = () => {
+      const at = Date.now();
+      return backups.runSchedule().then(
+        (b) => {
+          if (!b) return;
+          jobs.add({ kind: 'backup', at, durationMs: Date.now() - at, ok: true });
+          console.log(`💾 Sicherung ${b.id} erstellt`);
+        },
+        (err) => {
+          jobs.add({ kind: 'backup', at, durationMs: Date.now() - at, ok: false, error: String((err as Error)?.message ?? err).slice(0, 200) });
+          console.error('Backup failed:', err);
+        }
       );
+    };
     setTimeout(runBackup, 60_000).unref();
     setInterval(runBackup, 60 * 60 * 1000).unref();
   }
@@ -186,7 +196,9 @@ async function main(): Promise<void> {
   if (trashDays > 0) {
     const runPurge = () => {
       try {
+        const at = Date.now();
         const n = purgeExpiredTrash(notes, files, trashDays);
+        if (n) jobs.add({ kind: 'trash', at, durationMs: Date.now() - at, ok: true, count: n });
         if (n) console.log(`🗑️  ${n} Notiz(en) endgültig aus dem Papierkorb entfernt (älter als ${trashDays} Tage)`);
       } catch (err) {
         console.error('Trash purge failed:', err);

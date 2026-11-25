@@ -34,8 +34,8 @@ export function useSettingsNavInPanel(): boolean {
 }
 
 /** Sections of the admin area (`/settings/admin/<section>`); plain `/settings/admin` is the first one or, on phones, their list */
-export type AdminSection = 'users' | 'groups' | 'invites' | 'remote' | 'backups' | 'audit';
-export const ADMIN_SECTIONS: AdminSection[] = ['users', 'groups', 'invites', 'remote', 'backups', 'audit'];
+export type AdminSection = 'overview' | 'users' | 'groups' | 'invites' | 'remote' | 'backups' | 'audit';
+export const ADMIN_SECTIONS: AdminSection[] = ['overview', 'users', 'groups', 'invites', 'remote', 'backups', 'audit'];
 
 /** Routes of the admin area: the side panel shows its sections instead of the settings */
 export function isAdminPath(path: string): boolean {

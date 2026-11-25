@@ -4,6 +4,7 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: The administration opens with an overview: tiles with the number of notes (each counted once, however often it is shared), databases, accounts and groups, CPU, memory and disk use, the data Kladde holds, who is online on how many devices, and the recent sync jobs (device syncs with changes, backups, trash purges since the last start). It refreshes every 10 seconds.
 - Changed: The administration lists its sections (accounts, groups, invites, GitLab/GitHub, backups, audit log) in the side panel like the settings, each with its own address (`/settings/admin/<section>`), and has a way back to the settings; on phones it shows them as a list.
 
 ## [2.20.0] – 2026-11-25
