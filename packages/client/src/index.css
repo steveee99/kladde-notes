@@ -1672,6 +1672,23 @@ span.cm-checkbox {
   color: rgb(var(--tertiary));
   font-weight: 600;
 }
+.cm-source .cm-src-ph,
+.cm-source .cm-src-ph span,
+.cm-source .cm-src-var,
+.cm-source .cm-src-var span {
+  color: rgb(var(--acc-hi));
+  background: rgb(var(--acc-bg));
+  font-weight: 500;
+}
+.cm-source .cm-src-var,
+.cm-source .cm-src-var span {
+  color: rgb(var(--green));
+  background: rgb(var(--green-bg));
+}
+.cm-source .cm-src-ph-mark,
+.cm-source .cm-src-ph-mark span {
+  color: rgb(var(--muted));
+}
 .cm-source .cm-src-tag,
 .cm-source .cm-src-tag span {
   color: rgb(var(--tertiary));
@@ -3408,3 +3425,9 @@ span.cm-checkbox {
   .ticket-grid > .ticket-side .ticket-panel { margin-bottom: 0; }
 }
 @media print { .ticket-grid { display: block; } }
+
+/* Template editor (Settings → Templates): the source editor fills its frame, so a click anywhere in it starts typing */
+.template-editor .wz-editor,
+.template-editor .cm-editor {
+  min-height: 100%;
+}

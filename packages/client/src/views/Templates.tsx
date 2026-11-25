@@ -1,5 +1,8 @@
-import { useState } from 'react';
-import { CalendarDays, CalendarRange, FilePlus2, LayoutTemplate, Pencil, Trash2 } from '../lib/icons';
+import { useId, useRef, useState } from 'react';
+import { CalendarDays, CalendarRange, FilePlus2, LayoutTemplate, Maximize2, Minimize2, Pencil, Trash2 } from '../lib/icons';
+import { Editor } from '../editor/Editor';
+import { editorHost } from '../editor/host';
+import type { TemplateToken } from '../editor/variables';
 import { customTypeOf, findNoteType, setCustomType, INBOX_FOLDER, PERIODIC_PLACEHOLDERS, Template, TEMPLATE_PLACEHOLDERS, variablePlaceholder, type PeriodKind } from '@kladde/shared';
 import { useVariables } from '../data/variables';
 import { useVault, vault } from '../data/vault';
@@ -139,7 +142,16 @@ function TemplateEditor({ template, isNew, daily: dailyOnly, period, onDone }: {
   const lang = useLang();
   const [label, setLabel] = useState(template.label);
   const [folder, setFolder] = useState(template.folder);
-  const [content, setContent] = useState(template.content);
+  const [content, setContentState] = useState(template.content);
+  /** The text as typed: the editor reports it with a short delay, saving flushes it first */
+  const contentRef = useRef(template.content);
+  const setContent = (next: string | ((c: string) => string)) => {
+    const value = typeof next === 'function' ? next(contentRef.current) : next;
+    contentRef.current = value;
+    setContentState(value);
+  };
+  const [large, setLarge] = useState(false);
+  const editorId = useId();
   const folders = [...new Set([folder, ...vault.folders(), ''])];
 
   // Variables of the folder the notes go to; the placeholder stays in the new note, so it follows the variable
@@ -158,7 +170,14 @@ function TemplateEditor({ template, isNew, daily: dailyOnly, period, onDone }: {
     return fallback;
   };
 
+  /** What `{{` offers besides the variables */
+  const tokens: TemplateToken[] = period
+    ? PERIODIC_PLACEHOLDERS.filter((p) => p.kinds.includes(period)).map((p) => ({ token: p.token, label: tl(lang, `templates.periodic.${p.token.slice(2, -2)}` as I18nKey) }))
+    : TEMPLATE_PLACEHOLDERS.filter((p) => !daily || p.token !== '{{zid}}').map((p) => ({ token: p.token, label: placeholderLabel(p.token, p.label) }));
+
   const save = async () => {
+    editorHost.flush();
+    const content = contentRef.current;
     if (period) {
       await vault.savePeriodicTemplate(period, content);
       onDone();
@@ -219,13 +238,37 @@ function TemplateEditor({ template, isNew, daily: dailyOnly, period, onDone }: {
           />
         </div>
       )}
-      <textarea
-        className="input min-h-[16rem] font-mono text-sm leading-relaxed"
-        spellCheck={false}
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        placeholder={tl(lang, daily ? 'templates.dailyContentPlaceholder' : 'templates.contentPlaceholder')}
-      />
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <span id={`${editorId}-label`} className="text-body-s font-medium text-text">
+            {tl(lang, 'templates.editorLabel')}
+          </span>
+          <button type="button" className="btn-text ml-auto !h-7 px-2 text-caption" aria-pressed={large} onClick={() => setLarge((v) => !v)}>
+            {large ? <Minimize2 size={14} /> : <Maximize2 size={14} />} {tl(lang, large ? 'templates.collapse' : 'templates.expand')}
+          </button>
+        </div>
+        <div
+          className={`template-editor overflow-auto rounded-md border border-line bg-bg px-3 py-2 focus-within:border-acc-line ${large ? 'h-[75vh]' : 'h-[min(60vh,36rem)] min-h-[20rem]'}`}
+          role="group"
+          aria-labelledby={`${editorId}-label`}
+          data-template-editor
+        >
+          <Editor
+            docKey={`template:${template.id}`}
+            value={content}
+            source
+            autoFocus={!isNew}
+            variables={scope}
+            templateTokens={tokens}
+            placeholder={tl(lang, daily ? 'templates.dailyContentPlaceholder' : 'templates.contentPlaceholder')}
+            onChange={(v) => {
+              contentRef.current = v;
+              setContent(v);
+            }}
+          />
+        </div>
+        <p className="text-caption text-muted">{tl(lang, 'templates.editorHint')}</p>
+      </div>
       {period ? (
         <div className="text-xs text-on-surface-variant">
           {tl(lang, 'templates.placeholdersLabel')}{' '}

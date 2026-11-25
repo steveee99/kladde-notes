@@ -622,6 +622,23 @@ export function buildSourceDecorations(state: EditorState, visibleRanges: readon
         continue;
       }
 
+      // {{placeholders}} of templates and {{var:name}} variables
+      if (ln.text.includes('{{')) {
+        for (const m of ln.text.matchAll(/\{\{([^{}\n]{1,120})\}\}/g)) {
+          const from = ln.from + m.index!;
+          const to = from + m[0].length;
+          if (overlaps(protectedRanges, from, to)) continue;
+          protectedRanges.push([from, to]);
+          addMark(from, from + 2, 'cm-src-ph-mark');
+          const variable = /^(\s?var:\s?)/.exec(m[1]);
+          if (variable) {
+            addMark(from + 2, from + 2 + variable[1].length, 'cm-src-ph-mark');
+            addMark(from + 2 + variable[1].length, to - 2, 'cm-src-var');
+          } else addMark(from + 2, to - 2, 'cm-src-ph');
+          addMark(to - 2, to, 'cm-src-ph-mark');
+        }
+      }
+
       // [[wikilinks]] and [[target|alias]]
       for (const m of ln.text.matchAll(/\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g)) {
         const from = ln.from + m.index!;

@@ -168,7 +168,16 @@ test('typing {{ offers the variables, templates keep the placeholder and embeds 
   await page.goto('/settings/templates');
   await page.getByRole('button', { name: 'New template' }).click();
   await page.getByPlaceholder('Name, e.g. Project').fill(label);
-  await page.locator('textarea').fill('Colour: {{var:colour}} of {{title}}\n');
+  const template = page.locator('[data-template-editor] .cm-content');
+  await template.click();
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.press('Delete');
+  // The template editor offers the template's placeholders and the variables of its folder
+  await page.keyboard.type('Colour: {{var:colour}} of {{ti');
+  await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('Title of the new note');
+  await page.keyboard.press('Enter');
+  await expect(template.locator('.cm-src-ph')).toHaveText('title');
+  await page.keyboard.press('Enter');
   // A sync from the other tests may close the list in between
   await expect(async () => {
     await page.locator('form').getByRole('combobox').click();
