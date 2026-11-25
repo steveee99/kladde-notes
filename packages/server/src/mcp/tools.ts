@@ -15,6 +15,7 @@ import {
   runQuery,
   semanticSearch,
   remoteNoteOf,
+  searchableText,
   remoteOwnText,
   splitPath,
   toDateString,
@@ -651,7 +652,7 @@ export const TOOLS: ToolDef[] = [
       const hits: { note: SyncedNote; score: number }[] = [];
       for (const n of listed(ctx)) {
         const title = splitPath(n.path).name.toLowerCase();
-        const hay = `${n.path}\n${n.content}`.toLowerCase();
+        const hay = `${n.path}\n${searchableText(n)}`.toLowerCase();
         if (!words.every((w) => hay.includes(w))) continue;
         let score = words.every((w) => title.includes(w)) ? 100 : 0;
         for (const w of words) score += Math.min(20, hay.split(w).length - 1);
@@ -662,7 +663,7 @@ export const TOOLS: ToolDef[] = [
       const inFiles = deps ? searchAttachments(deps, space(ctx), words.join(' '), limit).hits : [];
       return {
         total: hits.length,
-        results: hits.slice(0, limit).map(({ note }) => ({ ...summary(note), snippet: snippet(note.content, words[0]) })),
+        results: hits.slice(0, limit).map(({ note }) => ({ ...summary(note), snippet: snippet(searchableText(note), words[0]) })),
         attachments: inFiles.map((h) => ({ file: h.name, file_id: h.fileId, page: h.page, ocr: h.ocr, snippet: h.snippet, notes: h.notes })),
       };
     },
@@ -739,7 +740,15 @@ export const TOOLS: ToolDef[] = [
         links: index.outgoing(note.id).map(titleOf),
         backlinks: index.backlinks(note.id).map(titleOf),
         ...(remote
-          ? { remote: { ...remote, hint: 'Remote note: shows this document from GitLab/GitHub live and read-only. Its text is not stored in Kladde; only source and ref can be changed.' } }
+          ? {
+              remote: {
+                ...remote,
+                hint: remote.sync
+                  ? 'Remote note: shows this document from GitLab/GitHub read-only. With sync: true the server keeps a copy (document, read every few hours); only source, ref and sync can be changed.'
+                  : 'Remote note: shows this document from GitLab/GitHub live and read-only. Its text is not stored in Kladde; only source, ref and sync can be changed.',
+                ...(note.remoteSnapshot?.text ? { document: note.remoteSnapshot.text, synced: iso(note.remoteSnapshot.fetchedAt) } : {}),
+              },
+            }
           : {}),
         content: note.content,
       };

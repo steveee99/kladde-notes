@@ -5,6 +5,7 @@ import type { NoteStore } from '../NoteStore.js';
 import type { UserRecord, UserStore } from '../UserStore.js';
 import { RemoteError, type RemoteFetcher } from './RemoteFetcher.js';
 import type { RemoteInstances } from './RemoteInstances.js';
+import type { RemoteSync } from './RemoteSync.js';
 
 /** Fixed window per account (all its devices share it) */
 function userLimit(limit: number, windowMs: number) {
@@ -28,6 +29,8 @@ export interface RemoteRouterOptions {
   notes: NoteStore;
   instances: RemoteInstances;
   fetcher: RemoteFetcher;
+  /** Synced remote notes; without it every note is shown live only */
+  sync?: RemoteSync;
   standaloneUser?: UserRecord;
 }
 
@@ -37,7 +40,7 @@ export interface RemoteRouterOptions {
  * never contain the filled-in address of a document that could not be read: whoever may write a shared note could
  * otherwise read the variables of its folder that way.
  */
-export function remoteRouter({ users, notes, instances, fetcher, standaloneUser }: RemoteRouterOptions): express.Router {
+export function remoteRouter({ users, notes, instances, fetcher, sync, standaloneUser }: RemoteRouterOptions): express.Router {
   const router = express.Router();
   router.use(requireUser(users, standaloneUser));
   router.use((_req, res, next) => {
@@ -57,6 +60,31 @@ export function remoteRouter({ users, notes, instances, fetcher, standaloneUser 
   router.get('/hosts', (_req, res) => {
     res.json(instances.active().map(({ kind, url }): RemoteHost => ({ kind, url })));
   });
+
+  /** How often synced remote notes are read again (0 = this server does not sync them) */
+  router.get('/config', (_req, res) => {
+    res.json({ syncHours: sync ? sync.intervalMs / 3_600_000 : 0 });
+  });
+
+  /** "Sync now" of a synced remote note: anybody who sees the note; the new copy reaches every device with the note */
+  router.post(
+    '/:id/sync',
+    userLimit(20, 60_000),
+    handle(async (req, res) => {
+      const found = notes.remoteSource(req.user!.id, String(req.params.id));
+      if (!found) {
+        res.status(404).json({ error: 'Notiz nicht gefunden.' });
+        return;
+      }
+      if (!sync || !found.source.sync) {
+        res.status(409).json({ error: 'Diese Notiz wird nicht synchronisiert.' });
+        return;
+      }
+      const snap = await sync.syncNow(String(req.params.id));
+      if (!snap) res.status(409).json({ error: 'Diese Notiz wird nicht synchronisiert.' });
+      else res.json(snap);
+    })
+  );
 
   router.get(
     '/:id',

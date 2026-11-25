@@ -23,6 +23,11 @@ export interface RemoteSource {
   source: string;
   /** Branch, tag or commit; '' = the one in the address, or the default branch */
   ref: string;
+  /**
+   * `sync: true`: the server reads the document every few hours and keeps a copy (`RemoteSnapshot`), so it is searched
+   * and shown without a connection. Without it the document is only ever loaded live.
+   */
+  sync?: boolean;
 }
 
 const MAX_SOURCE = 2000;
@@ -35,7 +40,8 @@ export function remoteNoteOf(content: string): RemoteSource | null {
   if (!content.startsWith('---') || !/^type:[ \t]*["']?remote\b/im.test(content.slice(0, 4000))) return null;
   const { data } = parseFrontmatter(content);
   if (data.type?.toLowerCase() !== 'remote' || data.source === undefined || !looksLikeSource(data.source)) return null;
-  return { source: data.source.slice(0, MAX_SOURCE), ref: data.ref ?? '' };
+  const sync = /^(?:true|yes|on|1)$/i.test(String(data.sync ?? '').trim());
+  return { source: data.source.slice(0, MAX_SOURCE), ref: data.ref ?? '', ...(sync ? { sync: true } : {}) };
 }
 
 const clean = (value: string): string => value.replace(/[\r\n"]+/g, '').trim().slice(0, MAX_SOURCE);
@@ -43,16 +49,16 @@ const clean = (value: string): string => value.replace(/[\r\n"]+/g, '').trim().s
 const yamlValue = (value: string): string => (/[{}#]|: /.test(value) || value === '' ? `"${value}"` : value);
 
 /** Sets the source in a note's frontmatter; the rest of the note stays as it is */
-export function setRemoteSource(content: string, { source, ref }: RemoteSource): string {
+export function setRemoteSource(content: string, { source, ref, sync }: RemoteSource): string {
   const r = clean(ref);
-  return setFrontmatter(content, { type: 'remote', source: yamlValue(clean(source)), ref: r ? yamlValue(r) : null });
+  return setFrontmatter(content, { type: 'remote', source: yamlValue(clean(source)), ref: r ? yamlValue(r) : null, sync: sync ? 'true' : null });
 }
 
 /** A new remote note */
 export const remoteNoteMarkdown = (source: RemoteSource): string => setRemoteSource('', source);
 
 /** Takes `type`, `source` and `ref` out again: an ordinary note with whatever text of its own it has */
-export const clearRemoteSource = (content: string): string => setFrontmatter(content, { type: null, source: null, ref: null });
+export const clearRemoteSource = (content: string): string => setFrontmatter(content, { type: null, source: null, ref: null, sync: null });
 
 /** Text of its own in a remote note (written by hand or by another program); it is kept but not shown */
 export const remoteOwnText = (content: string): string => parseFrontmatter(content).body.trim();
@@ -340,6 +346,40 @@ export type RemoteProblem =
 export type RemoteNoteResponse =
   | { state: 'ok'; text: string; base: RemoteBase; url: string; commit: RemoteCommit | null; fetchedAt: number }
   | { state: RemoteProblem };
+
+/**
+ * The copy the server keeps of a synced remote note (`sync: true`), delivered with the note (`SyncedNote.remoteSnapshot`).
+ * It belongs to the source as written: after the source changed it is not shown until the server read the new one.
+ */
+export interface RemoteSnapshot {
+  source: string;
+  ref: string;
+  /** The document as last read successfully; '' when it never was */
+  text: string;
+  base: RemoteBase | null;
+  url: string;
+  commit: RemoteCommit | null;
+  /** When the text was read, 0 = never */
+  fetchedAt: number;
+  /** When the server last asked GitLab/GitHub */
+  checkedAt: number;
+  /** Why the last attempt failed; the text is then the one read before */
+  problem?: RemoteProblem;
+}
+
+/** The snapshot when it belongs to the note's current source */
+export function currentSnapshot(src: RemoteSource | null, snap: RemoteSnapshot | undefined): RemoteSnapshot | null {
+  return src?.sync && snap && snap.source === src.source && snap.ref === src.ref ? snap : null;
+}
+
+/** What the search compares of a note: its text, and the kept copy of a synced remote note */
+export function searchableText(note: { content: string; remoteSnapshot?: RemoteSnapshot }): string {
+  const text = note.remoteSnapshot?.text;
+  return text && currentSnapshot(remoteNoteOf(note.content), note.remoteSnapshot) ? `${note.content}\n${text}` : note.content;
+}
+
+/** Synced remote notes are read again after this many hours (`REMOTE_SYNC_HOURS`): bounded, so the jobs stay few */
+export const REMOTE_SYNC_HOURS = { default: 6, min: 1, max: 168 } as const;
 
 /** One configured instance as the admin area sees it: never with its token */
 export interface AdminRemoteInstance {

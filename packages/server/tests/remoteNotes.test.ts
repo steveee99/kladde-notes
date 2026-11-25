@@ -21,6 +21,8 @@ import { mcpRouters } from '../src/mcp/router';
 import { RemoteInstances, remoteInstancesFromEnv } from '../src/remote/RemoteInstances';
 import { RemoteFetcher, sniffImage } from '../src/remote/RemoteFetcher';
 import { remoteRouter } from '../src/remote/router';
+import { RemoteSnapshotStore, RemoteSync, remoteSyncHours } from '../src/remote/RemoteSync';
+import { SpaceIndexes } from '../src/online/SpaceIndex';
 
 const TOKEN = 'glpat-super-secret-1';
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(20)]);
@@ -82,7 +84,9 @@ const other = new FakeUpstream();
 const db = openDatabase(':memory:');
 const cipher = new DataCipher(crypto.randomBytes(32));
 const users = new UserStore(db);
-const notes = new NoteStore(db, cipher);
+// Synced remote notes hear about every change, as in the app
+let sync: RemoteSync | undefined;
+const notes = new NoteStore(db, cipher, (e) => sync?.onNoteChange(e));
 const groups = new GroupStore(db);
 const settings = new ServerSettings(db);
 // The first account becomes admin
@@ -104,7 +108,7 @@ function push(userId: string, notePath: string, content: string, extra: { id?: s
   expect(r.status).toBe('ok');
   return id;
 }
-const remote = (source: string, ref = '') => remoteNoteMarkdown({ source, ref });
+const remote = (source: string, ref = '', synced = false) => remoteNoteMarkdown({ source, ref, sync: synced });
 const get = (id: string, user = 'anna', query = '?refresh=1') => fetch(`${base}/api/remote-notes/${id}${query}`, { headers: user ? { Cookie: cookies[user] } : {} });
 async function load(source: string, ref = ''): Promise<RemoteNoteResponse> {
   return (await (await get(push(anna.id, `N/${uid()}.md`, remote(source, ref)))).json()) as RemoteNoteResponse;
@@ -119,7 +123,8 @@ beforeAll(async () => {
   const fetcher = new RemoteFetcher(instances, { timeoutMs: 500, maxText: 2000, maxImage: 3000 });
   const app = express();
   app.use(express.json());
-  app.use('/api/remote-notes', remoteRouter({ users, notes, instances, fetcher }));
+  sync = new RemoteSync(new RemoteSnapshotStore(db, cipher), notes, fetcher, 6 * 3_600_000);
+  app.use('/api/remote-notes', remoteRouter({ users, notes, instances, fetcher, sync }));
   app.use('/api/admin', adminRouter({ users, storage: new StorageStore(db, null), audit: new AuditLog(db), remote: { instances, fetcher }, status: () => ({ version: 't', startedAt: 0, users: 0, notes: 0, shares: 0, connections: 0 }) }));
   const tokens = new McpTokenStore(db);
   app.use(mcpRouters({ users, notes, tokens, audit: new AuditLog(db), publicUrl: null }).publicRouter);
@@ -293,6 +298,106 @@ describe('reading remote notes', () => {
     for (let i = 0; i < 125; i++) codes.add((await get(id, 'cara')).status);
     expect(codes).toEqual(new Set([200, 429]));
     expect((await get(push(ben.id, 'Own.md', remote('https://nowhere.example.com/a/b')), 'ben')).status).toBe(200);
+  });
+});
+
+describe('synced remote notes', () => {
+  const later = () => Date.now() + 7 * 3_600_000;
+  const pulled = (userId: string, id: string) => notes.pull(userId, 0).notes.find((x) => x.id === id)!;
+  const seqOf = (id: string) => (db.prepare('SELECT seq FROM notes WHERE id = ?').get(id) as { seq: number }).seq;
+  const syncNow = (id: string, user = 'anna') => fetch(`${base}/api/remote-notes/${id}/sync`, { method: 'POST', headers: { Cookie: cookies[user] } });
+
+  it('reads the interval from the environment, never below an hour', () => {
+    expect(remoteSyncHours({})).toBe(6);
+    expect(remoteSyncHours({ REMOTE_SYNC_HOURS: '24' })).toBe(24);
+    expect(remoteSyncHours({ REMOTE_SYNC_HOURS: '0.1' })).toBe(1);
+    expect(remoteSyncHours({ REMOTE_SYNC_HOURS: '9999' })).toBe(168);
+    expect(remoteSyncHours({ REMOTE_SYNC_HOURS: 'often' })).toBe(6);
+  });
+
+  it('keeps a copy that travels with the note, and only a changed document gives it a new seq', async () => {
+    gitlab.put('s/p', 'main', 'a.md', '# Handbuch\n\nZebrafisch\n');
+    const id = push(anna.id, 'Synced.md', remote(`${gitlab.base}/s/p/-/blob/main/a.md`, '', true));
+    expect(pulled(anna.id, id).remoteSnapshot).toBeUndefined();
+    // A new synced note is due at once
+    await sync!.tick();
+    const first = pulled(anna.id, id).remoteSnapshot!;
+    expect(first).toMatchObject({ text: '# Handbuch\n\nZebrafisch\n', base: { project: 's/p', path: 'a.md' }, source: `${gitlab.base}/s/p/-/blob/main/a.md` });
+    expect(first.problem).toBeUndefined();
+    // Not due again before the interval
+    gitlab.seen = [];
+    await sync!.tick();
+    expect(gitlab.seen).toEqual([]);
+    // Due later: unchanged, so no new seq
+    const seq = seqOf(id);
+    await sync!.tick(later());
+    expect(gitlab.seen.length).toBeGreaterThan(0);
+    expect(seqOf(id)).toBe(seq);
+    // Changed: new seq, new copy
+    gitlab.put('s/p', 'main', 'a.md', '# Handbuch\n\nSeepferdchen\n');
+    await sync!.tick(later());
+    expect(seqOf(id)).toBeGreaterThan(seq);
+    expect(pulled(anna.id, id).remoteSnapshot!.text).toContain('Seepferdchen');
+  });
+
+  it('keeps the last copy when reading fails, and says why', async () => {
+    gitlab.put('s/p', 'main', 'gone.md', 'Erster Stand\n');
+    const id = push(anna.id, 'Gone.md', remote(`${gitlab.base}/s/p/-/blob/main/gone.md`, '', true));
+    await sync!.tick();
+    gitlab.files.delete(['s/p', 'main', 'gone.md'].join('\n'));
+    await sync!.tick(later());
+    expect(pulled(anna.id, id).remoteSnapshot).toMatchObject({ text: 'Erster Stand\n', problem: 'not_found' });
+  });
+
+  it('drops the copy when sync is turned off, and never puts it into catalogs or public links', async () => {
+    gitlab.put('s/p', 'main', 'b.md', 'Geheimer Inhalt\n');
+    const source = `${gitlab.base}/s/p/-/blob/main/b.md`;
+    const id = push(anna.id, 'Off.md', remote(source, '', true));
+    await sync!.tick();
+    expect(pulled(anna.id, id).remoteSnapshot?.text).toBe('Geheimer Inhalt\n');
+    expect(JSON.stringify(notes.pull(anna.id, 0, { light: true }))).not.toContain('Geheimer Inhalt');
+    expect(JSON.stringify(notes.publicNote(notes.setPublic(anna.id, id, true)!))).not.toContain('Geheimer Inhalt');
+    push(anna.id, 'Off.md', remote(source), { id, baseVersion: pulled(anna.id, id).version });
+    expect(pulled(anna.id, id).remoteSnapshot).toBeUndefined();
+    expect(db.prepare('SELECT COUNT(*) AS n FROM remote_snapshots WHERE note_id = ?').get(id)).toEqual({ n: 0 });
+  });
+
+  it('shows no copy of an older source', async () => {
+    gitlab.put('s/p', 'main', 'c.md', 'Alt\n');
+    gitlab.put('s/p', 'main', 'd.md', 'Neu\n');
+    const id = push(anna.id, 'Moved.md', remote(`${gitlab.base}/s/p/-/blob/main/c.md`, '', true));
+    await sync!.tick();
+    push(anna.id, 'Moved.md', remote(`${gitlab.base}/s/p/-/blob/main/d.md`, '', true), { id, baseVersion: pulled(anna.id, id).version });
+    expect(pulled(anna.id, id).remoteSnapshot).toBeUndefined();
+    // Due at once again
+    await sync!.tick();
+    expect(pulled(anna.id, id).remoteSnapshot?.text).toBe('Neu\n');
+  });
+
+  it('syncs on request for everybody who sees the note', async () => {
+    gitlab.put('s/p', 'main', 'e.md', 'Eins\n');
+    const id = push(anna.id, 'Manual.md', remote(`${gitlab.base}/s/p/-/blob/main/e.md`, '', true));
+    const res = await syncNow(id);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ text: 'Eins\n', source: `${gitlab.base}/s/p/-/blob/main/e.md` });
+    expect(pulled(anna.id, id).remoteSnapshot?.text).toBe('Eins\n');
+    expect((await syncNow(id, 'ben')).status).toBe(404);
+    notes.share(anna.id, id, ben.id, false);
+    expect((await syncNow(id, 'ben')).status).toBe(200);
+    expect(pulled(ben.id, id).remoteSnapshot?.text).toBe('Eins\n');
+    // A live note is not synced
+    expect((await syncNow(push(anna.id, 'Live.md', remote(`${gitlab.base}/s/p/-/blob/main/e.md`)))).status).toBe(409);
+  });
+
+  it('is found by the search of online mode', async () => {
+    gitlab.put('s/p', 'main', 'f.md', 'Das Wort Quokkasprung steht nur hier.\n');
+    const id = push(anna.id, 'Search.md', remote(`${gitlab.base}/s/p/-/blob/main/f.md`, '', true));
+    const live = push(anna.id, 'SearchLive.md', remote(`${gitlab.base}/s/p/-/blob/main/f.md`));
+    await sync!.tick();
+    const hits = new SpaceIndexes(notes).search(anna.id, 'quokkasprung');
+    expect(hits.map((h) => h.id)).toEqual([id]);
+    expect(hits[0].snippet).toContain('Quokkasprung');
+    expect(hits.map((h) => h.id)).not.toContain(live);
   });
 });
 

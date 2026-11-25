@@ -2208,9 +2208,11 @@ if (import.meta.hot) {
 
 /** `local` with the release state (#53) of `server`: versioning, releases, release fingerprint */
 function withReleaseState(local: LocalNote, server: SyncedNote): LocalNote {
-  const { versioning: _v, releases: _r, releaseHash: _h, showsRelease: _s, ...rest } = local;
+  const { versioning: _v, releases: _r, releaseHash: _h, showsRelease: _s, remoteSnapshot: _rs, ...rest } = local;
   return {
     ...rest,
+    // A synced remote note's copy changes the same way (a new seq, no new version)
+    ...(server.remoteSnapshot ? { remoteSnapshot: server.remoteSnapshot } : {}),
     ...(server.versioning ? { versioning: true, releases: server.releases ?? [] } : {}),
     ...(server.releaseHash ? { releaseHash: server.releaseHash } : {}),
     ...(server.showsRelease ? { showsRelease: server.showsRelease } : {}),

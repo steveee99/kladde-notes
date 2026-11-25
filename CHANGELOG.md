@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: GitLab/GitHub notes can be synced instead of loaded live (“Sync regularly” when creating the note or under “Edit source”, `sync: true`). The server then reads the document every few hours (`REMOTE_SYNC_HOURS`, default 6, at least 1) and keeps an encrypted copy, so the document shows up in search (also in online mode and over MCP) and can be read offline. “Sync now” reads it at once; a failed sync keeps the previous copy and says why. See [docs/REMOTE_NOTES.md](docs/REMOTE_NOTES.md).
+
 ## [2.20.0] – 2026-11-25
 
 - New: Custom note types (Settings → Note types) model which properties a note has, whether they show at the top, on the right, at the bottom or not at all, and whether the frontmatter is visible. Notes and templates use them with `type: custom:<name>`; they can also be chosen for new notes and in a note's ⋮ menu, belong to your own notes or a group, and show on public links. See [docs/NOTE_TYPES.md](docs/NOTE_TYPES.md).

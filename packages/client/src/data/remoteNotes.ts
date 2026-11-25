@@ -1,9 +1,12 @@
 /**
  * Remote notes on this device (shared/remoteNote.ts): the document is asked for from the server each time a note opens
- * and lives only in memory. Nothing of it is stored, indexed or synced.
+ * and lives only in memory. Synced ones (`sync: true`) instead come with the copy the server keeps
+ * (`LocalNote.remoteSnapshot`): shown and searched without asking, read again by the server every few hours or with
+ * "Sync now".
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  currentSnapshot,
   encodeRemotePath,
   prepareRemoteMarkdown,
   remoteNoteOf,
@@ -12,6 +15,7 @@ import {
   type RemoteHost,
   type RemoteNoteResponse,
   type RemoteProblem,
+  type RemoteSnapshot,
   type RemoteSource,
   type VariableScope,
 } from '@kladde/shared';
@@ -46,6 +50,67 @@ export function fetchRemote(id: string, refresh = false): Promise<RemoteState> {
   return job;
 }
 
+const syncing = new Map<string, Promise<RemoteSnapshot | RemoteState>>();
+
+/** "Sync now" of a synced remote note: the server reads the document and keeps the copy; every device gets it */
+export function syncRemote(id: string): Promise<RemoteSnapshot | RemoteState> {
+  if (DEMO) return Promise.resolve({ state: 'demo' });
+  let job = syncing.get(id);
+  if (!job) {
+    job = api<RemoteSnapshot>(`/remote-notes/${encodeURIComponent(id)}/sync`, { method: 'POST' })
+      .catch((err): RemoteState => {
+        if (!(err instanceof ApiError)) return { state: 'offline' };
+        return { state: err.status === 404 || err.status === 409 ? 'missing' : err.status === 429 ? 'busy' : 'unreachable' };
+      })
+      .finally(() => syncing.delete(id));
+    syncing.set(id, job);
+  }
+  return job;
+}
+
+const isSnapshot = (r: RemoteSnapshot | RemoteState): r is RemoteSnapshot => !('state' in r);
+
+/** A kept copy as what the note shows: its text, or why there is none */
+export function snapshotState(snap: RemoteSnapshot): RemoteState {
+  if (snap.fetchedAt && snap.base) return { state: 'ok', text: snap.text, base: snap.base, url: snap.url, commit: snap.commit, fetchedAt: snap.fetchedAt };
+  return { state: snap.problem ?? 'loading' };
+}
+
+/** The document as it is now (exports, embeds): the kept copy of a synced note, otherwise asked for live */
+export async function currentRemote(id: string): Promise<RemoteState> {
+  const note = vault.get(id);
+  const src = note && !note.partial ? remoteNoteOf(note.content) : null;
+  if (!src?.sync) return fetchRemote(id);
+  const snap = currentSnapshot(src, note!.remoteSnapshot);
+  if (snap?.fetchedAt) return snapshotState(snap);
+  const r = await syncRemote(id);
+  return isSnapshot(r) ? snapshotState(r) : r;
+}
+
+let config: Promise<number> | null = null;
+
+/** How often the server reads synced remote notes again, in hours; 0 while unknown */
+export function useRemoteSyncHours(): number {
+  const [hours, setHours] = useState(0);
+  useEffect(() => {
+    let live = true;
+    config ??= DEMO
+      ? Promise.resolve(0)
+      : api<{ syncHours: number }>('/remote-notes/config').then(
+          (c) => c.syncHours,
+          () => {
+            config = null;
+            return 0;
+          }
+        );
+    void config.then((h) => live && setHours(h));
+    return () => {
+      live = false;
+    };
+  }, []);
+  return hours;
+}
+
 /** What to show instead of the document */
 export const remoteProblemText = (state: RemoteState['state']): string => t(`remote.state.${state}` as I18nKey);
 
@@ -60,7 +125,7 @@ export const remoteExportText = (r: RemoteOk): string => prepareRemoteMarkdown(r
 export async function loadRemoteEmbed(id: string): Promise<{ text: string } | { problem: string }> {
   // Just made here: the server has to get it first
   for (let waited = 0; !DEMO && vault.get(id)?.dirty && waited < SYNC_WAIT_MS; waited += 200) await new Promise((r) => setTimeout(r, 200));
-  const r = await fetchRemote(id);
+  const r = await currentRemote(id);
   return r.state === 'ok' ? { text: remoteDisplayText(id, r) } : { problem: remoteProblemText(r.state) };
 }
 
@@ -91,7 +156,10 @@ export interface RemoteNoteView {
   text: string;
   /** Asking (again); `result` still is the last answer */
   loading: boolean;
+  /** Live: asks again. Synced: "Sync now" */
   reload: () => void;
+  /** Only for a synced note: when the server last read it, and why that or the last "Sync now" failed */
+  sync: { checkedAt: number; problem?: RemoteState['state'] } | null;
 }
 
 /** The document of a remote note, loaded when the note opens and whenever its source changes; null for other notes */
@@ -103,6 +171,16 @@ export function useRemoteNote(note: LocalNote | undefined, variables: VariableSc
   // The version too: recipients do not see the variables of the folder, but a moved or changed note
   const key = resolved ? [id, source!.source, source!.ref, resolved.url, resolved.ref, note!.version].join('\n') : '';
   const [answer, setAnswer] = useState<{ key: string; result: RemoteState } | null>(null);
+  // Synced: the copy that came with the note, or a newer one from "Sync now" until the note brings it too
+  const sync = !!source?.sync;
+  const stored = useMemo(() => (note && source ? currentSnapshot(source, note.remoteSnapshot) : null), [note, source]);
+  const [synced, setSynced] = useState<{ key: string; snap: RemoteSnapshot } | null>(null);
+  const hasStored = !!stored;
+  // A newer copy from the server ends what a failed "Sync now" said
+  const storedAt = stored?.checkedAt ?? 0;
+  useEffect(() => {
+    if (sync && storedAt) setAnswer(null);
+  }, [sync, storedAt]);
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
   const forced = useRef(false);
@@ -124,26 +202,43 @@ export function useRemoteNote(note: LocalNote | undefined, variables: VariableSc
   const ready = !!key && (!unsynced || waited);
   useEffect(() => {
     if (!ready) return;
-    const mine = ++seq.current;
     const refresh = forced.current;
+    // A synced note shows its copy; the server is asked only for "Sync now", or when there is no copy yet
+    if (sync && hasStored && !refresh) return;
+    const mine = ++seq.current;
     forced.current = false;
     setLoading(true);
-    void fetchRemote(id, refresh).then((result) => {
-      if (mine !== seq.current) return;
-      setAnswer({ key, result });
-      setLoading(false);
-    });
+    if (sync) {
+      void syncRemote(id).then((r) => {
+        if (mine !== seq.current) return;
+        if (isSnapshot(r)) {
+          setSynced({ key, snap: r });
+          setAnswer(null);
+        } else setAnswer({ key, result: r });
+        setLoading(false);
+      });
+    } else {
+      void fetchRemote(id, refresh).then((result) => {
+        if (mine !== seq.current) return;
+        setAnswer({ key, result });
+        setLoading(false);
+      });
+    }
     return () => {
       seq.current++;
+      setLoading(false);
     };
-  }, [ready, key, id, tick]);
+  }, [ready, key, id, tick, sync, hasStored]);
 
   const reload = useCallback(() => {
     forced.current = true;
     setTick((n) => n + 1);
   }, []);
 
-  const result: RemoteState = answer?.key === key ? answer.result : { state: 'loading' };
+  const mine = synced?.key === key ? synced.snap : null;
+  const snap = stored && mine ? (mine.checkedAt > stored.checkedAt ? mine : stored) : (stored ?? mine);
+  const failed = answer?.key === key ? answer.result : null;
+  const result: RemoteState = snap ? snapshotState(snap) : (failed ?? { state: 'loading' });
   const offline = result.state === 'offline';
   useEffect(() => {
     if (!offline) return;
@@ -152,5 +247,6 @@ export function useRemoteNote(note: LocalNote | undefined, variables: VariableSc
   }, [offline, reload]);
 
   const text = useMemo(() => (result.state === 'ok' ? remoteDisplayText(id, result) : ''), [id, result]);
-  return source && resolved ? { source, resolved, result, text, loading: loading || result.state === 'loading', reload } : null;
+  const syncInfo = sync && snap ? { checkedAt: snap.checkedAt, problem: failed && failed.state !== 'ok' ? failed.state : snap.problem } : null;
+  return source && resolved ? { source, resolved, result, text, loading: loading || result.state === 'loading', reload, sync: syncInfo } : null;
 }
