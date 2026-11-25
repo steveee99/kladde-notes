@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.19.0] – 2026-11-25
+
 - New: Variables: folders and groups define variables that their subfolders inherit and can override ("Variables …" in the folder header, the folder menu or the group). `{{var:name}}` in notes and templates always shows the current value, also in link and image addresses, tables, embeds, presentations, exports and on public links; `{{var:name|fallback}}` sets a value for where it is not defined. Typing `{{` offers the variables of the note's folder. See [docs/VARIABLES.md](docs/VARIABLES.md).
 - New: GitLab/GitHub notes show a Markdown document from a repository, always loaded live and read-only (“New → GitLab/GitHub note”, `/gitlab`). The address may contain variables, relative links and images work, and the note can be embedded and exported. Admins set the access on the container (`REMOTE_GITLAB_TOKEN`, `REMOTE_GITHUB_TOKEN`, …, `REMOTE_ALLOWED_PATHS`) or under Settings → Administration → GitLab/GitHub; it applies to everyone. See [docs/REMOTE_NOTES.md](docs/REMOTE_NOTES.md).
 - Fixed: Database notes (`_database-<uuid>`, which hold the settings of a database or project) no longer show in the folder tree of groups, in both modes. They, and numbered copies of them, also stay out of note counts, favorites, tabs, link suggestions, backlinks, query results, the weekly review, the activity of a group and the MCP lists and searches.
