@@ -1,13 +1,14 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useModal } from '../lib/modal';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, RotateCcw, X } from '../lib/icons';
-import { diffLines, diffStats, NoteVersion, NoteVersionInfo, splitPath, type VariableScope } from '@kladde/shared';
+import { NoteVersion, NoteVersionInfo, splitPath, type VariableScope } from '@kladde/shared';
 import { api } from '../lib/api';
 import { vault } from '../data/vault';
 import { Editor } from '../editor/Editor';
 import { locale, tl, useLang } from '../lib/i18n';
 import { useVisualViewport } from '../lib/viewport';
+import { DiffStats, DiffView, useDiff } from './DiffView';
 
 type Mode = 'diff' | 'rendered';
 
@@ -52,8 +53,7 @@ export function HistoryDialog({ noteId, variables, current, canRestore, onClose 
   const version = selected ? loaded[selected] : undefined;
   const previous = previousId ? loaded[previousId] : undefined;
   const ready = !!version && (!previousId || !!previous);
-  const lines = useMemo(() => (ready ? diffLines(previous?.content ?? '', version!.content) : []), [ready, previous, version]);
-  const stats = diffStats(lines);
+  const { lines, stats } = useDiff(ready ? (previous?.content ?? '') : null, ready ? version!.content : null);
 
   const restore = () => {
     if (!version || !confirm(tl(lang, 'history.restoreConfirm', { date: fmt(version.savedAt) }))) return;
@@ -129,11 +129,7 @@ export function HistoryDialog({ noteId, variables, current, canRestore, onClose 
                     </button>
                   ))}
                 </div>
-                {ready && mode === 'diff' && (
-                  <span className="text-xs tabular-nums">
-                    <span className="text-ok">+{stats.added}</span> <span className="text-error">−{stats.removed}</span>
-                  </span>
-                )}
+                {ready && mode === 'diff' && <DiffStats stats={stats} />}
                 {canRestore && ready && version!.content !== current && (
                   <button className="btn-outlined ml-auto" onClick={restore}>
                     <RotateCcw size={13} /> {tl(lang, 'common.restore')}
@@ -147,21 +143,8 @@ export function HistoryDialog({ noteId, variables, current, canRestore, onClose 
                   <div className="px-4 py-3 sm:px-8">
                     <Editor docKey={`history:${version!.id}`} value={version!.content} readOnly variables={variables} />
                   </div>
-                ) : !lines.some((l) => l.kind !== 'same') ? (
-                  <div className="p-6 text-center text-on-surface-variant">{tl(lang, 'history.noChanges')}</div>
                 ) : (
-                  <pre className="min-w-full w-max font-mono text-[13px] leading-6">
-                    {lines.map((l, i) => (
-                      <div key={i} className={`flex ${l.kind === 'add' ? 'bg-ok/15' : l.kind === 'del' ? 'bg-error/15' : ''}`}>
-                        <span className="w-10 shrink-0 select-none pr-2 text-right text-on-surface-variant">{l.oldLine ?? ''}</span>
-                        <span className="w-10 shrink-0 select-none pr-2 text-right text-on-surface-variant">{l.newLine ?? ''}</span>
-                        <span className={`w-5 shrink-0 select-none text-center ${l.kind === 'add' ? 'text-ok' : l.kind === 'del' ? 'text-error' : 'text-on-surface-variant'}`}>
-                          {l.kind === 'add' ? '+' : l.kind === 'del' ? '−' : ' '}
-                        </span>
-                        <span className="whitespace-pre-wrap break-words pr-4">{l.text || ' '}</span>
-                      </div>
-                    ))}
-                  </pre>
+                  <DiffView lines={lines} />
                 )}
               </div>
             </div>
