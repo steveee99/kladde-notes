@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Built-in date variables `{{var:today}}`, `{{var:tomorrow}}`, `{{var:week}}`, `{{var:nextWeek}}`, `{{var:month}}`, `{{var:year}}` and more (also in German: `{{var:morgen}}`, `{{var:nächsteWoche}}`, …) work everywhere without defining them and always show the current date. Typing `{{` now always offers variables, like `[[` offers notes: the folder's own first, then the date variables with their current value. The variables dialog lists them. See [docs/VARIABLES.md](docs/VARIABLES.md).
+
 ## [2.21.0] – 2026-11-25
 
 - New: A bell next to your avatar in the top bar opens your notifications: mentions, comments, replies and now also when someone adds you to a group. Each one can be marked read on its own or all at once; the panel and the list page show the newest ten and load older ones on request. When this device does not get push notifications yet, the panel offers to allow them.

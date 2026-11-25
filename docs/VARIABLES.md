@@ -20,6 +20,29 @@ Variables hold values that many notes share: a customer, a host name, the addres
 - Templates keep the placeholder, so notes made from them follow the variable.
 - Word, PDF, slide and Markdown exports, Confluence pages, presentations and public links contain the values. The export folder on the server, account exports, MCP and "Copy as Markdown" contain the note as written.
 
+## Built-in date variables
+
+These work in every note and template without defining them, and always show the date of the day the note is read
+(they are filled in when shown or exported, like every variable). A folder variable of the same name wins. Each has a
+German alias.
+
+| Name | German | Example (Wed 2026-11-25) |
+| --- | --- | --- |
+| `today` | `heute` | 2026-11-25 |
+| `tomorrow` | `morgen` | 2026-11-26 |
+| `yesterday` | `gestern` | 2026-11-24 |
+| `week` | `woche` | 2026-W48 |
+| `nextWeek` | `nächsteWoche` | 2026-W49 |
+| `lastWeek` | `letzteWoche` | 2026-W47 |
+| `weekNumber` | `kw` | 48 |
+| `weekStart` / `weekEnd` | `wochenstart` / `wochenende` | 2026-11-23 / 2026-11-29 |
+| `nextWeekStart` | `nächsterMontag` | 2026-11-30 |
+| `month` | `monat` | 2026-11 |
+| `nextMonth` / `lastMonth` | `nächsterMonat` / `letzterMonat` | 2026-12 / 2026-10 |
+| `year` / `nextYear` | `jahr` / `nächstesJahr` | 2026 / 2027 |
+
+Typing `{{` in a note or template offers them below the folder's own variables.
+
 ## Define
 
 **Variables …** in the header of a folder, "All notes" (top level) or a group, or in the menu of a folder in the sidebar. The dialog lists the folder's own variables and the inherited ones with their origin and an **Override** button. Readers of a group see them but cannot change them.

@@ -41,6 +41,7 @@ export * from './zip.js';
 export * from './noteMemo.js';
 export * from './accent.js';
 export * from './variables.js';
+export * from './builtinVariables.js';
 export * from './database.js';
 export * from './noteTypePath.js';
 export * from './noteTypes.js';

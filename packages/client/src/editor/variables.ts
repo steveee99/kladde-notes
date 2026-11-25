@@ -3,7 +3,7 @@ import { syntaxTree } from '@codemirror/language';
 import { EditorView, WidgetType } from '@codemirror/view';
 import type { Completion, CompletionContext, CompletionResult } from '@codemirror/autocomplete';
 import type { SyntaxNode } from '@lezer/common';
-import { isFilled, isUrlValue, maskVariables, resolveVariables, safeUrl, splitMasked, type ResolvedVariable, type VariableScope } from '@kladde/shared';
+import { BUILTIN_VARIABLES, isFilled, isUrlValue, maskVariables, resolveVariables, safeUrl, splitMasked, variableKey, type ResolvedVariable, type VariableScope } from '@kladde/shared';
 import { folderDisplayName, getLang, tl, type Lang } from '../lib/i18n';
 
 /*
@@ -20,6 +20,7 @@ function variableTitle(r: ResolvedVariable, lang: Lang): string {
   if (r.status === 'limit') return tl(lang, 'vars.limit', { name: r.name });
   if (r.status === 'unknown') return tl(lang, 'vars.unknown', { name: r.name });
   if (!r.entry) return tl(lang, 'vars.fallback', { name: r.name });
+  if (r.entry.builtin) return tl(lang, 'vars.builtinOrigin', { name: r.name });
   // Public links send no folders
   const folder = r.entry.folder ? folderDisplayName(r.entry.folder, lang) : tl(lang, 'common.topLevelPlain');
   return tl(lang, 'vars.origin', { name: r.name, folder });
@@ -79,7 +80,28 @@ export function setMaskedHtml(el: HTMLElement, text: string, scope: VariableScop
 
 const shorten = (s: string) => (s.length > 40 ? `${s.slice(0, 39)}…` : s);
 
-/** `{{` or `{{var:` opens the variables of the note's folder */
+/** A variable to offer: its name and what it stands for now */
+export interface VariableOption {
+  name: string;
+  value: string;
+  builtin: boolean;
+}
+
+/**
+ * The variables to offer in a folder: its own (and those of the folders above), then the built-in date variables in
+ * the reader's language (one that a folder overrides is offered once, as the folder's).
+ */
+export function variableOptions(scope: VariableScope, lang: Lang = getLang()): VariableOption[] {
+  const own = scope.list().map((e): VariableOption => ({ name: e.name, value: resolveVariables(e.value, scope), builtin: false }));
+  const taken = new Set(own.map((o) => variableKey(o.name)));
+  const now = new Date();
+  const builtins = BUILTIN_VARIABLES.map((b) => (lang === 'de' ? b.alias : b.name))
+    .filter((name) => !taken.has(variableKey(name)))
+    .map((name): VariableOption => ({ name, value: BUILTIN_VARIABLES.find((b) => b.name === name || b.alias === name)!.value(now), builtin: true }));
+  return [...own, ...builtins];
+}
+
+/** `{{` or `{{var:` opens the variables of the note's folder and the built-in date variables, like `[[` opens notes */
 export function variableCompletion(ctx: CompletionContext): CompletionResult | null {
   const scope = ctx.state.facet(variablesFacet);
   if (!scope) return null;
@@ -89,13 +111,17 @@ export function variableCompletion(ctx: CompletionContext): CompletionResult | n
   const named = typed.startsWith('var:');
   if (!named && !'var:'.startsWith(typed)) return null;
   for (let n: SyntaxNode | null = syntaxTree(ctx.state).resolveInner(ctx.pos, -1); n; n = n.parent) if (/Code/.test(n.name)) return null;
-  const options = scope.list().map(
-    (e): Completion => ({
-      label: named ? e.name : `var:${e.name}`,
-      detail: shorten(resolveVariables(e.value, scope)),
+  const lang = getLang();
+  const options = variableOptions(scope, lang).map(
+    (o, i): Completion => ({
+      label: named ? o.name : `var:${o.name}`,
+      detail: shorten(o.value),
+      info: o.builtin ? tl(lang, 'vars.builtinInfo') : undefined,
+      section: o.builtin ? tl(lang, 'vars.builtinSection') : tl(lang, 'vars.folderSection'),
+      boost: o.builtin ? -i : 0,
       apply: (view: EditorView, _c, from, to) => {
         const closed = view.state.sliceDoc(to, to + 2) === '}}';
-        const insert = `${named ? '' : 'var:'}${e.name}${closed ? '' : '}}'}`;
+        const insert = `${named ? '' : 'var:'}${o.name}${closed ? '' : '}}'}`;
         view.dispatch({ changes: { from, to, insert }, selection: { anchor: from + insert.length + (closed ? 2 : 0) }, userEvent: 'input.complete' });
       },
     })

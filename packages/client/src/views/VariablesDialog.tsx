@@ -11,6 +11,7 @@ import { useReadOnly } from '../lib/readOnly';
 import { isCoarsePointer } from '../lib/viewport';
 import { Plus, Trash2 } from '../lib/icons';
 import { Sheet } from './Dialogs';
+import { variableOptions } from '../editor/variables';
 
 const fail = (err: unknown) => alert(err instanceof Error ? err.message : String(err));
 
@@ -126,6 +127,20 @@ export function VariablesDialog({ space, folder, onClose }: { space: VariableSpa
             </ul>
           </section>
         )}
+        <details className="mt-4" data-variables-builtin>
+          <summary className="cursor-pointer text-title-s text-text">{t('vars.builtinTitle')}</summary>
+          <p className="my-1.5 text-body-s text-muted">{t('vars.builtinIntro')}</p>
+          <ul className="card divide-y divide-line">
+            {variableOptions(scope, lang)
+              .filter((o) => o.builtin)
+              .map((o) => (
+                <li key={o.name} className="flex items-center gap-3 px-3 py-1.5">
+                  <span className="min-w-0 flex-1 truncate font-mono text-body-s text-text">{variablePlaceholder(o.name)}</span>
+                  <span className="shrink-0 font-mono text-body-s text-muted">{o.value}</span>
+                </li>
+              ))}
+          </ul>
+        </details>
       </div>
     </Sheet>
   );
