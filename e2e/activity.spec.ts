@@ -27,6 +27,7 @@ test('a group shows who changed what, and marks notes changed by others until th
   await expect(card.locator('[data-new-mark]')).toHaveAttribute('aria-label', 'New: changed by ben');
 
   // The activity page lists the membership change and Ben's note
+  await page.locator('[data-item-menu="folder"]').click();
   await page.locator('[data-open-activity]').click();
   const view = page.locator('[data-activity-view]');
   await expect(view.locator('[data-activity-kind="created"]')).toContainText(`ben created ${title}`);

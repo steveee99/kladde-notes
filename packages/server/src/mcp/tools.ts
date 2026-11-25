@@ -41,6 +41,8 @@ import {
   notesByTag,
   normalizeTemplates,
   fillTemplate,
+  expandInlineVariables,
+  hasInlineVariables,
   templateUsesZettelId,
   zettelId,
   TEMPLATES_SETTING,
@@ -446,6 +448,8 @@ function createNote(ctx: ToolContext, opts: { title: string; content: string; fo
     : ctx.notes.ownedNotes(ctx.userId);
   guardRemote(null, content);
   const path = uniquePath(taken, folder, opts.title);
+  // `!{{…}}` (shared/variables.ts) gets its value once, like in the app
+  if (hasInlineVariables(content)) content = expandInlineVariables(content, ctx.notes.variablesOf(group ? group.id : ctx.userId, splitPath(path).folder));
   const memory = memoryWrite(ctx, group ? null : path, null, content);
   content = memory.content;
   checkSize(content);

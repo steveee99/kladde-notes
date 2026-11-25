@@ -5,6 +5,7 @@ import {
   databaseRows,
   EMPTY_VARIABLE_SCOPE,
   escapeMarkdown,
+  expandInlineVariables,
   fillTemplate,
   fillVariables,
   findPlaceholders,
@@ -292,5 +293,30 @@ describe('built-in date variables', () => {
   it('a folder value that names the built-in means the built-in', () => {
     const scope = scopeOf('', note('', { week: 'KW {{var:week}}' }));
     expect(scope.resolve('week').text).toMatch(/^KW \d{4}-W\d{2}$/);
+  });
+});
+
+describe('inline variables (!{{…}})', () => {
+  const scope = fixedVariableScope({ customer: 'ACME', heute: '2026-11-25' });
+
+  it('puts the value into the text, with or without var:', () => {
+    expect(expandInlineVariables('Kunde: !{{var:customer}}, Tag !{{heute}}', scope)).toBe('Kunde: ACME, Tag 2026-11-25');
+  });
+
+  it('works in the frontmatter and keeps placeholders without the mark', () => {
+    expect(expandInlineVariables('---\ndatum: !{{heute}}\n---\n{{var:customer}}', scope)).toBe('---\ndatum: 2026-11-25\n---\n{{var:customer}}');
+  });
+
+  it('uses the fallback and leaves unknown names alone', () => {
+    expect(expandInlineVariables('!{{nope|leer}} !{{nope}}', scope)).toBe('leer !{{nope}}');
+  });
+
+  it('skips code', () => {
+    const text = '`!{{heute}}`\n```\n!{{heute}}\n```\n!{{heute}}';
+    expect(expandInlineVariables(text, scope)).toBe('`!{{heute}}`\n```\n!{{heute}}\n```\n2026-11-25');
+  });
+
+  it('knows the built-in date variables', () => {
+    expect(expandInlineVariables('!{{today}}', EMPTY_VARIABLE_SCOPE)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });

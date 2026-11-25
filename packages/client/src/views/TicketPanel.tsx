@@ -143,7 +143,8 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
           Ticket,
           canEdit ? (
             <Dropdown
-              variant="chip"
+              variant="field"
+              className="tp-control"
               aria-label={t('tickets.kind')}
               leadingIcon={<KindIcon kind={tk.meta.kind} />}
               value={tk.meta.kind}
@@ -167,7 +168,8 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
             <>
               {canEdit ? (
                 <Dropdown
-                  variant="chip"
+                  variant="field"
+              className="tp-control"
                   aria-label={t('tickets.parent')}
                   value={tk.parent?.note.id ?? ''}
                   options={[
@@ -193,7 +195,8 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
           t('tickets.colStatus'),
           CheckCircle2,
           canEdit ? (
-            <Dropdown variant="chip" aria-label={t('tickets.colStatus')} value={tk.meta.status} options={allowedStatusesOf(tk).map((s) => ({ value: s, label: s }))} onChange={(s) => set({ status: s })} />
+            <Dropdown variant="field"
+              className="tp-control" aria-label={t('tickets.colStatus')} value={tk.meta.status} options={allowedStatusesOf(tk).map((s) => ({ value: s, label: s }))} onChange={(s) => set({ status: s })} />
           ) : (
             <StatusBadge tk={tk} />
           )
@@ -203,7 +206,8 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
           Flag,
           canEdit ? (
             <Dropdown
-              variant="chip"
+              variant="field"
+              className="tp-control"
               aria-label={t('tickets.milestone')}
               value={tk.milestone?.note.id ?? ''}
               options={[{ value: '', label: t('tickets.noMilestone') }, ...milestones.map((m) => ({ value: m.note.id, label: m.title }))]}
@@ -224,7 +228,8 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
           t('tickets.colAssignee'),
           Person,
           canEdit ? (
-            <Dropdown variant="chip" aria-label={t('tickets.colAssignee')} value={tk.meta.assignee ?? ''} options={[{ value: '', label: t('tickets.unassigned') }, ...assignees(tk.project, tk.note.id).map((a) => ({ value: a, label: a }))]} onChange={(a) => set({ assignee: a || null })} />
+            <Dropdown variant="field"
+              className="tp-control" aria-label={t('tickets.colAssignee')} value={tk.meta.assignee ?? ''} options={[{ value: '', label: t('tickets.unassigned') }, ...assignees(tk.project, tk.note.id).map((a) => ({ value: a, label: a }))]} onChange={(a) => set({ assignee: a || null })} />
           ) : (
             <span>{tk.meta.assignee ?? t('tickets.unassigned')}</span>
           )
@@ -233,7 +238,8 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
           t('tickets.colPriority'),
           AlertTriangle,
           canEdit ? (
-            <Dropdown variant="chip" aria-label={t('tickets.colPriority')} leadingIcon={<PriorityIcon p={tk.meta.priority} />} value={tk.meta.priority ?? ''} options={[{ value: '', label: t('tickets.priority.none') }, ...PRIORITIES.map((p) => ({ value: p, label: priorityLabel(p) }))]} onChange={(p) => set({ priority: (p as Priority) || null })} />
+            <Dropdown variant="field"
+              className="tp-control" aria-label={t('tickets.colPriority')} leadingIcon={<PriorityIcon p={tk.meta.priority} />} value={tk.meta.priority ?? ''} options={[{ value: '', label: t('tickets.priority.none') }, ...PRIORITIES.map((p) => ({ value: p, label: priorityLabel(p) }))]} onChange={(p) => set({ priority: (p as Priority) || null })} />
           ) : (
             <span className="inline-flex items-center gap-1">
               <PriorityIcon p={tk.meta.priority} /> {priorityLabel(tk.meta.priority)}
@@ -249,7 +255,7 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
               type="number"
               min={0}
               step="any"
-              className="input !min-h-0 !w-24 !py-1"
+              className="input tp-control"
               aria-label={t('tickets.estimate')}
               defaultValue={tk.meta.estimate ?? ''}
               onBlur={(e) => {
@@ -278,7 +284,7 @@ function TicketHeader({ tk, readOnly }: { tk: TicketInfo; readOnly: boolean }) {
             ))}
             {canEdit && (
               <input
-                className="input !min-h-0 !w-28 !py-0.5 text-label-m"
+                className="input tp-control"
                 aria-label={t('tickets.addLabel')}
                 placeholder={t('tickets.addLabel')}
                 value={label_}
@@ -372,11 +378,6 @@ function MilestoneHeader({ m, readOnly }: { m: MilestoneInfo; readOnly: boolean 
   const canEdit = m.project.canWrite && !readOnly && m.note.access !== 'read';
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
-  const groups: { title: string; rows: TicketInfo[] }[] = [
-    { title: t('tickets.catActive'), rows: m.tickets.filter((tk) => tk.category === 'active') },
-    { title: t('tickets.catOpen'), rows: m.tickets.filter((tk) => tk.category === 'open') },
-    { title: t('tickets.catDone'), rows: m.tickets.filter((tk) => tk.category === 'done') },
-  ].map((g) => ({ ...g, rows: g.rows.sort(byRank) }));
   const date = (key: 'start' | 'due', value: string | null) => (
     <label className="min-w-0 text-label-l text-muted">
       {t(key === 'start' ? 'tickets.start' : 'tickets.due')}
@@ -431,20 +432,6 @@ function MilestoneHeader({ m, readOnly }: { m: MilestoneInfo; readOnly: boolean 
       </div>
       {m.meta.goal && <p className="text-body-m">{m.meta.goal}</p>}
       <Relations self={m} blockers={m.blockers} blocking={m.blocking} candidates={milestonesOf(m.project)} canEdit={canEdit} title={t('tickets.dependencies')} />
-      <div className="tp-split3 grid gap-3">
-        {groups.map((g) => (
-          <div key={g.title}>
-            <h3 className="mb-1.5 text-label-m font-semibold text-muted">
-              {g.title} · {g.rows.length}
-            </h3>
-            <ul className="space-y-1">
-              {g.rows.map((tk) => (
-                <LinkRow key={tk.note.id} title={tk.title} sub={`${kindLabel(tk.meta.kind)} · ${tk.meta.id ?? `${tk.project.config.key}-?`} · ${tk.meta.status}${tk.meta.assignee ? ` · ${tk.meta.assignee}` : ''}`} Icon={Ticket} onOpen={() => navigate(`/n/${tk.note.id}`)} />
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
       {canEdit && (
         <div className="flex flex-wrap gap-2">
           <button className="btn-tonal" onClick={() => setAdding(true)}>
@@ -472,6 +459,41 @@ function MilestoneHeader({ m, readOnly }: { m: MilestoneInfo; readOnly: boolean 
         </div>
       )}
       {adding && <NewTicketSheet project={m.project} milestone={m.note.id} onClose={() => setAdding(false)} />}
+    </section>
+  );
+}
+
+/** The tickets of a milestone as a block above its text (in the note column, not among the fields) */
+export function MilestoneTickets({ noteId }: { noteId: string }) {
+  useVault();
+  useLang();
+  const m = milestoneOfNote(noteId);
+  if (!m) return null;
+  const groups: { title: string; rows: TicketInfo[] }[] = [
+    { title: t('tickets.catActive'), rows: m.tickets.filter((tk) => tk.category === 'active') },
+    { title: t('tickets.catOpen'), rows: m.tickets.filter((tk) => tk.category === 'open') },
+    { title: t('tickets.catDone'), rows: m.tickets.filter((tk) => tk.category === 'done') },
+  ].map((g) => ({ ...g, rows: g.rows.sort(byRank) }));
+  return (
+    <section className="ticket-panel no-print mb-4 rounded-lg border border-line bg-panel p-3 anim-fade-in" aria-label={t('tickets.milestoneTickets', { n: m.tickets.length })} data-milestone-tickets>
+      <h2 className="mb-2 flex items-center gap-1.5 text-label-l font-semibold text-muted">
+        <Ticket size={16} /> {t('tickets.milestoneTickets', { n: m.tickets.length })}
+      </h2>
+      <div className="tp-split3 grid gap-3">
+        {groups.map((g) => (
+          <div key={g.title}>
+            <h3 className="mb-1.5 text-label-m font-semibold text-muted">
+              {g.title} · {g.rows.length}
+            </h3>
+            <ul className="space-y-1">
+              {g.rows.map((tk) => (
+                <LinkRow key={tk.note.id} title={tk.title} sub={`${kindLabel(tk.meta.kind)} · ${tk.meta.id ?? `${tk.project.config.key}-?`} · ${tk.meta.status}${tk.meta.assignee ? ` · ${tk.meta.assignee}` : ''}`} Icon={Ticket} onOpen={() => navigate(`/n/${tk.note.id}`)} />
+              ))}
+              {!g.rows.length && <li className="px-1 text-body-s text-muted">–</li>}
+            </ul>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

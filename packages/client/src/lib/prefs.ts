@@ -232,6 +232,46 @@ export function useEditorFontSize(): number {
   return useSyncExternalStore(subscribe, () => editorFontSize);
 }
 
+/**
+ * Largest width of a note (Settings → Editor), per device: `data-note-width` on <html> (CSS in index.css; the
+ * inline script in index.html sets it before first paint). Focus mode keeps its own line length.
+ */
+export const NOTE_WIDTHS = ['narrow', 'normal', 'wide', 'fluid'] as const;
+export type NoteWidth = (typeof NOTE_WIDTHS)[number];
+export const DEFAULT_NOTE_WIDTH: NoteWidth = 'normal';
+const NOTE_WIDTH_KEY = 'kladde_note_width';
+
+function readNoteWidth(): NoteWidth {
+  try {
+    const v = typeof localStorage !== 'undefined' ? localStorage.getItem(NOTE_WIDTH_KEY) : null;
+    return (NOTE_WIDTHS as readonly string[]).includes(v ?? '') ? (v as NoteWidth) : DEFAULT_NOTE_WIDTH;
+  } catch {
+    return DEFAULT_NOTE_WIDTH;
+  }
+}
+
+let noteWidth = readNoteWidth();
+
+export function applyNoteWidth(): void {
+  if (typeof document !== 'undefined') document.documentElement.dataset.noteWidth = noteWidth;
+}
+
+export function setNoteWidth(width: NoteWidth): void {
+  if (noteWidth === width || !NOTE_WIDTHS.includes(width)) return;
+  noteWidth = width;
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(NOTE_WIDTH_KEY, width);
+  } catch {
+    // ignore
+  }
+  applyNoteWidth();
+  listeners.forEach((l) => l());
+}
+
+export function useNoteWidth(): NoteWidth {
+  return useSyncExternalStore(subscribe, () => noteWidth);
+}
+
 /*
  * Code blocks (Settings → Editor → Code blocks), per device. The copy button and the language label are switched by
  * attributes on <html> (`data-code-copy`, `data-code-lang`, CSS in index.css); line numbers and folding are part of

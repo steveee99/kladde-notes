@@ -46,7 +46,7 @@ async function seed(request: APIRequestContext, notes: { path: string; content: 
 
 async function openFolder(page: Page, folder: string) {
   await page.goto(`/f/${encodeURIComponent(folder)}`);
-  await expect(page.locator('[data-database], [data-make-database]').first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-database], [data-item-menu="folder"]').first()).toBeVisible({ timeout: 15_000 });
 }
 
 test('a database folder shows editable table cells that write the frontmatter', async ({ page }) => {
@@ -134,6 +134,7 @@ test('turns a folder into a database, adds a view property and prefilled entries
   // "Make database" is a feature (off in new spaces)
   await enableFeature(page, 'database');
   await openFolder(page, folder);
+  await page.locator('[data-item-menu="folder"]').click();
   await page.locator('[data-make-database]').click();
   const db = page.locator('[data-database]');
   await expect(db).toBeVisible();

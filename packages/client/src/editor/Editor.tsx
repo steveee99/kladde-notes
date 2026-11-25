@@ -21,7 +21,7 @@ import { slashCompletion } from './slash';
 import { remoteCursors } from './remoteCursors';
 import { focusDim } from './focusDim';
 import { releaseFacet } from './releases';
-import { templateTokenCompletion, templateTokensFacet, variableCompletion, variablesFacet, type TemplateToken } from './variables';
+import { inlineVariables, templateTokenCompletion, templateTokensFacet, variableCompletion, variablesFacet, type TemplateToken } from './variables';
 import type { NoteReleaseInfo, VariableScope } from '@kladde/shared';
 import { outlineSupport } from './outline';
 import { useReadOnly } from '../lib/readOnly';
@@ -369,6 +369,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           dimConf.current.of(dimRef.current ? focusDim : []),
           releaseConf.current.of(releaseFacet.of(releasesRef.current ? { releases: releasesRef.current } : null)),
           variableConf.current.of(variablesFacet.of(variablesRef.current)),
+          inlineVariables,
           outlineSupport,
           slideConf.current.of(slideBreakLabel.of(slideRef.current)),
           calloutConf.current.of(calloutsFacet.of(calloutRef.current)),

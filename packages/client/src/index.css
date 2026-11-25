@@ -702,9 +702,19 @@ progress {
   [data-palette='mocha'] .accent-swatch[data-swatch='pink'] { --swatch: 245 194 231; }
   [data-palette='mocha'] .accent-swatch[data-swatch='coral'] { --swatch: 250 179 135; }
   [data-palette='mocha'] .accent-swatch[data-swatch='graphite'] { --swatch: 186 194 222; }
-  /* Notes use the whole width of the content area (no width setting) */
+  /* Largest width of a note, per device (Settings → Editor; lib/prefs.ts): narrow, normal (default), wide, fluid */
   .content-container {
     width: 100%;
+    max-width: 1200px;
+  }
+  [data-note-width='narrow'] .content-container {
+    max-width: 1000px;
+  }
+  [data-note-width='wide'] .content-container {
+    max-width: 1600px;
+  }
+  [data-note-width='fluid'] .content-container {
+    max-width: none;
   }
   /* Focus mode: centered text with a comfortable line length (about 70 characters) */
   .content-container.focus-container {
@@ -1128,24 +1138,39 @@ html[data-readonly] .edit-only {
   text-decoration-style: dashed;
 }
 .cm-autolink {
-  color: rgb(var(--primary));
+  color: rgb(var(--acc-hi));
   cursor: pointer;
   text-decoration: underline;
   text-decoration-style: dotted;
-  text-decoration-color: rgb(var(--primary) / 0.5);
+  text-decoration-color: rgb(var(--acc-hi) / 0.5);
   text-underline-offset: 3px;
   transition: text-decoration-color var(--dur) var(--ease);
 }
 .cm-autolink:hover {
-  text-decoration-color: rgb(var(--primary));
+  text-decoration-color: rgb(var(--acc-hi));
 }
+/* Automatic links outside the line being edited: a small chip with the wand in front, in the accent color */
 .cm-autolink-widget {
   display: inline-flex;
   align-items: center;
+  gap: 3px;
+  padding: 0 7px 0 4px;
+  border: 1px solid rgb(var(--line2));
+  border-radius: 6px;
+  background: rgb(var(--raised));
+  color: rgb(var(--acc-hi));
+  font-weight: 500;
+  line-height: 1.45;
+  text-decoration: none;
   vertical-align: baseline;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.cm-autolink-widget:hover {
+  border-color: rgb(var(--acc-line));
+  background: rgb(var(--acc-bg));
 }
 .cm-autolink-text {
-  text-decoration: inherit;
+  text-decoration: none;
 }
 .cm-autolink-btn {
   display: inline-flex;
@@ -1162,6 +1187,11 @@ html[data-readonly] .edit-only {
   transition: opacity var(--dur) var(--ease), background var(--dur) var(--ease);
   line-height: 1;
 }
+.cm-autolink-widget .cm-autolink-btn {
+  margin-left: 0;
+  padding: 1px;
+  opacity: 1;
+}
 button.cm-autolink-btn {
   cursor: pointer;
 }
@@ -1173,6 +1203,10 @@ button.cm-autolink-btn:hover,
 button.cm-autolink-btn:focus-visible {
   background: rgb(var(--acc-bg));
   opacity: 1;
+}
+.cm-autolink-widget button.cm-autolink-btn:hover,
+.cm-autolink-widget button.cm-autolink-btn:focus-visible {
+  background: rgb(var(--acc) / 0.25);
 }
 .cm-footnote-ref {
   color: rgb(var(--primary));
@@ -3421,12 +3455,24 @@ span.cm-checkbox {
   .tp-split3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @container (min-width: 50rem) {
-  .ticket-grid { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; column-gap: 1.5rem; align-items: start; }
+  .ticket-grid { display: grid; grid-template-columns: minmax(0, 1fr) 24rem; column-gap: 1.5rem; align-items: start; }
   .ticket-grid > * { grid-column: 1; }
   .ticket-grid > .ticket-side { grid-column: 2; grid-row: 1 / span 12; position: sticky; top: 1rem; max-height: calc(100dvh - 7rem); overflow-y: auto; overscroll-behavior: contain; }
   .ticket-grid > .ticket-side .ticket-panel { margin-bottom: 0; }
 }
+@container (min-width: 70rem) {
+  .ticket-grid { grid-template-columns: minmax(0, 1fr) 27rem; }
+}
 @media print { .ticket-grid { display: block; } }
+/* Ticket fields: every dropdown and input the same height and the full width of its column */
+.ticket-panel .tp-control {
+  width: 100%;
+  height: 2rem;
+  min-height: 2rem;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 0.875rem;
+}
 
 /* Template editor (Settings → Templates): the source editor fills its frame, so a click anywhere in it starts typing */
 .template-editor .wz-editor,

@@ -1,5 +1,5 @@
 import { AlertTriangle, Briefcase, CalendarCheck, CalendarRange, Check, Inbox, Lightbulb, Network, Settings, Target, Unlink } from '../lib/icons';
-import { buildReview, projectTitleOf } from '@kladde/shared';
+import { buildReview, isHiddenPath, projectTitleOf } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { locale, tl, useLang } from '../lib/i18n';
 import { navigate } from '../lib/router';
@@ -78,7 +78,7 @@ export function ReviewView() {
       </PageBody>
     );
   }
-  const r = buildReview(vault.list().filter((n) => n.access === 'owner'), Date.now(), 30, vault.roleConfig(), {
+  const r = buildReview(vault.list().filter((n) => n.access === 'owner' && !isHiddenPath(n.path)), Date.now(), 30, vault.roleConfig(), {
     orphanExcludeFolders: features.daily.enabled ? [features.daily.folder] : [],
   });
   const ORPHANS_SHOWN = 24;

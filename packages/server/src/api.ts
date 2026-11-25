@@ -1018,9 +1018,25 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
           hasPassword: u.hasPassword,
           isAdmin: u.isAdmin,
           avatarUrl: u.avatarUrl,
+          displayName: u.displayName,
           accent: u.accent,
           ...(standalone ? { standalone: true } : {}),
         };
+
+  // Optional display name, shown instead of the username
+  router.put(
+    '/me/display-name',
+    express.json({ limit: '1kb' }),
+    handle((req, res) => {
+      const raw = (req.body as { displayName?: unknown } | undefined)?.displayName;
+      if (raw !== null && typeof raw !== 'string') {
+        res.status(400).json({ error: 'Ungültiger Anzeigename.' });
+        return;
+      }
+      users.setDisplayName(req.user!.id, raw);
+      res.json(toMe(users.getUser(req.user!.id) ?? req.user!));
+    })
+  );
 
   // Accent color of the Werkbank design (per account, all devices)
   router.put(

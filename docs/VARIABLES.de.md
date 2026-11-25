@@ -13,6 +13,8 @@ Variablen halten Werte fest, die in vielen Notizen vorkommen: ein Kunde, ein Hos
 ```
 
 - `{{var:name}}` zeigt den Wert, `{{var:name|Ersatz}}` den Ersatzwert, wenn die Variable nicht definiert ist. Ohne beides bleibt der Platzhalter sichtbar und ist als unbekannt markiert.
+- `!{{var:name}}` (oder `!{{name}}`) ist kein Platzhalter: Der Wert wird einmal in den Text geschrieben, wenn er getippt, eingefügt oder ausgewählt wird und wenn eine Notiz aus einer Vorlage entsteht (auch über MCP). Das passt für alles, was bleiben soll, wie es war, z. B. `!{{heute}}` für den Tag, an dem eine Notiz geschrieben wurde. In Code bleibt es stehen, ebenso ohne Wert.
+- Platzhalter im Frontmatter zeigen ihren Wert in der Eigenschaftenzeile und in den Feldern von Datenbanken und Notiztypen; beim Bearbeiten eines Feldes steht dort der Platzhalter.
 - Namen bestehen aus Buchstaben, Ziffern, `_`, `-` und `.`; Groß- und Kleinschreibung ist egal.
 - Werte sind reiner Text: Markdown oder HTML darin wird nicht ausgewertet. Ein Wert, der eine Webadresse ist, wird zum Link. In Links und Bildern werden Werte Teil der Adresse (dort keine Leerzeichen im Platzhalter).
 - In Code, Formeln, `[[Links]]`, Abfrage-Ergebnissen und im Frontmatter wird nichts ersetzt; eine Datenbank zeigt Werte in ihren Zellen, wo diese keine Eingabefelder sind. In einer Markdown-Tabelle schreibt man den Strich des Ersatzwerts als `\|`.

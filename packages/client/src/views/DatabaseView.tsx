@@ -40,7 +40,7 @@ const opKey = (op: string) => `db.op.${op}` as I18nKey;
 const NONE: DropdownOption = { value: '', label: '—' };
 const asOptions = (values: string[]): DropdownOption[] => values.map((v) => ({ value: v, label: v }));
 
-/** Text of a row with the variables of its note filled in; input fields keep the placeholders */
+/** Text of a row with the variables of its note filled in (inputs show the placeholder while focused) */
 function rowText(row: DbRow, text: string): string {
   const note = hasVariables(text) ? vault.get(row.noteId) : undefined;
   return note ? resolveVariables(text, variablesOfNote(note)) : text;

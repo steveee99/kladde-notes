@@ -37,6 +37,8 @@
         if (acc && /^[a-z]{3,12}$/.test(acc)) document.documentElement.dataset.accent = acc;
         var fs = Number(localStorage.getItem('kladde_editor_font_size'));
         if (fs >= 12 && fs <= 28) document.documentElement.style.setProperty('--editor-font-size', Math.round(fs) + 'px');
+        var nw = localStorage.getItem('kladde_note_width');
+        if (nw === 'narrow' || nw === 'wide' || nw === 'fluid') document.documentElement.dataset.noteWidth = nw;
       } catch (e) {}
       document.documentElement.dataset.scheme = scheme;
     </script>

@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Maximize2, Settings } from '../lib/icons';
-import { computeHeatmapData, HeatmapCell, HeatmapRange, parseDate } from '@kladde/shared';
+import { computeHeatmapData, HeatmapCell, HeatmapRange, isHiddenPath, parseDate } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { heatmapWeekdayLabels, locale, tl, useLang } from '../lib/i18n';
 import { useReadOnly } from '../lib/readOnly';
@@ -65,7 +65,7 @@ export function ActivityHeatmap({ embedded = false }: { embedded?: boolean }) {
   }, [period]);
 
   const ownNotes = useMemo(
-    () => vault.list().filter((n) => n.access === 'owner'),
+    () => vault.list().filter((n) => n.access === 'owner' && !isHiddenPath(n.path)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [version]
   );

@@ -83,6 +83,7 @@ test('new tickets start with the checklist template of their type', async ({ pag
   const key = `C${String.fromCharCode(...[...Array(3)].map(() => 65 + Math.floor(Math.random() * 26)))}`;
   await seed(page.request, [{ path: `${folder}/Readme.md`, content: 'About' }]);
   await page.goto(`/f/${encodeURIComponent(folder)}`);
+  await page.locator('[data-item-menu="folder"]').click();
   await page.locator('[data-make-project]').click();
   await page.locator('[data-project-key]').fill(key);
   await page.getByRole('button', { name: 'Create project' }).click();

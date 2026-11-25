@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { isHiddenPath, projectTitleOf } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
-import { Plus, X } from '../lib/icons';
+import { FirstPage, Keep, KeepOff, Plus, TabClose, TabCloseRight, X } from '../lib/icons';
 import { t, useLang } from '../lib/i18n';
 import { navigate, usePath } from '../lib/router';
-import { closeTab, moveTab, neighborTab, pruneTabs, touchTab, useTabs } from '../lib/tabs';
+import { closeOtherTabs, closeTab, closeTabsBeside, isPinnedTab, moveTab, neighborTab, pruneTabs, setTabPinned, touchTab, usePinnedTabs, useTabs } from '../lib/tabs';
+import { ContextMenu, type MenuAction, type MenuAnchor } from './ContextMenu';
 import { folderOfRoute, newNote } from './Shell';
 
 const DRAG_MIME = 'application/x-kladde-tab';
@@ -14,11 +15,17 @@ export function openNoteOfPath(path: string): string | null {
   return path.startsWith('/n/') ? decodeURIComponent(path.slice(3)) : null;
 }
 
-/** Closes a tab; when it was the open note, the neighbouring tab (or the note list) opens */
+/** Closes a tab; when it was the open note, the neighbouring tab (or the note list) opens. Pinned tabs stay. */
 export function closeNoteTab(id: string, activeId: string | null): void {
+  if (isPinnedTab(id)) return;
   const next = closeTab(id);
   if (id !== activeId) return;
   navigate(next ? `/n/${next}` : '/notes');
+}
+
+/** After closing several tabs: when the open note lost its tab, show the suggested one */
+function followClose(next: string | null): void {
+  if (next) navigate(`/n/${next}`);
 }
 
 /** Ctrl/⌘+Alt+PageDown / PageUp switch to the next / previous tab */
@@ -55,6 +62,9 @@ export function NoteTabs() {
   useLang();
   const path = usePath();
   const ids = useTabs();
+  const pinned = usePinnedTabs();
+  const [menu, setMenu] = useState<{ id: string; anchor: MenuAnchor; returnFocus: HTMLElement | null } | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
   const activeId = openNoteOfPath(path);
   const lastActive = useRef<string | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
@@ -82,17 +92,49 @@ export function NoteTabs() {
   const tabs = ids.map((id) => vault.get(id)).filter((n): n is NonNullable<typeof n> => !!n);
   if (!tabs.length) return null;
 
+  const menuActions = (id: string): MenuAction[] => {
+    const at = ids.indexOf(id);
+    const isPinned = pinned.includes(id);
+    const closable = (i: number) => !pinned.includes(ids[i]);
+    const actions: (MenuAction | false)[] = [
+      { icon: isPinned ? KeepOff : Keep, label: t(isPinned ? 'tabs.unpin' : 'tabs.pin'), onSelect: () => setTabPinned(id, !isPinned) },
+      !isPinned && { icon: X, label: t('tabs.closeOne'), onSelect: () => closeNoteTab(id, activeId) },
+      ids.some((x, i) => x !== id && closable(i)) && {
+        icon: TabClose,
+        label: t('tabs.closeOthers'),
+        onSelect: () => {
+          closeOtherTabs(id);
+          if (activeId && activeId !== id && !pinned.includes(activeId)) navigate(`/n/${id}`);
+        },
+      },
+      ids.some((_, i) => i > at && closable(i)) && { icon: TabCloseRight, label: t('tabs.closeRight'), onSelect: () => followClose(closeTabsBeside(id, 1, activeId)) },
+      ids.some((_, i) => i < at && closable(i)) && { icon: FirstPage, label: t('tabs.closeLeft'), onSelect: () => followClose(closeTabsBeside(id, -1, activeId)) },
+    ];
+    return actions.filter((a): a is MenuAction => !!a);
+  };
+
   return (
     <nav aria-label={t('tabs.label')} className="no-print hidden h-[38px] shrink-0 items-stretch border-b border-line bg-panel nav:flex">
       <div ref={rowRef} className="flex min-w-0 flex-1 items-stretch overflow-x-auto scrollbar-thin">
         {tabs.map((n, i) => {
           const title = projectTitleOf(n.path, n.content, roleConfig) || t('common.unnamed');
           const active = n.id === activeId;
+          const isPinned = pinned.includes(n.id);
           return (
             <div
               key={n.id}
               data-note-tab={n.id}
+              data-pinned={isPinned || undefined}
               draggable
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setMenu({ id: n.id, anchor: { x: e.clientX, y: e.clientY }, returnFocus: e.currentTarget.querySelector('a') });
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== 'ContextMenu' && !(e.key === 'F10' && e.shiftKey)) return;
+                e.preventDefault();
+                setMenu({ id: n.id, anchor: { rect: e.currentTarget.getBoundingClientRect() }, returnFocus: e.currentTarget.querySelector('a') });
+              }}
               onDragStart={(e) => {
                 e.dataTransfer.setData(DRAG_MIME, n.id);
                 e.dataTransfer.effectAllowed = 'move';
@@ -113,7 +155,7 @@ export function NoteTabs() {
                 e.preventDefault();
                 closeNoteTab(n.id, activeId);
               }}
-              className={`group relative flex min-w-0 max-w-[220px] shrink-0 items-center border-r border-line ${
+              className={`group relative flex min-w-0 ${isPinned ? 'max-w-[180px]' : 'max-w-[220px]'} shrink-0 items-center border-r border-line ${
                 active ? 'bg-bg text-text shadow-[inset_0_2px_0_rgb(var(--acc))]' : 'text-muted hover:bg-raised/60 hover:text-text'
               } ${dragOver === i ? 'shadow-[inset_2px_0_0_rgb(var(--acc))]' : ''}`}
             >
@@ -130,6 +172,17 @@ export function NoteTabs() {
               >
                 {title}
               </a>
+              {isPinned ? (
+                <button
+                  type="button"
+                  onClick={() => setTabPinned(n.id, false)}
+                  aria-label={t('tabs.unpinNamed', { name: title })}
+                  title={t('tabs.unpin')}
+                  className="mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded text-acc-hi outline-none hover:bg-line focus-visible:ring-2 focus-visible:ring-acc"
+                >
+                  <Keep size={14} filled />
+                </button>
+              ) : (
               <button
                 type="button"
                 onClick={() => closeNoteTab(n.id, activeId)}
@@ -141,6 +194,7 @@ export function NoteTabs() {
               >
                 <X size={14} />
               </button>
+              )}
             </div>
           );
         })}
@@ -154,6 +208,15 @@ export function NoteTabs() {
       >
         <Plus size={16} />
       </button>
+      {menu && (
+        <ContextMenu
+          anchor={menu.anchor}
+          actions={menuActions(menu.id)}
+          label={t('tabs.menu')}
+          onClose={closeMenu}
+          returnFocus={menu.returnFocus}
+        />
+      )}
     </nav>
   );
 }

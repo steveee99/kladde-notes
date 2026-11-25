@@ -6,7 +6,7 @@ import ReactDOM from 'react-dom/client';
 import { App } from './App';
 import { DEMO, installDemoApi } from './demo/demoApi';
 import { applyTheme } from './lib/theme';
-import { applyEditorFontSize } from './lib/prefs';
+import { applyEditorFontSize, applyNoteWidth } from './lib/prefs';
 import { justUpdated, keepUpToDate } from './lib/update';
 import { fitKeyboardViewport, fitShortViewport, pinViewport, recordStartupReport } from './lib/viewport';
 import './index.css';
@@ -20,6 +20,7 @@ if (justUpdated()) {
 if (DEMO) installDemoApi();
 applyTheme();
 applyEditorFontSize();
+applyNoteWidth();
 pinViewport();
 fitShortViewport();
 fitKeyboardViewport();

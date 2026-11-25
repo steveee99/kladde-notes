@@ -24,11 +24,16 @@ test('own project: number, board, ticket header and status chips in the document
   const key = `T${letters()}`;
   await seed(page.request, [{ path: `${folder}/Readme.md`, content: 'About the project' }]);
   await page.goto(`/f/${encodeURIComponent(folder)}`);
+  await page.locator('[data-item-menu="folder"]').click();
   await page.locator('[data-make-project]').click();
   await page.locator('[data-project-key]').fill(key);
   await page.getByRole('button', { name: 'Create project' }).click();
   const project = page.locator(`[data-project="${key}"]`);
   await expect(project).toBeVisible();
+  // Next to `Issues` the folder gets a home note and Docs/Index; the folder offers no second project
+  await expect
+    .poll(async () => (await serverNotes(page.request)).map((n) => n.path).filter((p) => p.startsWith(`${folder}/`) && !p.includes('/_')).sort(), { timeout: 15_000 })
+    .toEqual(expect.arrayContaining([`${folder}/${folder}-Home.md`, `${folder}/Docs/Index.md`, `${folder}/Readme.md`]));
 
   // A new ticket gets its number from the server
   await project.locator('[data-new-ticket]').click();
@@ -39,8 +44,8 @@ test('own project: number, board, ticket header and status chips in the document
   await expect(page.locator('[data-ticket-id]')).toHaveText(`${key}-1`, { timeout: 15_000 });
   await expect.poll(async () => (await serverNote(page.request, ticketId))?.content ?? '').toContain(`id: ${key}-1\n`);
 
-  // The board shows it in the first column
-  await page.goto(`/f/${encodeURIComponent(folder)}`);
+  // The board shows it in the first column (the project lives in the folder's `Issues`)
+  await page.goto(`/f/${encodeURIComponent(`${folder}/Issues`)}`);
   await expect(project.locator('[data-lane="Open"]').getByText('Offline numbers')).toBeVisible();
 
   // A ticket id in another note becomes a chip with the ticket's status
@@ -85,6 +90,7 @@ test('plain HTTP: projects, tickets and databases without the APIs of secure con
   ]);
   await page.goto(`/f/${encodeURIComponent(folder)}`);
   expect(await page.evaluate(() => 'randomUUID' in crypto || 'clipboard' in navigator || 'caches' in window)).toBe(false);
+  await page.locator('[data-item-menu="folder"]').click();
   await page.locator('[data-make-project]').click();
   await page.locator('[data-project-key]').fill(key);
   await page.getByRole('button', { name: 'Create project' }).click();
@@ -96,9 +102,10 @@ test('plain HTTP: projects, tickets and databases without the APIs of secure con
   await expect(page.locator('[data-ticket-id]')).toHaveText(`${key}-1`, { timeout: 15_000 });
 
   await page.goto(`/f/${encodeURIComponent(tableFolder)}`);
+  await page.locator('[data-item-menu="folder"]').click();
   await page.locator('[data-make-database]').click();
   await expect(page.locator('[data-database]')).toBeVisible();
-  for (const f of [folder, tableFolder]) {
+  for (const f of [`${folder}/Issues`, tableFolder]) {
     await expect
       .poll(async () => (await serverNotes(page.request)).find((n) => n.path.startsWith(`${f}/_database-`))?.path ?? '', { timeout: 15_000 })
       .toMatch(/_database-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.md$/);
@@ -157,12 +164,13 @@ test('workflow: enforced order, a rule from a template and a GitLab webhook that
   const key = `W${letters()}`;
   await seed(page.request, [{ path: `${folder}/Readme.md`, content: 'About the project' }]);
   await page.goto(`/f/${encodeURIComponent(folder)}`);
+  await page.locator('[data-item-menu="folder"]').click();
   await page.locator('[data-make-project]').click();
   await page.locator('[data-project-key]').fill(key);
   await page.getByRole('button', { name: 'Create project' }).click();
   const project = page.locator(`[data-project="${key}"]`);
   await expect(project).toBeVisible();
-  const [ticketId] = await seed(page.request, [{ path: `${folder}/Login.md`, content: `---\ntype: ticket\nid: ${key}-?\nstatus: Open\npriority: medium\n---\n` }]);
+  const [ticketId] = await seed(page.request, [{ path: `${folder}/Issues/Login.md`, content: `---\ntype: ticket\nid: ${key}-?\nstatus: Open\npriority: medium\n---\n` }]);
 
   // Settings use the whole window: order forward only, plus the "merge sets the status" rule
   await project.getByRole('button', { name: 'Project settings' }).click();
@@ -192,7 +200,7 @@ test('workflow: enforced order, a rule from a template and a GitLab webhook that
   await expect.poll(async () => (await serverNote(page.request, ticketId))?.content ?? '').toContain('status: In progress');
 
   // A webhook for GitLab; a merge naming the ticket in its branch finishes it (the rule may skip Review)
-  await page.goto(`/f/${encodeURIComponent(folder)}`);
+  await page.goto(`/f/${encodeURIComponent(`${folder}/Issues`)}`);
   await project.getByRole('button', { name: 'Project settings' }).click();
   await dialog.locator('[data-section="git"]').click();
   await dialog.locator('[data-create-hook]').click();
@@ -215,6 +223,7 @@ test('ticket types: an epic with a feature below it, doc search and hidden front
   const key = `K${letters()}`;
   await seed(page.request, [{ path: `${folder}/Architecture overview.md`, content: 'How sync works' }]);
   await page.goto(`/f/${encodeURIComponent(folder)}`);
+  await page.locator('[data-item-menu="folder"]').click();
   await page.locator('[data-make-project]').click();
   await page.locator('[data-project-key]').fill(key);
   await page.getByRole('button', { name: 'Create project' }).click();
@@ -259,16 +268,17 @@ test('milestones: status, dependencies with a conflict, blocked by on tickets an
   const key = `M${letters()}`;
   await seed(page.request, [{ path: `${folder}/Readme.md`, content: 'Plan' }]);
   await page.goto(`/f/${encodeURIComponent(folder)}`);
+  await page.locator('[data-item-menu="folder"]').click();
   await page.locator('[data-make-project]').click();
   await page.locator('[data-project-key]').fill(key);
   await page.getByRole('button', { name: 'Create project' }).click();
   await expect(page.locator(`[data-project="${key}"]`)).toBeVisible();
-  const ms = `${folder}/Meilensteine`;
+  const ms = `${folder}/Issues/Meilensteine`;
   const [alphaId, betaId, oneId, twoId] = await seed(page.request, [
     { path: `${ms}/Alpha.md`, content: '---\ntype: milestone\nstart: 2026-11-01\ndue: 2026-11-30\nrelease: 1.0\n---\n' },
     { path: `${ms}/Beta.md`, content: '---\ntype: milestone\nstart: 2026-11-15\ndue: 2026-12-20\n---\n' },
-    { path: `${folder}/Login.md`, content: `---\ntype: ticket\nid: ${key}-1\nstatus: Open\nmilestone: "[[Alpha]]"\n---\n` },
-    { path: `${folder}/Logout.md`, content: `---\ntype: ticket\nid: ${key}-2\nstatus: Open\nmilestone: "[[Alpha]]"\n---\n` },
+    { path: `${folder}/Issues/Login.md`, content: `---\ntype: ticket\nid: ${key}-1\nstatus: Open\nmilestone: "[[Alpha]]"\n---\n` },
+    { path: `${folder}/Issues/Logout.md`, content: `---\ntype: ticket\nid: ${key}-2\nstatus: Open\nmilestone: "[[Alpha]]"\n---\n` },
   ]);
 
   // A milestone without started tickets is planned; waiting for Alpha, which ends after Beta starts, is a conflict
@@ -313,7 +323,7 @@ test('milestones: status, dependencies with a conflict, blocked by on tickets an
   }
 
   // The roadmap explains its marks
-  await page.goto(`/f/${encodeURIComponent(folder)}`);
+  await page.goto(`/f/${encodeURIComponent(`${folder}/Issues`)}`);
   await page.locator('[data-project-tab="roadmap"]').click();
   await expect(page.locator('[data-roadmap-legend]')).toContainText('Release date');
   await expect(page.locator('[data-release-marker]')).toHaveCount(1);

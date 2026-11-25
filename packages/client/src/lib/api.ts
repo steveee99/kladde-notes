@@ -86,6 +86,11 @@ export async function uploadAvatar(file: File): Promise<Me> {
   });
 }
 
+/** Sets the account's display name; null or empty removes it */
+export function setDisplayName(displayName: string | null): Promise<Me> {
+  return api<Me>('/me/display-name', { method: 'PUT', json: { displayName } });
+}
+
 export function deleteAvatar(): Promise<Me> {
   return api<Me>('/me/avatar', { method: 'DELETE' });
 }

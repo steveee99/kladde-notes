@@ -1,9 +1,9 @@
-import { Facet } from '@codemirror/state';
+import { EditorState, Facet, Transaction, type TransactionSpec } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import { EditorView, WidgetType } from '@codemirror/view';
 import type { Completion, CompletionContext, CompletionResult } from '@codemirror/autocomplete';
 import type { SyntaxNode } from '@lezer/common';
-import { BUILTIN_VARIABLES, isFilled, isUrlValue, maskVariables, resolveVariables, safeUrl, splitMasked, variableKey, type ResolvedVariable, type VariableScope } from '@kladde/shared';
+import { BUILTIN_VARIABLES, findInlineVariables, hasInlineVariables, isFilled, isUrlValue, maskVariables, resolveVariables, safeUrl, splitMasked, variableKey, type ResolvedVariable, type VariableScope } from '@kladde/shared';
 import { folderDisplayName, getLang, tl, type Lang } from '../lib/i18n';
 
 /*
@@ -78,6 +78,39 @@ export function setMaskedHtml(el: HTMLElement, text: string, scope: VariableScop
   }
 }
 
+/**
+ * `!{{var:name}}` or `!{{name}}` typed, pasted or completed in a note turns into the value at once: no placeholder,
+ * plain text (a date stays the day it was written). Templates keep it, so it is filled in when a note is made.
+ */
+export const inlineVariables = EditorState.transactionFilter.of((tr) => {
+  if (!tr.docChanged || !(tr.isUserEvent('input') || tr.isUserEvent('paste') || tr.isUserEvent('drop'))) return tr;
+  const scope = tr.startState.facet(variablesFacet);
+  if (!scope || tr.startState.facet(templateTokensFacet).length) return tr;
+  const doc = tr.newDoc;
+  const changes: { from: number; to: number; insert: string }[] = [];
+  const seen = new Set<number>();
+  tr.changes.iterChangedRanges((_fa, _ta, fromB, toB) => {
+    const first = doc.lineAt(fromB).number;
+    const last = doc.lineAt(toB).number;
+    for (let n = first; n <= last; n++) {
+      if (seen.has(n)) continue;
+      seen.add(n);
+      const line = doc.line(n);
+      if (!hasInlineVariables(line.text)) continue;
+      for (const p of findInlineVariables(line.text)) {
+        const from = line.from + p.from;
+        const to = line.from + p.to;
+        // Only what this change touched: older `!{{…}}` without a value stay as they are
+        if (to < fromB || from > toB) continue;
+        const r = scope.resolve(p.name, p.fallback);
+        if (isFilled(r)) changes.push({ from, to, insert: r.text });
+      }
+    }
+  });
+  if (!changes.length) return tr;
+  return [tr, { changes, sequential: true, userEvent: tr.annotation(Transaction.userEvent) } as TransactionSpec];
+});
+
 const shorten = (s: string) => (s.length > 40 ? `${s.slice(0, 39)}…` : s);
 
 /** A variable to offer: its name and what it stands for now */
@@ -108,7 +141,9 @@ export function variableCompletion(ctx: CompletionContext): CompletionResult | n
   const m = ctx.matchBefore(/\{\{[\p{L}\p{N}\p{M}_.:-]{0,70}/u);
   if (!m) return null;
   const typed = m.text.slice(2);
-  const named = typed.startsWith('var:');
+  // `!{{` puts the value in at once and takes bare names too
+  const inline = m.from > 0 && ctx.state.sliceDoc(m.from - 1, m.from) === '!';
+  const named = typed.startsWith('var:') || (inline && !'var:'.startsWith(typed));
   if (!named && !'var:'.startsWith(typed)) return null;
   for (let n: SyntaxNode | null = syntaxTree(ctx.state).resolveInner(ctx.pos, -1); n; n = n.parent) if (/Code/.test(n.name)) return null;
   const lang = getLang();
@@ -127,7 +162,8 @@ export function variableCompletion(ctx: CompletionContext): CompletionResult | n
     })
   );
   if (!options.length) return null;
-  return { from: m.from + 2 + (named ? 4 : 0), options, validFor: named ? /^[\p{L}\p{N}\p{M}_.-]*$/u : /^v?a?r?$/ };
+  const prefix = typed.startsWith('var:') ? 4 : 0;
+  return { from: m.from + 2 + (named ? prefix : 0), options, validFor: named ? /^[\p{L}\p{N}\p{M}_.-]*$/u : /^v?a?r?$/ };
 }
 
 /** A placeholder a template knows besides variables (`{{title}}`, `{{date}}`, `{{week}}`, …), with what it stands for */

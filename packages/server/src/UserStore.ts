@@ -29,6 +29,8 @@ export interface UserRecord {
   avatarUrl: string | null;
   /** Accent color of the Werkbank design (always a valid preset, the default when none was picked) */
   accent: Accent;
+  /** Optional name shown instead of the username (set by the user, or taken from GitLab) */
+  displayName: string | null;
 }
 
 /** A sign-in through another service (e.g. GitLab) linked to an account */
@@ -111,6 +113,16 @@ function randomCode(): string {
   return code;
 }
 
+/** Longest display name that is kept */
+export const MAX_DISPLAY_NAME = 80;
+
+/** One line without control characters, at most `MAX_DISPLAY_NAME` characters; empty becomes null */
+export function cleanDisplayName(name: unknown): string | null {
+  if (typeof name !== 'string') return null;
+  const clean = name.replace(/[\p{Cc}\p{Cf}]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_DISPLAY_NAME).trim();
+  return clean || null;
+}
+
 type Row = Record<string, unknown>;
 const toUser = (r: Row): UserRecord => ({
   id: r.id as string,
@@ -121,6 +133,7 @@ const toUser = (r: Row): UserRecord => ({
   hasPassword: !!r.password_hash,
   avatarUrl: r.avatar_id ? `/api/avatars/${r.avatar_id as string}` : null,
   accent: normalizeAccent(r.accent),
+  displayName: (r.display_name as string | null) ?? null,
 });
 const toCredential = (r: Row): StoredCredential => ({
   id: r.id as string,
@@ -205,6 +218,13 @@ export class UserStore {
       )
       .all() as Row[];
     return rows.map((r) => ({ ...toUser(r), passkeys: Number(r.passkeys), notes: Number(r.note_count), lastSeenAt: (r.last_seen as number | null) ?? null }));
+  }
+
+  /** Stores the account's display name (`null` or empty removes it); returns the stored value */
+  setDisplayName(id: string, name: string | null): string | null {
+    const clean = cleanDisplayName(name);
+    this.db.prepare('UPDATE users SET display_name = ? WHERE id = ? AND is_group = 0').run(clean, id);
+    return clean;
   }
 
   /** Stores the account's accent color (a preset name from `ACCENTS`) */

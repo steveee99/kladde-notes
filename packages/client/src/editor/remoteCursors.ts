@@ -29,6 +29,12 @@ export function cursorContext(doc: Text, head: number): string {
   return doc.sliceString(Math.max(0, head - CTX), head);
 }
 
+/** Event that scrolls the editor of `noteId` to the cursor of `userId` (a click on their avatar in the presence bar) */
+export const JUMP_TO_CURSOR = 'kladde:jump-to-cursor';
+export function jumpToCursor(noteId: string, userId: string): void {
+  window.dispatchEvent(new CustomEvent(JUMP_TO_CURSOR, { detail: { noteId, userId } }));
+}
+
 const setCursors = StateEffect.define<{ cursors: PresenceCursor[]; viewers: PresenceViewer[] }>();
 
 function place(doc: Text, raw: PresenceCursor, viewers: PresenceViewer[]): RemoteCursor {
@@ -36,7 +42,7 @@ function place(doc: Text, raw: PresenceCursor, viewers: PresenceViewer[]): Remot
   const head = resolveCursor(text, raw.head, raw.ctx);
   const anchor = Math.min(Math.max(0, head + raw.anchor - raw.head), text.length);
   const viewer = viewers.find((v) => v.userId === raw.userId);
-  return { raw, head, anchor, name: viewer?.username ?? '?', avatarUrl: viewer?.avatarUrl ?? null, color: colorOf(raw.userId) };
+  return { raw, head, anchor, name: viewer?.displayName || viewer?.username || '?', avatarUrl: viewer?.avatarUrl ?? null, color: colorOf(raw.userId) };
 }
 
 const cursorField = StateField.define<{ list: RemoteCursor[]; viewers: PresenceViewer[] }>({
@@ -52,7 +58,7 @@ const cursorField = StateField.define<{ list: RemoteCursor[]; viewers: PresenceV
           // Unchanged cursors keep where they were mapped to (the texts may have moved apart meanwhile)
           if (before && before.raw.head === raw.head && before.raw.anchor === raw.anchor && before.raw.ctx === raw.ctx) {
             const viewer = viewers.find((v) => v.userId === raw.userId);
-            return { ...before, name: viewer?.username ?? before.name, avatarUrl: viewer?.avatarUrl ?? before.avatarUrl };
+            return { ...before, name: viewer?.displayName || viewer?.username || before.name, avatarUrl: viewer?.avatarUrl ?? before.avatarUrl };
           }
           return place(tr.state.doc, raw, viewers);
         });
@@ -80,6 +86,7 @@ class CursorWidget extends WidgetType {
   toDOM() {
     const wrap = document.createElement('span');
     wrap.className = 'cm-remote-cursor';
+    wrap.dataset.user = this.c.raw.userId;
     wrap.style.setProperty('--rc', `var(--cursor-${this.c.color})`);
     wrap.setAttribute('aria-hidden', 'true');
     const flag = document.createElement('span');
@@ -130,7 +137,24 @@ export function remoteCursors(noteId: string) {
       private lastCursors: PresenceCursor[] | null = null;
       private lastViewers: PresenceViewer[] | null = null;
 
+      private readonly onJump = (e: Event) => {
+        const { noteId: target, userId } = (e as CustomEvent<{ noteId: string; userId: string }>).detail;
+        if (target !== noteId) return;
+        const c = this.view.state.field(cursorField).list.find((x) => x.raw.userId === userId);
+        if (!c) return;
+        this.view.dispatch({ effects: EditorView.scrollIntoView(c.head, { y: 'center' }) });
+        // The caret blinks briefly so it is found on the page
+        requestAnimationFrame(() => {
+          for (const el of this.view.dom.querySelectorAll<HTMLElement>(`.cm-remote-cursor[data-user="${CSS.escape(userId)}"]`)) {
+            el.classList.remove('cm-remote-cursor-ping');
+            void el.offsetWidth;
+            el.classList.add('cm-remote-cursor-ping');
+          }
+        });
+      };
+
       constructor(private readonly view: EditorView) {
+        window.addEventListener(JUMP_TO_CURSOR, this.onJump);
         this.unsubscribe = presence.subscribe(() => this.pull());
         // Not inside the constructor's update cycle
         queueMicrotask(() => this.pull());
@@ -157,6 +181,7 @@ export function remoteCursors(noteId: string) {
       }
 
       destroy() {
+        window.removeEventListener(JUMP_TO_CURSOR, this.onJump);
         this.unsubscribe();
       }
     }
@@ -165,6 +190,11 @@ export function remoteCursors(noteId: string) {
 }
 
 const cursorTheme = EditorView.baseTheme({
+  '@keyframes cm-remote-ping': {
+    '0%, 100%': { boxShadow: '0 0 0 0 rgb(var(--rc) / 0)' },
+    '30%': { boxShadow: '0 0 0 6px rgb(var(--rc) / 0.45)' },
+  },
+  '.cm-remote-cursor-ping': { animation: 'cm-remote-ping 0.6s ease-out 2' },
   '.cm-remote-cursor': {
     position: 'relative',
     display: 'inline-block',

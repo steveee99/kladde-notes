@@ -277,6 +277,8 @@ export interface Me {
   externalLogins?: { provider: string; username: string; createdAt: number }[];
   /** URL of the user's profile picture, if uploaded */
   avatarUrl?: string | null;
+  /** Optional name shown instead of the username (set in the account settings, or taken from GitLab) */
+  displayName?: string | null;
   /** Accent color of the Werkbank design, chosen per account (`ACCENTS` in accent.ts; default 'blue') */
   accent?: string;
   /** True when running in single-user desktop/standalone mode (no auth, invites, sharing or admin area) */
@@ -715,6 +717,8 @@ export interface PresenceViewer {
   userId: string;
   username: string;
   avatarUrl?: string | null;
+  /** The person's display name, when they set one */
+  displayName?: string | null;
   /** Open devices/tabs of this user on the note */
   clients: number;
 }

@@ -4,6 +4,20 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Note tabs have a context menu (right click): pin, close, close others, close tabs to the right or to the left. Pinned tabs move to the front, keep a pin instead of the close button and stay open until they are unpinned; closing others or to one side never closes them.
+- New: `!{{var:name}}` (or `!{{name}}`) puts the variable's current value into the text once instead of keeping a placeholder, e.g. `!{{heute}}` for the date a note was written. It works when typing, pasting or completing in the editor, in templates when a note is made from them (also daily, weekly and monthly notes and over MCP) and in notes created over MCP; inside code it stays as written.
+- Fixed: Variables are now filled in in the properties row of a note's frontmatter and in the fields of databases and custom note types; while a field is edited it shows the placeholder.
+- Changed: “Make project” on a folder now puts the tickets and milestones into a subfolder `Issues` (the project board lives there) and creates a home note `<folder>-Home` with a start template and a `Docs` folder with an `Index` note. Existing projects keep their layout.
+- Changed: The folder page header is tidier: besides “New” a ⋮ menu holds “Make project”, “Make database”, variables, activity, archive, move to group and delete. Group folders, project folders included, can now be deleted from that menu.
+- New: Settings → Editor → Note width: narrow (1000 px), normal (1200 px, the new default), wide (1600 px) or fluid (full width), per device.
+- Changed: The fields of a ticket are all the same height and width, and the panel beside the text is wider.
+- Changed: A milestone shows its tickets as a block above the note text instead of among its fields.
+- New: Clicking a person in the “live” bar of a note scrolls to their cursor.
+- New: An optional display name in the account settings, shown instead of the username (e.g. in the live bar and at cursors). Signing in with GitLab fills it in from GitLab while it is empty, also for existing accounts.
+- New: The folder tree shows tickets and milestones only when switched on (“Show tickets”, “Show milestones”, “Show finished” in the ⋮ menu at the top right of the side panel, in the phone drawer next to the folders; they apply to favorites, folders and groups alike), remembered per browser. Tickets show their type icon and milestones a flag, both with their status as a colored badge at the end of the row.
+- Changed: Automatic links (note titles found in the text) show as a small chip in the accent color with the magic wand in front; a click on the wand still turns them into a regular `[[link]]`.
+- Fixed: Hidden notes (variables, databases, note types) no longer show up in the inbox, the review and the activity heatmap.
+
 ## [2.22.0] – 2026-11-25
 
 - New: Built-in date variables `{{var:today}}`, `{{var:tomorrow}}`, `{{var:week}}`, `{{var:nextWeek}}`, `{{var:month}}`, `{{var:year}}` and more (also in German: `{{var:morgen}}`, `{{var:nächsteWoche}}`, …) work everywhere without defining them and always show the current date. Typing `{{` now always offers variables, like `[[` offers notes: the folder's own first, then the date variables with their current value. The variables dialog lists them. See [docs/VARIABLES.md](docs/VARIABLES.md).

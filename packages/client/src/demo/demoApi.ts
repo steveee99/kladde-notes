@@ -15,6 +15,7 @@ const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
 const TRASH_KEY = 'kladde_demo_trash';
 const RESTORED_KEY = 'kladde_demo_restored';
 const ACCENT_KEY = 'kladde_demo_accent';
+const DISPLAY_NAME_KEY = 'kladde_demo_display_name';
 const demoAccent = () => normalizeAccent(read<unknown>(ACCENT_KEY, null));
 const TICKETS_KEY = 'kladde_demo_ticket_numbers';
 
@@ -112,13 +113,19 @@ function pull(): PullResponse {
 
 function handle(path: string, method: string, body: unknown): Response {
   const parts = path.split('/').filter(Boolean);
-  if (path === '/auth/me' || path === '/auth/dev-login') return json({ ...ME, accent: demoAccent() });
+  if (path === '/auth/me' || path === '/auth/dev-login') return json({ ...ME, accent: demoAccent(), displayName: read<string | null>(DISPLAY_NAME_KEY, null) });
+  if (path === '/me/display-name' && method === 'PUT') {
+    const raw = (body as { displayName?: unknown } | null)?.displayName;
+    const name = typeof raw === 'string' ? raw.replace(/\s+/g, ' ').trim().slice(0, 80) || null : null;
+    write(DISPLAY_NAME_KEY, name);
+    return json({ ...ME, accent: demoAccent(), displayName: name });
+  }
   // Accent color (Werkbank): kept in the browser like the rest of the demo
   if (path === '/me/accent' && method === 'PUT') {
     const accent = (body as { accent?: unknown } | null)?.accent;
     if (!isAccent(accent)) return json({ error: 'Unbekannte Akzentfarbe.' }, 400);
     write(ACCENT_KEY, accent);
-    return json({ ...ME, accent });
+    return json({ ...ME, accent, displayName: read<string | null>(DISPLAY_NAME_KEY, null) });
   }
   if (path === '/auth/logout') return json({ ok: true });
   if (path === '/sync') return method === 'POST' ? json({ results: push(((body as { changes?: PushChange[] })?.changes ?? []).slice(0, 500)) }) : json(pull());

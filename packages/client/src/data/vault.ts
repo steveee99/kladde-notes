@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { ActivityNews, NotePerson, NotificationItem, NotificationList } from '@kladde/shared';
+import { variablesOfFolder } from './variables';
 import {
   HUMAN_ACTOR,
   actorId,
@@ -44,6 +45,8 @@ import {
   archiveTarget,
   excerpt,
   fillTemplate,
+  expandInlineVariables,
+  hasInlineVariables,
   isFolderProjectHome,
   isSingleProjectFile,
   normalizeFeatures,
@@ -992,7 +995,7 @@ class Vault {
     if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
     // The title already shows the date, so the daily template starts without a heading
     const vars = { title: resolved.name, date: toDateString(dateObj) };
-    return this.insert(resolved.folder, resolved.name, this.withTypeDefaults('own', fillTemplate(this.dailyTemplate(), vars), vars));
+    return this.insert(resolved.folder, resolved.name, inlineValues('own', resolved.folder, this.withTypeDefaults('own', fillTemplate(this.dailyTemplate(), vars), vars)));
   }
 
   /** Settings of weekly or monthly notes (#73) */
@@ -1026,7 +1029,7 @@ class Vault {
       weekName: weekly.enabled ? (w) => resolvePeriodicNote('week', weekly, w, lang).name : undefined,
     });
     if (settings.folder && !this.storedFolders().includes(settings.folder)) await this.setFolders([...this.storedFolders(), settings.folder]);
-    return this.insert(resolved.folder, resolved.name, this.withTypeDefaults('own', content, { title: resolved.name, date: toDateString(typeof date === 'string' ? parseDate(date) : date) }));
+    return this.insert(resolved.folder, resolved.name, inlineValues('own', resolved.folder, this.withTypeDefaults('own', content, { title: resolved.name, date: toDateString(typeof date === 'string' ? parseDate(date) : date) })));
   }
 
   periodicTemplate(kind: PeriodKind): string {
@@ -1214,7 +1217,7 @@ class Vault {
       return this.get(note.id) ?? note;
     }
     const zid = zettelId();
-    const content = this.withTypeDefaults(space, fillTemplate(template.content, { title, zid }), { title, zid });
+    const content = inlineValues(space, shared ? shared.folder : folder, this.withTypeDefaults(space, fillTemplate(template.content, { title, zid }), { title, zid }));
     return make(templateUsesZettelId(template.content) ? `${zid} ${title}` : title, content);
   }
 
@@ -1728,6 +1731,20 @@ class Vault {
     return true;
   }
 
+  /** Deletes a group folder with every note in it (to the group's trash); owners and editors of the group only */
+  async deleteGroupFolder(groupId: string, folder: string): Promise<boolean> {
+    if (!folder || isReadOnly() || !canWriteInGroup(this.group(groupId)?.role)) return false;
+    const now = Date.now();
+    const trashBatch = newId();
+    const below = this.groupNotes(groupId).filter((n) => {
+      const f = splitPath(n.path).folder;
+      return !n.deleted && (f === folder || f.startsWith(`${folder}/`)) && this.managesGroupNote(n);
+    });
+    for (const note of below) await this.put({ ...note, deleted: true, updatedAt: now, dirty: true, trashBatch, trashFolder: folder });
+    this.schedule(0);
+    return true;
+  }
+
   /**
    * Quick capture: tasks are collected in "0 Inbox/Eingang", every thought becomes its own inbox note.
    * With a `title` (shared from another app) the whole text becomes the content of a note with that title.
@@ -2167,6 +2184,11 @@ function cleanFolder(path: string): string {
 }
 
 /** Which space a note lives in: own notes, another user's space (shares) or a group (#58) */
+/** A note made from a template gets the values of its `!{{…}}` (shared/variables.ts) put in once */
+function inlineValues(space: string, folder: string, content: string): string {
+  return hasInlineVariables(content) ? expandInlineVariables(content, variablesOfFolder(space, folder)) : content;
+}
+
 export function spaceOf(n: LocalNote): string {
   if (n.group) return `group:${n.group}`;
   return n.access === 'owner' ? 'own' : `user:${n.owner ?? ''}`;
