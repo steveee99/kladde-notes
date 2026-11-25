@@ -1795,6 +1795,13 @@ const de = {
 
   // Admin
   'admin.title': 'Verwaltung',
+  'admin.backToAdmin': 'Zurück zur Verwaltung',
+  'admin.navUsersDesc': 'Passwörter, Gerätecodes, Rollen, Speicher',
+  'admin.navGroupsDesc': 'Speicher und Kontingente der Gruppen',
+  'admin.navInvitesDesc': 'Einladungslinks erstellen und widerrufen',
+  'admin.navRemoteDesc': 'GitLab- und GitHub-Instanzen für eingebundene Notizen',
+  'admin.navBackupsDesc': 'Sicherungen, Zeitplan, Wiederherstellen',
+  'admin.navAuditDesc': 'Anmeldungen und Admin-Aktionen',
   'admin.statusSummary': 'Kladde {version} · {users} Konten · {notes} Notizen · {connections} Geräte verbunden · läuft seit {since}',
   'admin.onlyAdmin': 'Nur für Admins.',
   'admin.tabUsers': 'Konten',
@@ -4110,6 +4117,13 @@ const en: Record<I18nKey, string> = {
 
   // Admin
   'admin.title': 'Administration',
+  'admin.backToAdmin': 'Back to administration',
+  'admin.navUsersDesc': 'Passwords, device codes, roles, storage',
+  'admin.navGroupsDesc': 'Storage and quotas of groups',
+  'admin.navInvitesDesc': 'Create and revoke invite links',
+  'admin.navRemoteDesc': 'GitLab and GitHub instances for embedded notes',
+  'admin.navBackupsDesc': 'Backups, schedule, restore',
+  'admin.navAuditDesc': 'Sign-ins and admin actions',
   'admin.statusSummary': 'Kladde {version} · {users} accounts · {notes} notes · {connections} devices connected · up for {since}',
   'admin.onlyAdmin': 'Admins only.',
   'admin.tabUsers': 'Accounts',

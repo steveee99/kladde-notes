@@ -24,7 +24,8 @@ import { locale, t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
 import { useReadOnly } from '../lib/readOnly';
 import { setFocusMode, useFocusMode } from '../lib/focus';
-import { isSettingsPath, useSettingsNavInPanel } from '../lib/settingsRoutes';
+import { isAdminPath, isSettingsPath, useSettingsNavInPanel } from '../lib/settingsRoutes';
+import { AdminNav } from './AdminNav';
 
 const SettingsNav = lazy(() => import('./SettingsNav').then((m) => ({ default: m.SettingsNav })));
 
@@ -219,7 +220,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
   }, [focusMode, noteId, features.focus.enabled]);
 
   const settingsNavInPanel = useSettingsNavInPanel();
-  const settingsRoute = isSettingsPath(path);
+  const settingsRoute = isSettingsPath(path) || isAdminPath(path);
   const hidePanelButton = (
     <button type="button" onClick={toggleMaterialSidebarMode} className="btn-icon h-8 w-8" title={`${t('nav.hideSidePanel')} (Ctrl/⌘+\\)`} aria-label={t('nav.hideSidePanel')}>
       <PanelLeftClose size={18} />
@@ -315,7 +316,9 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
         {!focus && panelOpen && (
           <aside aria-label={settingsRoute ? t('settings.title') : t('nav.folders')} className="relative hidden shrink-0 border-r border-line bg-panel nav:flex" style={{ width: sidebarWidth }}>
             <div className="flex min-h-0 w-full flex-col overflow-hidden">
-              {settingsRoute && settingsNavInPanel ? (
+              {settingsRoute && settingsNavInPanel && isAdmin && isAdminPath(path) ? (
+                <AdminNav panel headerAction={hidePanelButton} />
+              ) : settingsRoute && settingsNavInPanel ? (
                 <Suspense fallback={null}>
                   <SettingsNav me={me} panel headerAction={hidePanelButton} />
                 </Suspense>

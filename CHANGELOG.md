@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- Changed: The administration lists its sections (accounts, groups, invites, GitLab/GitHub, backups, audit log) in the side panel like the settings, each with its own address (`/settings/admin/<section>`), and has a way back to the settings; on phones it shows them as a list.
+
 ## [2.20.0] – 2026-11-25
 
 - New: Custom note types (Settings → Note types) model which properties a note has, whether they show at the top, on the right, at the bottom or not at all, and whether the frontmatter is visible. Notes and templates use them with `type: custom:<name>`; they can also be chosen for new notes and in a note's ⋮ menu, belong to your own notes or a group, and show on public links. See [docs/NOTE_TYPES.md](docs/NOTE_TYPES.md).
