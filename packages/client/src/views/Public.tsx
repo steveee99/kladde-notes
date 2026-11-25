@@ -1,10 +1,11 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
-import { EMPTY_VARIABLE_SCOPE, PublicNote as PublicNoteData, type VariableScope, excalidrawSceneOf, extractMeta, fillReleasePlaceholders, fixedVariableScope, isPresentationNote, remoteNoteOf } from '@kladde/shared';
+import { EMPTY_VARIABLE_SCOPE, PublicNote as PublicNoteData, type VariableScope, excalidrawSceneOf, extractMeta, fillReleasePlaceholders, fixedVariableScope, isPresentationNote, parseNoteType, propertiesAt, remoteNoteOf, resolveVariables } from '@kladde/shared';
 import { api } from '../lib/api';
 import { locale, tl, useLang } from '../lib/i18n';
 import { Editor } from '../editor/Editor';
 import type { EmbedResolver } from '../editor/embedContext';
 import { Avatar } from './Avatar';
+import { NoteTypePanel } from './NoteTypePanel';
 import { ExportMenu } from './ExportMenu';
 import { releaseRenderOptions } from '../editor/releases';
 import { RemoteDoc, Slideshow } from '../lib/icons';
@@ -50,6 +51,11 @@ export function PublicNote({ token }: { token: string }) {
   const variables = scopeOf(note.variables);
   const exported = note.versioning ? fillReleasePlaceholders(note.content, note.releases ?? [], releaseRenderOptions(lang)) : note.content;
   const releases = note.versioning ? (note.releases ?? []) : null;
+  // A custom note type shows the note's properties as its owner modelled them
+  const noteType = note.noteType ? parseNoteType(note.noteType) : null;
+  const typePanel = (where: 'top' | 'right' | 'bottom') =>
+    noteType && <NoteTypePanel type={noteType} where={where} content={note.content} noteId={null} canEdit={false} fill={(text) => resolveVariables(text, variables)} />;
+  const sideType = !!noteType && propertiesAt(noteType, 'right').length > 0;
   return (
     // No transform animation around a drawing: it would trap Excalidraw's fixed layers and full screen in this box
     <div className={`content-container px-4 py-8 sm:px-8 ${drawing !== null ? 'anim-fade-in' : 'anim-fade-up'}`}>
@@ -75,7 +81,16 @@ export function PublicNote({ token }: { token: string }) {
           <ExcalidrawPanel scene={drawing} readOnly lang={lang} />
         </Suspense>
       ) : (
-        <Editor docKey={token} value={note.content} readOnly resolveEmbed={resolveEmbed} releases={releases} variables={variables} slideBreaks={slides ? tl(lang, 'present.slideBreak') : ''} />
+        <>
+          {typePanel('top')}
+          <div className={sideType ? 'ticket-layout' : 'contents'}>
+            <div className={sideType ? 'ticket-grid' : 'contents'}>
+              {sideType && <div className="ticket-side">{typePanel('right')}</div>}
+              <Editor docKey={token} value={note.content} readOnly resolveEmbed={resolveEmbed} releases={releases} variables={variables} slideBreaks={slides ? tl(lang, 'present.slideBreak') : ''} hideProperties={!!noteType && !noteType.showFrontmatter} />
+            </div>
+          </div>
+          {typePanel('bottom')}
+        </>
       )}
       {presenting && (
         <Suspense fallback={null}>

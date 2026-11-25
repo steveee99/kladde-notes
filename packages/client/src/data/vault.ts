@@ -103,7 +103,16 @@ import {
   findDatabaseNote,
   isDatabasePath,
   isSchemaPath,
+  isNoteTypePath,
+  isTicketContent,
   isVariablesPath,
+  parseNoteType,
+  customTypeOf,
+  setCustomType,
+  findNoteType,
+  applyTypeDefaults,
+  noteTypeKey,
+  type NoteType,
   newDatabaseNoteContent,
   parseDatabase,
   MILESTONE_FOLDER,
@@ -479,13 +488,13 @@ class Vault {
   /** `pathStamp` of the last look at the variable definitions (online mode) */
   private variableStamp = -1;
 
-  /** Online mode: the notes that define variables are loaded in full and kept, every note below them may need the values */
+  /** Online mode: the notes that define variables and custom types are loaded in full and kept, every note of their space may need them */
   private async loadVariableNotes(): Promise<void> {
     const stamp = this.pathStamp;
     if (this.variableStamp === stamp) return;
     const ids: string[] = [];
     for (const n of this.notes.values()) {
-      if (n.deleted || !isVariablesPath(n.path)) continue;
+      if (n.deleted || !(isVariablesPath(n.path) || isNoteTypePath(n.path))) continue;
       if (n.partial) ids.push(n.id);
       else if (n.cachedAt) this.notes.set(n.id, { ...n, cachedAt: undefined });
     }
@@ -978,7 +987,8 @@ class Vault {
     if (existing) return existing;
     if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
     // The title already shows the date, so the daily template starts without a heading
-    return this.insert(resolved.folder, resolved.name, fillTemplate(this.dailyTemplate(), { title: resolved.name, date: toDateString(dateObj) }));
+    const vars = { title: resolved.name, date: toDateString(dateObj) };
+    return this.insert(resolved.folder, resolved.name, this.withTypeDefaults('own', fillTemplate(this.dailyTemplate(), vars), vars));
   }
 
   /** Settings of weekly or monthly notes (#73) */
@@ -1012,7 +1022,7 @@ class Vault {
       weekName: weekly.enabled ? (w) => resolvePeriodicNote('week', weekly, w, lang).name : undefined,
     });
     if (settings.folder && !this.storedFolders().includes(settings.folder)) await this.setFolders([...this.storedFolders(), settings.folder]);
-    return this.insert(resolved.folder, resolved.name, content);
+    return this.insert(resolved.folder, resolved.name, this.withTypeDefaults('own', content, { title: resolved.name, date: toDateString(typeof date === 'string' ? parseDate(date) : date) }));
   }
 
   periodicTemplate(kind: PeriodKind): string {
@@ -1189,14 +1199,75 @@ class Vault {
     return this.create(zettel.folder, `${zid} ${title}`.trim(), fm + body);
   }
 
-  /** A note from a template (or a blank one); with `shared` it goes into that shared folder, with `group` into `folder` of that group */
-  async createFromTemplate(template: Template | null, title: string, folder: string, shared?: SharedFolder, group?: string): Promise<LocalNote> {
+  /** A note from a template (or a blank one); with `shared` it goes into that shared folder, with `group` into `folder` of that group; `type` makes a blank one a note of that custom type */
+  async createFromTemplate(template: Template | null, title: string, folder: string, shared?: SharedFolder, group?: string, type?: string): Promise<LocalNote> {
     const make = (name: string, content: string) =>
       group ? this.createInGroup(group, folder, name, content) : shared ? this.createShared(shared, name, content) : this.create(folder, name, content);
-    if (!template) return make(title, '');
+    const space = group ? `group:${group}` : shared ? `user:${shared.owner}` : 'own';
+    if (!template) {
+      const note = await make(title, '');
+      if (type) await this.setNoteType(note.id, type);
+      return this.get(note.id) ?? note;
+    }
     const zid = zettelId();
-    const content = fillTemplate(template.content, { title, zid });
+    const content = this.withTypeDefaults(space, fillTemplate(template.content, { title, zid }), { title, zid });
     return make(templateUsesZettelId(template.content) ? `${zid} ${title}` : title, content);
+  }
+
+  // ------------------------------------------------------------------ custom note types (shared/noteTypes.ts)
+
+  private typeNotes: { stamp: number; ids: string[] } = { stamp: -1, ids: [] };
+  /** Parsed definitions by note id, until their text changes */
+  private parsedTypes = new Map<string, { content: string; type: NoteType | null }>();
+
+  /** The definition notes of every space; the list depends on the paths only (#64) */
+  private typeDefinitionNotes(): LocalNote[] {
+    if (this.typeNotes.stamp !== this.pathStamp) {
+      this.typeNotes = { stamp: this.pathStamp, ids: [...this.notes.values()].filter((n) => isNoteTypePath(n.path)).sort((a, b) => (a.path < b.path ? -1 : 1)).map((n) => n.id) };
+    }
+    return this.typeNotes.ids.map((id) => this.notes.get(id)).filter((n): n is LocalNote => !!n && !n.deleted);
+  }
+
+  /** Online mode: some definitions have no text yet */
+  noteTypesLoading(): boolean {
+    return this.typeDefinitionNotes().some((n) => n.partial);
+  }
+
+  /** The types defined in a space, each with its definition note */
+  noteTypeDefinitions(space: string): { note: LocalNote; type: NoteType }[] {
+    const out: { note: LocalNote; type: NoteType }[] = [];
+    for (const note of this.typeDefinitionNotes()) {
+      if (note.partial || spaceOf(note) !== space) continue;
+      let parsed = this.parsedTypes.get(note.id);
+      if (parsed?.content !== note.content) this.parsedTypes.set(note.id, (parsed = { content: note.content, type: parseNoteType(note.content) }));
+      if (parsed.type) out.push({ note, type: parsed.type });
+    }
+    return out;
+  }
+
+  /** The types notes of a space can have: its own, and in other spaces also the user's own ones it does not define */
+  noteTypes(space: string): NoteType[] {
+    const out: NoteType[] = [];
+    for (const { type } of [...this.noteTypeDefinitions(space), ...(space === 'own' ? [] : this.noteTypeDefinitions('own'))]) {
+      if (!out.some((x) => noteTypeKey(x.name) === noteTypeKey(type.name))) out.push(type);
+    }
+    return out;
+  }
+
+  /** The text of a new note with the defaults of its custom type, if it has one */
+  private withTypeDefaults(space: string, content: string, vars: { title: string; date?: string; zid?: string }): string {
+    const name = customTypeOf(content);
+    const type = name === null ? null : findNoteType(this.noteTypes(space), name);
+    return type ? applyTypeDefaults(content, type, vars) : content;
+  }
+
+  /** Gives a note a custom type (with its defaults), or takes it away (its values stay) */
+  async setNoteType(id: string, name: string | null): Promise<void> {
+    const note = await this.ensureFull(id);
+    // A ticket is a ticket because of its own frontmatter
+    if (!note || isTicketContent(note.content)) return;
+    const content = setCustomType(note.content, name);
+    await this.update(id, { content: name === null ? content : this.withTypeDefaults(spaceOf(note), content, { title: splitPath(note.path).name }) });
   }
 
   /** Own templates, kept in the synced settings (none at first) */

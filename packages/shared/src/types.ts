@@ -446,6 +446,8 @@ export interface PublicNote {
   updatedAt: number;
   /** Values of the variables (`{{var:name}}`) the note uses, resolved from its folders; nothing else of them is sent */
   variables?: Record<string, string>;
+  /** Definition note of the note's custom type (`type: custom:<name>`), when it has one */
+  noteType?: string;
   /** Notes the public note embeds (`![[…]]`) that the owner published too; others show "Not available" */
   embeds?: PublicEmbed[];
   /** Versioned note (#53): the content is its latest release; the releases fill the placeholders */

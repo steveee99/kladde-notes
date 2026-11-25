@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Custom note types (Settings → Note types) model which properties a note has, whether they show at the top, on the right, at the bottom or not at all, and whether the frontmatter is visible. Notes and templates use them with `type: custom:<name>`; they can also be chosen for new notes and in a note's ⋮ menu, belong to your own notes or a group, and show on public links. See [docs/NOTE_TYPES.md](docs/NOTE_TYPES.md).
+
 ## [2.19.0] – 2026-11-25
 
 - New: Variables: folders and groups define variables that their subfolders inherit and can override ("Variables …" in the folder header, the folder menu or the group). `{{var:name}}` in notes and templates always shows the current value, also in link and image addresses, tables, embeds, presentations, exports and on public links; `{{var:name|fallback}}` sets a value for where it is not defined. Typing `{{` offers the variables of the note's folder. See [docs/VARIABLES.md](docs/VARIABLES.md).

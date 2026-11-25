@@ -28,6 +28,7 @@
 import { splitPath } from './markdown.js';
 import { readFrontmatterYaml, setFrontmatterValues, type YamlMap, type YamlValue } from './yaml.js';
 import { safeUrl } from './util.js';
+import { isNoteTypePath } from './noteTypePath.js';
 import { isVariablesPath } from './variables.js';
 
 /** The schema note is `_database-<uuid>.md` (a name a person is unlikely to type); the plain `_database.md` of the first version still works */
@@ -106,8 +107,8 @@ export const isDatabasePath = (path: string): boolean => DATABASE_OR_COPY.test(p
 /** Whether a note can be its folder's schema note; copies of one are hidden (`isDatabasePath`) but never define a database */
 export const isSchemaPath = (path: string): boolean => DATABASE_NAME.test(path.slice(path.lastIndexOf('/') + 1));
 
-/** Notes that only hold a folder's settings (database schema, variables): kept out of lists, the tree, search and the graph */
-export const isHiddenPath = (path: string): boolean => isDatabasePath(path) || isVariablesPath(path);
+/** Notes that only hold settings (database schema, variables, custom note types): kept out of lists, the tree, search and the graph */
+export const isHiddenPath = (path: string): boolean => isDatabasePath(path) || isVariablesPath(path) || isNoteTypePath(path);
 
 /** The database note of a folder, if there is one */
 export function findDatabaseNote<T extends { path: string; content: string }>(folder: string, notes: Iterable<T>): T | null {
@@ -120,17 +121,31 @@ const strList = (v: YamlValue | undefined): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x !== '') : typeof v === 'string' && v ? [v] : [];
 const maps = (v: YamlValue | undefined): YamlMap[] => (Array.isArray(v) ? v.filter((x): x is YamlMap => !!x && typeof x === 'object' && !Array.isArray(x)) : []);
 
-/** Parses the schema of a database note; null when the note is not one (no `type: database`) */
-export function parseDatabase(content: string): Database | null {
-  const fm = readFrontmatterYaml(content);
-  if (!fm || str(fm.data.type).toLowerCase() !== 'database') return null;
+/** Reads a list of typed properties; unnamed and repeated ones are left out */
+export function parseProperties(v: YamlValue | undefined): DbProperty[] {
   const properties: DbProperty[] = [];
-  for (const p of maps(fm.data.properties)) {
+  for (const p of maps(v)) {
     const name = str(p.name).trim();
     if (!name || properties.some((x) => x.name.toLowerCase() === name.toLowerCase())) continue;
     const type = str(p.type).toLowerCase() as PropertyType;
     properties.push({ name, type: PROPERTY_TYPES.includes(type) ? type : 'text', options: strList(p.options), default: str(p.default) });
   }
+  return properties;
+}
+
+/** A typed property as it is stored */
+export function propertyYaml(p: DbProperty): YamlMap {
+  const o: YamlMap = { name: p.name, type: p.type };
+  if (p.options.length) o.options = p.options;
+  if (p.default) o.default = p.default;
+  return o;
+}
+
+/** Parses the schema of a database note; null when the note is not one (no `type: database`) */
+export function parseDatabase(content: string): Database | null {
+  const fm = readFrontmatterYaml(content);
+  if (!fm || str(fm.data.type).toLowerCase() !== 'database') return null;
+  const properties = parseProperties(fm.data.properties);
   const views: DbView[] = [];
   for (const v of maps(fm.data.views)) {
     const type = str(v.type).toLowerCase() as ViewType;
@@ -157,12 +172,7 @@ export const defaultView = (name = 'Table'): DbView => ({ name, type: 'table', c
 
 /** Writes a schema into a database note's content, keeping its other frontmatter and body */
 export function writeDatabase(content: string, db: Database): string {
-  const properties = db.properties.map((p) => {
-    const o: YamlMap = { name: p.name, type: p.type };
-    if (p.options.length) o.options = p.options;
-    if (p.default) o.default = p.default;
-    return o;
-  });
+  const properties = db.properties.map(propertyYaml);
   const views = db.views.map((v) => {
     const o: YamlMap = { name: v.name, type: v.type };
     if (v.columns.length) o.columns = v.columns;

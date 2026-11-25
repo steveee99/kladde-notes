@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  isHiddenPath,
   FILTER_OPS,
   PROPERTY_TYPES,
   VIEW_TYPES,
@@ -11,7 +10,6 @@ import {
   formatDbValue,
   hasVariables,
   resolveVariables,
-  linkTarget,
   newDatabaseNoteContent,
   parseDatabase,
   readFrontmatterYaml,
@@ -33,6 +31,7 @@ import { t, useLang, type I18nKey } from '../lib/i18n';
 import { variablesOfNote } from '../data/variables';
 import { Sheet } from './Dialogs';
 import { ChipSelect } from './ChipSelect';
+import { LinkTargets, PropertyField } from './PropertyField';
 import { Dropdown, type DropdownOption } from './Dropdown';
 
 const typeKey = (type: string) => `db.type.${type}` as I18nKey;
@@ -49,67 +48,11 @@ function rowText(row: DbRow, text: string): string {
 
 /** One typed, editable cell; changes go straight into the note's frontmatter */
 function Cell({ row, prop, canEdit }: { row: DbRow; prop: DbProperty; canEdit: boolean }) {
-  const value = row.values[prop.name];
   const save = (v: DbValue) => {
     const note = vault.get(row.noteId);
     if (note) void vault.update(note.id, { content: setCell(note.content, prop, v) });
   };
-  const label = `${prop.name}: ${row.title}`;
-  if (prop.type === 'checkbox') {
-    return <input type="checkbox" className="cm-checkbox" aria-label={label} checked={value === true} disabled={!canEdit} onChange={(e) => save(e.target.checked)} />;
-  }
-  if (prop.type === 'select') {
-    if (!canEdit) return <span>{formatDbValue(prop.type, value)}</span>;
-    const current = typeof value === 'string' ? value : '';
-    const opts = current && !prop.options.includes(current) ? [...prop.options, current] : prop.options;
-    return (
-<Dropdown className="!min-h-0 !py-1" aria-label={label} value={current} options={[NONE, ...asOptions(opts)]} onChange={(v) => save(v || null)} />
-    );
-  }
-  if (prop.type === 'multiselect') {
-    const chosen = Array.isArray(value) ? value : [];
-    const free = prop.options.filter((o) => !chosen.includes(o));
-    return (
-      <span className="flex flex-wrap items-center gap-1">
-        {chosen.map((c) => (
-          <button key={c} type="button" className="chip" disabled={!canEdit} aria-label={`${t('common.delete')} ${c}`} onClick={() => save(chosen.filter((x) => x !== c))}>
-            {c}
-          </button>
-        ))}
-        {canEdit && free.length > 0 && (
-          <Dropdown variant="chip" placeholder="+" aria-label={label} value="" options={asOptions(free)} onChange={(v) => save([...chosen, v])} />
-        )}
-      </span>
-    );
-  }
-  const inputType = prop.type === 'number' ? 'number' : prop.type === 'date' ? 'date' : 'text';
-  const shown = prop.type === 'link' ? linkTarget(value) : value === null ? '' : String(value);
-  if (!canEdit) {
-    if (prop.type === 'link' && shown) {
-      const target = vault.findByTitle(shown);
-      return target ? (
-        <a className="cm-link cursor-pointer" onClick={() => navigate(`/n/${target.id}`)}>
-          {shown}
-        </a>
-      ) : (
-        <span>{shown}</span>
-      );
-    }
-    return <span>{rowText(row, shown)}</span>;
-  }
-  return (
-    <input
-      key={shown}
-      type={inputType}
-      step={prop.type === 'number' ? 'any' : undefined}
-      className="input !min-h-0 !py-1"
-      aria-label={label}
-      defaultValue={shown}
-      list={prop.type === 'link' ? 'db-link-targets' : undefined}
-      onBlur={(e) => e.target.value !== shown && save(e.target.value === '' ? null : prop.type === 'number' ? Number(e.target.value) : e.target.value)}
-      onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-    />
-  );
+  return <PropertyField prop={prop} value={row.values[prop.name]} label={`${prop.name}: ${row.title}`} canEdit={canEdit} onSave={save} fill={(text) => rowText(row, text)} />;
 }
 
 function TableView({ db, view, rows, canEdit }: { db: Database; view: DbView; rows: DbRow[]; canEdit: boolean }) {
@@ -413,13 +356,7 @@ export function DatabaseView({ folder, dbNote }: { folder: string; dbNote: Local
           </>
         )}
       </div>
-      {hasLink && (
-        <datalist id="db-link-targets">
-          {vault.list().filter((n) => !isHiddenPath(n.path)).map((n) => (
-            <option key={n.id} value={n.path.replace(/^.*\//, '').replace(/\.md$/, '')} />
-          ))}
-        </datalist>
-      )}
+      {hasLink && <LinkTargets />}
       {rows.length === 0 ? (
         <div className="empty-sheet"><p className="empty-title">{t('db.empty')}</p></div>
       ) : view.type === 'board' ? (
