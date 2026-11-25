@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.21.0] – 2026-11-25
+
 - New: A bell next to your avatar in the top bar opens your notifications: mentions, comments, replies and now also when someone adds you to a group. Each one can be marked read on its own or all at once; the panel and the list page show the newest ten and load older ones on request. When this device does not get push notifications yet, the panel offers to allow them.
 - New: The administration opens with an overview: tiles with the number of notes (each counted once, however often it is shared), databases, accounts and groups, CPU, memory and disk use, the data Kladde holds, who is online on how many devices, and the recent sync jobs (device syncs with changes, backups, trash purges since the last start). It refreshes every 10 seconds.
 - Changed: The administration lists its sections (accounts, groups, invites, GitLab/GitHub, backups, audit log) in the side panel like the settings, each with its own address (`/settings/admin/<section>`), and has a way back to the settings; on phones it shows them as a list.
