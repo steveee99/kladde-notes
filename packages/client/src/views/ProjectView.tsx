@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PRIORITIES, TICKET_KINDS, PARENT_KINDS, checklistOf, cleanProjectKey, rankBetween, roadmapOffset, roadmapWeeks, type MilestoneStatus, type Priority, type TicketKind } from '@kladde/shared';
+import { PRIORITIES, TICKET_KINDS, PARENT_KINDS, checklistOf, cleanProjectKey, projectDisplayName, rankBetween, roadmapOffset, roadmapWeeks, type MilestoneStatus, type Priority, type TicketKind } from '@kladde/shared';
 import { vault, useVault } from '../data/vault';
 import {
   assignees,
@@ -592,7 +592,7 @@ export function NewTicketSheet({ project: fixed, onClose, milestone: presetMiles
   );
 }
 
-export const projectName = (p: ProjectInfo) => `${p.spaceName ? `${p.spaceName} / ` : ''}${p.folder.split('/').pop() || p.folder} (${p.config.key})`;
+export const projectName = (p: ProjectInfo) => `${p.spaceName ? `${p.spaceName} / ` : ''}${projectDisplayName(p.folder)} (${p.config.key})`;
 
 function MilestoneSheet({ project, onClose }: { project: ProjectInfo; onClose: () => void }) {
   const [title, setTitle] = useState('');
@@ -658,8 +658,9 @@ export function MakeProjectSheet({ space, folder, onClose }: { space: TicketSpac
     const clean = cleanProjectKey(key);
     if (!clean) return setError(t('tickets.keyInvalid'));
     try {
-      await createProject(space, folder, clean, requireDocs);
+      const projectFolder = await createProject(space, folder, clean, requireDocs);
       onClose();
+      if (projectFolder !== folder) navigate(space.group ? `/g/${encodeURIComponent(space.group)}/${encodeURIComponent(projectFolder)}` : `/f/${encodeURIComponent(projectFolder)}`);
     } catch (err) {
       setError((err as Error).message);
     }

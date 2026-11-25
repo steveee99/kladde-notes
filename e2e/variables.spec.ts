@@ -21,6 +21,7 @@ const dialogOf = (page: Page) => page.locator('[data-variables-dialog]');
 
 async function openVariables(page: Page, folder: string) {
   await page.goto(`/f/${encodeURIComponent(folder)}`);
+  await page.locator('[data-item-menu="folder"]').click();
   await page.locator('[data-open-variables]').click();
   await expect(dialogOf(page)).toBeVisible();
 }
@@ -204,6 +205,7 @@ test('a group has its own variables: owners edit them, readers only see them', a
   const ids = await seed(page.request, [{ path: 'Docs/Guide.md', content: 'Host: {{var:host}}\n', group: group.id }]);
 
   await page.goto(`/g/${group.id}`);
+  await page.locator('[data-item-menu="folder"]').click();
   await page.locator('[data-open-variables]').click();
   await addVariable(page, 'host', 'team.example.com');
   await page.keyboard.press('Escape');
@@ -216,6 +218,7 @@ test('a group has its own variables: owners edit them, readers only see them', a
   await cara.goto(`/n/${ids['Docs/Guide.md']}`);
   await expect(editor(cara)).toContainText('Host: team.example.com');
   await cara.goto(`/g/${group.id}/Docs`);
+  await cara.locator('[data-item-menu="folder"]').click();
   await cara.locator('[data-open-variables]').click();
   await expect(dialogOf(cara).locator('[data-variable-inherited="host"]')).toContainText(`from ${group.name}`);
   await expect(dialogOf(cara).getByRole('textbox')).toHaveCount(0);

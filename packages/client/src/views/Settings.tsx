@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
 import {
   ArrowLeft,
@@ -15,10 +15,11 @@ import {
   Upload,
 } from '../lib/icons';
 import { APP_VERSION, Me, PASSWORD_MIN_LENGTH } from '@kladde/shared';
-import { api, deleteAvatar, uploadAvatar } from '../lib/api';
+import { api, deleteAvatar, setDisplayName, uploadAvatar } from '../lib/api';
 import { useConfluence } from '../lib/confluence';
 import { Lang, locale, setLang, tl, useLang, type I18nKey } from '../lib/i18n';
-import { CODE_COLLAPSE_OPTIONS, EDITOR_FONT_SIZES, setCodeBlockPrefs, setEditorFontSize, setInboxZero, setLigatures, useCodeBlockPrefs, useEditorFontSize, useInboxZero, useLigatures } from '../lib/prefs';
+import { Dropdown } from './Dropdown';
+import { CODE_COLLAPSE_OPTIONS, EDITOR_FONT_SIZES, NOTE_WIDTHS, setNoteWidth, useNoteWidth, type NoteWidth, setCodeBlockPrefs, setEditorFontSize, setInboxZero, setLigatures, useCodeBlockPrefs, useEditorFontSize, useInboxZero, useLigatures } from '../lib/prefs';
 import { setColorSchemeChoice, useColorSchemeChoice } from '../lib/theme';
 import { CODE_THEMES, setCodeTheme, useCodeTheme } from '../lib/codeTheme';
 import { useVault, vault } from '../data/vault';
@@ -30,6 +31,64 @@ import { AccentPicker } from './AccentPicker';
 import { DEMO } from '../demo/demoApi';
 import { SettingsNav, useSettingsNavInPanel, type SettingsSection } from './SettingsNav';
 import { PageBody, PageHeader } from './PageHeader';
+
+/** Optional display name, shown instead of the username (GitLab sign-in fills it in while it is empty) */
+function DisplayNameField({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
+  const lang = useLang();
+  const [value, setValue] = useState(me.displayName ?? '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [saved, setSaved] = useState(false);
+  useEffect(() => setValue(me.displayName ?? ''), [me.displayName]);
+  const dirty = value.trim() !== (me.displayName ?? '');
+  const save = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      onMe(await setDisplayName(value.trim() || null));
+      setSaved(true);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form
+      className="pt-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (dirty) void save();
+      }}
+    >
+      <label htmlFor="display-name" className="block text-label-l text-muted">
+        {tl(lang, 'settings.displayNameTitle')}
+      </label>
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <input
+          id="display-name"
+          className="input min-w-0 flex-1 sm:max-w-sm"
+          value={value}
+          maxLength={80}
+          autoComplete="name"
+          placeholder={me.username}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setSaved(false);
+          }}
+          data-display-name
+        />
+        <button type="submit" className="btn-tonal" disabled={busy || !dirty}>
+          {busy ? <Loader2 size={16} className="animate-spin" /> : null}
+          {tl(lang, 'common.save')}
+        </button>
+        {saved && !dirty && <span className="text-body-s text-muted">{tl(lang, 'settings.displayNameSaved')}</span>}
+      </div>
+      <p className="mt-1 text-body-s text-muted">{tl(lang, 'settings.displayNameHint')}</p>
+      {err && <p className="pt-1 text-sm text-error">{err}</p>}
+    </form>
+  );
+}
 
 function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   const lang = useLang();
@@ -81,7 +140,7 @@ function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
           aria-label={me.avatarUrl ? tl(lang, 'settings.profileChange') : tl(lang, 'settings.profileUpload')}
           className="group relative self-start rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
-          <Avatar name={me.username} avatarUrl={me.avatarUrl} size="xl" />
+          <Avatar name={me.displayName || me.username} avatarUrl={me.avatarUrl} size="xl" />
           <span className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface-container-low bg-secondary-container text-on-secondary-container shadow-soft transition-transform group-hover:scale-105">
             {busy ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
           </span>
@@ -90,6 +149,7 @@ function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-body-m font-medium text-text">{tl(lang, 'settings.profileTitle')}</h2>
+            {me.displayName && <span className="text-body-m text-text">{me.displayName}</span>}
             <span className="chip">{me.username}</span>
           </div>
           <p className="text-xs text-on-surface-variant">{tl(lang, 'settings.profileHint')}</p>
@@ -117,6 +177,7 @@ function ProfileSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
           {err && <p className="pt-1 text-sm text-error">{err}</p>}
         </div>
       </div>
+      {!me.standalone && <DisplayNameField me={me} onMe={onMe} />}
 
       <input
         ref={inputRef}
@@ -185,6 +246,7 @@ export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (m
   const ligatures = useLigatures();
   const codeBlocks = useCodeBlockPrefs();
   const editorFontSize = useEditorFontSize();
+  const noteWidth = useNoteWidth();
   const colorScheme = useColorSchemeChoice();
   const codeTheme = useCodeTheme();
   const inPanel = useSettingsNavInPanel();
@@ -197,7 +259,7 @@ export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (m
   if (!section || (!inPanel && path === '/settings')) {
     return (
       <div>
-        <PageHeader title={tl(lang, 'settings.title')} subtitle={me.username} />
+        <PageHeader title={tl(lang, 'settings.title')} subtitle={me.displayName || me.username} />
         <PageBody className="max-w-[760px] !mx-0">
           <SettingsNav me={me} />
           <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
@@ -416,6 +478,15 @@ export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (m
                   </button>
                 ))}
               </div>
+            </SettingRow>
+            <SettingRow title={tl(lang, 'settings.noteWidthTitle')} desc={tl(lang, 'settings.noteWidthDesc')}>
+              <Dropdown
+                className="shrink-0 self-start sm:w-56 sm:self-auto"
+                aria-label={tl(lang, 'settings.noteWidthTitle')}
+                value={noteWidth}
+                options={NOTE_WIDTHS.map((w) => ({ value: w, label: tl(lang, `settings.noteWidth.${w}` as I18nKey) }))}
+                onChange={(v) => setNoteWidth(v as NoteWidth)}
+              />
             </SettingRow>
             <SwitchRow
               id="ligatures-switch"

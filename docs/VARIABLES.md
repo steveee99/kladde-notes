@@ -13,6 +13,8 @@ Variables hold values that many notes share: a customer, a host name, the addres
 ```
 
 - `{{var:name}}` shows the value, `{{var:name|fallback}}` the fallback when the variable is not defined. Without either the placeholder stays visible, marked as unknown.
+- `!{{var:name}}` (or `!{{name}}`) is no placeholder: the value is put into the text once, when it is typed, pasted or completed, and when a note is made from a template (also over MCP). Use it for what should stay as it was, e.g. `!{{today}}` for the day a note was written. Inside code it stays as written; without a value it stays as well.
+- Placeholders in the frontmatter show their value in the properties row and in the fields of databases and note types; while a field is edited it shows the placeholder.
 - Names consist of letters, digits, `_`, `-` and `.` and are matched without upper and lower case.
 - Values are plain text: Markdown or HTML in them is not interpreted. A value that is a web address becomes a link. In links and images, values are part of the address (no spaces in the placeholder there).
 - Nothing is filled in inside code, formulas, `[[links]]`, query results and the frontmatter; a database shows values in its cells where they are not input fields. In a Markdown table write the bar of a fallback as `\|`.

@@ -20,6 +20,7 @@ interface PresenceDeps {
 interface UserInfo {
   username: string;
   avatarUrl: string | null;
+  displayName?: string | null;
 }
 
 interface Sender {
@@ -109,7 +110,7 @@ export class Presence {
     const out: PresenceViewer[] = [];
     for (const [userId, clients] of byUser) {
       const user = this.userOf(userId);
-      if (user) out.push({ userId, username: user.username, avatarUrl: user.avatarUrl, clients });
+      if (user) out.push({ userId, username: user.username, avatarUrl: user.avatarUrl, ...(user.displayName ? { displayName: user.displayName } : {}), clients });
     }
     return out.sort((a, b) => a.username.localeCompare(b.username));
   }

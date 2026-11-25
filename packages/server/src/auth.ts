@@ -155,6 +155,7 @@ export function authRouter(opts: AuthOptions): express.Router {
       hasPassword: user.hasPassword,
       isAdmin: user.isAdmin,
       avatarUrl: user.avatarUrl,
+      displayName: user.displayName,
         accent: user.accent,
       externalLogins: users.externalLoginsOf(user.id),
       transcription: !!opts.transcription,

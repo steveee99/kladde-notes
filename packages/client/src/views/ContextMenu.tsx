@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreVertical } from '../lib/icons';
+import { CheckBoxBlank, CheckSquare, MoreVertical } from '../lib/icons';
 
 export interface MenuAction {
   icon: React.ComponentType<{ size?: number; className?: string }>;
@@ -9,6 +9,10 @@ export interface MenuAction {
   /** Shown in the error color (delete) */
   danger?: boolean;
   title?: string;
+  /** A checkbox item: shows its state and keeps the menu open when toggled */
+  checked?: boolean;
+  /** Extra attributes of the item (`data-*` hooks for tests) */
+  attrs?: Record<string, string>;
 }
 
 /** Where a menu opens: below a button or at the pointer (right click) */
@@ -77,7 +81,7 @@ export function ContextMenu({
     window.addEventListener('resize', close);
     window.addEventListener('wheel', onScroll, { capture: true, passive: true });
     window.addEventListener('touchmove', onScroll, { capture: true, passive: true });
-    requestAnimationFrame(() => ref.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus());
+    requestAnimationFrame(() => ref.current?.querySelector<HTMLButtonElement>('[role^="menuitem"]')?.focus());
     return () => {
       document.removeEventListener('pointerdown', onDown, true);
       document.removeEventListener('keydown', onKey, true);
@@ -104,28 +108,34 @@ export function ContextMenu({
         }
         if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
         e.preventDefault();
-        const items = [...(ref.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])];
+        const items = [...(ref.current?.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]') ?? [])];
         const i = items.indexOf(document.activeElement as HTMLButtonElement);
         const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length;
         items[next]?.focus();
       }}
     >
-      {actions.map((a) => (
+      {actions.map((a) => {
+        const box = a.checked !== undefined;
+        const Icon = box ? (a.checked ? CheckSquare : CheckBoxBlank) : a.icon;
+        return (
         <button
           key={a.label}
           type="button"
-          role="menuitem"
+          role={box ? 'menuitemcheckbox' : 'menuitem'}
+          aria-checked={box ? a.checked : undefined}
           title={a.title}
-          className={`m3-menu-item w-full text-left ${a.danger ? '!text-error [&_svg]:!text-error' : ''}`}
+          {...a.attrs}
+          className={`m3-menu-item w-full text-left ${a.danger ? '!text-error [&_svg]:!text-error' : ''} ${box && a.checked ? '[&_svg]:!text-acc' : ''}`}
           onClick={() => {
-            onClose();
+            if (!box) onClose();
             a.onSelect();
           }}
         >
-          <a.icon size={18} className="shrink-0" />
+          <Icon size={18} filled={box && a.checked} className="shrink-0" />
           <span className="min-w-0 flex-1 truncate">{a.label}</span>
         </button>
-      ))}
+        );
+      })}
     </div>,
     document.body
   );
@@ -135,7 +145,7 @@ export function ContextMenu({
  * Item menu for a tree row: returns the props for the row (right click, Shift+F10 / the context menu key)
  * and a three-dot button plus the open menu. With no actions there is neither button nor menu.
  */
-export function useItemMenu(actions: MenuAction[], label: string) {
+export function useItemMenu(actions: MenuAction[], label: string, opts: { buttonClass?: string; iconSize?: number; id?: string } = {}) {
   const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const enabled = actions.length > 0;
@@ -161,7 +171,8 @@ export function useItemMenu(actions: MenuAction[], label: string) {
     <button
       ref={buttonRef}
       type="button"
-      className="shrink-0 rounded-full p-1 hover:bg-surface-container-low hover:text-on-surface"
+      className={opts.buttonClass ?? 'shrink-0 rounded-full p-1 hover:bg-surface-container-low hover:text-on-surface'}
+      data-item-menu={opts.id}
       title={label}
       aria-label={label}
       aria-haspopup="menu"
@@ -171,10 +182,21 @@ export function useItemMenu(actions: MenuAction[], label: string) {
         setAnchor(anchor ? null : { rect: e.currentTarget.getBoundingClientRect() });
       }}
     >
-      <MoreVertical size={15} />
+      <MoreVertical size={opts.iconSize ?? 15} />
     </button>
   ) : null;
 
   const menu = anchor ? <ContextMenu anchor={anchor} actions={actions} label={label} onClose={close} returnFocus={buttonRef.current} /> : null;
   return { rowProps, button, menu, open: !!anchor };
+}
+
+/** A three-dot button with its menu, for page headers (a folder's less frequent actions) */
+export function MenuButton({ actions, label, id }: { actions: MenuAction[]; label: string; id?: string }) {
+  const { button, menu } = useItemMenu(actions, label, { buttonClass: 'btn-icon shrink-0', iconSize: 22, id });
+  return (
+    <>
+      {button}
+      {menu}
+    </>
+  );
 }

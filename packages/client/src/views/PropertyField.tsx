@@ -1,4 +1,4 @@
-import { formatDbValue, isHiddenPath, linkTarget, type DbProperty, type DbValue } from '@kladde/shared';
+import { formatDbValue, hasVariables, isHiddenPath, linkTarget, type DbProperty, type DbValue } from '@kladde/shared';
 import { vault } from '../data/vault';
 import { navigate } from '../lib/router';
 import { t } from '../lib/i18n';
@@ -21,7 +21,7 @@ export function LinkTargets() {
   );
 }
 
-/** The field of one typed property (database cells, panels of custom note types); `fill` fills variables in where the text cannot be edited */
+/** The field of one typed property (database cells, panels of custom note types); `fill` fills variables in (inputs show the placeholder while focused) */
 export function PropertyField({
   prop,
   value,
@@ -75,16 +75,27 @@ export function PropertyField({
     }
     return <span className="break-words">{fill ? fill(shown) : shown}</span>;
   }
+  // Text with variables shows their values; while it has the focus the placeholder is edited
+  const filled = inputType === 'text' && fill && hasVariables(shown) ? fill(shown) : shown;
   return (
     <input
-      key={shown}
+      key={`${shown}\n${filled}`}
       type={inputType}
       step={prop.type === 'number' ? 'any' : undefined}
       className="input !min-h-0 !py-1"
       aria-label={label}
-      defaultValue={shown}
+      title={filled !== shown ? shown : undefined}
+      defaultValue={filled}
       list={prop.type === 'link' ? 'db-link-targets' : undefined}
-      onBlur={(e) => e.target.value !== shown && save(e.target.value === '' ? null : prop.type === 'number' ? Number(e.target.value) : e.target.value)}
+      onFocus={(e) => filled !== shown && e.target.value === filled && (e.target.value = shown)}
+      onBlur={(e) => {
+        const v = e.target.value;
+        if (v === shown) {
+          e.target.value = filled;
+          return;
+        }
+        save(v === '' ? null : prop.type === 'number' ? Number(v) : v);
+      }}
       onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
     />
   );

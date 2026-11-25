@@ -117,7 +117,7 @@ import { ParaBar } from './ParaBar';
 import { NoteTypePanel, NoteTypeSheet, UnknownNoteType } from './NoteTypePanel';
 import { typeOfNote } from '../data/noteTypes';
 import { MemoryPanel } from './MemoryPanel';
-import { TicketBacklinks, TicketPanel } from './TicketPanel';
+import { MilestoneTickets, TicketBacklinks, TicketPanel } from './TicketPanel';
 import { milestoneOfNote, ticketOfNote, ticketsDocumentedIn, type TicketInfo } from '../data/tickets';
 import { Graph, GraphLegend } from './Graph';
 import { Sheet } from './Dialogs';
@@ -1775,6 +1775,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               {sideType && noteType && typePanel(noteType, 'right')}
             </div>
           )}
+          {!focus && <MilestoneTickets noteId={id} />}
           {/* "Edit as text" and fullscreen live inside the canvas, so the drawing gets the room */}
           {showDrawing && (
             <Suspense fallback={<div className="flex min-h-[60vh] flex-1 items-center justify-center text-sm text-on-surface-variant">{t('common.loading')}</div>}>

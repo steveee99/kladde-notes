@@ -25,6 +25,7 @@ import {
   type QueryRow,
   type TaskStatus,
   type VariableScope,
+  hasVariables,
   resolveVariables,
 } from '@kladde/shared';
 import { copyText } from '../lib/clipboard';
@@ -1091,8 +1092,8 @@ export class AutoLinkWidget extends WidgetType {
       e.preventDefault();
       editorHost.openWiki(this.target);
     });
+    // A chip: the wand first (a click makes it a regular link), then the text in the accent color
     s.append(
-      text,
       magicLinkButton(
         view,
         this.target,
@@ -1106,7 +1107,8 @@ export class AutoLinkWidget extends WidgetType {
           }
         },
         this.lang
-      )
+      ),
+      text
     );
     return s;
   }
@@ -1486,15 +1488,19 @@ const PROP_KEY = /^[\p{L}\p{N}_][\p{L}\p{N}_ -]*$/u;
  * a click on the empty area opens the raw YAML.
  */
 export class PropertiesWidget extends WidgetType {
+  /** The frontmatter with its variables filled in, so a changed value redraws the row */
+  readonly shown: string;
   constructor(
     readonly src: string,
     readonly lang: Lang = getLang(),
-    readonly canEdit = false
+    readonly canEdit = false,
+    readonly variables: VariableScope | null = null
   ) {
     super();
+    this.shown = variables ? resolveVariables(src, variables) : src;
   }
   eq(o: PropertiesWidget) {
-    return o.src === this.src && o.lang === this.lang && o.canEdit === this.canEdit;
+    return o.src === this.src && o.shown === this.shown && o.lang === this.lang && o.canEdit === this.canEdit;
   }
   toDOM(view: EditorView) {
     const wrap = document.createElement('div');
@@ -1503,6 +1509,9 @@ export class PropertiesWidget extends WidgetType {
     const lines = this.src.split('\n');
     const stop = (el: HTMLElement) => el.addEventListener('mousedown', (e) => e.stopPropagation());
     let focusTarget: HTMLInputElement | null = null;
+    const scope = this.variables;
+    // Values show their variables filled in; an input shows the placeholder while it has the focus
+    const fill = (text: string) => (scope && hasVariables(text) ? resolveVariables(text, scope) : text);
     lines.forEach((line, i) => {
       const m = /^([^:\s][^:]*):\s*(.*)$/.exec(line);
       if (!m) return;
@@ -1520,9 +1529,23 @@ export class PropertiesWidget extends WidgetType {
       if (editable && !block.length) {
         const input = document.createElement('input');
         input.className = 'wz-prop-value wz-prop-input';
-        input.value = value;
+        const filled = fill(value);
+        input.value = filled;
+        if (filled !== value) {
+          input.title = value;
+          input.classList.add('wz-prop-filled');
+          const fit = () => (input.size = Math.max(4, Math.min(input.value.length + 1, 40)));
+          input.addEventListener('focus', () => {
+            if (input.value === filled) input.value = value;
+            fit();
+          });
+          input.addEventListener('blur', () => {
+            if (input.value === value) input.value = filled;
+            fit();
+          });
+        }
         input.placeholder = '—';
-        input.size = Math.max(4, Math.min(value.length + 1, 40));
+        input.size = Math.max(4, Math.min(filled.length + 1, 40));
         input.setAttribute('aria-label', key);
         input.spellcheck = false;
         const suggestions = PROP_SUGGESTIONS[key.toLowerCase()];
@@ -1565,7 +1588,7 @@ export class PropertiesWidget extends WidgetType {
       } else {
         const v = document.createElement('span');
         v.className = 'wz-prop-value';
-        v.textContent = (block.length ? block.join(', ') : value) || '—';
+        v.textContent = fill(block.length ? block.join(', ') : value) || '—';
         item.append(v);
       }
       wrap.append(item);

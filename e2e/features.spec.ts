@@ -26,7 +26,9 @@ test('the features dialog lists available and active features and switches them'
   });
   await page.goto(`/f/${encodeURIComponent(folder)}`);
   await expect(page.getByRole('heading', { name: folder })).toBeVisible({ timeout: 15_000 });
+  await page.locator('[data-item-menu="folder"]').click();
   await expect(page.locator('[data-make-database]')).toHaveCount(0);
+  await page.keyboard.press('Escape');
 
   // Activating moves it to the active ones and opens it; the button appears
   await page.goto('/settings');
@@ -40,7 +42,9 @@ test('the features dialog lists available and active features and switches them'
   await expect(dialog.getByRole('tab', { name: /Available features/ })).not.toHaveText(available!);
   await page.keyboard.press('Escape');
   await page.goto(`/f/${encodeURIComponent(folder)}`);
+  await page.locator('[data-item-menu="folder"]').click();
   await expect(page.locator('[data-make-database]')).toBeVisible();
+  await page.keyboard.press('Escape');
 
   // Deactivating hides it again
   await page.goto('/settings');
@@ -52,7 +56,9 @@ test('the features dialog lists available and active features and switches them'
   await page.keyboard.press('Escape');
   await page.goto(`/f/${encodeURIComponent(folder)}`);
   await expect(page.getByRole('heading', { name: folder })).toBeVisible();
+  await page.locator('[data-item-menu="folder"]').click();
   await expect(page.locator('[data-make-database]')).toHaveCount(0);
+  await page.keyboard.press('Escape');
 });
 
 test('a feature with settings shows them on a second tab while it is active', async ({ openAs }) => {

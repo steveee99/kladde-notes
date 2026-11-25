@@ -99,6 +99,8 @@ export function inAllowedGroups(groups: string[], allowed: string[]): boolean {
 interface GitLabUser {
   sub: string;
   username: string;
+  /** The full name at GitLab (OIDC `name`), if it sends one */
+  name: string;
   groups: string[];
 }
 
@@ -186,11 +188,16 @@ export function gitlabRouter(opts: GitLabRouterOptions): express.Router {
     const token = (await tokenRes.json().catch(() => ({}))) as { access_token?: string };
     if (!tokenRes.ok || !token.access_token) throw new AccountError('GitLab hat die Anmeldung nicht bestätigt.', 401);
     const infoRes = await doFetch(`${config.internalUrl}/oauth/userinfo`, { headers: { Authorization: `Bearer ${token.access_token}`, Accept: 'application/json' } });
-    const info = (await infoRes.json().catch(() => ({}))) as { sub?: unknown; nickname?: unknown; preferred_username?: unknown; groups?: unknown };
+    const info = (await infoRes.json().catch(() => ({}))) as { sub?: unknown; nickname?: unknown; preferred_username?: unknown; name?: unknown; groups?: unknown };
     if (!infoRes.ok || (typeof info.sub !== 'string' && typeof info.sub !== 'number')) throw new AccountError('GitLab-Benutzer konnte nicht gelesen werden.', 401);
     const username = String(info.preferred_username ?? info.nickname ?? '');
     const groups = Array.isArray(info.groups) ? info.groups.filter((g): g is string => typeof g === 'string') : [];
-    return { sub: String(info.sub), username, groups };
+    return { sub: String(info.sub), username, name: typeof info.name === 'string' ? info.name : '', groups };
+  };
+
+  /** An account without a display name takes the one from GitLab (never overwrites a name the user set) */
+  const adoptName = (user: { id: string; displayName: string | null }, gl: GitLabUser) => {
+    if (!user.displayName && gl.name.trim()) users.setDisplayName(user.id, gl.name);
   };
 
   router.get('/callback', limit, async (req, res) => {
@@ -219,6 +226,7 @@ export function gitlabRouter(opts: GitLabRouterOptions): express.Router {
         const user = users.userForSession(readCookie(req, SESSION_COOKIE));
         if (!user || user.id !== flow.userId) return fail('Bitte zuerst anmelden.');
         users.linkExternal(user.id, GITLAB, gl.sub, gl.username);
+        adoptName(user, gl);
         audit.record('external_linked', { userId: user.id, username: user.username, ip: req.ip, detail: `gitlab ${gl.username}` });
         return finish(res, '/settings', { gitlab: 'linked' });
       }
@@ -229,6 +237,7 @@ export function gitlabRouter(opts: GitLabRouterOptions): express.Router {
           audit.record('login_blocked', { userId: linked.id, username: linked.username, ip: req.ip, detail: 'gitlab' });
           return fail('Dieses Konto ist gesperrt.');
         }
+        adoptName(linked, gl);
         opts.onSignedIn(req, res, linked, 'login');
         return finish(res, '/', {});
       }
@@ -241,6 +250,7 @@ export function gitlabRouter(opts: GitLabRouterOptions): express.Router {
       }
       const user = users.createUser(users.availableUsername(gl.username || 'gitlab'));
       users.linkExternal(user.id, GITLAB, gl.sub, gl.username);
+      adoptName(user, gl);
       if (invite) users.useInvite(invite, user.id);
       opts.onSignedIn(req, res, user, 'register');
       return finish(res, '/', {});

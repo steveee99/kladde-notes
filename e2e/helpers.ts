@@ -159,6 +159,12 @@ export async function expectDatabasesHidden(page: Page, group: DatabaseGroup): P
   const none = () => expect(page.getByText('_database')).toHaveCount(0);
   await page.goto(`/g/${group.id}/Plan`);
   await expect(page.locator(`[data-project="${group.key}"]`).getByText(group.ticket, { exact: true }).first()).toBeVisible({ timeout: 15_000 });
+  // Tickets are in the folder tree only once switched on (per browser)
+  await expect(tree.getByText(group.ticket, { exact: true })).toHaveCount(0);
+  await page.locator('[data-item-menu="tree"]').click();
+  await page.locator('[data-tree-option="tickets"]').click();
+  await expect(page.locator('[data-tree-option="tickets"]')).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('Escape');
   await expect(tree.getByText(group.ticket, { exact: true })).toBeVisible();
   await none();
   await page.goto(`/g/${group.id}`);

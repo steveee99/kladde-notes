@@ -11,9 +11,9 @@ import { gitlabConfigFromEnv, inAllowedGroups, type GitLabConfig } from '../src/
 const GITLAB_URL = 'https://gitlab.example.org';
 
 /** Fake GitLab: every code maps to a user; the token is the code itself */
-const gitlabUsers: Record<string, { sub: number; preferred_username: string; groups: string[] }> = {
-  'code-anna': { sub: 11, preferred_username: 'anna', groups: ['team'] },
-  'code-new': { sub: 22, preferred_username: 'neu.ling', groups: ['team/sub'] },
+const gitlabUsers: Record<string, { sub: number; preferred_username: string; name?: string; groups: string[] }> = {
+  'code-anna': { sub: 11, preferred_username: 'anna', name: 'Anna Adler', groups: ['team'] },
+  'code-new': { sub: 22, preferred_username: 'neu.ling', name: 'Neu Ling', groups: ['team/sub'] },
   'code-outsider': { sub: 33, preferred_username: 'fremd', groups: ['other'] },
 };
 const fakeFetch = (async (input: string | URL, init?: RequestInit) => {
@@ -118,7 +118,17 @@ describe('GitLab sign-in', () => {
     const login = await signInWith('code-anna');
     expect(login.location).toBe('/');
     const me = await fetch(`${base}/api/auth/me`, { headers: { Cookie: login.cookies } });
-    expect((await me.json()).username).toBe('anna');
+    const body = await me.json();
+    expect(body.username).toBe('anna');
+    // The existing account had no display name: it takes the one from GitLab
+    expect(body.displayName).toBe('Anna Adler');
+  });
+
+  it('never overwrites a display name the user set', async () => {
+    const anna = users.findByUsername('anna')!;
+    users.setDisplayName(anna.id, 'Annie');
+    await signInWith('code-anna');
+    expect(users.getUser(anna.id)?.displayName).toBe('Annie');
   });
 
   it('creates an account from an invite and blocks users outside the allowed groups', async () => {
@@ -130,6 +140,7 @@ describe('GitLab sign-in', () => {
     expect(created.location).toBe('/');
     const user = users.findByUsername('neu.ling')!;
     expect(users.externalLoginsOf(user.id)).toHaveLength(1);
+    expect(user.displayName).toBe('Neu Ling');
     expect(users.listInvites().find((i) => i.code === invite)?.usedBy).toBe('neu.ling');
   });
 

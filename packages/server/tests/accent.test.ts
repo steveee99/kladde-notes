@@ -65,3 +65,33 @@ describe('accent color', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('display name', () => {
+  const putName = (displayName: unknown, withCookie = true) =>
+    fetch(`${base}/api/me/display-name`, { method: 'PUT', headers: { ...(withCookie ? { Cookie: cookie } : {}), 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName }) });
+
+  it('is empty until the user sets one', () => {
+    expect(users.getUser(anna.id)?.displayName).toBeNull();
+  });
+
+  it('stores one line, trimmed and bounded', async () => {
+    const res = await putName('  Anna \n Adler\u0000 ');
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as Me).displayName).toBe('Anna Adler');
+    await putName('x'.repeat(200));
+    expect(users.getUser(anna.id)?.displayName).toHaveLength(80);
+  });
+
+  it('removes it with an empty value or null', async () => {
+    await putName('');
+    expect(users.getUser(anna.id)?.displayName).toBeNull();
+    await putName('Anna');
+    await putName(null);
+    expect(users.getUser(anna.id)?.displayName).toBeNull();
+  });
+
+  it('refuses other types and needs a session', async () => {
+    expect((await putName(42)).status).toBe(400);
+    expect((await putName('Anna', false)).status).toBe(401);
+  });
+});

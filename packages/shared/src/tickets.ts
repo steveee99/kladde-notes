@@ -302,6 +302,42 @@ export function statusCategory(project: Pick<ProjectConfig, 'active' | 'done'>, 
 }
 
 /** Content of the database note of a new project: the ticket properties, a board and a backlog view */
+/**
+ * "Make project" on a folder: the tickets and milestones go into its subfolder `Issues` (the project folder in the
+ * data model), next to them a home note `<name>-Home` and `Docs/Index`. Projects made before keep their layout.
+ */
+export const ISSUES_FOLDER = 'Issues';
+export const DOCS_FOLDER = 'Docs';
+
+/** The name a project is shown with: its folder, or for `…/Issues` the folder above */
+export function projectDisplayName(folder: string): string {
+  const parts = folder.split('/').filter(Boolean);
+  const last = parts[parts.length - 1] ?? folder;
+  return last.toLowerCase() === ISSUES_FOLDER.toLowerCase() && parts.length > 1 ? parts[parts.length - 2] : last;
+}
+
+/** Folder name without a PARA/Johnny-Decimal number in front ("1 Projekte" → "Projekte") */
+const plainName = (name: string): string => name.replace(/^\d+[\s._-]*/, '').trim() || name;
+
+/** The start of a new project's home note; `folder` is the project's folder in its space */
+export function projectHomeContent(folder: string, key: string, lang: 'de' | 'en' = 'de'): string {
+  const name = plainName(folder.split('/').pop() ?? folder);
+  const issues = `${folder}/${ISSUES_FOLDER}`;
+  const docs = `${folder}/${DOCS_FOLDER}`;
+  if (lang === 'en') {
+    return `# ${name}\n\n> Home of the project ${name} (${key}).\n\n## Goal\n\n- \n\n## Links\n\n- Documentation: [[${docs}/Index|Docs]]\n- Tickets and milestones: folder \`${issues}\`\n\n## Open tickets\n\n\`\`\`query\nTABLE id, status, assignee\nFROM "${issues}"\nWHERE type = "ticket" AND status != "Done"\nSORT updated DESC\nLIMIT 15\n\`\`\`\n\n## Notes\n\n`;
+  }
+  return `# ${name}\n\n> Startseite des Projekts ${name} (${key}).\n\n## Ziel\n\n- \n\n## Links\n\n- Dokumentation: [[${docs}/Index|Docs]]\n- Tickets und Meilensteine: Ordner \`${issues}\`\n\n## Offene Tickets\n\n\`\`\`query\nTABLE id, status, assignee\nFROM "${issues}"\nWHERE type = "ticket" AND status != "Erledigt"\nSORT updated DESC\nLIMIT 15\n\`\`\`\n\n## Notizen\n\n`;
+}
+
+/** The index note of a new project's `Docs` folder */
+export function projectDocsIndexContent(folder: string, lang: 'de' | 'en' = 'de'): string {
+  const name = plainName(folder.split('/').pop() ?? folder);
+  const docs = `${folder}/${DOCS_FOLDER}`;
+  if (lang === 'en') return `# Index\n\nDocumentation of ${name}.\n\n\`\`\`query\nLIST\nFROM "${docs}"\nSORT title\n\`\`\`\n`;
+  return `# Index\n\nDokumentation zu ${name}.\n\n\`\`\`query\nLIST\nFROM "${docs}"\nSORT title\n\`\`\`\n`;
+}
+
 export function newProjectContent(key: string, lang: 'de' | 'en' = 'de', requireDocs = false): string {
   const wf = defaultWorkflow(lang);
   const en = lang === 'en';

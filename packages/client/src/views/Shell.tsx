@@ -41,6 +41,8 @@ import {
   Trash2,
   Users,
   Variables,
+  Flag,
+  CheckBoxBlank,
 } from '../lib/icons';
 import {
   isExcalidrawNote,
@@ -59,7 +61,9 @@ import { reviewDue } from './Review';
 import { urgentTaskCount } from './TaskParts';
 import { usePendingUploads } from '../data/uploads';
 import { useVault, vault } from '../data/vault';
-import { ticketsAnywhere } from '../data/tickets';
+import { milestoneOfNote, ticketOfNote, ticketsAnywhere } from '../data/tickets';
+import { setTreePrefs, useTreePrefs, type TreePrefs } from '../lib/treePrefs';
+import { KindIcon } from './TicketKind';
 import { openThisPeriod } from './PeriodicNoteBar';
 import { NewMark } from './ActivityView';
 import type { LocalNote } from '../data/db';
@@ -77,7 +81,7 @@ import { ConfluenceDialog } from './ConfluenceDialog';
 import { useConfluenceConnected } from '../lib/confluence';
 import { getFocusMode, setFocusMode, toggleFocusMode } from '../lib/focus';
 import { editorHost } from '../editor/host';
-import { compareText, folderDisplayName, locale, t, useLang, type Lang } from '../lib/i18n';
+import { compareText, folderDisplayName, locale, t, useLang, type I18nKey, type Lang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
 import { createDrawingNote, createPdfNote } from '../lib/newNote';
 import { DEMO } from '../demo/demoApi';
@@ -400,6 +404,9 @@ function SidebarNoteRow({
   onNavigate?: () => void;
 }) {
   const name = label ?? splitPath(note.path).name;
+  // Tickets and milestones show their type and status instead of the note icon
+  const ticket = ticketOfNote(note.id);
+  const milestone = ticket ? undefined : milestoneOfNote(note.id);
   const Icon = remoteNoteOf(note.content) ? RemoteDoc : pdfNoteOf(note.content) ? FileType2 : isExcalidrawNote(note.content) ? Draw : FileText;
   const icon = vault.noteIcon(note);
   const openNote = () => {
@@ -464,7 +471,11 @@ function SidebarNoteRow({
               : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
         }`}
       >
-        {icon ? (
+        {ticket ? (
+          <KindIcon kind={ticket.meta.kind} size={14} />
+        ) : milestone ? (
+          <Flag size={14} className="shrink-0 text-acc" aria-label={t('tickets.milestone')} />
+        ) : icon ? (
           <ItemIcon icon={icon} size={14} />
         ) : (
           <Icon
@@ -474,6 +485,16 @@ function SidebarNoteRow({
         )}
         <span className="min-w-0 flex-1 truncate">{name}</span>
         <NewMark noteId={note.id} />
+        {ticket && (
+          <span className={`tree-status pill max-w-[6.5rem] shrink-0 truncate !px-1.5 !py-0 text-[11px] font-medium ${ticket.blockedBy.length && ticket.category !== 'done' ? 'bg-red-bg text-red' : ticket.category === 'done' ? 'bg-green-bg text-green' : ticket.category === 'active' ? 'bg-acc-bg text-acc-hi' : 'bg-raised text-soft'}`} data-tree-status>
+            {ticket.blockedBy.length && ticket.category !== 'done' ? t('tickets.blocked') : ticket.meta.status || t('tickets.noStatus')}
+          </span>
+        )}
+        {milestone && (
+          <span className={`tree-status pill max-w-[6.5rem] shrink-0 truncate !px-1.5 !py-0 text-[11px] font-medium ${milestone.state === 'done' ? 'bg-green-bg text-green' : milestone.state === 'active' ? 'bg-acc-bg text-acc-hi' : milestone.state === 'cancelled' ? 'bg-raised text-faint line-through' : 'bg-raised text-soft'}`} data-tree-status>
+            {t(`tickets.milestoneStatus.${milestone.state}` as I18nKey)}
+          </span>
+        )}
       </div>
       {menu.button && (
         <span className={`absolute right-1.5 top-1/2 -translate-y-1/2 ${menu.open ? 'flex' : 'hidden group-hover/note:flex group-focus-within/note:flex'}`}>{menu.button}</span>
@@ -695,8 +716,9 @@ function GroupFolderStar({ groupId, folder }: { groupId: string; folder: string 
 function GroupTreeItem({ groupId, current, activeNoteId, onNavigate }: { groupId: string; current: string; activeNoteId: string | null; onNavigate?: () => void }) {
   const group = vault.group(groupId)!;
   const all = vault.groupNotes(groupId);
-  // Like in the own folder tree: database notes are settings of their folder
-  const notes = all.filter((n) => !isHiddenPath(n.path));
+  // Like in the own folder tree: database notes are settings of their folder; tickets and milestones as switched on
+  const treePrefs = useTreePrefs();
+  const notes = all.filter((n) => !isHiddenPath(n.path) && inTree(n, treePrefs));
   const folders = vault.groupFolders(groupId);
   const expandable = notes.length > 0 || folders.length > 0;
   const activeNote = activeNoteId ? all.find((n) => n.id === activeNoteId) : undefined;
@@ -953,6 +975,48 @@ const folderOrder = new Map<string, { lang: string; ids: string[]; names: string
 let grouped: { stamp: number; lang: string; ids: Map<string, string[]> } | null = null;
 
 /** Own notes by folder (database notes left out), each list sorted by name */
+/** Tickets and milestones are in the tree only when switched on (finished ones only with "show finished") */
+function inTree(n: LocalNote, prefs: TreePrefs): boolean {
+  const tk = ticketOfNote(n.id);
+  if (tk) return prefs.tickets && (prefs.done || tk.category !== 'done');
+  const m = milestoneOfNote(n.id);
+  if (m) return prefs.milestones && (prefs.done || (m.state !== 'done' && m.state !== 'cancelled'));
+  return true;
+}
+
+function filterTree(map: Map<string, LocalNote[]>, prefs: TreePrefs): Map<string, LocalNote[]> {
+  if (!ticketsAnywhere()) return map;
+  const out = new Map<string, LocalNote[]>();
+  for (const [folder, list] of map) out.set(folder, list.filter((n) => inTree(n, prefs)));
+  return out;
+}
+
+/**
+ * What the tree shows (tickets, milestones, finished ones) behind a ⋮: at the top right of the side panel on the
+ * desktop, in the folders header in the phone drawer. Applies to favorites, folders and groups alike; kept in this browser.
+ */
+function TreeOptionsMenu({ big = false }: { big?: boolean }) {
+  const prefs = useTreePrefs();
+  const box = (key: keyof TreePrefs, label: string): MenuAction => ({
+    icon: CheckBoxBlank,
+    label,
+    checked: prefs[key],
+    onSelect: () => setTreePrefs({ [key]: !prefs[key] }),
+    attrs: { 'data-tree-option': key },
+  });
+  const { button, menu } = useItemMenu(ticketsAnywhere() ? [box('tickets', t('nav.treeTickets')), box('milestones', t('nav.treeMilestones')), box('done', t('nav.treeDone'))] : [], t('nav.treeOptions'), {
+    buttonClass: big ? 'btn-icon h-8 w-8' : 'rounded p-1 text-muted transition-colors hover:bg-raised hover:text-text',
+    iconSize: big ? 18 : 14,
+    id: 'tree',
+  });
+  return (
+    <>
+      {button}
+      {menu}
+    </>
+  );
+}
+
 function groupByFolder(notes: LocalNote[], lang: Lang): Map<string, LocalNote[]> {
   const stamp = vault.getPathStamp();
   if (grouped && grouped.stamp === stamp && grouped.lang === lang) {
@@ -1082,10 +1146,11 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
     setFlashNoteId(activeNote.id);
   };
 
+  const treePrefs = useTreePrefs();
   const notesByFolder = useMemo(
-    () => groupByFolder(notes, lang),
+    () => filterTree(groupByFolder(notes, lang), treePrefs),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [version, loc]
+    [version, loc, treePrefs]
   );
   const rootNotes = notesByFolder.get('') ?? [];
 
@@ -1097,7 +1162,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
     ? vault
         .favoriteIds()
         .map((id) => vault.get(id))
-        .filter((n): n is LocalNote => !!n && !isHiddenPath(n.path))
+        .filter((n): n is LocalNote => !!n && !isHiddenPath(n.path) && inTree(n, treePrefs))
     : [];
   // Group folders (#58) as favorites: "Group/Folder"
   const favoriteGroupFolders = features.favorites.enabled ? vault.favoriteGroupFolders() : [];
@@ -1147,7 +1212,10 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
         <div className="flex min-w-0 shrink-0 items-center gap-2 pl-2">
           <span className="section-label min-w-0 flex-1 truncate">{t('nav.notes')}</span>
           <span className="font-mono text-[11px] text-muted">{ownNotes.toLocaleString(loc)}</span>
-          {headerAction}
+          <span className="flex items-center">
+            <TreeOptionsMenu big />
+            {headerAction}
+          </span>
         </div>
       ) : (
       <div className="flex min-w-0 shrink-0 items-center gap-2.5">
@@ -1296,6 +1364,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
             >
               <FolderPlus size={14} />
             </button>
+            {!panel && <TreeOptionsMenu />}
           </SectionHeader>
           <ul className={`shrink-0 ${foldersOpen ? '' : 'hidden'}`}>
             {newRoot && (

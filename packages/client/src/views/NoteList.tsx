@@ -1,7 +1,7 @@
 import { useState, useSyncExternalStore } from 'react';
 import { Activity as ActivityIcon, Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, Kanban, LayoutGrid, List, Plus, Table2, Trash2, Users, Variables } from '../lib/icons';
 import { PageBody, PageHeader } from './PageHeader';
-import { INBOX_FOLDER, archiveTarget, excerpt, extractMeta, findDatabaseNote, databaseFileName, inferPropertyKeys, isHiddenPath, newDatabaseContent, projectTitleOf, resolveVariables, restoreTarget, splitPath } from '@kladde/shared';
+import { INBOX_FOLDER, ISSUES_FOLDER, archiveTarget, excerpt, extractMeta, findDatabaseNote, databaseFileName, inferPropertyKeys, isHiddenPath, newDatabaseContent, projectTitleOf, resolveVariables, restoreTarget, splitPath } from '@kladde/shared';
 import type { SharedFolder } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
@@ -16,6 +16,8 @@ import { Avatar } from './Avatar';
 import { MoveToGroupSheet } from './Groups';
 import { DatabaseView } from './DatabaseView';
 import { MakeProjectSheet, ProjectView } from './ProjectView';
+import { useItemMenu, type MenuAction } from './ContextMenu';
+import { isReadOnly } from '../lib/readOnly';
 import { projectAt } from '../data/tickets';
 import { variablesOfNote } from '../data/variables';
 import { DEMO } from '../demo/demoApi';
@@ -354,6 +356,8 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
   const dbNote = mode === 'folder' && folder ? findDatabaseNote(folder, vault.list().filter((n) => n.access === 'owner' && !n.group)) : null;
   // A database that is a project shows board, backlog and roadmap when tickets are on
   const project = dbNote && folder ? projectAt({}, folder) : undefined;
+  // Made with "Make project" (tickets in `Issues`): the folder is no project itself, but offers it no more
+  const hasProjectBelow = mode === 'folder' && !!folder && !!projectAt({}, `${folder}/${ISSUES_FOLDER}`);
   const makeDatabase = () => {
     const keys = inferPropertyKeys(folder!, vault.list());
     void vault.create(folder!, databaseFileName(newUuid()).replace(/\.md$/, ''), newDatabaseContent(keys)).catch((err: Error) => alert(err.message));
@@ -375,6 +379,63 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
   }
   if (features.zettel.enabled) protectedFolders.add(features.zettel.folder);
 
+  const readOnly = isReadOnly();
+  const deletable = mode === 'folder' && !!folder && !protectedFolders.has(folder) && folder !== features.daily.folder;
+  const folderActions: (MenuAction | false | null | undefined | '')[] = [
+    mode === 'folder' && folder && !readOnly && !dbNote && !hasProjectBelow && features.tickets.enabled && !protectedFolders.has(folder) && {
+      icon: Kanban,
+      label: t('tickets.makeProject'),
+      title: t('tickets.makeProjectTitle'),
+      onSelect: () => setMakingProject(true),
+      attrs: { 'data-make-project': '' },
+    },
+    mode === 'folder' && folder && !readOnly && !dbNote && features.database.enabled && !protectedFolders.has(folder) && { icon: Table2, label: t('db.makeBtn'), title: t('db.makeTitle'), onSelect: makeDatabase, attrs: { 'data-make-database': '' } },
+    mode !== 'shared' && { icon: Variables, label: t('vars.label'), title: t('vars.menu'), onSelect: () => openDialog({ kind: 'variables', space: 'own', folder: folder ?? '' }), attrs: { 'data-open-variables': '' } },
+    mode === 'folder' && folder && features.activity.enabled && !vault.standalone && !DEMO && {
+      icon: ActivityIcon,
+      label: t('activity.title'),
+      title: t('activity.folderTitle'),
+      onSelect: () => navigate(activityPath({ owner: vault.actorName, folder })),
+      attrs: { 'data-open-activity': '' },
+    },
+    mode === 'folder' && folder && !readOnly && features.para.enabled && folder !== archiveRoot &&
+      (restoreDest !== null
+        ? {
+            icon: ArchiveRestore,
+            label: t('para.restoreBtn'),
+            title: t('para.restoreTitle', { folder: restoreDest ? folderDisplayName(restoreDest, lang) : t('common.topLevelPlain') }),
+            onSelect: () => void vault.restoreFolder(folder).then(() => navigate(restoreDest ? `/f/${encodeURIComponent(restoreDest)}` : '/notes', true)),
+          }
+        : !protectedFolders.has(folder) && {
+            icon: Archive,
+            label: t('para.archiveBtn'),
+            title: t('list.archiveFolderTitle'),
+            onSelect: () =>
+              confirm(t('list.archiveFolderConfirm', { folder: folderDisplayName(folder, lang) })) &&
+              void vault.archiveFolder(folder).then(() => navigate(`/f/${encodeURIComponent(archiveTarget(folder, archiveRoot))}`, true)),
+          }),
+    deletable && !readOnly && !vault.standalone && !DEMO && vault.notesInFolder(folder) > 0 && { icon: Users, label: t('groups.moveFolderBtn'), title: t('groups.moveTitle'), onSelect: () => setMovingToGroup(true), attrs: { 'data-move-folder-to-group': '' } },
+    deletable && !readOnly && {
+      icon: Trash2,
+      label: t('list.deleteFolderBtn'),
+      title: t('list.deleteFolderTitle'),
+      danger: true,
+      attrs: { 'data-delete-folder': '' },
+      onSelect: () => {
+        const n = vault.notesInFolder(folder);
+        const name = folderDisplayName(folder, lang);
+        if (!confirm(n ? t('list.deleteFolderConfirm', { folder: name, n }) : t('list.deleteEmptyFolderConfirm', { folder: name }))) return;
+        const up = folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) : '';
+        void vault.deleteFolderWithNotes(folder).then((ok) => ok && navigate(up ? `/f/${encodeURIComponent(up)}` : '/notes', true));
+      },
+    },
+  ];
+  const folderMenu = useItemMenu(
+    folderActions.filter((x): x is MenuAction => !!x),
+    t('list.folderMenu'),
+    { buttonClass: 'btn-icon shrink-0', iconSize: 22, id: 'folder' }
+  );
+
   return (
     <div>
       <PageHeader
@@ -391,75 +452,13 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
           <button className="btn-icon shrink-0" title={t('list.sortTooltip')} onClick={() => setSort(sort === 'updated' ? 'title' : 'updated')}>
             {sort === 'updated' ? <Clock size={24} /> : <ArrowDownAZ size={24} />}
           </button>
-          {mode === 'folder' && folder && features.para.enabled && folder !== archiveRoot && (
-            restoreDest !== null ? (
-              <button
-                className="edit-only btn-ghost shrink-0 phone:!px-2.5"
-                title={t('para.restoreTitle', { folder: restoreDest ? folderDisplayName(restoreDest, lang) : t('common.topLevelPlain') })}
-                onClick={() => void vault.restoreFolder(folder).then(() => navigate(restoreDest ? `/f/${encodeURIComponent(restoreDest)}` : '/notes', true))}
-              >
-                <ArchiveRestore size={16} /> <span className="hidden sm:inline">{t('para.restoreBtn')}</span>
-              </button>
-            ) : (
-              !protectedFolders.has(folder) && (
-                <button
-                  className="edit-only btn-ghost shrink-0 phone:!px-2.5"
-                  title={t('list.archiveFolderTitle')}
-                  onClick={() =>
-                    confirm(t('list.archiveFolderConfirm', { folder: folderDisplayName(folder, lang) })) &&
-                    void vault.archiveFolder(folder).then(() => navigate(`/f/${encodeURIComponent(archiveTarget(folder, archiveRoot))}`, true))
-                  }
-                >
-                  <Archive size={16} /> <span className="hidden sm:inline">{t('para.archiveBtn')}</span>
-                </button>
-              )
-            )
-          )}
-          {mode === 'folder' && folder && features.activity.enabled && !vault.standalone && !DEMO && (
-            <button className="btn-ghost shrink-0 phone:!px-2.5" title={t('activity.folderTitle')} onClick={() => navigate(activityPath({ owner: vault.actorName, folder }))} data-open-activity>
-              <ActivityIcon size={16} /> <span className="hidden sm:inline">{t('activity.title')}</span>
-            </button>
-          )}
-          {mode === 'folder' && folder && !protectedFolders.has(folder) && folder !== features.daily.folder && !vault.standalone && !DEMO && vault.notesInFolder(folder) > 0 && (
-            <button className="edit-only btn-ghost shrink-0 phone:!px-2.5" title={t('groups.moveTitle')} onClick={() => setMovingToGroup(true)} data-move-folder-to-group>
-              <Users size={16} /> <span className="hidden sm:inline">{t('groups.moveFolderBtn')}</span>
-            </button>
-          )}
-          {mode === 'folder' && folder && !protectedFolders.has(folder) && folder !== features.daily.folder && (
-            <button
-              className="edit-only btn-ghost shrink-0 hover:text-error phone:!px-2.5"
-              title={t('list.deleteFolderTitle')}
-              onClick={() => {
-                const n = vault.notesInFolder(folder);
-                const name = folderDisplayName(folder, lang);
-                if (!confirm(n ? t('list.deleteFolderConfirm', { folder: name, n }) : t('list.deleteEmptyFolderConfirm', { folder: name }))) return;
-                const up = folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) : '';
-                void vault.deleteFolderWithNotes(folder).then((ok) => ok && navigate(up ? `/f/${encodeURIComponent(up)}` : '/notes', true));
-              }}
-            >
-              <Trash2 size={16} /> <span className="hidden sm:inline">{t('list.deleteFolderBtn')}</span>
-            </button>
-          )}
-          {mode === 'folder' && folder && !dbNote && features.tickets.enabled && !protectedFolders.has(folder) && (
-            <button className="edit-only btn-ghost shrink-0 phone:!px-2.5" title={t('tickets.makeProjectTitle')} onClick={() => setMakingProject(true)} data-make-project>
-              <Kanban size={16} /> <span className="hidden sm:inline">{t('tickets.makeProject')}</span>
-            </button>
-          )}
-          {mode === 'folder' && folder && !dbNote && features.database.enabled && !protectedFolders.has(folder) && (
-            <button className="edit-only btn-ghost shrink-0 phone:!px-2.5" title={t('db.makeTitle')} onClick={makeDatabase} data-make-database>
-              <Table2 size={16} /> <span className="hidden sm:inline">{t('db.makeBtn')}</span>
-            </button>
-          )}
-          {mode !== 'shared' && (
-            <button className="btn-ghost shrink-0 phone:!px-2.5" title={t('vars.menu')} aria-label={t('vars.menu')} onClick={() => openDialog({ kind: 'variables', space: 'own', folder: folder ?? '' })} data-open-variables>
-              <Variables size={16} /> <span className="hidden sm:inline">{t('vars.label')}</span>
-            </button>
-          )}
           {mode !== 'shared' && (
             <button className="edit-only btn-tonal hidden md:inline-flex" onClick={() => newNote(folder)}>
               <Plus size={18} /> {t('list.newBtn')}
             </button>
           )}
+          {folderMenu.button}
+          {folderMenu.menu}
         </div>
         }
       />

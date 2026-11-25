@@ -426,6 +426,55 @@ export function escapeMarkdown(text: string): string {
     .replace(/^(\d{1,9})([.)])/, '$1\\$2');
 }
 
+// ------------------------------------------------------------------ inline variables: `!{{var:name}}`
+
+/**
+ * `!{{var:name}}` (or `!{{name}}`, with an optional `|fallback`) is no placeholder: its value is put into the text
+ * once, when it is typed or a note is made from a template, so a date stays the day it was written.
+ */
+const INLINE = String.raw`!\{\{(?:var:)?[ ]?(${NAME})[ ]?(?:\\?\|([^{}\n]{0,500}))?\}\}`;
+const inlineRe = () => new RegExp(INLINE, 'gu');
+
+/** Quick test before any real work */
+export const hasInlineVariables = (text: string): boolean => text.includes('!{{');
+
+/** The `!{{…}}` of a text outside code (blocks and `inline`), the frontmatter included */
+export function findInlineVariables(text: string): VariablePlaceholder[] {
+  if (!hasInlineVariables(text)) return [];
+  const out: VariablePlaceholder[] = [];
+  let fence: string | null = null;
+  let pos = 0;
+  for (const line of text.split('\n')) {
+    const lineFrom = pos;
+    pos += line.length + 1;
+    const f = FENCE.exec(line);
+    if (fence) {
+      if (f && f[1][0] === fence[0] && f[1].length >= fence.length && line.slice(f[0].length).trim() === '') fence = null;
+      continue;
+    }
+    if (f) {
+      fence = f[1];
+      continue;
+    }
+    if (!hasInlineVariables(line)) continue;
+    const code = codeSpans(line);
+    for (const m of line.matchAll(inlineRe())) {
+      const from = m.index!;
+      const to = from + m[0].length;
+      if (code.some(([a, b]) => a < to && b > from)) continue;
+      out.push({ from: lineFrom + from, to: lineFrom + to, name: m[1], ...(m[2] !== undefined ? { fallback: m[2] } : {}) });
+    }
+  }
+  return out;
+}
+
+/** Puts the values of the `!{{…}}` into the text; those without a value stay as they are */
+export function expandInlineVariables(text: string, scope: VariableScope): string {
+  const found = findInlineVariables(text);
+  if (!found.length) return text;
+  return substitute(text, found, scope, (r, p) => (isFilled(r) ? r.text : text.slice(p.from, p.to)));
+}
+
 /** Markdown with its placeholders filled in, the values escaped so they stay text (Markdown export) */
 export function fillVariables(markdown: string, scope: VariableScope): string {
   return substitute(markdown, markdownPlaceholders(markdown), scope, (r, p) => {

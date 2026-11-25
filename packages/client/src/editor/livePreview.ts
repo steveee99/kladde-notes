@@ -277,7 +277,7 @@ function build(state: EditorState): DecorationSet {
         fmEnd = doc.line(l).to;
         if (isActive(0, fmEnd)) lineClass(0, fmEnd, 'cm-frontmatter');
         else if (hideProps) replace(0, fmEnd, Decoration.replace({ widget: new HiddenPropertiesWidget(), block: true }));
-        else replace(0, fmEnd, Decoration.replace({ widget: new PropertiesWidget(l > 2 ? doc.sliceString(doc.line(2).from, doc.line(l - 1).to) : '', lang, !state.readOnly), block: true }));
+        else replace(0, fmEnd, Decoration.replace({ widget: new PropertiesWidget(l > 2 ? doc.sliceString(doc.line(2).from, doc.line(l - 1).to) : '', lang, !state.readOnly, variables), block: true }));
         break;
       }
     }

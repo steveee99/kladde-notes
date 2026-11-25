@@ -17,6 +17,10 @@ import {
   setMilestoneFields,
   newMilestoneContent,
   newProjectContent,
+  DOCS_FOLDER,
+  ISSUES_FOLDER,
+  projectDocsIndexContent,
+  projectHomeContent,
   newTicketContent,
   checklistOf,
   parseProject,
@@ -388,10 +392,29 @@ async function createIn(space: TicketSpace, folder: string, title: string, conte
   return space.group ? vault.createInGroup(space.group, folder, title, content) : vault.create(folder, title, content);
 }
 
-/** Turns a folder into a project: a database note with the project settings */
-export async function createProject(space: TicketSpace, folder: string, key: string, requireDocs = false): Promise<LocalNote> {
+/** A note of the space by its path, if it is there */
+function noteAt(space: TicketSpace, path: string): LocalNote | undefined {
+  const low = `${path}.md`.toLowerCase();
+  return vault.list().find((n) => (space.group ? n.group === space.group : !n.group && n.access === 'owner') && n.path.toLowerCase() === low);
+}
+
+/**
+ * Turns a folder into a project: its subfolder `Issues` gets the database note with the project settings (tickets and
+ * milestones live there), the folder a home note `<name>-Home` and `Docs/Index`. A folder that is itself called
+ * `Issues` becomes the project folder directly. Returns the project folder.
+ */
+export async function createProject(space: TicketSpace, folder: string, key: string, requireDocs = false): Promise<string> {
   guard();
-  return createIn(space, folder, databaseFileName(newUuid()).replace(/\.md$/, ''), newProjectContent(key, getLang(), requireDocs));
+  const lang = getLang();
+  const leaf = folder.split('/').pop() ?? folder;
+  const nested = leaf.toLowerCase() !== ISSUES_FOLDER.toLowerCase();
+  const projectFolder = nested ? `${folder}/${ISSUES_FOLDER}` : folder;
+  await createIn(space, projectFolder, databaseFileName(newUuid()).replace(/\.md$/, ''), newProjectContent(key, lang, requireDocs));
+  if (!nested) return projectFolder;
+  const home = `${leaf.replace(/^\d+[\s._-]*/, '').trim() || leaf}-Home`;
+  if (!noteAt(space, `${folder}/${home}`)) await createIn(space, folder, home, projectHomeContent(folder, key, lang));
+  if (!noteAt(space, `${folder}/${DOCS_FOLDER}/Index`)) await createIn(space, `${folder}/${DOCS_FOLDER}`, 'Index', projectDocsIndexContent(folder, lang));
+  return projectFolder;
 }
 
 /**

@@ -4,10 +4,12 @@
  * renames and deletes the group, and the move sheet moves own notes or folders into a group.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { GROUP_ROLES, canWriteInGroup, findDatabaseNote, isHiddenPath, splitPath, type GroupDetails, type GroupInfo, type GroupRole } from '@kladde/shared';
+import { GROUP_ROLES, ISSUES_FOLDER, canWriteInGroup, findDatabaseNote, isHiddenPath, splitPath, type GroupDetails, type GroupInfo, type GroupRole } from '@kladde/shared';
 import { Activity as ActivityIcon, ArrowLeft, ChevronRight, CornerLeftUp, Folder, FolderInput, FolderPlus, Kanban, Loader2, Plus, Settings, Star, Trash2, Users, Variables } from '../lib/icons';
 import { projectAt } from '../data/tickets';
 import { MakeProjectSheet, ProjectView } from './ProjectView';
+import { MenuButton, type MenuAction } from './ContextMenu';
+import { isReadOnly } from '../lib/readOnly';
 import { Switch } from './Switch';
 import { api, ApiError } from '../lib/api';
 import { useVault, vault } from '../data/vault';
@@ -118,7 +120,7 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
   const here = notes.filter((n) => splitPath(n.path).folder === folder && !isHiddenPath(n.path)).sort((a, b) => b.updatedAt - a.updatedAt);
   // A project folder of a group where the owners switched tickets on
   const project = folder ? projectAt({ group: groupId }, folder) : undefined;
-  const canMakeProject = writer && !!folder && !!group.features?.tickets && !findDatabaseNote(folder, notes);
+  const canMakeProject = writer && !!folder && !!group.features?.tickets && !findDatabaseNote(folder, notes) && !projectAt({ group: groupId }, `${folder}/${ISSUES_FOLDER}`);
   const subfolders = vault.groupFolders(groupId).filter((f) => (folder ? f.startsWith(`${folder}/`) && !f.slice(folder.length + 1).includes('/') : !f.includes('/')));
   const countIn = (f: string) => notes.filter((n) => !isHiddenPath(n.path) && (splitPath(n.path).folder === f || splitPath(n.path).folder.startsWith(`${f}/`))).length;
   const parent = folder ? (folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) : '') : null;
@@ -145,27 +147,35 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
               <Star size={20} filled={vault.isFavoriteGroupFolder(groupId, folder)} />
             </button>
           )}
-          {vault.features().activity.enabled && (
-            <button className="btn-ghost shrink-0 phone:!px-2.5" onClick={() => navigate(activityPath({ group: groupId }))} title={t('activity.title')} data-open-activity>
-              <ActivityIcon size={16} /> <span className="hidden sm:inline">{t('activity.title')}</span>
-            </button>
-          )}
-          <button className="btn-ghost shrink-0 phone:!px-2.5" title={t('vars.menu')} aria-label={t('vars.menu')} onClick={() => openDialog({ kind: 'variables', space: `group:${groupId}`, folder })} data-open-variables>
-            <Variables size={16} /> <span className="hidden sm:inline">{t('vars.label')}</span>
-          </button>
-          <button className="btn-ghost shrink-0 phone:!px-2.5" onClick={() => navigate(groupManagePath(groupId))} title={t('groups.manage')}>
-            <Settings size={16} /> <span className="hidden sm:inline">{t('groups.manage')}</span>
-          </button>
-          {canMakeProject && (
-            <button className="edit-only btn-ghost shrink-0 phone:!px-2.5" title={t('tickets.makeProjectTitle')} onClick={() => setMakingProject(true)} data-make-project>
-              <Kanban size={16} /> <span className="hidden sm:inline">{t('tickets.makeProject')}</span>
-            </button>
-          )}
           {writer && !project && (
             <button className="edit-only btn-tonal" onClick={() => openDialog({ kind: 'note', group: groupId, folder })}>
               <Plus size={18} /> {t('groups.newNote')}
             </button>
           )}
+          <MenuButton
+            id="folder"
+            label={t('list.folderMenu')}
+            actions={([
+              canMakeProject && !isReadOnly() && { icon: Kanban, label: t('tickets.makeProject'), title: t('tickets.makeProjectTitle'), onSelect: () => setMakingProject(true), attrs: { 'data-make-project': '' } },
+              { icon: Variables, label: t('vars.label'), title: t('vars.menu'), onSelect: () => openDialog({ kind: 'variables', space: `group:${groupId}`, folder }), attrs: { 'data-open-variables': '' } },
+              vault.features().activity.enabled && { icon: ActivityIcon, label: t('activity.title'), onSelect: () => navigate(activityPath({ group: groupId })), attrs: { 'data-open-activity': '' } },
+              { icon: Settings, label: t('groups.manage'), onSelect: () => navigate(groupManagePath(groupId)) },
+              writer && !!folder && !isReadOnly() && {
+                icon: Trash2,
+                label: t('list.deleteFolderBtn'),
+                title: t('list.deleteFolderTitle'),
+                danger: true,
+                attrs: { 'data-delete-folder': '' },
+                onSelect: () => {
+                  const n = countIn(folder);
+                  const name = folder.split('/').pop() ?? folder;
+                  if (!confirm(n ? t('list.deleteFolderConfirm', { folder: name, n }) : t('list.deleteEmptyFolderConfirm', { folder: name }))) return;
+                  const up = folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) : '';
+                  void vault.deleteGroupFolder(groupId, folder).then((ok) => ok && navigate(groupPath(groupId, up), true));
+                },
+              },
+            ] as (MenuAction | false)[]).filter((x): x is MenuAction => !!x)}
+          />
           </>
         }
       />

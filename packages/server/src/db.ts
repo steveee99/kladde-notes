@@ -573,6 +573,13 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 29,
+    description: 'Optional display name per account (set by the user or taken from GitLab)',
+    up: (db) => {
+      db.exec('ALTER TABLE users ADD COLUMN display_name TEXT');
+    },
+  },
 ];
 
 /** The schema version this build migrates to */
