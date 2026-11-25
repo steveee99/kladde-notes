@@ -21,6 +21,8 @@
 import { parseFrontmatter, splitPath } from './markdown.js';
 import { codeSpans, findMath } from './math.js';
 import { readFrontmatterYaml, setFrontmatterValues, type YamlMap, type YamlValue } from './yaml.js';
+import { builtinVariable } from './builtinVariables.js';
+import { toDateString } from './tasks.js';
 
 /** The definition note is `_variables-<uuid>.md`, so two devices can create one at the same time; `_variables.md` works too */
 export const VARIABLES_PREFIX = '_variables';
@@ -140,6 +142,14 @@ export interface VariableEntry extends VariableDef {
   folder: string;
   /** The variable of the same name further up that this one overrides */
   outer: VariableEntry | null;
+  /** A built-in date variable (builtinVariables.ts): defined nowhere, its value follows the day */
+  builtin?: true;
+}
+
+/** The built-in variable of a name as an entry, its value for `now` */
+function builtinEntry(name: string, now: Date): VariableEntry | null {
+  const b = builtinVariable(name);
+  return b ? { name: b.name, value: b.value(now), folder: '', outer: null, builtin: true } : null;
 }
 
 export type VariableStatus =
@@ -172,6 +182,9 @@ export interface VariableScope {
 
 class FolderScope implements VariableScope {
   private memo = new Map<string, Omit<ResolvedVariable, 'name'>>();
+  /** The day the memo was filled on: built-in date variables change at midnight */
+  private memoDay = '';
+  private now = new Date();
   private sorted: VariableEntry[] | null = null;
 
   constructor(
@@ -192,7 +205,13 @@ class FolderScope implements VariableScope {
 
   resolve(name: string, fallback?: string): ResolvedVariable {
     const key = variableKey(name);
-    const entry = this.entries.get(key);
+    this.now = new Date();
+    const day = toDateString(this.now);
+    if (day !== this.memoDay) {
+      this.memo.clear();
+      this.memoDay = day;
+    }
+    const entry = this.entries.get(key) ?? builtinEntry(name, this.now);
     if (!entry) {
       if (fallback === undefined) return { name, status: 'unknown', text: variablePlaceholder(name), entry: null };
       return { name, status: 'fallback', text: fallback.trim(), entry: null };
@@ -227,7 +246,7 @@ class FolderScope implements VariableScope {
       const key = variableKey(p.name);
       const open = active.get(key);
       // A value that names itself means the one it overrides; without one it is a cycle
-      const target = open ? open.outer : (this.entries.get(key) ?? null);
+      const target = open ? (open.outer ?? (open.builtin ? null : builtinEntry(p.name, this.now))) : (this.entries.get(key) ?? builtinEntry(p.name, this.now));
       if (target) {
         active.set(key, target);
         out += this.expand(target, active, depth + 1, state);

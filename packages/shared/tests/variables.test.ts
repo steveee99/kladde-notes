@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  builtinValue,
   cleanHeadingText,
   databaseRows,
   EMPTY_VARIABLE_SCOPE,
@@ -249,5 +250,47 @@ describe('placeholders', () => {
     ])
       fillVariables(text, s);
     expect(Date.now() - t0).toBeLessThan(4000);
+  });
+});
+
+describe('built-in date variables', () => {
+  const at = new Date(2026, 10, 25, 10, 0); // Wednesday, 25 Nov 2026, ISO week 48
+  it('fill in dates relative to today, in English and German', () => {
+    const scope = scopeOf('');
+    expect(builtinValue('today', at)).toBe('2026-11-25');
+    expect(builtinValue('Morgen', at)).toBe('2026-11-26');
+    expect(builtinValue('yesterday', at)).toBe('2026-11-24');
+    expect(builtinValue('week', at)).toBe('2026-W48');
+    expect(builtinValue('nextWeek', at)).toBe('2026-W49');
+    expect(builtinValue('letzteWoche', at)).toBe('2026-W47');
+    expect(builtinValue('kw', at)).toBe('48');
+    expect(builtinValue('weekStart', at)).toBe('2026-11-23');
+    expect(builtinValue('weekEnd', at)).toBe('2026-11-29');
+    expect(builtinValue('nextMonth', at)).toBe('2026-12');
+    expect(builtinValue('nächstesJahr', at)).toBe('2027');
+    expect(builtinValue('customer', at)).toBeUndefined();
+    const r = scope.resolve('today');
+    expect(r.status).toBe('ok');
+    expect(r.entry?.builtin).toBe(true);
+    expect(scope.list()).toEqual([]);
+  });
+
+  it('cross the year at the turn of the year', () => {
+    const dec = new Date(2026, 11, 31);
+    expect(builtinValue('tomorrow', dec)).toBe('2027-01-01');
+    expect(builtinValue('nextMonth', dec)).toBe('2027-01');
+    expect(builtinValue('nextWeek', dec)).toBe('2027-W01');
+  });
+
+  it('lose against a folder variable and can be used in values', () => {
+    const scope = scopeOf('A', note('A', { today: 'immer heute', sprint: 'Sprint {{var:kw}}' }));
+    expect(scope.resolve('today').text).toBe('immer heute');
+    expect(scope.resolve('sprint').text).toMatch(/^Sprint \d{1,2}$/);
+    expect(resolveVariables('{{var:heute}}', EMPTY_VARIABLE_SCOPE)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('a folder value that names the built-in means the built-in', () => {
+    const scope = scopeOf('', note('', { week: 'KW {{var:week}}' }));
+    expect(scope.resolve('week').text).toMatch(/^KW \d{4}-W\d{2}$/);
   });
 });
