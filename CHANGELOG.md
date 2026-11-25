@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.23.0] – 2026-11-25
+
 - New: Note tabs have a context menu (right click): pin, close, close others, close tabs to the right or to the left. Pinned tabs move to the front, keep a pin instead of the close button and stay open until they are unpinned; closing others or to one side never closes them.
 - New: `!{{var:name}}` (or `!{{name}}`) puts the variable's current value into the text once instead of keeping a placeholder, e.g. `!{{heute}}` for the date a note was written. It works when typing, pasting or completing in the editor, in templates when a note is made from them (also daily, weekly and monthly notes and over MCP) and in notes created over MCP; inside code it stays as written.
 - Fixed: Variables are now filled in in the properties row of a note's frontmatter and in the fields of databases and custom note types; while a field is edited it shows the placeholder.
