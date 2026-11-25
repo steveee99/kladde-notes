@@ -54,7 +54,9 @@ const strings = (v: unknown, max = MAX_LIST): string[] | undefined => {
 /** The first lines of a Markdown description as plain text */
 export function plainDescription(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined;
+  // Only the start is shown: the regexes below never see more than a few kilobytes (no slow input from upstream)
   const plain = v
+    .slice(0, 4000)
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/<!--[\s\S]*?-->/g, ' ')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')

@@ -11,7 +11,7 @@
  * `[[KLD-118]]` resolves through the frontmatter `id` like any link (LinkIndex).
  */
 
-import { parseTasks } from './tasks.js';
+import { parseTasks, TASK_LINE } from './tasks.js';
 import { splitPath } from './markdown.js';
 import { readFrontmatterYaml, setFrontmatterValues, type YamlMap, type YamlValue } from './yaml.js';
 import { DATABASE_PREFIX, linkTarget } from './database.js';
@@ -143,11 +143,15 @@ export const checklistOf = (project: Pick<ProjectConfig, 'checklists'>, kind: Ti
  */
 export function addChecklist(content: string, items: readonly string[]): string {
   const have = new Set<string>();
-  for (const m of content.matchAll(/^\s*[-*+]\s+\[[ xXoOhH]\]\s+(.*)$/gm)) have.add(m[1].trim().toLowerCase());
+  // Line by line with the task pattern of tasks.ts (its text starts with a non-space, so nothing backtracks)
+  for (const line of content.split('\n')) {
+    const m = TASK_LINE.exec(line);
+    if (m) have.add(m[3].trim().toLowerCase());
+  }
   const add = items.map(cleanChecklistItem).filter((i) => i && !have.has(i.toLowerCase()));
   if (!add.length) return content;
   const lines = [...new Set(add)].map((i) => `- [ ] ${i}`).join('\n');
-  const body = content.replace(/\s*$/, '');
+  const body = content.trimEnd();
   const lastLine = body.slice(body.lastIndexOf('\n') + 1);
   // Right below a list or the frontmatter, otherwise after a blank line
   const glue = /^\s*(?:[-*+]\s|---$)/.test(lastLine) ? '\n' : '\n\n';

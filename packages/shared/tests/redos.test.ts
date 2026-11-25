@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseQuery, runQuery } from '../src/query';
-import { createPeriodicExtractor, extractDailyNoteDate, resolveDailyNote, resolvePeriodicNote } from '../src/index';
+import { addChecklist, cardLineUrl, createPeriodicExtractor, extractDailyNoteDate, resolveDailyNote, resolvePeriodicNote } from '../src/index';
 import { findInlineMath, findMath, parseExportInlines, fillReleasePlaceholders, hasReleasePlaceholders, buildCalendar, filterGraph, pdfNoteOf, LinkIndex, normalizeTag, renameTag, tagBeforeCursor, nextDue, parseFrontmatter, parseTasks, rruleOf, setTaskMeta, setTaskStatus, stripBlockIds, extractHeadings, trimSlashes } from '../src/index';
 
 /** Runs `fn` and fails if it takes longer than a linear scan should (the CodeQL polynomial-ReDoS inputs) */
@@ -13,6 +13,12 @@ function fast(fn: () => unknown, ms = 250) {
 const N = 50_000;
 
 describe('regexes stay linear on hostile input', () => {
+  it('ticket checklists and GitLab card lines', () => {
+    fast(() => addChecklist(`* [ ] ${'  '.repeat(N)}x\n${' '.repeat(N)}`, ['Abnahme']));
+    fast(() => addChecklist(`${'- [ ] '.repeat(N / 6)}\n`, ['a']));
+    fast(() => cardLineUrl(`https://${'a'.repeat(N)}${' '.repeat(N)}x`));
+  });
+
   it('formulas (#85)', () => {
     fast(() => findInlineMath(`$x$ ${'`'.repeat(N)}`));
     fast(() => findInlineMath(`$x$ ${'`a'.repeat(N / 2)}`));
