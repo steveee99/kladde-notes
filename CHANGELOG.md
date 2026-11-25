@@ -8,6 +8,7 @@ All user-visible changes to Kladde.
 - Changed: Templates are edited in a larger source editor (with a “Larger” switch) that colors Markdown and placeholders: `{{title}}`, `{{date}}` and the other template placeholders in the accent color, `{{var:…}}` variables in green. Typing `{{` offers the template's placeholders, the variables of its folder and the date variables; `[[` offers notes.
 - Changed: Automatic links (note titles found in the text) now always show a magic wand after them, also on the line being edited and in read-only notes. Clicking it turns the text into a regular `[[link]]`; clicking the text still opens the note.
 - New: The release history of versioned notes shows what changed in each version: opening a version shows a line diff against the version before it (with added and removed line counts, unchanged parts folded), switchable to the rendered text. While the draft differs from the latest release, the list starts with “Changes since v…”.
+- New: Checklist templates per ticket type. Project settings have a new “Ticket types” section where each type (epic, feature, task, bug, subtask) can get a list of items, for example “Acceptance” for bugs; new tickets of that type start with them as open tasks (also tickets created over MCP or as an empty note in the project folder). All lists are empty by default. Stored as `checklists` in the project block.
 
 ## [2.21.0] – 2026-11-25
 

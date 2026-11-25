@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import crypto from 'crypto';
-import { newMilestoneContent, newProjectContent, newTicketContent, ticketMeta } from '@kladde/shared';
+import { newMilestoneContent, newProjectContent, newTicketContent, parseProject, ticketMeta, writeProject } from '@kladde/shared';
 import { DataCipher } from '../src/crypto';
 import { openDatabase } from '../src/db';
 import { GroupError, GroupStore } from '../src/GroupStore';
@@ -147,6 +147,19 @@ describe('MCP ticket tools', () => {
     const projects = run('list_projects', {}, ctx) as { key: string }[];
     // The group has not switched tickets on: only the own project
     expect(projects.map((p) => p.key)).toEqual(['KLD']);
+  });
+
+  it('starts new tickets with the checklist template of their type', () => {
+    const s = setup();
+    push(s.notes, s.anna.id, `syssettings-${s.anna.id}`, '.kladde/settings.json', JSON.stringify({ features: { tickets: { enabled: true } } }));
+    const db = newProjectContent('KLD');
+    push(s.notes, s.anna.id, 'project-db-01', 'Projekte/Kladde/_database-0a1b2c3d.md', writeProject(db, { ...parseProject(db)!, checklists: { bug: ['Abnahme', 'Regressionstest'] } }));
+    const ctx = { userId: s.anna.id, canWrite: true, notes: s.notes, today: new Date(2026, 10, 25) };
+    const bug = run('ticket_create', { project: 'KLD', title: 'Absturz', kind: 'bug', description: 'Beim Speichern.' }, ctx) as { id: string };
+    const task = run('ticket_create', { project: 'KLD', title: 'Aufräumen' }, ctx) as { id: string };
+    const content = (id: string) => s.notes.ownedNotes(s.anna.id).find((n) => n.id === id)!.content;
+    expect(content(bug.id)).toMatch(/Beim Speichern\.\n\n- \[ \] Abnahme\n- \[ \] Regressionstest\n$/);
+    expect(content(task.id)).not.toContain('- [ ]');
   });
 
   it('builds the hierarchy epic > feature > task > subtask with checked parents', () => {

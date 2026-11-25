@@ -22,13 +22,14 @@ import {
 import { useReadOnly } from '../lib/readOnly';
 import { navigate } from '../lib/router';
 import { compareText, locale, t, useLang, type I18nKey } from '../lib/i18n';
-import { AlertTriangle, Ban, BugReport, CheckSquare, DragIndicator, FileText, Flag, Kanban, Plus, PriorityHigh, PriorityLow, PriorityMedium, Settings, Stars, SubdirectoryArrowRight, TableRows, Ticket, ViewTimeline, X, Zap } from '../lib/icons';
+import { AlertTriangle, Ban, DragIndicator, FileText, Flag, Kanban, Plus, PriorityHigh, PriorityLow, PriorityMedium, Settings, SubdirectoryArrowRight, TableRows, Ticket, ViewTimeline, X } from '../lib/icons';
 import { NoteSearchField } from './NoteSearchField';
 import { Sheet } from './Dialogs';
 import { Dropdown, type DropdownOption } from './Dropdown';
 import { Avatar } from './Avatar';
 import { Switch } from './Switch';
 import { ProjectSettingsDialog } from './ProjectSettings';
+import { KindIcon, kindLabel } from './TicketKind';
 
 type Tab = 'board' | 'backlog' | 'roadmap';
 const DRAG = 'application/x-kladde-ticket';
@@ -46,25 +47,7 @@ export function PriorityIcon({ p, size = 16 }: { p: Priority | null; size?: numb
   );
 }
 
-export const kindLabel = (k: TicketKind) => t(`tickets.kind.${k}` as I18nKey);
-
-const KIND_ICON: Record<TicketKind, { Icon: typeof Zap; tone: string }> = {
-  epic: { Icon: Zap, tone: 'text-violet' },
-  feature: { Icon: Stars, tone: 'text-green' },
-  task: { Icon: CheckSquare, tone: 'text-acc' },
-  bug: { Icon: BugReport, tone: 'text-red' },
-  subtask: { Icon: SubdirectoryArrowRight, tone: 'text-muted' },
-};
-
-/** Ticket type as an icon in its color (epic violet, feature green, task accent, bug red, subtask muted) */
-export function KindIcon({ kind, size = 16, className = '' }: { kind: TicketKind; size?: number; className?: string }) {
-  const { Icon, tone } = KIND_ICON[kind];
-  return (
-    <span className={`inline-flex shrink-0 ${tone} ${className}`} title={kindLabel(kind)} aria-label={kindLabel(kind)} role="img">
-      <Icon size={size} />
-    </span>
-  );
-}
+export { KindIcon, kindLabel } from './TicketKind';
 
 export const kindOptions = (kinds: readonly TicketKind[] = TICKET_KINDS): DropdownOption[] => kinds.map((k) => ({ value: k, label: kindLabel(k) }));
 

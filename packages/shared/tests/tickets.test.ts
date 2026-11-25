@@ -14,6 +14,9 @@ import {
   numberedTicketId,
   parseDatabase,
   parseProject,
+  addChecklist,
+  checklistOf,
+  parseTasks,
   rankBetween,
   releaseNotesContent,
   roadmapOffset,
@@ -214,5 +217,34 @@ describe('milestones', () => {
     expect(notes).toContain('## sync\n\n- Nummern offline ([[KLD-118]])');
     expect(notes).toContain('## Sonstiges\n\n- Chips ([[KLD-119]])');
     expect(notes).toContain('release: 2.14.0');
+  });
+});
+
+describe('checklist templates per ticket type', () => {
+  it('are read from and written to the project block, empty by default', () => {
+    const db = newProjectContent('KLD');
+    expect(parseProject(db)!.checklists).toBeUndefined();
+    const config = { ...parseProject(db)!, checklists: { bug: ['Abnahme', '- [ ] Regressionstest, mit Daten', ''], epic: [] } };
+    const written = writeProject(db, config);
+    expect(written).toContain('checklists:');
+    expect(parseProject(written)!.checklists).toEqual({ bug: ['Abnahme', 'Regressionstest, mit Daten'] });
+    expect(checklistOf(parseProject(written)!, 'bug')).toEqual(['Abnahme', 'Regressionstest, mit Daten']);
+    expect(checklistOf(parseProject(written)!, 'task')).toEqual([]);
+    // Removing the last item removes the block
+    expect(writeProject(written, { ...parseProject(written)!, checklists: {} })).not.toContain('checklists');
+  });
+
+  it('fill new tickets of their type', () => {
+    const plain = newTicketContent({ key: 'KLD', status: 'Offen', kind: 'bug', checklist: ['Abnahme'] });
+    expect(plain).toMatch(/---\n- \[ \] Abnahme\n$/);
+    expect(parseTasks(plain).map((t) => t.text)).toEqual(['Abnahme']);
+    const described = newTicketContent({ key: 'KLD', status: 'Offen', kind: 'bug', description: 'Absturz beim Speichern', checklist: ['Abnahme', 'Test'] });
+    expect(described).toMatch(/Absturz beim Speichern\n\n- \[ \] Abnahme\n- \[ \] Test\n$/);
+  });
+
+  it('are not added twice', () => {
+    const once = addChecklist('Text\n\n- [x] Abnahme\n', ['abnahme', 'Doku']);
+    expect(once).toBe('Text\n\n- [x] Abnahme\n- [ ] Doku\n');
+    expect(addChecklist(once, ['Doku'])).toBe(once);
   });
 });

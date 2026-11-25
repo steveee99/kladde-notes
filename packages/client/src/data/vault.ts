@@ -95,6 +95,7 @@ import {
   setTaskMeta,
   merge3,
   newTicketContent,
+  checklistOf,
   parseProject,
   type Database,
   canWriteInGroup,
@@ -683,7 +684,7 @@ class Vault {
   /** Content of a new empty note in a database folder: a ticket in a project where tickets are on, else the database's properties */
   private newRowContent(dbContent: string, db: Database, title: string, ticketsOn: boolean): string {
     const project = ticketsOn ? parseProject(dbContent) : null;
-    return project ? newTicketContent({ key: project.key, status: project.workflow[0] }) : newDatabaseNoteContent(db, title);
+    return project ? newTicketContent({ key: project.key, status: project.workflow[0], checklist: checklistOf(project) }) : newDatabaseNoteContent(db, title);
   }
 
   /** A note in a folder another user shares with this user: it belongs to them and lives in their space */

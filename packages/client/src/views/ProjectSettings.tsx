@@ -9,7 +9,12 @@ import { createPortal } from 'react-dom';
 import {
   AUTOMATION_ACTIONS,
   AUTOMATION_TRIGGERS,
+  MAX_CHECKLIST_ITEM,
+  MAX_CHECKLIST_ITEMS,
+  PARENT_KINDS,
   PRIORITIES,
+  TICKET_KINDS,
+  cleanChecklistItem,
   cleanProjectKey,
   isGitTrigger,
   newAutomationId,
@@ -22,18 +27,21 @@ import {
   type ProjectConfig,
   type StatusCategory,
   type TicketHook,
+  type TicketChecklists,
   type TicketHookProvider,
+  type TicketKind,
 } from '@kladde/shared';
 import { vault } from '../data/vault';
 import { createTicketHook, listTicketHooks, removeTicketHook, saveProject, ticketsOf, type ProjectInfo } from '../data/tickets';
 import { copyText } from '../lib/clipboard';
 import { useModal } from '../lib/modal';
 import { locale, t, type I18nKey } from '../lib/i18n';
-import { AlertTriangle, ArrowDown, ArrowRight, ArrowUp, Check, Copy, Info, Loader2, Plus, Route, Settings, Trash2, Webhook, X, Zap } from '../lib/icons';
+import { AlertTriangle, ArrowDown, ArrowRight, ArrowUp, Check, CheckSquare, Copy, Info, ListChecks, Loader2, Plus, Route, Settings, Trash2, Webhook, X, Zap } from '../lib/icons';
 import { Dropdown } from './Dropdown';
 import { Switch } from './Switch';
+import { KindIcon, kindLabel } from './TicketKind';
 
-type Section = 'general' | 'statuses' | 'transitions' | 'automations' | 'git';
+type Section = 'general' | 'statuses' | 'types' | 'transitions' | 'automations' | 'git';
 
 interface StatusRow {
   key: string;
@@ -52,6 +60,8 @@ interface Draft {
   /** Allowed next statuses by row key (kept while the switch is off, so turning it on again keeps the choice) */
   transitions: Record<string, string[]>;
   automations: Automation[];
+  /** Checklist template per ticket type, items as typed */
+  checklists: Record<TicketKind, string[]>;
 }
 
 let rowCounter = 0;
@@ -67,7 +77,8 @@ function draftOf(c: ProjectConfig): Draft {
       ? (c.transitions[r.name] ?? []).map(keyOf).filter((k): k is string => !!k)
       : [rows[i - 1]?.key, rows[i + 1]?.key].filter((k): k is string => !!k);
   });
-  return { key: c.key, requireDocs: c.requireDocs, rows, restricted: !!c.transitions, transitions, automations: c.automations };
+  const checklists = Object.fromEntries(TICKET_KINDS.map((k) => [k, [...(c.checklists?.[k] ?? [])]])) as Record<TicketKind, string[]>;
+  return { key: c.key, requireDocs: c.requireDocs, rows, restricted: !!c.transitions, transitions, automations: c.automations, checklists };
 }
 
 /** The config to save and the renamed statuses, or an error message */
@@ -85,9 +96,18 @@ function configOf(d: Draft): { config: ProjectConfig; renamed: Record<string, st
   const renamed: Record<string, string> = {};
   for (const r of d.rows) if (r.orig && r.orig !== r.name.trim()) renamed[r.orig] = r.name.trim();
   return {
-    config: { key, workflow: names, active: d.rows.filter((r) => r.cat === 'active').map((r) => r.name.trim()), done, requireDocs: d.requireDocs, transitions, automations: d.automations },
+    config: { key, workflow: names, active: d.rows.filter((r) => r.cat === 'active').map((r) => r.name.trim()), done, requireDocs: d.requireDocs, transitions, automations: d.automations, checklists: cleanChecklists(d.checklists) },
     renamed,
   };
+}
+
+function cleanChecklists(c: Record<TicketKind, string[]>): TicketChecklists {
+  const out: TicketChecklists = {};
+  for (const k of TICKET_KINDS) {
+    const items = c[k].map(cleanChecklistItem).filter(Boolean);
+    if (items.length) out[k] = items;
+  }
+  return out;
 }
 
 const formatDateTime = (ms: number) => new Date(ms).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' });
@@ -143,6 +163,7 @@ export function ProjectSettingsDialog({ project, onClose, initialSection = 'gene
   const sections: { id: Section; label: string; Icon: typeof Settings; badge?: number }[] = [
     { id: 'general', label: t('workflow.secGeneral'), Icon: Settings },
     { id: 'statuses', label: t('workflow.secStatuses'), Icon: Check, badge: draft.rows.length },
+    { id: 'types', label: t('tickets.secTypes'), Icon: ListChecks, badge: TICKET_KINDS.reduce((n, k) => n + (draft.checklists[k].some((i) => i.trim()) ? 1 : 0), 0) || undefined },
     { id: 'transitions', label: t('workflow.secTransitions'), Icon: Route },
     { id: 'automations', label: t('workflow.secAutomations'), Icon: Zap, badge: draft.automations.length || undefined },
     { id: 'git', label: t('workflow.secGit'), Icon: Webhook },
@@ -194,6 +215,7 @@ export function ProjectSettingsDialog({ project, onClose, initialSection = 'gene
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-5 sm:px-8 sm:py-6" data-section-body={section}>
             {section === 'general' && <GeneralSection draft={draft} patch={patch} />}
             {section === 'statuses' && <StatusSection draft={draft} setDraft={setDraft} counts={counts} />}
+            {section === 'types' && <TypesSection project={project} draft={draft} patch={patch} />}
             {section === 'transitions' && <TransitionSection draft={draft} patch={patch} />}
             {section === 'automations' && <AutomationSection draft={draft} patch={patch} onGit={() => setSection('git')} />}
             {section === 'git' && <GitSection project={project} draft={draft} onAutomations={() => setSection('automations')} />}
@@ -249,6 +271,104 @@ function GeneralSection({ draft, patch }: { draft: Draft; patch: (p: Partial<Dra
         <p className="text-body-s text-muted">{t('tickets.requireDocsHint')}</p>
       </div>
     </div>
+  );
+}
+
+// ------------------------------------------------------------------ ticket types
+
+function TypesSection({ project, draft, patch }: { project: ProjectInfo; draft: Draft; patch: (p: Partial<Draft>) => void }) {
+  const counts = useMemo(() => {
+    const m = new Map<TicketKind, number>();
+    for (const tk of ticketsOf(project)) m.set(tk.meta.kind, (m.get(tk.meta.kind) ?? 0) + 1);
+    return m;
+  }, [project]);
+  const set = (kind: TicketKind, items: string[]) => patch({ checklists: { ...draft.checklists, [kind]: items } });
+  return (
+    <div className="max-w-3xl space-y-4" data-ticket-types>
+      <SectionHead title={t('tickets.secTypes')}>{t('tickets.typesIntro')}</SectionHead>
+      {TICKET_KINDS.map((kind) => (
+        <ChecklistCard key={kind} kind={kind} count={counts.get(kind) ?? 0} items={draft.checklists[kind]} onChange={(items) => set(kind, items)} />
+      ))}
+    </div>
+  );
+}
+
+function ChecklistCard({ kind, count, items, onChange }: { kind: TicketKind; count: number; items: string[]; onChange: (items: string[]) => void }) {
+  const [next, setNext] = useState('');
+  const addRef = useRef<HTMLInputElement>(null);
+  const label = kindLabel(kind);
+  const parents = PARENT_KINDS[kind];
+  const add = () => {
+    const item = cleanChecklistItem(next);
+    if (!item || items.length >= MAX_CHECKLIST_ITEMS) return;
+    onChange([...items, item]);
+    setNext('');
+    addRef.current?.focus();
+  };
+  const move = (i: number, by: number) => {
+    const list = [...items];
+    const [x] = list.splice(i, 1);
+    list.splice(i + by, 0, x);
+    onChange(list);
+  };
+  return (
+    <section className="card p-4" aria-label={label} data-ticket-kind={kind}>
+      <div className="mb-3 flex items-center gap-2.5">
+        <KindIcon kind={kind} size={18} />
+        <h4 className="text-title-s text-strong">{label}</h4>
+        <span className="font-mono text-caption text-muted">{t('tickets.typeCount', { n: count })}</span>
+        <span className="ml-auto hidden text-caption text-muted sm:inline">
+          {parents.length ? t('tickets.typeBelow', { list: parents.map(kindLabel).join(', ') }) : t('tickets.typeTop')}
+        </span>
+      </div>
+      <p className="mb-2 text-body-s text-muted">{items.length ? t('tickets.checklistHint', { kind: label }) : t('tickets.checklistEmpty', { kind: label })}</p>
+      {items.length > 0 && (
+        <ul className="mb-2 space-y-1.5">
+          {items.map((item, i) => (
+            <li key={i} className="flex items-center gap-2" data-checklist-item>
+              <CheckSquare size={16} className="shrink-0 text-faint" />
+              <input
+                className="input min-w-0 flex-1"
+                value={item}
+                maxLength={MAX_CHECKLIST_ITEM}
+                aria-label={t('tickets.checklistItem', { n: i + 1, kind: label })}
+                onChange={(e) => onChange(items.map((x, j) => (j === i ? e.target.value : x)))}
+              />
+              <button type="button" className="btn-icon h-8 w-8 shrink-0" disabled={i === 0} onClick={() => move(i, -1)} title={t('workflow.moveUp', { name: item })} aria-label={t('workflow.moveUp', { name: item })}>
+                <ArrowUp size={16} />
+              </button>
+              <button type="button" className="btn-icon h-8 w-8 shrink-0" disabled={i === items.length - 1} onClick={() => move(i, 1)} title={t('workflow.moveDown', { name: item })} aria-label={t('workflow.moveDown', { name: item })}>
+                <ArrowDown size={16} />
+              </button>
+              <button type="button" className="btn-icon h-8 w-8 shrink-0" onClick={() => onChange(items.filter((_, j) => j !== i))} title={t('common.delete')} aria-label={`${t('common.delete')}: ${item}`}>
+                <Trash2 size={16} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="flex items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          add();
+        }}
+      >
+        <input
+          ref={addRef}
+          className="input min-w-0 flex-1"
+          value={next}
+          maxLength={MAX_CHECKLIST_ITEM}
+          placeholder={t(kind === 'bug' ? 'tickets.checklistPlaceholderBug' : 'tickets.checklistPlaceholder')}
+          aria-label={t('tickets.checklistAdd', { kind: label })}
+          disabled={items.length >= MAX_CHECKLIST_ITEMS}
+          onChange={(e) => setNext(e.target.value)}
+        />
+        <button type="submit" className="btn-tonal shrink-0" disabled={!cleanChecklistItem(next) || items.length >= MAX_CHECKLIST_ITEMS}>
+          <Plus size={16} /> {t('tickets.checklistAddBtn')}
+        </button>
+      </form>
+    </section>
   );
 }
 
