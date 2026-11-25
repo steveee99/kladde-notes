@@ -33,7 +33,7 @@ import { dataTable, groupedTable, openTableCell, parseMarkdownTable, stripInline
 import { editorHost, type TicketChip } from './host';
 import { embedContext } from './embedContext';
 import { DiagramKind, drawDiagram, isPrinting, openDiagram } from './diagram';
-import { CALLOUT_ICON_PATHS } from './calloutIcons';
+import { CALLOUT_ICON_PATHS, EDITOR_ICON_PATHS } from './calloutIcons';
 
 /** Moves the cursor into a block so it shows its source (the "✎" button of block widgets) */
 export function editButton(view: EditorView, pos: () => number, lang: Lang): HTMLElement {
@@ -1011,6 +1011,59 @@ export class WikiWidget extends WidgetType {
   }
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** The magic wand of automatic links (a note title found in the text, not written as a link) */
+function magicIcon(): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 -960 960 960');
+  svg.setAttribute('width', '13');
+  svg.setAttribute('height', '13');
+  svg.setAttribute('fill', 'currentColor');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', EDITOR_ICON_PATHS.magicLink);
+  svg.append(path);
+  return svg;
+}
+
+/** `[[target]]`, or `[[target|text]]` when the text is spelled differently */
+export const magicLinkText = (target: string, original: string): string => (original === target ? `[[${target}]]` : `[[${target}|${original}]]`);
+
+/**
+ * The magic link sign after an automatic link: shows that the text is linked by itself, and a click turns it into a
+ * normal `[[link]]`. `range` says where the text is when clicked (positions move while typing). Read-only: only the sign.
+ */
+export function magicLinkButton(view: EditorView, target: string, original: string, range: () => { from: number; to: number } | null, lang: Lang): HTMLElement {
+  const editable = view.state.facet(EditorView.editable) && !view.state.readOnly;
+  const el = document.createElement(editable ? 'button' : 'span');
+  el.className = 'cm-autolink-btn';
+  el.append(magicIcon());
+  const title = editable ? tl(lang, 'editor.autolinkTitle', { target }) : tl(lang, 'editor.autolinkInfo', { target });
+  el.title = title;
+  if (!editable) {
+    el.setAttribute('role', 'img');
+    el.setAttribute('aria-label', title);
+    return el;
+  }
+  const btn = el as HTMLButtonElement;
+  btn.type = 'button';
+  btn.setAttribute('aria-label', title);
+  btn.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  });
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const r = range();
+    if (!r || view.state.sliceDoc(r.from, r.to) !== original) return;
+    view.dispatch({ changes: { from: r.from, to: r.to, insert: magicLinkText(target, original) }, userEvent: 'input' });
+    view.focus();
+  });
+  return btn;
+}
+
 export class AutoLinkWidget extends WidgetType {
   constructor(
     readonly target: string,
@@ -1029,7 +1082,7 @@ export class AutoLinkWidget extends WidgetType {
   toDOM(view: EditorView) {
     const s = document.createElement('span');
     s.className = 'cm-autolink cm-autolink-widget';
-    s.title = this.lang === 'en' ? `Note “${this.target}” (click to open)` : `Notiz „${this.target}“ (Klick zum Öffnen)`;
+    s.title = tl(this.lang, 'editor.autolinkOpen', { target: this.target });
 
     const text = document.createElement('span');
     text.className = 'cm-autolink-text';
@@ -1038,42 +1091,66 @@ export class AutoLinkWidget extends WidgetType {
       e.preventDefault();
       editorHost.openWiki(this.target);
     });
-    s.append(text);
-
-    if (view.state.facet(EditorView.editable)) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'cm-autolink-btn';
-      btn.title = tl(this.lang, 'editor.autolinkTitle', { target: this.target });
-      btn.setAttribute('aria-label', tl(this.lang, 'editor.autolinkTitle', { target: this.target }));
-      btn.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>`;
-
-      btn.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      });
-
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        let from = this.from;
-        try {
-          const pos = view.posAtDOM(s);
-          if (pos >= 0) from = pos;
-        } catch {
-          // fallback to this.from
-        }
-        const to = from + this.original.length;
-        const link = this.original === this.target ? `[[${this.target}]]` : `[[${this.target}|${this.original}]]`;
-        view.dispatch({
-          changes: { from, to, insert: link },
-          userEvent: 'input',
-        });
-      });
-      s.append(btn);
-    }
-
+    s.append(
+      text,
+      magicLinkButton(
+        view,
+        this.target,
+        this.original,
+        () => {
+          try {
+            const pos = view.posAtDOM(s);
+            return { from: pos, to: pos + this.original.length };
+          } catch {
+            return { from: this.from, to: this.to };
+          }
+        },
+        this.lang
+      )
+    );
     return s;
+  }
+
+  ignoreEvent() {
+    return true;
+  }
+}
+
+/** The magic link sign after an automatic link on the line being edited (the text itself stays editable) */
+export class MagicLinkMarkerWidget extends WidgetType {
+  constructor(
+    readonly target: string,
+    readonly original: string,
+    readonly to: number,
+    readonly lang: Lang = getLang()
+  ) {
+    super();
+  }
+
+  eq(o: MagicLinkMarkerWidget) {
+    return o.target === this.target && o.original === this.original && o.to === this.to && o.lang === this.lang;
+  }
+
+  toDOM(view: EditorView) {
+    const wrap = document.createElement('span');
+    wrap.className = 'cm-autolink-marker';
+    wrap.append(
+      magicLinkButton(
+        view,
+        this.target,
+        this.original,
+        () => {
+          try {
+            const to = view.posAtDOM(wrap);
+            return { from: to - this.original.length, to };
+          } catch {
+            return { from: this.to - this.original.length, to: this.to };
+          }
+        },
+        this.lang
+      )
+    );
+    return wrap;
   }
 
   ignoreEvent() {

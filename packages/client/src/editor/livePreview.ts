@@ -6,6 +6,7 @@ import { findMath, isHighlightedLine, parseCodeInfo, ticketIdPattern, type MathS
 import { getLang, tl } from '../lib/i18n';
 import {
   AutoLinkWidget,
+  MagicLinkMarkerWidget,
   CalloutHeadWidget,
   toggleCalloutEffect,
   toggleCodeFoldEffect,
@@ -659,6 +660,7 @@ function build(state: EditorState): DecorationSet {
 
         if (lineActive) {
           decos.push(mark('cm-autolink').range(from, to));
+          decos.push(Decoration.widget({ widget: new MagicLinkMarkerWidget(target, original, to, lang), side: 1 }).range(to));
         } else {
           replace(from, to, Decoration.replace({ widget: new AutoLinkWidget(target, original, from, to, lang) }));
         }

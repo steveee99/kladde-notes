@@ -6,6 +6,7 @@ All user-visible changes to Kladde.
 
 - New: Built-in date variables `{{var:today}}`, `{{var:tomorrow}}`, `{{var:week}}`, `{{var:nextWeek}}`, `{{var:month}}`, `{{var:year}}` and more (also in German: `{{var:morgen}}`, `{{var:nächsteWoche}}`, …) work everywhere without defining them and always show the current date. Typing `{{` now always offers variables, like `[[` offers notes: the folder's own first, then the date variables with their current value. The variables dialog lists them. See [docs/VARIABLES.md](docs/VARIABLES.md).
 - Changed: Templates are edited in a larger source editor (with a “Larger” switch) that colors Markdown and placeholders: `{{title}}`, `{{date}}` and the other template placeholders in the accent color, `{{var:…}}` variables in green. Typing `{{` offers the template's placeholders, the variables of its folder and the date variables; `[[` offers notes.
+- Changed: Automatic links (note titles found in the text) now always show a magic wand after them, also on the line being edited and in read-only notes. Clicking it turns the text into a regular `[[link]]`; clicking the text still opens the note.
 
 ## [2.21.0] – 2026-11-25
 
