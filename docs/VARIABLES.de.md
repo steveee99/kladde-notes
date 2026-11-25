@@ -20,6 +20,29 @@ Variablen halten Werte fest, die in vielen Notizen vorkommen: ein Kunde, ein Hos
 - Vorlagen behalten den Platzhalter, daraus erstellte Notizen folgen also der Variable.
 - Word-, PDF-, Folien- und Markdown-Export, Confluence-Seiten, Präsentationen und öffentliche Links enthalten die Werte. Der Exportordner des Servers, Kontoexporte, MCP und „Als Markdown kopieren“ enthalten die Notiz wie geschrieben.
 
+## Eingebaute Datumsvariablen
+
+Sie funktionieren in jeder Notiz und Vorlage, ohne sie anzulegen, und zeigen immer das Datum des Tages, an dem die
+Notiz gelesen wird (wie jede Variable werden sie beim Anzeigen und Exportieren eingesetzt). Eine gleichnamige Variable
+eines Ordners hat Vorrang. Jede gibt es auf Deutsch und Englisch.
+
+| Deutsch | Englisch | Beispiel (Mi 25.11.2026) |
+| --- | --- | --- |
+| `heute` | `today` | 2026-11-25 |
+| `morgen` | `tomorrow` | 2026-11-26 |
+| `gestern` | `yesterday` | 2026-11-24 |
+| `woche` | `week` | 2026-W48 |
+| `nächsteWoche` | `nextWeek` | 2026-W49 |
+| `letzteWoche` | `lastWeek` | 2026-W47 |
+| `kw` | `weekNumber` | 48 |
+| `wochenstart` / `wochenende` | `weekStart` / `weekEnd` | 2026-11-23 / 2026-11-29 |
+| `nächsterMontag` | `nextWeekStart` | 2026-11-30 |
+| `monat` | `month` | 2026-11 |
+| `nächsterMonat` / `letzterMonat` | `nextMonth` / `lastMonth` | 2026-12 / 2026-10 |
+| `jahr` / `nächstesJahr` | `year` / `nextYear` | 2026 / 2027 |
+
+`{{` in einer Notiz oder Vorlage schlägt sie unter den Variablen des Ordners vor.
+
 ## Definieren
 
 **Variablen …** im Kopf eines Ordners, von „Alle Notizen“ (oberste Ebene) oder einer Gruppe, oder im Menü eines Ordners in der Seitenleiste. Der Dialog zeigt die eigenen Variablen des Ordners und die geerbten mit ihrer Herkunft und **Überschreiben**. Leser einer Gruppe sehen sie, können sie aber nicht ändern.
