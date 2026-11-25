@@ -216,3 +216,51 @@ test('/gitlab makes a note beside this one and embeds it, and exports contain th
   const web = `${gitlab}/team/s-${name}/-`;
   expect(text).toBe(`# Guide\n\n[other](${web}/blob/main/x.md) ![p](${web}/raw/main/p.png)\n`);
 });
+
+test('a synced remote note keeps a copy: it is searched, and "Sync now" reads it again', async ({ page }) => {
+  const gitlab = await gitlabUrl(page.request);
+  const name = uid();
+  const project = `team/synced-${name}`;
+  const word = `Kormoran${name.replace(/\W/g, '')}`;
+  await putFile(page.request, gitlab, project, 'README.md', `# Synced v1\n\n${word}\n`, 'HEAD');
+
+  const top = `Synced ${name}`;
+  await seed(page.request, [{ path: `${top}/Other.md`, content: 'Other\n' }]);
+  await page.goto(`/f/${encodeURIComponent(top)}`);
+  await expect(page.getByText('Other').first()).toBeVisible();
+  await page.getByRole('main').getByRole('button', { name: 'New', exact: true }).click();
+  await page.getByRole('button', { name: 'GitLab/GitHub note' }).click();
+  const dialog = page.locator('[data-remote-dialog]');
+  await dialog.getByRole('combobox', { name: 'Address of the document' }).fill(`${gitlab}/${project}`);
+  const toggle = dialog.getByRole('switch', { name: 'Sync regularly' });
+  await expect(toggle).toHaveAttribute('aria-checked', 'false');
+  await toggle.click();
+  await expect(dialog.locator('[data-remote-sync-option]')).toContainText('every 6 hours');
+  await dialog.getByRole('button', { name: 'Create' }).click();
+  await page.waitForURL(/\/n\/[0-9a-f]+/);
+  const id = /\/n\/([0-9a-f]+)/.exec(page.url())![1];
+
+  await expect(editor(page).locator('.cm-h1')).toHaveText('Synced v1');
+  await expect(state(page)).toContainText('Read-only, synced regularly');
+  await expect(state(page).locator('[data-remote-synced]')).toBeVisible();
+  expect((await serverNote(page.request, id))!.content).toContain('sync: true');
+  // The copy reaches the device with the note
+  await expect.poll(async () => ((await serverNote(page.request, id)) as { remoteSnapshot?: { text: string } } | undefined)?.remoteSnapshot?.text ?? '').toContain(word);
+
+  // Found by the search
+  await page.keyboard.press('ControlOrMeta+K');
+  await page.locator('[data-search-dialog-input]').fill(word.toLowerCase());
+  const palette = page.locator('[data-command-palette]');
+  await expect(palette.getByRole('group', { name: 'Notes' }).getByRole('option')).toHaveCount(1);
+  await expect(palette.getByRole('group', { name: 'Notes' })).toContainText(word);
+  await page.keyboard.press('Escape');
+
+  // Changed upstream: the note shows its copy until "Sync now"
+  await putFile(page.request, gitlab, project, 'README.md', '# Synced v2\n', 'HEAD');
+  await page.reload();
+  await expect(editor(page).locator('.cm-h1')).toHaveText('Synced v1');
+  await page.waitForTimeout(15_500); // a manual sync right after the last one answers with that one
+  await page.getByRole('button', { name: 'Sync now' }).click();
+  await expect(editor(page).locator('.cm-h1')).toHaveText('Synced v2');
+
+});

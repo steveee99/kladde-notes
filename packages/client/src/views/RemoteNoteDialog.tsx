@@ -7,7 +7,7 @@ import { INBOX_FOLDER, parseRemoteUrl, remoteNoteMarkdown, remoteNoteOf, resolve
 import { spaceOf, useVault, vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { useVariables } from '../data/variables';
-import { remoteProblemText, useRemoteHosts } from '../data/remoteNotes';
+import { remoteProblemText, useRemoteHosts, useRemoteSyncHours } from '../data/remoteNotes';
 import { folderDisplayName, t, useLang } from '../lib/i18n';
 import { Loader2, RemoteDoc } from '../lib/icons';
 import { isReadOnly } from '../lib/readOnly';
@@ -15,6 +15,7 @@ import { navigate } from '../lib/router';
 import { isCoarsePointer } from '../lib/viewport';
 import { Dropdown } from './Dropdown';
 import { Sheet } from './Dialogs';
+import { Switch } from './Switch';
 
 const SUGGESTIONS = 6;
 
@@ -135,6 +136,9 @@ export function RemoteNoteDialog({ folder, title: givenTitle = '', shared, group
   const [title, setTitle] = useState(givenTitle);
   const [source, setSource] = useState(existing?.source ?? '');
   const [ref, setRef] = useState(existing?.ref ?? '');
+  const [sync, setSync] = useState(!!existing?.sync);
+  const syncHours = useRemoteSyncHours();
+  const syncId = useId();
   const [target, setTarget] = useState(shared?.folder ?? folder ?? (group ? '' : INBOX_FOLDER));
   const [busy, setBusy] = useState(false);
   const hosts = useRemoteHosts();
@@ -143,7 +147,7 @@ export function RemoteNoteDialog({ folder, title: givenTitle = '', shared, group
   const inGroup = group ? vault.group(group) : undefined;
   const folders = group ? vault.groupFolders(group) : vault.folders();
 
-  const typed = { source: source.trim(), ref: ref.trim() };
+  const typed = { source: source.trim(), ref: ref.trim(), sync };
   const resolved = resolveRemoteSource(typed, scope);
   const parsed = typed.source && resolved.complete ? parseRemoteUrl(resolved.url, hosts ?? [], resolved.ref) : null;
   // Without the list of hosts (offline) only the server can tell
@@ -210,6 +214,15 @@ export function RemoteNoteDialog({ folder, title: givenTitle = '', shared, group
           </div>
         </div>
         <VariableInput value={ref} onChange={setRef} scope={scope} label={t('remote.refLabel')} placeholder="main" onEnter={() => void save()} mono />
+        <div className="flex items-start gap-3 rounded-md border border-line px-3 py-2.5" data-remote-sync-option>
+          <div className="min-w-0 flex-1">
+            <label htmlFor={syncId} className="block cursor-pointer text-label-l text-text">
+              {t('remote.syncLabel')}
+            </label>
+            <p className="mt-0.5 text-body-s text-muted">{sync ? (syncHours ? t('remote.syncHintOn', { hours: String(syncHours) }) : t('remote.syncHintOnPlain')) : t('remote.syncHintOff')}</p>
+          </div>
+          <Switch id={syncId} checked={sync} label={t('remote.syncLabel')} onChange={setSync} />
+        </div>
         {!note && (
           <>
             <input

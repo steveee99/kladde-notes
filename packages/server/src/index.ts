@@ -130,7 +130,7 @@ async function main(): Promise<void> {
 
   // Set below: ends the process so the container's restart policy starts it again (a restore applies at start)
   let restart = () => {};
-  const { app, users, audit, live, notes, files, attachmentIndexer, confluence, sendReminders, backups, metrics, jobs } = createKladdeApp({
+  const { app, users, audit, live, notes, files, attachmentIndexer, confluence, remoteSync, sendReminders, backups, metrics, jobs } = createKladdeApp({
     db,
     dataDir: DATA_DIR,
     env,
@@ -220,6 +220,11 @@ async function main(): Promise<void> {
 
   // Confluence (#48): push what changed while the server was down
   setTimeout(() => confluence.catchUp(), 60_000).unref();
+
+  // Synced remote notes: the ones that are due are read a few at a time, checked every minute
+  const runRemoteSync = () => void remoteSync.tick().catch((err) => console.error('Remote sync failed:', err));
+  setTimeout(runRemoteSync, 45_000).unref();
+  setInterval(runRemoteSync, 60_000).unref();
 
   // Task reminders and daily digests via Web Push: checked every minute
   if (sendReminders) {

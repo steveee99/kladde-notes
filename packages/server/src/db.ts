@@ -559,6 +559,20 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 28,
+    description: 'Synced remote notes: the kept copy of their document and when it is read again',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE remote_snapshots (
+          note_id TEXT PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+          next_at INTEGER NOT NULL,
+          payload BLOB
+        );
+        CREATE INDEX remote_snapshots_due ON remote_snapshots(next_at);
+      `);
+    },
+  },
 ];
 
 /** The schema version this build migrates to */

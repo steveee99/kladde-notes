@@ -11,10 +11,13 @@ import {
   remoteProjectAllowed,
   remoteWebUrl,
   resolveRemoteSource,
+  searchableText,
+  searchNotes,
   setRemoteSource,
   variableScope,
   type RemoteBase,
   type RemoteHost,
+  type RemoteSnapshot,
 } from '../src';
 
 const hosts: RemoteHost[] = [
@@ -211,5 +214,31 @@ describe('remote text', () => {
   it('builds addresses of files', () => {
     expect(remoteWebUrl({ ...base, ref: 'feature/ü', path: 'a b/c.md' })).toBe('https://gitlab.example.com/g/p/-/blob/feature/%C3%BC/a%20b/c.md');
     expect(remoteWebUrl({ ...base, kind: 'github' }, 'raw')).toBe('https://gitlab.example.com/g/p/raw/main/docs/guide.md');
+  });
+});
+
+describe('synced remote notes', () => {
+  const source = 'https://gitlab.example.com/g/p/-/blob/main/a.md';
+  const snap = (over: Partial<RemoteSnapshot> = {}): RemoteSnapshot => ({ source, ref: '', text: 'Kopie mit Seegras', base: null, url: '', commit: null, fetchedAt: 1, checkedAt: 1, ...over });
+
+  it('writes and reads the switch', () => {
+    const on = remoteNoteMarkdown({ source, ref: '', sync: true });
+    expect(on).toContain('sync: true');
+    expect(remoteNoteOf(on)).toEqual({ source, ref: '', sync: true });
+    const off = setRemoteSource(on, { source, ref: '' });
+    expect(off).not.toContain('sync');
+    expect(remoteNoteOf(off)).toEqual({ source, ref: '' });
+    expect(remoteNoteOf(on.replace('sync: true', 'sync: false'))?.sync).toBeUndefined();
+    expect(clearRemoteSource(on)).not.toContain('sync');
+  });
+
+  it('searches the kept copy only of a synced note and only of its current source', () => {
+    const content = remoteNoteMarkdown({ source, ref: '', sync: true });
+    const note = { path: 'A.md', content, updatedAt: 1, remoteSnapshot: snap() };
+    expect(searchableText(note)).toContain('Seegras');
+    expect(searchNotes([note], ['seegras'], () => 'A', undefined, searchableText)).toHaveLength(1);
+    expect(searchNotes([note], ['seegras'], () => 'A')).toHaveLength(0);
+    expect(searchableText({ ...note, content: remoteNoteMarkdown({ source, ref: '' }) })).not.toContain('Seegras');
+    expect(searchableText({ ...note, remoteSnapshot: snap({ source: `${source}x` }) })).not.toContain('Seegras');
   });
 });

@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, assignTicketNumber, canTransition, isSchemaPath, isTicketContent, parseProject, runAutomations, setTicketFields, hasVariables, isVariablesPath, isNoteTypePath, noteTypesOf, findNoteType, customTypeOf, writeNoteType, propertyPosition, type NoteType, usedVariables, variableDefinitions, variableScope, type VariableDefinitions, type VariableScope, subtaskProgress, ticketEvents, ticketMeta, workflowStatus, type ProjectConfig, contentHash, embedsOf, extractMeta, numberedTicketId, parseGroupFeatures, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, publicRemoteContent, remoteNoteOf, type RemoteSource, splitPath, renameWikiLinks } from '@kladde/shared';
+import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, assignTicketNumber, canTransition, isSchemaPath, isTicketContent, parseProject, runAutomations, setTicketFields, hasVariables, isVariablesPath, isNoteTypePath, noteTypesOf, findNoteType, customTypeOf, writeNoteType, propertyPosition, type NoteType, usedVariables, variableDefinitions, variableScope, type VariableDefinitions, type VariableScope, subtaskProgress, ticketEvents, ticketMeta, workflowStatus, type ProjectConfig, contentHash, embedsOf, extractMeta, numberedTicketId, parseGroupFeatures, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, publicRemoteContent, remoteNoteOf, type RemoteSource, type RemoteSnapshot, splitPath, renameWikiLinks } from '@kladde/shared';
 import { DataCipher, randomToken } from './crypto.js';
 import { transaction } from './db.js';
 
@@ -101,6 +101,12 @@ export function freePath(path: string, taken: Set<string>): string {
   }
 }
 
+/** A catalog entry of online mode: no text, and no copy of a remote document either */
+function lightEntry(n: SyncedNote): SyncedNote {
+  const { remoteSnapshot: _s, ...rest } = n;
+  return { ...rest, content: '', partial: true };
+}
+
 /** A folder share with the folder path decrypted */
 interface FolderShare extends FolderPermissions {
   id: string;
@@ -179,7 +185,8 @@ export class NoteStore {
       ...(owner ? { owner } : {}),
       ...(ownerAvatar ? { ownerAvatar: `/api/avatars/${ownerAvatar}` } : {}),
     };
-    if (row.deleted || !this.versioningOn(row.id)) return note;
+    if (row.deleted) return note;
+    if (!this.versioningOn(row.id)) return this.withRemoteSnapshot(note);
     // Release versioning (#53): readers see the latest release, owner and editors work on the draft
     const rows = this.releaseRows(row.id);
     note.versioning = true;
@@ -192,7 +199,33 @@ export class NoteStore {
         note.showsRelease = note.releases[0].version;
       }
     }
+    return this.withRemoteSnapshot(note);
+  }
+
+  /** Kept copies of synced remote notes (`RemoteSnapshotStore`), set when the server syncs them */
+  remoteSnapshots: { current(noteId: string, content: string): RemoteSnapshot | null } | null = null;
+
+  /** A synced remote note travels with the copy of its document, so devices search and show it without a connection */
+  private withRemoteSnapshot(note: SyncedNote): SyncedNote {
+    const snap = this.remoteSnapshots?.current(note.id, note.content);
+    if (snap) note.remoteSnapshot = snap;
     return note;
+  }
+
+  /** A new seq without a new version, from outside (a synced remote note's copy changed): devices pull the note again */
+  touchNote(noteId: string): void {
+    const row = this.getRow(noteId);
+    if (!row || row.deleted) return;
+    this.onChange(this.touch(row));
+  }
+
+  /** The source of a remote note as stored (its owner's view), with the space and folder its variables come from */
+  storedRemoteSource(noteId: string): { source: RemoteSource; ownerId: string; folder: string } | null {
+    const row = this.getRow(noteId);
+    if (!row || row.deleted) return null;
+    const p = this.payload(row);
+    const source = remoteNoteOf(p.content);
+    return source && { source, ownerId: row.owner_id, folder: splitPath(p.path).folder };
   }
 
   /** The user's role in a group (#58), null when `groupId` is no group or they are not a member */
@@ -551,7 +584,7 @@ export class NoteStore {
   pull(userId: string, since: number, opts: { light?: boolean } = {}): PullResponse {
     const res = this.pullAll(userId, since, !!opts.light);
     if (!opts.light) return res;
-    return { ...res, notes: res.notes.map((n) => (n.deleted || n.path.startsWith(SYSTEM_PREFIX) ? n : { ...n, content: '', partial: true })) };
+    return { ...res, notes: res.notes.map((n) => (n.deleted || n.path.startsWith(SYSTEM_PREFIX) ? n : lightEntry(n))) };
   }
 
   /** Full notes the user may see, by id (deleted, unknown and foreign ones are left out) */
@@ -603,12 +636,13 @@ export class NoteStore {
   }
 
   /** The notes of a space changed after `since` (deleted ones without text), decrypted for the server's index */
-  spaceChanges(ownerId: string, since: number): { id: string; path: string; content: string; createdAt: number; updatedAt: number; seq: number; deleted: boolean }[] {
+  spaceChanges(ownerId: string, since: number): { id: string; path: string; content: string; remoteText?: string; createdAt: number; updatedAt: number; seq: number; deleted: boolean }[] {
     const rows = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND seq > ? ORDER BY seq').all(ownerId, since) as unknown as NoteRow[];
     return rows.map((r) => {
       if (r.deleted) return { id: r.id, path: '', content: '', createdAt: r.created_at, updatedAt: r.updated_at, seq: r.seq, deleted: true };
       const p = this.payload(r);
-      return { id: r.id, path: p.path, content: p.content, createdAt: r.created_at, updatedAt: r.updated_at, seq: r.seq, deleted: false };
+      const remoteText = this.remoteSnapshots?.current(r.id, p.content)?.text;
+      return { id: r.id, path: p.path, content: p.content, ...(remoteText ? { remoteText } : {}), createdAt: r.created_at, updatedAt: r.updated_at, seq: r.seq, deleted: false };
     });
   }
 

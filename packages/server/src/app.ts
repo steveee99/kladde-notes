@@ -47,6 +47,7 @@ import { httpsTransport, type HttpTransport } from './confluence/ConfluenceClien
 import { RemoteInstances } from './remote/RemoteInstances.js';
 import { RemoteFetcher } from './remote/RemoteFetcher.js';
 import { remoteRouter } from './remote/router.js';
+import { RemoteSnapshotStore, RemoteSync, remoteSyncHours } from './remote/RemoteSync.js';
 import { confluenceRouter } from './confluence/router.js';
 import { BackupService } from './backup/BackupService.js';
 import { ServerSettings } from './ServerSettings.js';
@@ -88,6 +89,8 @@ export interface KladdeAppContext {
   attachmentIndexer: AttachmentIndexer;
   /** One-way sync of notes and folders to Confluence (#48) */
   confluence: ConfluenceSync;
+  /** Synced remote notes: `tick()` reads the ones that are due */
+  remoteSync: RemoteSync;
   audit: AuditLog;
   live: LiveUpdates;
   standaloneUser?: UserRecord;
@@ -123,6 +126,8 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   const mirror = ExportMirror.fromEnv((id) => users.getUser(id)?.username ?? null, env);
   // Created below (it needs the file store); note changes reach it from the first push on
   let confluence: ConfluenceSync | undefined;
+  // Synced remote notes; created with the fetcher below
+  let remoteSync: RemoteSync | undefined;
   // Activity of groups and shared notes (#70)
   const activity = new ActivityStore(opts.db, cipher);
   // Mentions and comments (#69, #68): kept per user, a live event to open apps, Web Push to the devices
@@ -139,6 +144,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     notifications.mentions(event);
     mirror?.apply(event);
     confluence?.onNoteChange(event);
+    remoteSync?.onNoteChange(event);
   });
   // Git sync was removed: its working copies (plain Markdown of the notes) must not stay on disk
   fs.rmSync(path.join(opts.dataDir, 'git'), { recursive: true, force: true });
@@ -389,7 +395,9 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   // Remote notes: Markdown from GitLab/GitHub, read live with the access configured for everyone
   const remoteInstances = new RemoteInstances(env, new ServerSettings(opts.db), cipher);
   const remoteFetcher = new RemoteFetcher(remoteInstances);
-  app.use('/api/remote-notes', remoteRouter({ users, notes, instances: remoteInstances, fetcher: remoteFetcher, standaloneUser }));
+  // Synced ones (`sync: true`) are read every REMOTE_SYNC_HOURS and kept as an encrypted copy (search, offline)
+  remoteSync = new RemoteSync(new RemoteSnapshotStore(opts.db, cipher), notes, remoteFetcher, remoteSyncHours(env) * 3_600_000);
+  app.use('/api/remote-notes', remoteRouter({ users, notes, instances: remoteInstances, fetcher: remoteFetcher, sync: remoteSync, standaloneUser }));
   if (!opts.standalone) {
     app.use(
       '/api/admin',
@@ -462,5 +470,5 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
 
   const sendReminders = push ? (now?: Date) => runReminders(push, notes, pushSubject, now) : undefined;
-  return { app, users, notes, files, avatars, attachmentIndexer, confluence, audit, live, standaloneUser, sendReminders, backups, metrics: metricsSources, jobs };
+  return { app, users, notes, files, avatars, attachmentIndexer, confluence, remoteSync, audit, live, standaloneUser, sendReminders, backups, metrics: metricsSources, jobs };
 }

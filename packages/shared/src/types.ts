@@ -1,3 +1,5 @@
+import type { RemoteSnapshot } from './remoteNote.js';
+
 /** What the signed-in user may do with a note */
 export type NoteAccess = 'owner' | 'write' | 'read';
 
@@ -33,6 +35,8 @@ export interface SyncedNote {
    * the note (`POST /api/sync/notes`)
    */
   partial?: boolean;
+  /** A remote note with `sync: true`: the copy of its document the server keeps (never in public links or catalogs) */
+  remoteSnapshot?: RemoteSnapshot;
 }
 
 /** A released version of a note (#53); immutable once created */
