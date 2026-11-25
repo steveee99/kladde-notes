@@ -48,6 +48,8 @@ const CALLOUT_ICONS = {
   note: 'edit', abstract: 'summarize', info: 'info', todo: 'check_circle', tip: 'lightbulb', success: 'check', question: 'help',
   warning: 'warning', failure: 'close', danger: 'bolt', bug: 'bug_report', example: 'list', quote: 'format_quote',
 };
+/** Icons drawn by editor widgets (plain DOM, no React), written as paths to src/editor/calloutIcons.ts as well */
+const EDITOR_ICONS = { magicLink: 'wand_shine' };
 const calloutOut = join(dirname(fileURLToPath(import.meta.url)), '../src/editor/calloutIcons.ts');
 
 const pathOf = (file) => {
@@ -116,6 +118,17 @@ ${Object.entries(CALLOUT_ICONS)
   })
   .join('\n')}
 };
+
+/** SVG path (viewBox 0 -960 960 960) of icons drawn by editor widgets */
+export const EDITOR_ICON_PATHS = {
+${Object.entries(EDITOR_ICONS)
+  .map(([name, symbol]) => {
+    const file = join(root, `${symbol}.svg`);
+    if (!existsSync(file)) throw new Error(`Material Symbol "${symbol}" (for editor icon ${name}) does not exist`);
+    return `  ${name}: '${pathOf(file)}',`;
+  })
+  .join('\n')}
+} as const;
 `
 );
 console.log(`wrote ${Object.keys(CALLOUT_ICONS).length} callout icons to ${calloutOut}`);

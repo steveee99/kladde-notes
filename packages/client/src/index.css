@@ -1151,26 +1151,28 @@ html[data-readonly] .edit-only {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-left: 3px;
-  padding: 1px 3px;
+  margin-left: 2px;
+  padding: 1px 2px;
+  border: 0;
   border-radius: 4px;
-  background: rgb(var(--primary) / 0.12);
-  color: rgb(var(--primary));
-  opacity: 0;
+  background: transparent;
+  color: rgb(var(--acc-hi));
+  opacity: 0.7;
+  vertical-align: 0.05em;
   transition: opacity var(--dur) var(--ease), background var(--dur) var(--ease);
-  cursor: pointer;
   line-height: 1;
 }
-.cm-autolink-widget:hover .cm-autolink-btn {
+button.cm-autolink-btn {
+  cursor: pointer;
+}
+.cm-autolink-widget:hover .cm-autolink-btn,
+.cm-autolink-marker .cm-autolink-btn {
   opacity: 1;
 }
-.cm-autolink-btn:hover {
-  background: rgb(var(--primary) / 0.25);
-}
-@media (hover: none) {
-  .cm-autolink-btn {
-    opacity: 0.7;
-  }
+button.cm-autolink-btn:hover,
+button.cm-autolink-btn:focus-visible {
+  background: rgb(var(--acc-bg));
+  opacity: 1;
 }
 .cm-footnote-ref {
   color: rgb(var(--primary));
