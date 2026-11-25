@@ -49,7 +49,12 @@ const CALLOUT_ICONS = {
   warning: 'warning', failure: 'close', danger: 'bolt', bug: 'bug_report', example: 'list', quote: 'format_quote',
 };
 /** Icons drawn by editor widgets (plain DOM, no React), written as paths to src/editor/calloutIcons.ts as well */
-const EDITOR_ICONS = { magicLink: 'wand_shine' };
+const EDITOR_ICONS = {
+  magicLink: 'wand_shine',
+  // GitLab preview cards
+  glMergeRequest: 'merge', glIssue: 'adjust', glPipeline: 'rocket_launch', glCommit: 'commit', glMilestone: 'flag', glRelease: 'sell',
+  glProject: 'folder_code', glGroup: 'groups', glComment: 'chat_bubble', glStar: 'star', glFork: 'fork_right', glBranch: 'call_split', glTime: 'schedule',
+};
 const calloutOut = join(dirname(fileURLToPath(import.meta.url)), '../src/editor/calloutIcons.ts');
 
 const pathOf = (file) => {

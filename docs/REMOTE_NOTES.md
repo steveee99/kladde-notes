@@ -50,6 +50,26 @@ sync: true
 
 `sync: true` is optional (synced, see above). Text below the frontmatter (written by hand or by another program) is kept but not shown; the note offers to become an ordinary one. Kladde's apps never write such text, and AI assistants (MCP) may only change `source`, `ref` and `sync`.
 
+## GitLab preview cards
+
+A link to a configured GitLab instance that stands **alone on its line** (bare or as `<…>`) shows as a card instead of
+the plain address, as soon as the cursor leaves the line:
+
+| Link | The card shows |
+| --- | --- |
+| Merge request (`…/-/merge_requests/12`) | title, state (open, draft, merged, closed), source → target branch, pipeline, conflicts, number of changes, labels, milestone, author, reviewers, comments, when it changed |
+| Issue (`…/-/issues/4`, `…/-/work_items/4`) | title, state, labels, milestone, due date, progress of its task list, assignees, comments |
+| Pipeline (`…/-/pipelines/991`) | status, branch or tag, duration, who started it |
+| Commit (`…/-/commit/<sha>`) | title, author, added and removed lines, pipeline |
+| Milestone (`…/-/milestones/3`) | state, start and due date, closed of all issues |
+| Release or tag (`…/-/releases/v1.2`) | name, tag, author, release notes |
+| Project (`group/project`, also its files and folders) | description, default branch, languages, topics, stars, forks, open issues, visibility, last activity |
+| Group (`group`, `groups/group/sub`) | description, number of projects and subgroups, visibility |
+
+The card opens the link; ✎ shows the address again to edit it, ↻ reloads the card. Cards use the same instances,
+token and allowed paths as GitLab notes (below) and are read live (kept a minute); the note itself keeps the plain
+link, so exports, public links and other apps see a normal link. Variables in the address are filled in.
+
 ## Set up access
 
 An admin sets up which instances may be read. The token applies to **everyone** who signs in to this Kladde.

@@ -50,6 +50,27 @@ sync: true
 
 `sync: true` ist optional (synchronisiert, siehe oben). Text unter dem Frontmatter (von Hand oder von einem anderen Programm) bleibt erhalten, wird aber nicht gezeigt; die Notiz bietet an, eine normale zu werden. Die Apps von Kladde schreiben solchen Text nie, und KI-Assistenten (MCP) dürfen nur `source`, `ref` und `sync` ändern.
 
+## GitLab-Vorschaukarten
+
+Ein Link auf eine eingerichtete GitLab-Instanz, der **allein in seiner Zeile** steht (nackt oder als `<…>`), wird als
+Karte statt als Adresse gezeigt, sobald der Cursor die Zeile verlässt:
+
+| Link | Die Karte zeigt |
+| --- | --- |
+| Merge Request (`…/-/merge_requests/12`) | Titel, Status (offen, Entwurf, gemergt, geschlossen), Quell- → Zielbranch, Pipeline, Konflikte, Anzahl Änderungen, Labels, Meilenstein, Autor, Reviewer, Kommentare, letzte Änderung |
+| Issue (`…/-/issues/4`, `…/-/work_items/4`) | Titel, Status, Labels, Meilenstein, Fälligkeit, Fortschritt der Aufgabenliste, Zuständige, Kommentare |
+| Pipeline (`…/-/pipelines/991`) | Status, Branch oder Tag, Dauer, wer sie gestartet hat |
+| Commit (`…/-/commit/<sha>`) | Titel, Autor, hinzugefügte und entfernte Zeilen, Pipeline |
+| Meilenstein (`…/-/milestones/3`) | Status, Start und Fälligkeit, geschlossene von allen Issues |
+| Release oder Tag (`…/-/releases/v1.2`) | Name, Tag, Autor, Release Notes |
+| Projekt (`gruppe/projekt`, auch seine Dateien und Ordner) | Beschreibung, Standardbranch, Sprachen, Themen, Sterne, Forks, offene Issues, Sichtbarkeit, letzte Aktivität |
+| Gruppe (`gruppe`, `groups/gruppe/sub`) | Beschreibung, Anzahl Projekte und Untergruppen, Sichtbarkeit |
+
+Ein Klick auf die Karte öffnet den Link; ✎ zeigt die Adresse wieder zum Bearbeiten, ↻ lädt die Karte neu. Karten nutzen
+dieselben Instanzen, Tokens und freigegebenen Pfade wie GitLab-Notizen (unten) und werden live gelesen (eine Minute
+gemerkt); die Notiz selbst behält den einfachen Link, Exporte, öffentliche Links und andere Apps sehen also einen
+normalen Link. Variablen in der Adresse werden eingesetzt.
+
 ## Zugriff einrichten
 
 Ein Admin legt fest, welche Instanzen gelesen werden. Das Token gilt für **alle**, die sich bei dieser Kladde anmelden.

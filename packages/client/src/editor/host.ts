@@ -1,4 +1,4 @@
-import type { QueryResult } from '@kladde/shared';
+import type { GitlabCardResponse, QueryResult, RemoteHost } from '@kladde/shared';
 import type { EmbedNote } from './embedContext';
 import { t } from '../lib/i18n';
 
@@ -21,6 +21,9 @@ export interface TicketChip {
   blocked: boolean;
 }
 
+/** What the editor gets for a GitLab preview card; the extra states come from the device (no connection, too many requests, demo) */
+export type GitlabCardState = GitlabCardResponse | { state: 'offline' | 'busy' | 'demo' };
+
 /** What the editor widgets need from the app (set once by the app, read at render time) */
 export interface EditorHost {
   openWiki(title: string): void;
@@ -32,6 +35,12 @@ export interface EditorHost {
   loadRemote(id: string): Promise<{ text: string } | { problem: string }>;
   /** "GitLab/GitHub note" from the slash menu: made next to the note, `onCreated` gets its title */
   newRemoteNote(besideId: string, onCreated: (title: string) => void): void;
+  /** The GitLab/GitHub instances the server reads (empty until known; asks for them on first use) */
+  remoteHosts(): readonly RemoteHost[];
+  /** Calls `fn` when the instances became known or changed; returns the unsubscribe */
+  onRemoteHosts(fn: () => void): () => void;
+  /** The preview card of a GitLab address (shared/gitlabCard.ts) */
+  loadGitlabCard(url: string, refresh?: boolean): Promise<GitlabCardState>;
   runQuery(src: string): QueryResult | { error: string } | { loading: true };
   toggleTask(noteId: string, line: number): void;
   /** Opens the note a task lives in, scrolled to the task's line */
@@ -70,6 +79,9 @@ export const editorHost: EditorHost = {
   resolveEmbed: () => null,
   loadRemote: () => Promise.resolve({ problem: t('editor.notAvailable') }),
   newRemoteNote: () => {},
+  remoteHosts: () => [],
+  onRemoteHosts: () => () => {},
+  loadGitlabCard: () => Promise.resolve({ state: 'host_not_configured' }),
   runQuery: () => ({ error: t('editor.notAvailable') }),
   toggleTask: () => {},
   openTask: () => {},

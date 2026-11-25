@@ -22,6 +22,7 @@ export * from './export.js';
 export * from './table.js';
 export * from './pdfNote.js';
 export * from './remoteNote.js';
+export * from './gitlabCard.js';
 export * from './excalidrawNote.js';
 export * from './writing.js';
 export * from './share.js';
