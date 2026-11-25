@@ -1402,7 +1402,7 @@ export async function exportNoteAsSlides(title: string, content: string, variabl
     const page = pdf.getNumberOfPages();
     // Largest size at which the slide fits: draw, and on overflow wipe the page and draw again smaller
     let s = base;
-    let f = frame(s);
+    let f: ReturnType<typeof frame>;
     for (;;) {
       f = { ...frame(s), center: slide.title };
       drawPdfBlocks(f, slide.blocks);
