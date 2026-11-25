@@ -2,6 +2,10 @@ import { defineConfig } from '@playwright/test';
 
 // End-to-end tests (#62): `npm run build`, then `npm run test:e2e`. The test server (e2e/server.mjs) starts with a fresh
 // database and the accounts anna, ben and cara; every run works on its own data directory.
+/** Tests compute dates in Node and compare them with the browser: both, and the test servers, use one time zone */
+const TIME_ZONE = 'Europe/Berlin';
+process.env.TZ = TIME_ZONE;
+
 const PORT = Number(process.env.E2E_PORT ?? 3102);
 const baseURL = `http://127.0.0.1:${PORT}`;
 /** A second test server in online mode (`KLADDE_MODE=online`) for `e2e/online.spec.ts` and `BENCH_ONLINE=1` */
@@ -29,7 +33,7 @@ export default defineConfig({
     // The large-vault benchmark in online mode signs in and measures on the online server
     baseURL: BENCH_ONLINE ? onlineURL : baseURL,
     locale: 'en-US',
-    timezoneId: 'Europe/Berlin',
+    timezoneId: TIME_ZONE,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
@@ -60,8 +64,9 @@ export default defineConfig({
       use: { viewport: { width: 1280, height: 800 } },
     },
     {
-      // Online mode: its own server, the test signs in there itself
+      // Online mode: its own server, the test signs in there itself; new contexts still read the stored session of `setup`
       name: 'online',
+      dependencies: ['setup'],
       testMatch: /online\.spec\.ts/,
       use: { viewport: { width: 1280, height: 800 }, baseURL: onlineURL },
     },
