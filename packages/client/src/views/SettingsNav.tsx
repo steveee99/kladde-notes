@@ -15,6 +15,7 @@ import {
   LayoutTemplate,
   Palette,
   ShieldCheck,
+  SlidersHorizontal,
   Smartphone,
   Sync,
   Trash2,
@@ -64,6 +65,7 @@ function useGroups(me: Me): Group[] {
       label: 'settings.groupContent',
       entries: [
         { path: '/settings/templates', Icon: LayoutTemplate, label: 'settings.templatesTitle', desc: 'settings.navTemplatesDesc' },
+        { path: '/settings/types', Icon: SlidersHorizontal, label: 'types.title', desc: 'types.navDesc' },
         { path: '/settings/files', Icon: Images, label: 'settings.filesTitle', desc: 'settings.filesDesc' },
         { path: '/settings/trash', Icon: Trash2, label: 'settings.trashTitle', desc: 'settings.trashDesc' },
         ...(!me.standalone ? [{ path: '/settings/import', Icon: FolderInput, label: 'settings.importTitle', desc: 'settings.importDesc' } as Entry] : []),

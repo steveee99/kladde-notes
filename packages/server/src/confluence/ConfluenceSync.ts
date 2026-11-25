@@ -4,6 +4,7 @@ import {
   confluenceFolderBody,
   extractMeta,
   hasVariables,
+  isNoteTypePath,
   isVariablesPath,
   markdownToConfluence,
   remoteNoteOf,
@@ -63,7 +64,7 @@ export class ConfluenceSync {
   }
 
   private ownNotes(userId: string): SyncedNote[] {
-    return this.notes.publishedNotes(userId).filter((n) => !n.path.startsWith(SYSTEM_PREFIX) && !isVariablesPath(n.path));
+    return this.notes.publishedNotes(userId).filter((n) => !n.path.startsWith(SYSTEM_PREFIX) && !isVariablesPath(n.path) && !isNoteTypePath(n.path));
   }
 
   private inFolder(sync: ConfluenceSyncRecord, note: { id: string; path: string }): boolean {

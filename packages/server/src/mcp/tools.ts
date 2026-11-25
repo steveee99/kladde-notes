@@ -48,6 +48,9 @@ import {
   type FeatureSettings,
   type GroupInfo,
   type SyncedNote,
+  applyTypeDefaults,
+  customTypeOf,
+  findNoteType,
   isHiddenPath,
   isSchemaPath,
   isMilestoneContent,
@@ -1044,6 +1047,14 @@ export const TOOLS: ToolDef[] = [
       const title = str(args, 'title', true)!.trim().slice(0, 200);
       const zid = zettelId(ctx.today ?? new Date());
       let content = fillTemplate(template.content, { title, zid, date: toDateString(ctx.today ?? new Date()) });
+      // A custom note type fills its defaults in: the group's type, else the own one
+      const typeName = customTypeOf(content);
+      if (typeName !== null) {
+        const groupName = str(args, 'group');
+        const inGroup = groupName !== undefined ? groupOf(ctx, groupName) : undefined;
+        const type = (inGroup && findNoteType(ctx.notes.noteTypesOf(inGroup.id), typeName)) ?? findNoteType(ctx.notes.noteTypesOf(ctx.userId), typeName);
+        if (type) content = applyTypeDefaults(content, type, { title, zid, date: toDateString(ctx.today ?? new Date()) });
+      }
       const extra = str(args, 'content')?.replace(/^\n+|\s+$/g, '');
       if (extra) content = `${content.replace(/\s+$/, '')}${content.trim() ? '\n\n' : ''}${extra}\n`;
       const name = templateUsesZettelId(template.content) ? `${zid} ${title}` : title;

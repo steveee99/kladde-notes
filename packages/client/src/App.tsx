@@ -43,6 +43,7 @@ const SettingsView = lazy(() => import('./views/Settings').then((m) => ({ defaul
 const ShareCaptureView = lazy(() => import('./views/ShareCapture').then((m) => ({ default: m.ShareCaptureView })));
 const TagsView = lazy(() => import('./views/Tags').then((m) => ({ default: m.TagsView })));
 const AdminView = lazy(() => import('./views/Admin').then((m) => ({ default: m.AdminView })));
+const NoteTypesView = lazy(() => import('./views/NoteTypesView').then((m) => ({ default: m.NoteTypesView })));
 const TemplatesView = lazy(() => import('./views/Templates').then((m) => ({ default: m.TemplatesView })));
 const ImportSettingsView = lazy(() => import('./views/ImportSettings').then((m) => ({ default: m.ImportSettingsView })));
 const CalendarSettingsView = lazy(() => import('./views/CalendarSettings').then((m) => ({ default: m.CalendarSettingsView })));
@@ -260,6 +261,7 @@ export function App() {
   else if (groupRoute && !me.standalone) page = <GroupView key={path} groupId={groupRoute.id} folder={groupRoute.folder ?? ''} />;
   else if (path === '/search') page = <SearchView />;
   else if ((path === '/admin' || path === '/settings/admin') && !me.standalone) page = <AdminView me={me} />;
+  else if (path === '/settings/types') page = <NoteTypesView />;
   else if (path === '/settings/templates') page = <TemplatesView />;
   else if (path === '/settings/export') page = <AccountExportView />;
   else if (path === '/settings/mcp') page = <McpSettingsView />;

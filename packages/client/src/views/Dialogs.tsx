@@ -60,6 +60,9 @@ function NewNoteDialog({ folder, type, shared, group }: { folder?: string; type?
   // PDFs are uploaded into the own space, so a shared folder or a group offers notes and drawings only
   const [kind, setKind] = useState<NewNoteKind>((shared || group) && type === 'pdf' ? 'note' : (type ?? 'note'));
   const [template, setTemplate] = useState<Template | null>(null);
+  /** Custom note type of a note without a template ('': none) */
+  const [noteType, setNoteType] = useState('');
+  const types = vault.noteTypes(group ? `group:${group}` : shared ? `user:${shared.owner}` : 'own');
   const [title, setTitle] = useState('');
   const [target, setTarget] = useState(shared?.folder ?? folder ?? (group ? '' : INBOX_FOLDER));
   const [busy, setBusy] = useState(false);
@@ -82,7 +85,7 @@ function NewNoteDialog({ folder, type, shared, group }: { folder?: string; type?
         if (await createDrawingNote(target, title, shared, group)) closeDialog();
         return;
       }
-      const note = await vault.createFromTemplate(template, title.trim() || (template?.label ?? tl(lang, 'common.newNote')), target, shared, group);
+      const note = await vault.createFromTemplate(template, title.trim() || (template?.label ?? tl(lang, 'common.newNote')), target, shared, group, template ? undefined : noteType || undefined);
       closeDialog();
       navigate(`/n/${note.id}${title.trim() ? '' : '?new=1'}`);
     } catch (err) {
@@ -169,6 +172,18 @@ function NewNoteDialog({ folder, type, shared, group }: { folder?: string; type?
           />
         )}
       </div>
+      {kind === 'note' && !template && types.length > 0 && (
+        <div className="mb-4 flex flex-col gap-1.5 text-sm text-on-surface-variant sm:flex-row sm:items-center sm:gap-2">
+          <span className="shrink-0">{tl(lang, 'types.label')}</span>
+          <Dropdown
+            value={noteType}
+            onChange={setNoteType}
+            aria-label={tl(lang, 'types.label')}
+            className="flex-1"
+            options={[{ value: '', label: tl(lang, 'types.none') }, ...types.map((x) => ({ value: x.name, label: x.name }))]}
+          />
+        </div>
+      )}
       <input
         ref={pdfInput}
         type="file"

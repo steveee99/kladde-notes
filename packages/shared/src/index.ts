@@ -42,6 +42,8 @@ export * from './noteMemo.js';
 export * from './accent.js';
 export * from './variables.js';
 export * from './database.js';
+export * from './noteTypePath.js';
+export * from './noteTypes.js';
 export * from './presentation.js';
 export * from './callout.js';
 export * from './math.js';

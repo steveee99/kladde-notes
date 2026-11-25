@@ -45,6 +45,7 @@ import {
   PanelRightClose,
   Printer,
   Share2,
+  SlidersHorizontal,
   Star,
   Tags,
   Trash2,
@@ -82,6 +83,7 @@ import {
   isSingleProjectFile,
   excalidrawSceneOf,
   pdfNoteOf,
+  propertiesAt,
   remoteNoteOf,
   projectTitleOf,
   setExcalidrawScene,
@@ -89,6 +91,8 @@ import {
   splitPath,
   stripFrontmatter,
   toDateString,
+  type NoteType,
+  type PanelPosition,
   type GraphEdge,
   type GraphNode,
   type Task,
@@ -110,6 +114,8 @@ import { applyFrontmatter } from '../editor/widgets';
 import { ShareDialog } from './ShareDialog';
 import { HistoryDialog } from './History';
 import { ParaBar } from './ParaBar';
+import { NoteTypePanel, NoteTypeSheet, UnknownNoteType } from './NoteTypePanel';
+import { typeOfNote } from '../data/noteTypes';
 import { MemoryPanel } from './MemoryPanel';
 import { TicketBacklinks, TicketPanel } from './TicketPanel';
 import { milestoneOfNote, ticketOfNote, ticketsDocumentedIn, type TicketInfo } from '../data/tickets';
@@ -386,6 +392,7 @@ function NoteOverflowMenu({
   onFinishProject,
   onConvertProject,
   onAddProperty,
+  onNoteType,
   onConfluence,
   onVersioning,
   variables,
@@ -425,6 +432,8 @@ function NoteOverflowMenu({
   onConvertProject?: () => void;
   /** Only for editable notes */
   onAddProperty?: () => void;
+  /** Chooses the custom note type; only for editable text notes */
+  onNoteType?: () => void;
   /** Only for own notes, when the server offers Confluence (#48) */
   onConfluence?: () => void;
   /** Release versioning (#53): own notes, and notes that have it turned on */
@@ -623,6 +632,16 @@ function NoteOverflowMenu({
                 onClick={() => {
                   setOpen(false);
                   onAddProperty();
+                }}
+              />
+            )}
+            {onNoteType && (
+              <MenuItem
+                icon={SlidersHorizontal}
+                label={t('types.menu')}
+                onClick={() => {
+                  setOpen(false);
+                  onNoteType();
                 }}
               />
             )}
@@ -1295,6 +1314,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const [moving, setMoving] = useState(false);
   const [movingToGroup, setMovingToGroup] = useState(false);
   const [pickingIcon, setPickingIcon] = useState(false);
+  const [pickingType, setPickingType] = useState(false);
   const [showGraph, setShowGraph] = useState(true);
   const splitOpen = panel.open;
   const sourceMode = useSourceMode();
@@ -1460,7 +1480,12 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   // Tickets that document their work here get their own section instead of plain backlinks
   const ticketLinks = ticketsDocumentedIn(id);
   // Tickets and milestones show their fields in the panel above the text, so the frontmatter row stays hidden
-  const hideProperties = !focus && (!!ticketOfNote(id) || !!milestoneOfNote(id));
+  const ticketFields = !focus && (!!ticketOfNote(id) || !!milestoneOfNote(id));
+  // A custom note type (`type: custom:<name>`) models where the properties show and whether the frontmatter row does
+  const { type: noteType, unknown: unknownType } = ticketFields ? { type: null, unknown: null } : typeOfNote(note);
+  const hideProperties = ticketFields || (!!noteType && !noteType.showFrontmatter);
+  const sideType = !focus && !!noteType && propertiesAt(noteType, 'right').length > 0;
+  const beside = ticketFields || sideType;
   const ticketIds = new Set(ticketLinks.map((tk) => tk.note.id));
   const backlinks = (inMemory ? allBacklinks : allBacklinks.filter((b) => !vault.isMemoryNote(b))).filter((b) => !ticketIds.has(b.id));
   const memoryBacklinks = inMemory ? [] : allBacklinks.filter((b) => vault.isMemoryNote(b));
@@ -1488,6 +1513,10 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   // Full-size panels replace the editor: a PDF viewer or a drawing canvas
   const showPdf = (!!pdf && !pdfAsText) || (drawing !== null && !drawingAsText);
   const showDrawing = drawing !== null && !drawingAsText;
+
+  const typePanel = (type: NoteType, where: PanelPosition) => (
+    <NoteTypePanel type={type} where={where} content={note.content} noteId={id} canEdit={!readOnly} fill={(text) => resolveVariables(text, variables)} />
+  );
 
   const copyMarkdown = async () => {
     const clean = remote ? (remote.result.state === 'ok' ? remoteExportText(remote.result) : '') : stripFrontmatter(note.content);
@@ -1675,6 +1704,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                       }
                     : undefined
                 }
+                onNoteType={!readOnly && !remote && !pdf && drawing === null && !inMemory && !ticketFields ? () => setPickingType(true) : undefined}
                 onConvertProject={isSingleProject ? () => void vault.convertProjectToFolder(id) : undefined}
                 align={align}
                 onAlign={!readOnly && view && !showPdf && !remote ? (value) => applyFrontmatter(view, { align: value === 'left' ? null : value }) : undefined}
@@ -1735,11 +1765,14 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           )}
           {!focus && vault.isMemoryNote(note) && <MemoryPanel note={note} readOnly={readOnly} />}
           {/* Tickets and milestones: the fields beside the text when the note has the room (container query in index.css) */}
-          <div className={hideProperties ? 'ticket-layout' : 'contents'}>
-          <div className={hideProperties ? 'ticket-grid' : 'contents'}>
+          {!focus && noteType && typePanel(noteType, 'top')}
+          {!focus && unknownType !== null && <UnknownNoteType name={unknownType} />}
+          <div className={beside ? 'ticket-layout' : 'contents'}>
+          <div className={beside ? 'ticket-grid' : 'contents'}>
           {!focus && (
             <div className="ticket-side" data-ticket-side>
               <TicketPanel noteId={id} readOnly={readOnly} />
+              {sideType && noteType && typePanel(noteType, 'right')}
             </div>
           )}
           {/* "Edit as text" and fullscreen live inside the canvas, so the drawing gets the room */}
@@ -1805,6 +1838,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           </div>
           </div>
 
+          {!focus && noteType && typePanel(noteType, 'bottom')}
           {/* Bottom links/graph overview remains visible when the right split pane is collapsed */}
           {!showPdf && !splitOpen && !focus && (backlinks.length > 0 || memoryBacklinks.length > 0 || mentions.length > 0 || ticketLinks.length > 0 || local.nodes.length > 1) && (
             <div className="no-print mb-24 space-y-6 border-t border-outline-variant pt-8">
@@ -2019,6 +2053,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           onClose={() => setPickingIcon(false)}
         />
       )}
+      {pickingType && <NoteTypeSheet note={note} current={noteType} onClose={() => setPickingType(false)} />}
       {sharing && <ShareDialog target={{ note: id }} onClose={() => setSharing(false)} />}
       {confluenceOpen && <ConfluenceDialog target={{ note: id, title: title || displayName }} onClose={() => setConfluenceOpen(false)} />}
     </div>

@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, assignTicketNumber, canTransition, isSchemaPath, isTicketContent, parseProject, runAutomations, setTicketFields, hasVariables, isVariablesPath, usedVariables, variableDefinitions, variableScope, type VariableDefinitions, type VariableScope, subtaskProgress, ticketEvents, ticketMeta, workflowStatus, type ProjectConfig, contentHash, embedsOf, extractMeta, numberedTicketId, parseGroupFeatures, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, publicRemoteContent, remoteNoteOf, type RemoteSource, splitPath, renameWikiLinks } from '@kladde/shared';
+import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, assignTicketNumber, canTransition, isSchemaPath, isTicketContent, parseProject, runAutomations, setTicketFields, hasVariables, isVariablesPath, isNoteTypePath, noteTypesOf, findNoteType, customTypeOf, writeNoteType, propertyPosition, type NoteType, usedVariables, variableDefinitions, variableScope, type VariableDefinitions, type VariableScope, subtaskProgress, ticketEvents, ticketMeta, workflowStatus, type ProjectConfig, contentHash, embedsOf, extractMeta, numberedTicketId, parseGroupFeatures, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, publicRemoteContent, remoteNoteOf, type RemoteSource, splitPath, renameWikiLinks } from '@kladde/shared';
 import { DataCipher, randomToken } from './crypto.js';
 import { transaction } from './db.js';
 
@@ -367,6 +367,30 @@ export class NoteStore {
     if (!hasVariables(content)) return {};
     const variables = usedVariables(content, this.variablesOf(ownerId, splitPath(path).folder));
     return Object.keys(variables).length ? { variables } : {};
+  }
+
+  // ------------------------------------------------------------------ custom note types
+
+  /** Custom note types per owner (user or group); dropped when a definition note changes */
+  private typeCache = new Map<string, NoteType[]>();
+
+  noteTypesOf(ownerId: string): NoteType[] {
+    let types = this.typeCache.get(ownerId);
+    if (!types) {
+      const rows = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND deleted = 0').all(ownerId) as unknown as NoteRow[];
+      types = noteTypesOf(rows.map((r) => this.payload(r)).filter((p) => isNoteTypePath(p.path)));
+      this.typeCache.set(ownerId, types);
+    }
+    return types;
+  }
+
+  /** The definition a public page needs to show the note's properties as modelled: only what guests see, without options, defaults and former names */
+  private publicNoteType(ownerId: string, content: string): { noteType?: string } {
+    const name = customTypeOf(content);
+    const type = name === null ? null : findNoteType(this.noteTypesOf(ownerId), name);
+    if (!type) return {};
+    const properties = type.properties.filter((p) => propertyPosition(type, p) !== 'hidden').map((p) => ({ ...p, options: [], default: '' }));
+    return { noteType: writeNoteType('', { ...type, aliases: [], properties }) };
   }
 
   // ------------------------------------------------------------------ release versioning (#53)
@@ -765,6 +789,7 @@ export class NoteStore {
             content = this.numberTicket(ownerId, content);
             if (isSchemaPath(path)) this.projectCache.delete(ownerId);
             if (isVariablesPath(path)) this.variableCache.delete(ownerId);
+            if (isNoteTypePath(path)) this.typeCache.delete(ownerId);
             const { content: next, ...rest } = this.applyWorkflow(ownerId, change.id, path, null, content, userId, !!opts.trusted);
             content = next;
             flow = rest;
@@ -798,6 +823,7 @@ export class NoteStore {
         const deleted = !!change.deleted;
         if (isSchemaPath(path) || isSchemaPath(old.path)) this.projectCache.delete(row.owner_id);
         if (isVariablesPath(path) || isVariablesPath(old.path)) this.variableCache.delete(row.owner_id);
+        if (isNoteTypePath(path) || isNoteTypePath(old.path)) this.typeCache.delete(row.owner_id);
         let flow: Omit<ReturnType<NoteStore['applyWorkflow']>, 'content'> = {};
         if (!deleted) {
           content = this.numberTicket(row.owner_id, content);
@@ -941,6 +967,7 @@ export class NoteStore {
     // Projects may appear or move with these notes
     this.projectCache.clear();
     this.variableCache.clear();
+    this.typeCache.clear();
     const events: NoteChangeEvent[] = [];
     const restored = transaction(this.db, () => {
       // Paths per owner: a group's trash (#58) restores into the group's space
@@ -1304,6 +1331,7 @@ export class NoteStore {
       ...(row.owner_avatar ? { ownerAvatar: `/api/avatars/${row.owner_avatar}` } : {}),
       updatedAt: note.releases?.[0]?.releasedAt ?? row.updated_at,
       ...this.publicVariables(row.owner_id, note.path, note.content),
+      ...this.publicNoteType(row.owner_id, note.content),
       ...(embeds.length ? { embeds } : {}),
       ...(note.versioning ? { versioning: true, releases: note.releases ?? [] } : {}),
       ...(note.showsRelease ? { showsRelease: note.showsRelease } : {}),
@@ -1416,6 +1444,7 @@ export class NoteStore {
     // Projects may appear or move with these notes
     this.projectCache.clear();
     this.variableCache.clear();
+    this.typeCache.clear();
     if (!canWriteInGroup(this.groupRole(groupId, userId))) throw new Error('forbidden');
     const ids = Array.isArray(req.noteIds) ? [...new Set(req.noteIds.filter((id): id is string => typeof id === 'string' && ID_PATTERN.test(id)))] : [];
     if (!ids.length || ids.length > 5000) throw new Error('invalid');
@@ -1463,6 +1492,7 @@ export class NoteStore {
     // Projects may appear or move with these notes
     this.projectCache.clear();
     this.variableCache.clear();
+    this.typeCache.clear();
     if (this.groupRole(groupId, userId) !== 'owner') throw new Error('forbidden');
     return transaction(this.db, () => {
       const members = (this.db.prepare('SELECT user_id FROM group_members WHERE group_id = ?').all(groupId) as { user_id: string }[]).map((m) => m.user_id);

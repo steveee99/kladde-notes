@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CalendarDays, CalendarRange, FilePlus2, LayoutTemplate, Pencil, Trash2 } from '../lib/icons';
-import { INBOX_FOLDER, PERIODIC_PLACEHOLDERS, Template, TEMPLATE_PLACEHOLDERS, variablePlaceholder, type PeriodKind } from '@kladde/shared';
+import { customTypeOf, findNoteType, setCustomType, INBOX_FOLDER, PERIODIC_PLACEHOLDERS, Template, TEMPLATE_PLACEHOLDERS, variablePlaceholder, type PeriodKind } from '@kladde/shared';
 import { useVariables } from '../data/variables';
 import { useVault, vault } from '../data/vault';
 import { folderDisplayName, tl, useLang, type I18nKey } from '../lib/i18n';
@@ -146,6 +146,11 @@ function TemplateEditor({ template, isNew, daily: dailyOnly, period, onDone }: {
   const scope = useVariables({ space: 'own', folder: period ? (period === 'week' ? vault.features().weekly.folder : vault.features().monthly.folder) : folder });
   const variables = scope.list();
 
+  // The custom note type of the new notes is part of the template's text (`type: custom:<name>`)
+  const types = vault.noteTypes('own');
+  const typeName = customTypeOf(content);
+  const typeValue = typeName === null ? '' : (findNoteType(types, typeName)?.name ?? typeName);
+
   const placeholderLabel = (token: string, fallback: string) => {
     if (token === '{{title}}') return tl(lang, daily ? 'templates.placeholder.dailyTitle' : 'templates.placeholder.title');
     if (token === '{{date}}') return tl(lang, daily ? 'templates.placeholder.dailyDate' : 'templates.placeholder.date');
@@ -201,6 +206,18 @@ function TemplateEditor({ template, isNew, daily: dailyOnly, period, onDone }: {
             />
           </div>
         </>
+      )}
+      {(types.length > 0 || typeValue) && (
+        <div className="flex flex-col gap-1.5 text-sm text-on-surface-variant sm:flex-row sm:items-center sm:gap-2">
+          <span className="shrink-0">{tl(lang, 'types.label')}</span>
+          <Dropdown
+            value={typeValue}
+            onChange={(v) => setContent((c) => setCustomType(c, v || null))}
+            aria-label={tl(lang, 'types.label')}
+            className="sm:w-auto sm:min-w-[14rem]"
+            options={[{ value: '', label: tl(lang, 'types.none') }, ...[...new Set([...types.map((x) => x.name), ...(typeValue ? [typeValue] : [])])].map((v) => ({ value: v, label: v }))]}
+          />
+        </div>
       )}
       <textarea
         className="input min-h-[16rem] font-mono text-sm leading-relaxed"
