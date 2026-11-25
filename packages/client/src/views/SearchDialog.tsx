@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { isHiddenPath, isExcalidrawNote, pdfNoteOf, remoteNoteOf, projectTitleOf, searchNotes, searchSnippet, searchTerms, splitPath } from '@kladde/shared';
+import { isHiddenPath, isExcalidrawNote, pdfNoteOf, remoteNoteOf, projectTitleOf, searchableText, searchNotes, searchSnippet, searchTerms, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { api } from '../lib/api';
 import type { LocalNote } from '../data/db';
@@ -152,8 +152,8 @@ function SearchDialog({ onClose, commands }: { onClose: () => void; commands?: (
       const allowed = new Set(list);
       const fromServer = (remoteHits ?? []).map((h) => vault.get(h.id)).filter((n): n is LocalNote => !!n && allowed.has(n));
       const seen = new Set(fromServer.map((n) => n.id));
-      ranked = [...fromServer, ...searchNotes(list.filter((n) => !n.partial && !seen.has(n.id)), terms, titleOf)];
-    } else ranked = terms.length ? searchNotes(list, terms, titleOf) : [...list].sort((a, b) => b.updatedAt - a.updatedAt);
+      ranked = [...fromServer, ...searchNotes(list.filter((n) => !n.partial && !seen.has(n.id)), terms, titleOf, undefined, searchableText)];
+    } else ranked = terms.length ? searchNotes(list, terms, titleOf, undefined, searchableText) : [...list].sort((a, b) => b.updatedAt - a.updatedAt);
     const ordered = memoryOn ? [...ranked.filter((n) => !vault.isMemoryNote(n)), ...ranked.filter((n) => vault.isMemoryNote(n))] : ranked;
     return terms.length ? ordered : ordered.slice(0, RECENT);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -358,7 +358,7 @@ function SearchDialog({ onClose, commands }: { onClose: () => void; commands?: (
                   const TypeIcon = vault.isMemoryNote(n) ? Psychology : remoteNoteOf(n.content) ? RemoteDoc : pdfNoteOf(n.content) ? FileType2 : isExcalidrawNote(n.content) ? Draw : FileText;
                   const group = groupName(n);
                   const where = [group, folder ? folderDisplayName(folder, lang) : ''].filter(Boolean).join(' / ');
-                  const snippet = snippets.get(n.id) ?? searchSnippet(n.content, terms);
+                  const snippet = snippets.get(n.id) ?? searchSnippet(searchableText(n), terms);
                   return (
                     // The option itself is clickable: a button inside an option would be a control in a control (#63);
                     // the keyboard works through the combobox (arrows, Enter)

@@ -141,7 +141,7 @@ import { ConfluenceDialog } from './ConfluenceDialog';
 import { ReleaseDialog, releaseChipLabel } from './ReleaseDialog';
 import { releaseRenderOptions } from '../editor/releases';
 import { useVariables, variablesOfNote } from '../data/variables';
-import { fetchRemote, remoteDisplayText, remoteExportText, remoteProblemText, useRemoteNote } from '../data/remoteNotes';
+import { currentRemote, remoteDisplayText, remoteExportText, remoteProblemText, useRemoteNote } from '../data/remoteNotes';
 import { RemoteNotePanel } from './RemoteNotePanel';
 import { DEMO } from '../demo/demoApi';
 import { useComments } from '../data/comments';
@@ -1502,7 +1502,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
 
   /** A remote note's document as it is now, for exports (`anywhere`: images by their address on the host, not through this server) */
   const remoteText = async (anywhere: boolean): Promise<string> => {
-    const r = await fetchRemote(id);
+    const r = await currentRemote(id);
     if (r.state === 'ok') return anywhere ? remoteExportText(r) : remoteDisplayText(id, r);
     return `*${t('remote.exportMissing', { problem: remoteProblemText(r.state) })}*\n`;
   };

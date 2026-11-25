@@ -12,12 +12,18 @@ export function searchTerms(query: string): string[] {
 }
 
 /** Notes whose title, path or text contain every term; title matches first, then the most recently edited */
-export function searchNotes<N extends { path: string; content: string; updatedAt: number }>(notes: Iterable<N>, terms: string[], titleOf: (n: N) => string, max = MAX_SEARCH_RESULTS): N[] {
+export function searchNotes<N extends { path: string; content: string; updatedAt: number }>(
+  notes: Iterable<N>,
+  terms: string[],
+  titleOf: (n: N) => string,
+  max = MAX_SEARCH_RESULTS,
+  textOf: (n: N) => string = (n) => n.content
+): N[] {
   if (!terms.length) return [];
   const hits: { note: N; inTitle: boolean }[] = [];
   for (const note of notes) {
     const title = titleOf(note).toLowerCase();
-    const hay = `${title}\n${note.path.toLowerCase()}\n${note.content.toLowerCase()}`;
+    const hay = `${title}\n${note.path.toLowerCase()}\n${textOf(note).toLowerCase()}`;
     if (terms.every((term) => hay.includes(term))) hits.push({ note, inTitle: terms.every((term) => title.includes(term)) });
   }
   hits.sort((a, b) => (a.inTitle === b.inTitle ? b.note.updatedAt - a.note.updatedAt : a.inTitle ? -1 : 1));

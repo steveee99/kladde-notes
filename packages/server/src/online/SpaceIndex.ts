@@ -48,6 +48,8 @@ interface IndexedNote extends LinkNote {
   /** The note's tasks, parsed on the first question for them (without a default due date: the device adds it) */
   tasks?: OnlineTaskNote;
   tasksDay?: string;
+  /** The kept copy of a synced remote note's document: searched with the note */
+  remoteText?: string;
   /** Title, path and text in lower case, as the search compares them; made on the first search */
   hay?: string;
   /** Type and tags for the graph, made on the first question for it */
@@ -82,9 +84,12 @@ function graphOf(n: IndexedNote): { kind: 0 | 1 | 2; tags: string[] } {
   return (n.graph ??= { kind: isExcalidrawNote(n.content) ? 2 : pdfNoteOf(n.content) ? 1 : 0, tags: extractMeta(n.path, n.content).tags });
 }
 
+/** Text and, for a synced remote note, the kept copy of its document */
+const searchText = (n: IndexedNote): string => (n.remoteText ? `${n.content}\n${n.remoteText}` : n.content);
+
 /** What the search compares: title, path and text in lower case, kept with the note */
 function hayOf(n: IndexedNote): string {
-  return (n.hay ??= `${projectTitleOf(n.path, n.content)}\n${n.path}\n${n.content}`.toLowerCase());
+  return (n.hay ??= `${projectTitleOf(n.path, n.content)}\n${n.path}\n${searchText(n)}`.toLowerCase());
 }
 
 class Space {
@@ -112,7 +117,7 @@ class Space {
         this.system.delete(n.id);
         if (n.deleted) continue;
         if (n.path.startsWith(SYSTEM_PREFIX)) this.system.add(n.id);
-        else this.notes.set(n.id, { id: n.id, path: n.path, content: n.content, createdAt: n.createdAt, updatedAt: n.updatedAt, seq: n.seq });
+        else this.notes.set(n.id, { id: n.id, path: n.path, content: n.content, ...(n.remoteText ? { remoteText: n.remoteText } : {}), createdAt: n.createdAt, updatedAt: n.updatedAt, seq: n.seq });
       }
       this.stale = true;
     }
@@ -219,7 +224,7 @@ export class SpaceIndexes {
       return { n, inTitle: terms.every((term) => title.includes(term)) };
     });
     ranked.sort((a, b) => (a.inTitle === b.inTitle ? b.n.updatedAt - a.n.updatedAt : a.inTitle ? -1 : 1));
-    return ranked.slice(0, MAX_SEARCH_RESULTS).map(({ n }) => ({ id: n.id, snippet: searchSnippet(n.content, terms) }));
+    return ranked.slice(0, MAX_SEARCH_RESULTS).map(({ n }) => ({ id: n.id, snippet: searchSnippet(searchText(n), terms) }));
   }
 
   /** Notes linking to `noteId` and notes mentioning its title without a link, among the notes the user may see */

@@ -43,6 +43,9 @@ export function RemoteNotePanel({
   const ownText = remoteOwnText(note.content);
   const clock = (ms: number) => new Date(ms).toLocaleTimeString(locale(lang), { timeStyle: 'short' });
   const day = (ms: number) => new Date(ms).toLocaleDateString(locale(lang), { dateStyle: 'medium' });
+  const stampOf = (ms: number) => new Date(ms).toLocaleString(locale(lang), { dateStyle: 'medium', timeStyle: 'short' });
+  const synced = view.sync;
+  const reloadLabel = synced || view.source.sync ? t('remote.syncNow') : t('remote.reload');
 
   return (
     <div data-remote-note data-remote-state={result.state}>
@@ -62,7 +65,7 @@ export function RemoteNotePanel({
             </span>
           )}
           <div className="flex flex-wrap items-center gap-x-3 text-caption text-muted">
-            <span>{t('remote.readOnly')}</span>
+            <span>{view.source.sync ? t('remote.readOnlySynced') : t('remote.readOnly')}</span>
             {ref && (
               <span className="inline-flex min-w-0 items-center gap-1 font-mono" title={t('remote.ref')}>
                 <GitBranch size={12} className="shrink-0" /> <span className="truncate">{ref}</span>
@@ -74,11 +77,16 @@ export function RemoteNotePanel({
                 {result.commit.at ? `, ${day(result.commit.at)}` : ''}
               </span>
             )}
-            {result.state === 'ok' && <span data-remote-fetched>{t('remote.fetched', { time: clock(result.fetchedAt) })}</span>}
+            {result.state === 'ok' && !synced && <span data-remote-fetched>{t('remote.fetched', { time: clock(result.fetchedAt) })}</span>}
+            {synced && (
+              <span data-remote-synced title={result.state === 'ok' ? t('remote.syncedFetched', { time: stampOf(result.fetchedAt) }) : undefined}>
+                {t('remote.synced', { time: stampOf(synced.checkedAt) })}
+              </span>
+            )}
           </div>
         </div>
         <div className="no-print flex shrink-0 items-center gap-1">
-          <button type="button" className="btn-icon" onClick={view.reload} disabled={loading} title={t('remote.reload')} aria-label={t('remote.reload')} data-remote-reload>
+          <button type="button" className="btn-icon" onClick={view.reload} disabled={loading} title={reloadLabel} aria-label={reloadLabel} data-remote-reload>
             {loading ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
           </button>
           {canEdit && (
@@ -88,6 +96,12 @@ export function RemoteNotePanel({
           )}
         </div>
       </div>
+      {synced?.problem && result.state === 'ok' && (
+        <div role="status" className="no-print mt-2 flex flex-wrap items-center gap-2 text-body-s text-amber" data-remote-sync-problem={synced.problem}>
+          <Info size={16} className="shrink-0" />
+          <span className="min-w-0 flex-1 basis-56">{t('remote.syncFailed', { problem: remoteProblemText(synced.problem) })}</span>
+        </div>
+      )}
       {ownText && (
         <div className="no-print mt-2 flex flex-wrap items-center gap-2 text-body-s text-muted" data-remote-own-text>
           <Info size={16} className="shrink-0" />
