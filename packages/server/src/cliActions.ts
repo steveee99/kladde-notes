@@ -558,7 +558,6 @@ async function runImport(positionals: string[], flags: Map<string, string | bool
       }
       importedPaths.push(info.url);
     } else {
-      ignored++;
       throw new CliError(`File type not supported: ${path.basename(srcPath)}`);
     }
   } else {
@@ -629,7 +628,7 @@ function runExport(positionals: string[], flags: Map<string, string | boolean>, 
   const srcTrim = srcArg.trim().replace(/\\/g, '/');
 
   type Selected = { relPath: string; content: string; noteId: string };
-  let selected: Selected[] = [];
+  let selected: Selected[];
   let singleFileOutput = false;
 
   if (!srcTrim || srcTrim === '/' || srcTrim === '.' || srcTrim === '*') {

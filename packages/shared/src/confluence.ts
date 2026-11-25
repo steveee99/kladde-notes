@@ -356,7 +356,7 @@ export function markdownToConfluence(path: string, content: string, ctx: Conflue
   const hint = (text: string) => `<p><em>${xmlEscape(text)}</em></p>`;
 
   const renderQuery = (source: string): string => {
-    let result: QueryResult | null = null;
+    let result: QueryResult | null;
     try {
       result = ctx.query?.(source) ?? null;
     } catch {

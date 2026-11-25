@@ -590,7 +590,7 @@ export function migrate(db: DatabaseSync, migrations: Migration[] = MIGRATIONS):
       db.exec('COMMIT');
     } catch (err) {
       db.exec('ROLLBACK');
-      throw new Error(`Database migration ${step.version} (${step.description}) failed: ${(err as Error).message}`);
+      throw new Error(`Database migration ${step.version} (${step.description}) failed: ${(err as Error).message}`, { cause: err });
     }
     applied.push(step.version);
   }
