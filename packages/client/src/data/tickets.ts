@@ -18,6 +18,7 @@ import {
   newMilestoneContent,
   newProjectContent,
   newTicketContent,
+  checklistOf,
   parseProject,
   priorityOrder,
   releaseNotesContent,
@@ -482,6 +483,7 @@ export async function createTicket(project: ProjectInfo, draft: TicketDraft): Pr
     docs: draft.docs,
     description: draft.description,
     rank: last + 1000,
+    checklist: checklistOf(project.config, draft.kind),
   });
   return createIn(project, project.folder, draft.title.trim() || t('tickets.untitled'), content);
 }

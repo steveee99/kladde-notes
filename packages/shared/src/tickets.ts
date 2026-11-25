@@ -89,6 +89,69 @@ export interface ProjectConfig {
   transitions: Transitions;
   /** Rules that change tickets when something happens (automations.ts) */
   automations: Automation[];
+  /** Checklist template per ticket type: new tickets of that type start with these items (`- [ ] …`); none by default */
+  checklists?: TicketChecklists;
+}
+
+/** Checklist items new tickets of each type start with */
+export type TicketChecklists = Partial<Record<TicketKind, string[]>>;
+
+/** Items of one checklist template, and the length of one item */
+export const MAX_CHECKLIST_ITEMS = 30;
+export const MAX_CHECKLIST_ITEM = 200;
+
+/** One line of text for a checklist item, without a list or task marker of its own */
+export const cleanChecklistItem = (raw: string): string =>
+  raw
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^(?:[-*+]\s+)?(?:\[[ xX]?\]\s*)?/, '')
+    .trim()
+    .slice(0, MAX_CHECKLIST_ITEM);
+
+/** The checklist templates of a project block (`checklists: { bug: [Abnahme, …] }`); unknown types and empty lists are dropped */
+export function parseChecklists(raw: YamlValue | undefined): TicketChecklists {
+  const out: TicketChecklists = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const kind of TICKET_KINDS) {
+    const v = (raw as YamlMap)[kind];
+    const items = (Array.isArray(v) ? v : typeof v === 'string' ? [v] : [])
+      .filter((x): x is string => typeof x === 'string')
+      .map(cleanChecklistItem)
+      .filter(Boolean)
+      .slice(0, MAX_CHECKLIST_ITEMS);
+    if (items.length) out[kind] = items;
+  }
+  return out;
+}
+
+function checklistsValue(c: TicketChecklists | undefined): YamlMap | null {
+  const out: YamlMap = {};
+  for (const kind of TICKET_KINDS) {
+    const items = (c?.[kind] ?? []).map(cleanChecklistItem).filter(Boolean).slice(0, MAX_CHECKLIST_ITEMS);
+    if (items.length) out[kind] = items;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/** The checklist a new ticket of `kind` starts with in a project */
+export const checklistOf = (project: Pick<ProjectConfig, 'checklists'>, kind: TicketKind = DEFAULT_TICKET_KIND): string[] => project.checklists?.[kind] ?? [];
+
+/**
+ * Appends checklist items as open tasks to a ticket's text; items it already has as tasks (any state) are skipped, so
+ * applying a template twice adds nothing.
+ */
+export function addChecklist(content: string, items: readonly string[]): string {
+  const have = new Set<string>();
+  for (const m of content.matchAll(/^\s*[-*+]\s+\[[ xXoOhH]\]\s+(.*)$/gm)) have.add(m[1].trim().toLowerCase());
+  const add = items.map(cleanChecklistItem).filter((i) => i && !have.has(i.toLowerCase()));
+  if (!add.length) return content;
+  const lines = [...new Set(add)].map((i) => `- [ ] ${i}`).join('\n');
+  const body = content.replace(/\s*$/, '');
+  const lastLine = body.slice(body.lastIndexOf('\n') + 1);
+  // Right below a list or the frontmatter, otherwise after a blank line
+  const glue = /^\s*(?:[-*+]\s|---$)/.test(lastLine) ? '\n' : '\n\n';
+  return `${body}${glue}${lines}\n`;
 }
 
 export interface TicketMeta {
@@ -203,8 +266,11 @@ export function parseProject(dbContent: string): ProjectConfig | null {
     requireDocs: /^(true|yes|ja|1)$/i.test(str(p.requireDocs)),
     transitions: parseTransitions(p.transitions, wf),
     automations: parseAutomations(p.automations),
+    ...withChecklists(parseChecklists(p.checklists)),
   };
 }
+
+const withChecklists = (c: TicketChecklists): { checklists?: TicketChecklists } => (Object.keys(c).length ? { checklists: c } : {});
 
 /** Writes the project settings into a database note, keeping everything else */
 export function writeProject(dbContent: string, project: ProjectConfig): string {
@@ -214,6 +280,8 @@ export function writeProject(dbContent: string, project: ProjectConfig): string 
   if (transitions) value.transitions = transitions;
   const automations = automationsValue(project.automations);
   if (automations) value.automations = automations;
+  const checklists = checklistsValue(project.checklists);
+  if (checklists) value.checklists = checklists;
   return setFrontmatterValues(dbContent, { project: value });
 }
 
@@ -397,13 +465,15 @@ export interface NewTicket {
   docs?: string[];
   description?: string;
   rank?: number | null;
+  /** Checklist items the ticket starts with (the project's template for its type, `checklistOf`) */
+  checklist?: readonly string[];
 }
 
 /** Content of a new ticket with the provisional id `KEY-?` (the server numbers it) */
 export function newTicketContent(t: NewTicket): string {
   const body = t.description?.trim() ? `\n${t.description.trim()}\n` : '\n';
   const base = setFrontmatterValues(body, { type: TICKET_TYPE, id: provisionalTicketId(t.key), kind: t.kind ?? DEFAULT_TICKET_KIND });
-  return setTicketFields(base, {
+  const ticket = setTicketFields(base, {
     parent: t.parent ?? null,
     status: t.status,
     priority: t.priority ?? 'medium',
@@ -414,6 +484,7 @@ export function newTicketContent(t: NewTicket): string {
     docs: t.docs ?? [],
     rank: t.rank ?? null,
   });
+  return t.checklist?.length ? addChecklist(ticket, t.checklist) : ticket;
 }
 
 /** Content of a new milestone */

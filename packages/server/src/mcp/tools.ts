@@ -60,6 +60,7 @@ import {
   milestoneProgress,
   milestoneState,
   newTicketContent,
+  checklistOf,
   parseProject,
   PRIORITIES,
   setTicketFields,
@@ -1267,7 +1268,7 @@ export const TOOLS: ToolDef[] = [
     name: 'ticket_create',
     title: 'Ticket anlegen',
     description:
-      'Creates a ticket in a project (key like "KLD" or its folder), by default a task; `kind` and `parent` build the hierarchy epic > feature > task/bug > subtask. The server gives it the next number (e.g. KLD-119), returned as `ticket`. The description is Markdown; sub-tasks as "- [ ] text". Status defaults to the first of the workflow, priority to medium.',
+      'Creates a ticket in a project (key like "KLD" or its folder), by default a task; `kind` and `parent` build the hierarchy epic > feature > task/bug > subtask. The server gives it the next number (e.g. KLD-119), returned as `ticket`. The description is Markdown; sub-tasks as "- [ ] text". The checklist template of the project for the ticket type is appended as open tasks. Status defaults to the first of the workflow, priority to medium.',
     inputSchema: {
       type: 'object',
       properties: { project: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' }, ...ticketFieldsSchema },
@@ -1293,6 +1294,7 @@ export const TOOLS: ToolDef[] = [
         labels: strList(args, 'labels'),
         docs: strList(args, 'docs'),
         description: str(args, 'description'),
+        checklist: checklistOf(project.config, kind),
       });
       const created = createNote(ctx, { title, content, folder: project.realFolder, ...(project.group ? { group: project.group.name } : {}) });
       const note = space(ctx).find((n) => n.id === created.id);
