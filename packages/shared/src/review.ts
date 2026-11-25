@@ -1,5 +1,6 @@
 import { extractMeta, splitPath } from './markdown.js';
 import { LinkIndex, LinkNote } from './links.js';
+import { isHiddenPath } from './database.js';
 import { PARA, RoleFolderMap, isProjectNote, projectTitleOf, roleOfFolder } from './para.js';
 import { bucketOf, parseTasks } from './tasks.js';
 
@@ -64,6 +65,7 @@ export interface ReviewOptions {
 
 export function buildReview(notes: ReviewNote[], now = Date.now(), staleDays = 30, config: RoleFolderMap = PARA, opts: ReviewOptions = {}): Review {
   const today = new Date(now);
+  notes = notes.filter((n) => !isHiddenPath(n.path));
   const index = new LinkIndex(notes, config);
   const projects = projectsOf(notes, today, config);
   const areas = new Map<string, number>();

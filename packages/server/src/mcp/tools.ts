@@ -9,10 +9,13 @@ import {
   SYSTEM_PREFIX,
   extractMeta,
   joinPath,
+  keepRemoteBody,
   normalizeDueWords,
   parseTasks,
   runQuery,
   semanticSearch,
+  remoteNoteOf,
+  remoteOwnText,
   splitPath,
   toDateString,
   toggleTask,
@@ -45,7 +48,8 @@ import {
   type FeatureSettings,
   type GroupInfo,
   type SyncedNote,
-  isDatabasePath,
+  isHiddenPath,
+  isSchemaPath,
   isMilestoneContent,
   isTicketContent,
   milestoneMeta,
@@ -128,6 +132,9 @@ function space(ctx: ToolContext): SpaceNote[] {
     .map((n): SpaceNote => ({ ...n, path: `${n.owner}/${n.path}`, realPath: n.path, groupName: n.owner }));
   return [...own, ...grouped];
 }
+
+/** The notes to list and search: without the database notes, which hold a folder's settings (read_note still opens them) */
+const listed = (ctx: ToolContext): SpaceNote[] => space(ctx).filter((n) => !isHiddenPath(n.path));
 
 /** Write tools refuse notes the user may only read (groups in which they are a reader) */
 function writable(note: SpaceNote): SpaceNote {
@@ -252,6 +259,15 @@ function checkSize(content: string): void {
   if (Buffer.byteLength(content) > MAX_NOTE_BYTES) throw new ToolError('Die Notiz wäre größer als 2 MB.');
 }
 
+/** A remote note shows a file from GitLab/GitHub: only its frontmatter (`source`, `ref`) can be written */
+function guardRemote(before: string | null, after: string): void {
+  const isRemote = !!remoteNoteOf(after);
+  const was = before !== null && !!remoteNoteOf(before);
+  const ownText = remoteOwnText(after);
+  if (was ? isRemote && ownText === remoteOwnText(before) : !isRemote || before !== null || !ownText) return;
+  throw new ToolError('Diese Notiz zeigt ein Dokument aus GitLab/GitHub und ist schreibgeschützt: nur „source“ und „ref“ im Frontmatter lassen sich ändern, der Text wird in der Quelle bearbeitet.');
+}
+
 /** Saves through the normal sync path: next seq, live ping to the user's devices, export mirror */
 function save(ctx: ToolContext, note: SpaceNote, content: string) {
   return saveWithContent(ctx, note, content).saved;
@@ -260,6 +276,7 @@ function save(ctx: ToolContext, note: SpaceNote, content: string) {
 /** Saves and also returns the text as stored (the server numbers tickets and runs their automations) */
 function saveWithContent(ctx: ToolContext, note: SpaceNote, content: string) {
   writable(note);
+  guardRemote(note.content, content);
   const memory = memoryWrite(ctx, note.realPath === undefined && note.access === 'owner' ? note.path : null, note.content, content);
   content = memory.content;
   checkSize(content);
@@ -422,6 +439,7 @@ function createNote(ctx: ToolContext, opts: { title: string; content: string; fo
         .filter((n) => n.group === group.id)
         .map((n) => ({ ...n, path: n.realPath ?? n.path }))
     : ctx.notes.ownedNotes(ctx.userId);
+  guardRemote(null, content);
   const path = uniquePath(taken, folder, opts.title);
   const memory = memoryWrite(ctx, group ? null : path, null, content);
   content = memory.content;
@@ -459,7 +477,7 @@ function projectsOf(ctx: ToolContext, notes = space(ctx)): ToolProject[] {
   const groups = ctx.notes.groupsOf(ctx.userId);
   const out: ToolProject[] = [];
   for (const n of notes) {
-    if (!isDatabasePath(n.path)) continue;
+    if (!isSchemaPath(n.path)) continue;
     const config = parseProject(n.content);
     if (!config) continue;
     const group = n.group ? groups.find((g) => g.id === n.group) : undefined;
@@ -603,7 +621,7 @@ export const TOOLS: ToolDef[] = [
       const limit = int(args, 'limit', 100, 500);
       const notes = space(ctx);
       const all = notes
-        .filter((n) => (!folder || n.path.startsWith(`${folder}/`)) && (!group || n.group === group.id))
+        .filter((n) => !isHiddenPath(n.path) && (!folder || n.path.startsWith(`${folder}/`)) && (!group || n.group === group.id))
         .sort((a, b) => b.updatedAt - a.updatedAt);
       const folders = [...new Set(notes.map((n) => splitPath(n.path).folder).filter(Boolean))].sort();
       const groups = ctx.notes.groupsOf(ctx.userId).map((g) => ({ name: g.name, role: g.role, read_only: !canWriteInGroup(g.role) }));
@@ -628,7 +646,7 @@ export const TOOLS: ToolDef[] = [
       const words = str(args, 'query', true)!.toLowerCase().split(/\s+/).filter(Boolean);
       const limit = int(args, 'limit', 20, 100);
       const hits: { note: SyncedNote; score: number }[] = [];
-      for (const n of space(ctx)) {
+      for (const n of listed(ctx)) {
         const title = splitPath(n.path).name.toLowerCase();
         const hay = `${n.path}\n${n.content}`.toLowerCase();
         if (!words.every((w) => hay.includes(w))) continue;
@@ -672,7 +690,7 @@ export const TOOLS: ToolDef[] = [
         if (!Number.isFinite(n) || n < 0 || n > 1) throw new ToolError('Parameter "min_score" muss zwischen 0 und 1 liegen.');
         minScore = n;
       }
-      const notes = space(ctx);
+      const notes = listed(ctx);
       // Pages of embedded PDFs/images take part as documents of their own; a hit points to the notes embedding them
       const deps = attachmentDeps(ctx);
       const pages = deps ? attachmentPages(deps, notes).pages.filter((p) => !folder || p.notes.some((n) => n.path.startsWith(`${folder}/`))) : [];
@@ -710,12 +728,16 @@ export const TOOLS: ToolDef[] = [
       const note = findNote(notes, args);
       const index = new LinkIndex(notes);
       const titleOf = (id: string) => index.notes.get(id)?.title ?? id;
+      const remote = remoteNoteOf(note.content);
       return {
         ...summary(note),
         version: note.version,
         created: iso(note.createdAt),
         links: index.outgoing(note.id).map(titleOf),
         backlinks: index.backlinks(note.id).map(titleOf),
+        ...(remote
+          ? { remote: { ...remote, hint: 'Remote note: shows this document from GitLab/GitHub live and read-only. Its text is not stored in Kladde; only source and ref can be changed.' } }
+          : {}),
         content: note.content,
       };
     },
@@ -768,7 +790,7 @@ export const TOOLS: ToolDef[] = [
     write: false,
     run(args, ctx) {
       try {
-        const result = runQuery(str(args, 'query', true)!, space(ctx), ctx.today ?? new Date(), { defaultDue: taskDue(ctx) });
+        const result = runQuery(str(args, 'query', true)!, listed(ctx), ctx.today ?? new Date(), { defaultDue: taskDue(ctx) });
         const rows = result.rows.slice(0, 500).map((r) => {
           const values = Object.fromEntries(
             Object.entries(r.values).map(([k, v]) => [k, (k === 'created' || k === 'updated') && typeof v === 'number' ? iso(v) : v])
@@ -980,7 +1002,7 @@ export const TOOLS: ToolDef[] = [
       const changed: string[] = [];
       for (const n of space(ctx)) {
         if (n.access !== 'owner' || n.realPath !== undefined) continue;
-        const content = renameTag(n.content, from, to);
+        const content = keepRemoteBody(n.content, renameTag(n.content, from, to));
         if (content === n.content) continue;
         save(ctx, n, content);
         changed.push(n.path);

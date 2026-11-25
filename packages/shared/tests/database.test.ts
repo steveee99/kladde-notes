@@ -1,3 +1,5 @@
+import { LinkIndex } from '../src/links';
+import { runQuery } from '../src/query';
 import { describe, expect, it } from 'vitest';
 import {
   applyView,
@@ -7,6 +9,7 @@ import {
   findDatabaseNote,
   inferPropertyKeys,
   isDatabasePath,
+  isSchemaPath,
   newDatabaseContent,
   newDatabaseNoteContent,
   parseDatabase,
@@ -70,6 +73,31 @@ describe('database schema', () => {
     expect(isDatabasePath('Books/_database.md.md')).toBe(false);
     expect(databaseFileName('0b9f6c1e-3d52')).toBe('_database-0b9f6c1e-3d52.md');
     expect(isDatabasePath(databaseFileName('0b9f6c1e-3d52-4c0e'))).toBe(true);
+  });
+
+  it('hides numbered copies of a database note, which never define a database, but not conflict copies', () => {
+    const name = '_database-0b9f6c1e-3d52-4c0e-9a7e-5f1d2c3b4a69';
+    for (const copy of [`${name} 2`, '_database 2']) {
+      const path = `Team/Books/${copy}.md`;
+      expect(isDatabasePath(path)).toBe(true);
+      expect(isSchemaPath(path)).toBe(false);
+      expect(findDatabaseNote('Team/Books', [{ path, content: newDatabaseContent() }])).toBeNull();
+    }
+    expect(isSchemaPath(`${name}.md`)).toBe(true);
+    for (const other of ['_database notes', '_databases 2', '_database-notes (2)', `${name} (Konflikt 24.11.26, 12-30)`, `${name} (Conflict 11-24-26, 12-30 PM) 2`, 'my_database 2']) expect(isDatabasePath(`Books/${other}.md`)).toBe(false);
+  });
+
+  it('keeps database notes out of query rows, backlinks, mentions and link suggestions', () => {
+    const notes = [
+      { id: 'd', path: 'Plan/_database-0b9f6c1e-3d52.md', content: '---\ntype: database\n---\n[[Target]] Other', createdAt: 0, updatedAt: 0 },
+      { id: 't', path: 'Plan/Target.md', content: '', createdAt: 0, updatedAt: 0 },
+      { id: 'o', path: 'Plan/Other.md', content: '', createdAt: 0, updatedAt: 0 },
+    ];
+    expect(runQuery('LIST FROM "Plan"', notes).rows.map((r) => r.noteId).sort()).toEqual(['o', 't']);
+    const index = new LinkIndex(notes);
+    expect(index.backlinks('t')).toEqual([]);
+    expect(index.unlinkedMentions('o')).toEqual([]);
+    expect(index.autoLinkTargets().map((x) => x.target).sort()).toEqual(['Other', 'Target']);
   });
 
   it('infers property keys from the notes of the folder', () => {

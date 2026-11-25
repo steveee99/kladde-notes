@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
-import { PublicNote as PublicNoteData, excalidrawSceneOf, extractMeta, fillReleasePlaceholders, isPresentationNote } from '@kladde/shared';
+import { EMPTY_VARIABLE_SCOPE, PublicNote as PublicNoteData, type VariableScope, excalidrawSceneOf, extractMeta, fillReleasePlaceholders, fixedVariableScope, isPresentationNote, remoteNoteOf } from '@kladde/shared';
 import { api } from '../lib/api';
 import { locale, tl, useLang } from '../lib/i18n';
 import { Editor } from '../editor/Editor';
@@ -7,10 +7,19 @@ import type { EmbedResolver } from '../editor/embedContext';
 import { Avatar } from './Avatar';
 import { ExportMenu } from './ExportMenu';
 import { releaseRenderOptions } from '../editor/releases';
-import { Slideshow } from '../lib/icons';
+import { RemoteDoc, Slideshow } from '../lib/icons';
 
 const ExcalidrawPanel = lazy(() => import('./ExcalidrawPanel'));
 const Presentation = lazy(() => import('./Presentation'));
+
+/** Only the values the note uses come with a public link; the others show as unknown */
+const publicScopes = new WeakMap<object, VariableScope>();
+function scopeOf(values: Record<string, string> | undefined): VariableScope {
+  if (!values) return EMPTY_VARIABLE_SCOPE;
+  let scope = publicScopes.get(values);
+  if (!scope) publicScopes.set(values, (scope = fixedVariableScope(values)));
+  return scope;
+}
 
 /** Read-only view of a note shared by link (no account needed) */
 export function PublicNote({ token }: { token: string }) {
@@ -26,7 +35,7 @@ export function PublicNote({ token }: { token: string }) {
     const byTarget = new Map((note?.embeds ?? []).map((e) => [e.target, e]));
     return (target) => {
       const e = byTarget.get(target.trim().replace(/\.md$/i, '').toLowerCase());
-      return e ? { id: e.token, title: e.title, content: e.content, canWrite: false, href: `/s/${e.token}` } : null;
+      return e ? { id: e.token, title: e.title, content: e.content, canWrite: false, href: `/s/${e.token}`, variables: scopeOf(e.variables) } : null;
     };
   }, [note]);
   if (error) return <div className="p-8 text-center text-on-surface-variant">{error}</div>;
@@ -36,6 +45,10 @@ export function PublicNote({ token }: { token: string }) {
   const drawing = excalidrawSceneOf(note.content);
   // Notes the owner set up as a presentation (frontmatter `presentation`, #87) can be presented from the link
   const slides = drawing === null && isPresentationNote(note.content);
+  // A remote note: guests never see the document, it is read with the server's own access
+  const remote = !!remoteNoteOf(note.content);
+  const variables = scopeOf(note.variables);
+  const exported = note.versioning ? fillReleasePlaceholders(note.content, note.releases ?? [], releaseRenderOptions(lang)) : note.content;
   const releases = note.versioning ? (note.releases ?? []) : null;
   return (
     // No transform animation around a drawing: it would trap Excalidraw's fixed layers and full screen in this box
@@ -50,19 +63,23 @@ export function PublicNote({ token }: { token: string }) {
             {tl(lang, 'present.start')}
           </button>
         )}
-        <ExportMenu title={title} slides={slides} content={note.versioning ? fillReleasePlaceholders(note.content, note.releases ?? [], releaseRenderOptions(lang)) : note.content} />
+        {!remote && <ExportMenu title={title} slides={slides} content={exported} variables={variables} />}
       </div>
       <h1 className="font-display mb-4 break-words text-[34px] leading-tight">{title}</h1>
-      {drawing !== null ? (
+      {remote ? (
+        <p data-remote-public className="flex items-center justify-center gap-2 rounded-lg border border-line bg-panel px-4 py-8 text-center text-body-m text-muted">
+          <RemoteDoc size={18} className="shrink-0" /> {tl(lang, 'remote.public')}
+        </p>
+      ) : drawing !== null ? (
         <Suspense fallback={<div className="p-8 text-center text-on-surface-variant">{tl(lang, 'common.loading')}</div>}>
           <ExcalidrawPanel scene={drawing} readOnly lang={lang} />
         </Suspense>
       ) : (
-        <Editor docKey={token} value={note.content} readOnly resolveEmbed={resolveEmbed} releases={releases} slideBreaks={slides ? tl(lang, 'present.slideBreak') : ''} />
+        <Editor docKey={token} value={note.content} readOnly resolveEmbed={resolveEmbed} releases={releases} variables={variables} slideBreaks={slides ? tl(lang, 'present.slideBreak') : ''} />
       )}
       {presenting && (
         <Suspense fallback={null}>
-          <Presentation docKey={token} title={title} content={note.content} resolveEmbed={resolveEmbed} releases={releases} onClose={() => setPresenting(false)} />
+          <Presentation docKey={token} title={title} content={note.content} resolveEmbed={resolveEmbed} releases={releases} variables={variables} onClose={() => setPresenting(false)} />
         </Suspense>
       )}
     </div>

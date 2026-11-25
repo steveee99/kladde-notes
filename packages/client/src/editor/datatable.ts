@@ -1,4 +1,6 @@
+import type { VariableScope } from '@kladde/shared';
 import { getLang, locale, t } from '../lib/i18n';
+import { setMaskedHtml } from './variables';
 
 /** Interactive table (sort by header click, filter field) used for Markdown tables and query results */
 
@@ -40,15 +42,20 @@ export function openTableCell(wrap: Element, cell: CellRef): boolean {
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-/** Very small inline Markdown → HTML for table cells (escaped first, so it is safe) */
-export function renderInline(text: string): string {
+/** Very small inline Markdown → HTML for table cells (escaped first, so it is safe); `plain` leaves [[links]] as text */
+export function renderInline(text: string, plain = false): string {
   return esc(text)
     .replace(/`([^`]+)`/g, '<code class="cm-inline-code">$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
     .replace(/~~([^~]+)~~/g, '<s>$1</s>')
-    .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, t, a) => `<span class="cm-wikilink" data-wiki="${t}">${a ?? t}</span>`)
+    .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (all, t, a) => (plain ? all : `<span class="cm-wikilink" data-wiki="${t}">${a ?? t}</span>`))
     .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a class="cm-link" href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+}
+
+function setInline(el: HTMLElement, text: string, variables?: VariableScope | null, plain = false): void {
+  if (variables) setMaskedHtml(el, text, variables, renderInline);
+  else el.innerHTML = renderInline(text, plain);
 }
 
 export function stripInline(text: string): string {
@@ -81,6 +88,10 @@ export function dataTable(
     edit?: TableEditing;
     /** A summary row below the body (query aggregates, #77); it is not sorted or filtered */
     footer?: string[];
+    /** Fills `{{var:name}}` in the cells */
+    variables?: VariableScope | null;
+    /** Text from outside the vault: [[links]] stay text */
+    plain?: boolean;
   } = {}
 ): HTMLElement {
   const wrap = document.createElement('div');
@@ -121,7 +132,8 @@ export function dataTable(
   const headRow = document.createElement('tr');
   headers.forEach((h, i) => {
     const th = document.createElement('th');
-    th.innerHTML = `<span>${renderInline(h)}</span><i class="wz-sort"></i>`;
+    th.innerHTML = '<span></span><i class="wz-sort"></i>';
+    setInline(th.firstElementChild as HTMLElement, h, opts.variables, opts.plain);
     if (opts.align?.[i]) th.style.textAlign = opts.align[i]!;
     if (edit) {
       th.dataset.row = '-1';
@@ -305,7 +317,7 @@ export function dataTable(
             td.dataset.col = String(i);
           }
           if (opts.align?.[i]) td.style.textAlign = opts.align[i]!;
-          if (typeof c === 'string') td.innerHTML = renderInline(c);
+          if (typeof c === 'string') setInline(td, c, opts.variables, opts.plain);
           else td.append(c);
           tr.append(td);
         });

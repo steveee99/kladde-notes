@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { contentHash, nextVersion, suggestedBump, MAX_RELEASE_NOTE, type NoteRelease, type ReleaseBump } from '@kladde/shared';
 import { ArrowLeft, Loader2, NewReleases } from '../lib/icons';
 import { api } from '../lib/api';
+import { useVariables } from '../data/variables';
 import { vault } from '../data/vault';
 import type { LocalNote } from '../data/db';
 import { editorHost } from '../editor/host';
@@ -29,6 +30,7 @@ export function releaseChipLabel(note: LocalNote): string {
 export function ReleaseDialog({ note, locked = false, onClose }: { note: LocalNote; locked?: boolean; onClose: () => void }) {
   const lang = useLang();
   const fmt = (ms: number) => new Date(ms).toLocaleString(locale(lang), { dateStyle: 'medium', timeStyle: 'short' });
+  const variables = useVariables(note);
   // Owners, and owners and editors of the group a note belongs to (#58)
   const isOwner = (note.access === 'owner' || vault.managesGroupNote(note)) && !locked;
   const canEdit = note.access !== 'read' && !locked;
@@ -110,7 +112,7 @@ export function ReleaseDialog({ note, locked = false, onClose }: { note: LocalNo
               {r.note ? ` · ${r.note}` : ''}
             </p>
             <div className="mb-6 rounded-2xl border border-outline-variant bg-surface px-4 py-2">
-              <Editor docKey={`release:${note.id}:${viewing}`} value={r.content} readOnly releases={releases} />
+              <Editor docKey={`release:${note.id}:${viewing}`} value={r.content} readOnly releases={releases} variables={variables} />
             </div>
           </>
         ) : (

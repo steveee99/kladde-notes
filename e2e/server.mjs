@@ -5,6 +5,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { startFakeGitlab } from './fixtures/fakeGitlab.mjs';
 import { E2E_PASSWORD, E2E_USERS } from './accounts.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -22,7 +23,13 @@ for (const name of E2E_USERS) {
 }
 db.close();
 
+// Remote notes: a fake GitLab, reached with a token from the environment
+const remoteToken = 'e2e-remote-token';
+const gitlab = await startFakeGitlab(remoteToken);
+
 Object.assign(process.env, {
+  REMOTE_GITLAB_URL: gitlab,
+  REMOTE_GITLAB_TOKEN: remoteToken,
   NODE_ENV: 'test',
   DEV_LOGIN: '1',
   DB_PATH: dbPath,

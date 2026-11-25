@@ -271,10 +271,18 @@ describe('MCP tools in groups (#58)', () => {
     notes.push(ben.id, [
       { id: 'group-mcp-01', baseVersion: 0, path: 'Planung/Sprint.md', content: '# Sprint\n\n- [ ] Review 📅 2026-11-20', deleted: false, createdAt: now, updatedAt: now, group: team.id },
       { id: 'group-mcp-02', baseVersion: 0, path: 'Satzung.md', content: '# Satzung', deleted: false, createdAt: now, updatedAt: now, group: club.id },
+      { id: 'group-mcp-db', baseVersion: 0, path: 'Planung/_database-0b9f6c1e-3d52.md', content: '---\ntype: database\n---\nSprint', deleted: false, createdAt: now, updatedAt: now, group: team.id },
+      { id: 'group-mcp-d2', baseVersion: 0, path: '_database-0b9f6c1e-3d52 2.md', content: '---\ntype: database\n---\nSprint', deleted: false, createdAt: now, updatedAt: now, group: team.id },
     ]);
 
     const list = (await call(token, 'list_notes', { group: 'team' })).structuredContent;
     expect(list.notes).toEqual([expect.objectContaining({ id: 'group-mcp-01', path: 'Team/Planung/Sprint.md', group: 'Team', read_only: false })]);
+    // Database notes are settings of their folder: in no list or search, but readable by id
+    for (const [tool, args] of [['search_notes', { query: 'sprint' }], ['semantic_search', { query: 'sprint' }], ['query_notes', { query: 'LIST FROM "Team"' }]] as const) {
+      const found = (await call(token, tool, args)).structuredContent;
+      expect((found.results ?? found.rows).map((r: { id?: string; note_id?: string }) => r.id ?? r.note_id), tool).toEqual(['group-mcp-01']);
+    }
+    expect((await call(token, 'read_note', { id: 'group-mcp-db' })).structuredContent.id).toBe('group-mcp-db');
     expect(list.groups).toEqual([
       { name: 'Team', role: 'editor', read_only: false },
       { name: 'Verein', role: 'reader', read_only: true },

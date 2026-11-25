@@ -3,7 +3,10 @@ import {
   SYSTEM_PREFIX,
   confluenceFolderBody,
   extractMeta,
+  hasVariables,
+  isVariablesPath,
   markdownToConfluence,
+  remoteNoteOf,
   runQuery,
   type ConfluenceNoteState,
   type ConfluenceOverview,
@@ -60,7 +63,7 @@ export class ConfluenceSync {
   }
 
   private ownNotes(userId: string): SyncedNote[] {
-    return this.notes.publishedNotes(userId).filter((n) => !n.path.startsWith(SYSTEM_PREFIX));
+    return this.notes.publishedNotes(userId).filter((n) => !n.path.startsWith(SYSTEM_PREFIX) && !isVariablesPath(n.path));
   }
 
   private inFolder(sync: ConfluenceSyncRecord, note: { id: string; path: string }): boolean {
@@ -114,6 +117,7 @@ export class ConfluenceSync {
   /** Called for every accepted note change (NoteStore listener) */
   onNoteChange(event: NoteChangeEvent): void {
     if (event.path.startsWith(SYSTEM_PREFIX) || !this.store.hasAccount(event.ownerId)) return;
+    if (isVariablesPath(event.path) || (event.previousPath && isVariablesPath(event.previousPath))) this.variablesChanged(event.ownerId);
     const record = this.store.page(event.noteId);
     if (event.deleted) {
       if (!record) return;
@@ -122,6 +126,16 @@ export class ConfluenceSync {
       return;
     }
     if (record || this.syncFor(event.ownerId, { id: event.noteId, path: event.path }, null)) this.schedule(event.ownerId, event.noteId);
+  }
+
+  /** A folder's variables changed: pages of notes that use variables are written again */
+  private variablesChanged(userId: string): void {
+    const notes = new Map(this.ownNotes(userId).map((n) => [n.id, n]));
+    for (const page of this.store.pages(userId)) {
+      if (page.status !== 'ok' || !hasVariables(notes.get(page.noteId)?.content ?? '')) continue;
+      this.store.savePage({ ...page, noteVersion: 0 });
+      this.schedule(userId, page.noteId);
+    }
   }
 
   // ---------------------------------------------------------------- API
@@ -397,8 +411,11 @@ export class ConfluenceSync {
     const names = new Map<string, string>();
     const used = new Set<string>();
     const dueOf = taskDueOf(this.notes, userId);
-    return markdownToConfluence(note.path, note.content, {
+    // A remote note's document stays behind the access it is read with: the page only says what the note is
+    const content = remoteNoteOf(note.content) ? 'Diese Notiz zeigt ein Dokument aus GitLab/GitHub. / This note shows a document from GitLab/GitHub.\n' : note.content;
+    return markdownToConfluence(note.path, content, {
       spaceKey: sync.spaceKey,
+      variables: this.notes.variablesOf(userId, folderOf(note.path)),
       linkTitle: (target) => {
         const id = index.resolve(target);
         if (!id || id === note.id) return id === note.id ? record.title || null : null;

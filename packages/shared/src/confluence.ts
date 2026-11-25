@@ -1,3 +1,4 @@
+import type { VariableScope } from './variables.js';
 import { parseMarkdownForExport, type ExportBlock, type ExportInline, type ExportListItem } from './export.js';
 import { extractMeta } from './markdown.js';
 import { formatValue, type QueryResult } from './query.js';
@@ -188,6 +189,8 @@ export interface ConfluenceConvertContext {
   /** Current result of a `query` block (null: left out with a hint) */
   query?: (source: string) => QueryResult | null;
   spaceKey?: string;
+  /** Fills `{{var:name}}` placeholders */
+  variables?: VariableScope;
 }
 
 export interface ConfluencePage {
@@ -290,7 +293,7 @@ export function markdownToConfluence(path: string, content: string, ctx: Conflue
     })
     .join('\n');
 
-  const doc = parseMarkdownForExport(meta.title, prepared);
+  const doc = parseMarkdownForExport(meta.title, prepared, ctx.variables);
   let blocks = doc.blocks;
   // Confluence shows the title above the page: drop a leading H1 that repeats it
   if (doc.hasLeadingH1 && blocks[0].type === 'heading' && inlineText(blocks[0].inlines).trim() === meta.title.trim()) blocks = blocks.slice(1);

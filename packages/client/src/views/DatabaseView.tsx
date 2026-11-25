@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  isHiddenPath,
   FILTER_OPS,
   PROPERTY_TYPES,
   VIEW_TYPES,
@@ -8,6 +9,8 @@ import {
   databaseRows,
   defaultView,
   formatDbValue,
+  hasVariables,
+  resolveVariables,
   linkTarget,
   newDatabaseNoteContent,
   parseDatabase,
@@ -27,6 +30,7 @@ import { useReadOnly } from '../lib/readOnly';
 import { navigate } from '../lib/router';
 import { Plus, Settings, Trash2 } from '../lib/icons';
 import { t, useLang, type I18nKey } from '../lib/i18n';
+import { variablesOfNote } from '../data/variables';
 import { Sheet } from './Dialogs';
 import { ChipSelect } from './ChipSelect';
 import { Dropdown, type DropdownOption } from './Dropdown';
@@ -36,6 +40,12 @@ const viewKey = (type: string) => `db.view.${type}` as I18nKey;
 const opKey = (op: string) => `db.op.${op}` as I18nKey;
 const NONE: DropdownOption = { value: '', label: '—' };
 const asOptions = (values: string[]): DropdownOption[] => values.map((v) => ({ value: v, label: v }));
+
+/** Text of a row with the variables of its note filled in; input fields keep the placeholders */
+function rowText(row: DbRow, text: string): string {
+  const note = hasVariables(text) ? vault.get(row.noteId) : undefined;
+  return note ? resolveVariables(text, variablesOfNote(note)) : text;
+}
 
 /** One typed, editable cell; changes go straight into the note's frontmatter */
 function Cell({ row, prop, canEdit }: { row: DbRow; prop: DbProperty; canEdit: boolean }) {
@@ -85,7 +95,7 @@ function Cell({ row, prop, canEdit }: { row: DbRow; prop: DbProperty; canEdit: b
         <span>{shown}</span>
       );
     }
-    return <span>{shown}</span>;
+    return <span>{rowText(row, shown)}</span>;
   }
   return (
     <input
@@ -123,7 +133,7 @@ function TableView({ db, view, rows, canEdit }: { db: Database; view: DbView; ro
             <tr key={r.noteId} className="border-b border-outline-variant/40 last:border-0">
               <td className="px-3 py-1.5">
                 <a className="cursor-pointer font-medium hover:underline" onClick={() => navigate(`/n/${r.noteId}`)}>
-                  {r.title}
+                  {rowText(r, r.title)}
                 </a>
               </td>
               {db.subfolders && <td className="px-3 py-1.5 text-on-surface-variant">{r.folder}</td>}
@@ -144,10 +154,10 @@ function Card({ row, shownProps, children }: { row: DbRow; shownProps: DbPropert
   return (
     <div className="card cursor-pointer p-3" onClick={() => navigate(`/n/${row.noteId}`)}>
       {children}
-      <div className="font-medium">{row.title}</div>
+      <div className="font-medium">{rowText(row, row.title)}</div>
       {row.folder && <div className="truncate text-xs text-on-surface-variant">{row.folder}</div>}
       {shownProps.map((p) => {
-        const text = formatDbValue(p.type, row.values[p.name]);
+        const text = rowText(row, formatDbValue(p.type, row.values[p.name]));
         return text ? (
           <div key={p.name} className="truncate text-xs text-on-surface-variant">
             {p.name}: {text}
@@ -405,7 +415,7 @@ export function DatabaseView({ folder, dbNote }: { folder: string; dbNote: Local
       </div>
       {hasLink && (
         <datalist id="db-link-targets">
-          {vault.list().map((n) => (
+          {vault.list().filter((n) => !isHiddenPath(n.path)).map((n) => (
             <option key={n.id} value={n.path.replace(/^.*\//, '').replace(/\.md$/, '')} />
           ))}
         </datalist>

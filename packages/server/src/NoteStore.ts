@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, assignTicketNumber, canTransition, isDatabasePath, isTicketContent, parseProject, runAutomations, setTicketFields, subtaskProgress, ticketEvents, ticketMeta, workflowStatus, type ProjectConfig, contentHash, embedsOf, extractMeta, numberedTicketId, parseGroupFeatures, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, splitPath, renameWikiLinks } from '@kladde/shared';
+import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, assignTicketNumber, canTransition, isSchemaPath, isTicketContent, parseProject, runAutomations, setTicketFields, hasVariables, isVariablesPath, usedVariables, variableDefinitions, variableScope, type VariableDefinitions, type VariableScope, subtaskProgress, ticketEvents, ticketMeta, workflowStatus, type ProjectConfig, contentHash, embedsOf, extractMeta, numberedTicketId, parseGroupFeatures, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, publicRemoteContent, remoteNoteOf, type RemoteSource, splitPath, renameWikiLinks } from '@kladde/shared';
 import { DataCipher, randomToken } from './crypto.js';
 import { transaction } from './db.js';
 
@@ -265,7 +265,7 @@ export class NoteStore {
     const rows = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND deleted = 0 ORDER BY created_at, id').all(ownerId) as unknown as NoteRow[];
     for (const r of rows) {
       const p = this.payload(r);
-      if (!isDatabasePath(p.path)) continue;
+      if (!isSchemaPath(p.path)) continue;
       const config = parseProject(p.content);
       const folder = splitPath(p.path).folder;
       if (config && !found.has(folder)) found.set(folder, { id: r.id, config });
@@ -279,7 +279,7 @@ export class NoteStore {
     const row = ID_PATTERN.test(noteId) ? this.getRow(noteId) : undefined;
     if (!row || row.deleted) return null;
     const p = this.payload(row);
-    const config = isDatabasePath(p.path) ? parseProject(p.content) : null;
+    const config = isSchemaPath(p.path) ? parseProject(p.content) : null;
     return config ? { ownerId: row.owner_id, folder: splitPath(p.path).folder, config } : null;
   }
 
@@ -339,6 +339,34 @@ export class NoteStore {
   /** Owner, or a writing member of the group that owns the note: may rename, move and delete it, and manage its releases */
   private canManage(row: NoteRow, userId: string): boolean {
     return row.owner_id === userId || canWriteInGroup(this.groupRole(row.owner_id, userId));
+  }
+
+  // ------------------------------------------------------------------ variables
+
+  /** Variable definitions per owner (user or group); dropped when a definition note changes */
+  private variableCache = new Map<string, VariableDefinitions>();
+
+  /** The variables (`{{var:name}}`) the notes in `folder` of this owner see */
+  variablesOf(ownerId: string, folder: string): VariableScope {
+    let definitions = this.variableCache.get(ownerId);
+    if (!definitions) {
+      const rows = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND deleted = 0').all(ownerId) as unknown as NoteRow[];
+      const found: Payload[] = [];
+      for (const r of rows) {
+        const p = this.payload(r);
+        if (isVariablesPath(p.path)) found.push(p);
+      }
+      definitions = variableDefinitions(found);
+      this.variableCache.set(ownerId, definitions);
+    }
+    return variableScope(folder, definitions);
+  }
+
+  /** The values a public page needs: only of the variables the text uses */
+  private publicVariables(ownerId: string, path: string, content: string): { variables?: Record<string, string> } {
+    if (!hasVariables(content)) return {};
+    const variables = usedVariables(content, this.variablesOf(ownerId, splitPath(path).folder));
+    return Object.keys(variables).length ? { variables } : {};
   }
 
   // ------------------------------------------------------------------ release versioning (#53)
@@ -585,6 +613,18 @@ export class NoteStore {
     return row && !row.deleted && this.accessOf(userId, row) ? row.owner_id : null;
   }
 
+  /**
+   * The source of a remote note as the user sees the note (readers of a versioned one: its latest release), with the
+   * space and folder its variables come from; null when the user may not see it or it is no remote note.
+   */
+  remoteSource(userId: string, noteId: string): { source: RemoteSource; ownerId: string; folder: string } | null {
+    const row = ID_PATTERN.test(noteId) ? this.getRow(noteId) : undefined;
+    const access = row && !row.deleted ? this.accessOf(userId, row) : null;
+    if (!row || !access) return null;
+    const source = remoteNoteOf(this.syncedFor(row, userId, access).content);
+    return source && { source, ownerId: row.owner_id, folder: splitPath(this.payload(row).path).folder };
+  }
+
   /** Paths of catalog entries by note id and seq: a light pull decrypts only notes that changed since the last one */
   private catalogPaths = new Map<string, { seq: number; path: string }>();
 
@@ -723,7 +763,8 @@ export class NoteStore {
           let flow: Omit<ReturnType<NoteStore['applyWorkflow']>, 'content'> = {};
           if (!change.deleted) {
             content = this.numberTicket(ownerId, content);
-            if (isDatabasePath(path)) this.projectCache.delete(ownerId);
+            if (isSchemaPath(path)) this.projectCache.delete(ownerId);
+            if (isVariablesPath(path)) this.variableCache.delete(ownerId);
             const { content: next, ...rest } = this.applyWorkflow(ownerId, change.id, path, null, content, userId, !!opts.trusted);
             content = next;
             flow = rest;
@@ -755,7 +796,8 @@ export class NoteStore {
         // Only the owner moves or renames a note: it lives in their space. Deleting also needs the folder share's permission
         const path = manager ? cleanPath(change.path) : old.path;
         const deleted = !!change.deleted;
-        if (isDatabasePath(path) || isDatabasePath(old.path)) this.projectCache.delete(row.owner_id);
+        if (isSchemaPath(path) || isSchemaPath(old.path)) this.projectCache.delete(row.owner_id);
+        if (isVariablesPath(path) || isVariablesPath(old.path)) this.variableCache.delete(row.owner_id);
         let flow: Omit<ReturnType<NoteStore['applyWorkflow']>, 'content'> = {};
         if (!deleted) {
           content = this.numberTicket(row.owner_id, content);
@@ -898,6 +940,7 @@ export class NoteStore {
   restore(userId: string, noteIds: string[], opts: { path?: unknown; rename?: boolean } = {}): { id: string; path: string }[] {
     // Projects may appear or move with these notes
     this.projectCache.clear();
+    this.variableCache.clear();
     const events: NoteChangeEvent[] = [];
     const restored = transaction(this.db, () => {
       // Paths per owner: a group's trash (#58) restores into the group's space
@@ -1250,7 +1293,9 @@ export class NoteStore {
       .get(token) as (NoteRow & { owner_name: string; owner_avatar: string | null }) | undefined;
     if (!row) return null;
     // A versioned note shows its latest release, like to read-only share recipients (#53)
-    const note = this.toSynced(row, 'read');
+    const synced = this.toSynced(row, 'read');
+    // A remote note's source stays inside: guests see a placeholder, and nothing is fetched for them
+    const note = { ...synced, content: publicRemoteContent(synced.content) };
     const embeds = this.publicEmbeds(row.owner_id, row.id, note.content);
     return {
       path: note.path,
@@ -1258,6 +1303,7 @@ export class NoteStore {
       owner: row.owner_name,
       ...(row.owner_avatar ? { ownerAvatar: `/api/avatars/${row.owner_avatar}` } : {}),
       updatedAt: note.releases?.[0]?.releasedAt ?? row.updated_at,
+      ...this.publicVariables(row.owner_id, note.path, note.content),
       ...(embeds.length ? { embeds } : {}),
       ...(note.versioning ? { versioning: true, releases: note.releases ?? [] } : {}),
       ...(note.showsRelease ? { showsRelease: note.showsRelease } : {}),
@@ -1276,7 +1322,7 @@ export class NoteStore {
     const published = new Map(
       rows.map((r) => {
         const p = this.payload(r);
-        return [r.id, { path: p.path, content: this.published(r.id, p.content), id: r.id, token: r.public_token }];
+        return [r.id, { path: p.path, content: publicRemoteContent(this.published(r.id, p.content)), id: r.id, token: r.public_token }];
       })
     );
     const index = new LinkIndex([...published.values()]);
@@ -1290,7 +1336,7 @@ export class NoteStore {
           if (out.has(key)) continue;
           const target = published.get(index.resolve(ref.target) ?? '');
           if (!target) continue;
-          out.set(key, { target: key, title: extractMeta(target.path, target.content).title, content: target.content, token: target.token });
+          out.set(key, { target: key, title: extractMeta(target.path, target.content).title, content: target.content, token: target.token, ...this.publicVariables(ownerId, target.path, target.content) });
           next.push(target);
         }
       }
@@ -1369,6 +1415,7 @@ export class NoteStore {
   moveToGroup(userId: string, groupId: string, req: Partial<GroupMoveRequest>): { moved: { id: string; path: string }[]; contents: string[] } {
     // Projects may appear or move with these notes
     this.projectCache.clear();
+    this.variableCache.clear();
     if (!canWriteInGroup(this.groupRole(groupId, userId))) throw new Error('forbidden');
     const ids = Array.isArray(req.noteIds) ? [...new Set(req.noteIds.filter((id): id is string => typeof id === 'string' && ID_PATTERN.test(id)))] : [];
     if (!ids.length || ids.length > 5000) throw new Error('invalid');
@@ -1415,6 +1462,7 @@ export class NoteStore {
   deleteGroup(userId: string, groupId: string): string[] {
     // Projects may appear or move with these notes
     this.projectCache.clear();
+    this.variableCache.clear();
     if (this.groupRole(groupId, userId) !== 'owner') throw new Error('forbidden');
     return transaction(this.db, () => {
       const members = (this.db.prepare('SELECT user_id FROM group_members WHERE group_id = ?').all(groupId) as { user_id: string }[]).map((m) => m.user_id);

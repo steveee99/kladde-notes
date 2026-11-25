@@ -14,6 +14,7 @@ self.addEventListener('fetch', (event) => {
 });
 
 async function receiveShare(request) {
+  // Service workers only run in secure contexts, so randomUUID is always there
   const id = self.crypto.randomUUID();
   try {
     const form = await request.formData();

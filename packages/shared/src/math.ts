@@ -23,7 +23,7 @@ export interface MathSpan {
  * `inline code` spans of a line: a run of backticks up to the next run of the same length. A linear scan
  * (a backreference regex is polynomial on many backticks, CodeQL ReDoS).
  */
-function codeSpans(line: string): [number, number][] {
+export function codeSpans(line: string): [number, number][] {
   if (!line.includes('`')) return [];
   // Runs of backticks with their start and length
   const runs: [number, number][] = [];

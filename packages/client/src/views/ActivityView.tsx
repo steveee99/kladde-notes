@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Activity as ActivityIcon, ArrowLeft, Folder, Users } from '../lib/icons';
-import { splitPath, type ActivityEntry, type ActivityList } from '@kladde/shared';
+import { isHiddenPath, splitPath, type ActivityEntry, type ActivityList } from '@kladde/shared';
 import { api } from '../lib/api';
 import { useVault, vault } from '../data/vault';
 import { locale, tl, useLang, type I18nKey, type Lang } from '../lib/i18n';
@@ -76,7 +76,8 @@ export function ActivityView({ scope }: { scope: ActivityScope }) {
     api<ActivityList>(`/activity${query}`)
       .then((r) => {
         if (!alive) return;
-        setEntries(r.entries);
+        // Changes of a folder's settings (database notes) are no changes of a note
+        setEntries(r.entries.filter((e) => !isHiddenPath(e.path ?? '')));
         remember(key, Date.now());
       })
       .catch((err) => alive && setError((err as Error).message));

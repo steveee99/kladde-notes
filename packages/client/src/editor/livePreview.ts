@@ -2,7 +2,7 @@ import { EditorState, Extension, Facet, Range, StateEffect, StateField } from '@
 import { Decoration, DecorationSet, EditorView, WidgetType } from '@codemirror/view';
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
-import { findMath, isHighlightedLine, parseCodeInfo, ticketIdPattern, type MathSpan, MENTION_RE, mentionName, CALLOUT_TONES, calloutTypeTitle, escapeRegExp, isKnownCalloutType, parseCalloutLine, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, type NoteHeading, type ReleaseField } from '@kladde/shared';
+import { findMath, isHighlightedLine, parseCodeInfo, ticketIdPattern, type MathSpan, MENTION_RE, mentionName, CALLOUT_TONES, calloutTypeTitle, escapeRegExp, isKnownCalloutType, parseCalloutLine, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, findPlaceholders, hasVariables, maskVariables, resolveVariables, resolveVariableUrl, type NoteHeading, type ReleaseField } from '@kladde/shared';
 import { getLang, tl } from '../lib/i18n';
 import {
   AutoLinkWidget,
@@ -33,12 +33,14 @@ import {
   WikiWidget,
 } from './widgets';
 import { editorHost } from './host';
-import { embedContext } from './embedContext';
+import { embedContext, foreignFacet } from './embedContext';
 import { embedWidgetFor } from './embed';
 import { markerStatus } from './taskStatus';
 import { CODE_COLLAPSE_FALLBACK, getCodeBlockPrefs, getLigatures } from '../lib/prefs';
 import { releaseFacet, ReleaseFieldWidget, releaseRenderOptions } from './releases';
+import { VariableWidget, variablesFacet } from './variables';
 import { MathWidget } from './math';
+import { stripInline } from './datatable';
 
 /**
  * Obsidian-style live preview: Markdown syntax is hidden and rendered everywhere except in the
@@ -194,6 +196,17 @@ function build(state: EditorState): DecorationSet {
   // Release versioning (#53): placeholders are shown filled in
   const release = state.facet(releaseFacet);
   const releaseOpts = release ? releaseRenderOptions(lang) : null;
+  // Variables ({{var:name}}): shown as their values
+  const variables = state.facet(variablesFacet);
+  /** Text with the values in it, as plain text (titles, link texts) */
+  const filled = (text: string) => (variables && hasVariables(text) ? resolveVariables(text, variables) : text);
+  /** A link; its URL is complete before it is checked by `safeUrl` */
+  const linkWidget = (text: string, rawUrl: string) => {
+    if (!variables || !hasVariables(text + rawUrl)) return new LinkWidget(text, rawUrl, true, null, foreign);
+    const { url, complete } = resolveVariableUrl(rawUrl, variables);
+    const masked = maskVariables(text, variables);
+    return new LinkWidget(text, url, complete, text ? masked.fill(stripInline(masked.text)) : null);
+  };
   const slideLabel = state.facet(slideBreakLabel);
   const callouts = state.facet(calloutsFacet);
   const hideProps = state.facet(hidePropertiesFacet);
@@ -215,12 +228,17 @@ function build(state: EditorState): DecorationSet {
   const touches = (from: number, to: number) => !all && state.selection.ranges.some((r) => r.from <= to && r.to >= from);
 
   const decos: Range<Decoration>[] = [];
-  const people = editorHost.people(state.facet(noteIdFacet));
-  const ticketRe = ticketPattern(editorHost.ticketKeys());
+  // Text from outside the vault: nothing in it is looked up in the reader's notes
+  const foreign = state.facet(foreignFacet);
+  const people = foreign ? [] : editorHost.people(state.facet(noteIdFacet));
+  const ticketRe = foreign ? null : ticketPattern(editorHost.ticketKeys());
   /** Replaced ranges: nothing else may be replaced inside them */
   const replaced: [number, number][] = [];
   const protectedRanges: [number, number][] = [];
   const codeLines = new Set<number>();
+  /** `inline code`: nothing in it is filled in */
+  const codeRanges: [number, number][] = [];
+  const inRanges = (ranges: [number, number][], from: number, to: number) => ranges.some(([a, b]) => from < b && to > a);
   const free = (from: number, to: number) => !replaced.some(([a, b]) => from < b && to > a);
   const isProtected = (from: number, to: number) => !free(from, to) || protectedRanges.some(([a, b]) => from < b && to > a);
   const replace = (from: number, to: number, deco: Decoration = hide) => {
@@ -294,6 +312,7 @@ function build(state: EditorState): DecorationSet {
           return;
         case 'InlineCode':
           protectedRanges.push([node.from, node.to]);
+          codeRanges.push([node.from, node.to]);
           decos.push(mark('cm-inline-code').range(node.from, node.to));
           return;
         case 'EmphasisMark':
@@ -317,7 +336,7 @@ function build(state: EditorState): DecorationSet {
             if (marks[1].from > marks[0].to) decos.push(mark('cm-link').range(marks[0].to, marks[1].from));
             return;
           }
-          replace(node.from, node.to, Decoration.replace({ widget: new LinkWidget(doc.sliceString(marks[0].to, marks[1].from), doc.sliceString(url.from, url.to)) }));
+          replace(node.from, node.to, Decoration.replace({ widget: linkWidget(doc.sliceString(marks[0].to, marks[1].from), doc.sliceString(url.from, url.to)) }));
           return false;
         }
         case 'Autolink': {
@@ -325,7 +344,7 @@ function build(state: EditorState): DecorationSet {
           protectedRanges.push([node.from, node.to]);
           const url = node.getChild('URL');
           if (!url || isActive(node.from, node.to)) return false;
-          replace(node.from, node.to, Decoration.replace({ widget: new LinkWidget('', doc.sliceString(url.from, url.to)) }));
+          replace(node.from, node.to, Decoration.replace({ widget: linkWidget('', doc.sliceString(url.from, url.to)) }));
           return false;
         }
         case 'URL': {
@@ -334,7 +353,7 @@ function build(state: EditorState): DecorationSet {
           protectedRanges.push([node.from, node.to]);
           const url = text();
           if (!/^https?:\/\//i.test(url) || isActive(node.from, node.to)) return;
-          replace(node.from, node.to, Decoration.replace({ widget: new LinkWidget('', url) }));
+          replace(node.from, node.to, Decoration.replace({ widget: linkWidget('', url) }));
           return;
         }
         case 'Image': {
@@ -343,7 +362,8 @@ function build(state: EditorState): DecorationSet {
           const marks = node.getChildren('LinkMark');
           if (!url) return false;
           const alt = marks.length >= 2 ? doc.sliceString(marks[0].to, marks[1].from) : '';
-          const widget = new ImageWidget(doc.sliceString(url.from, url.to), alt, lang);
+          const src = variables ? resolveVariableUrl(doc.sliceString(url.from, url.to), variables) : { url: doc.sliceString(url.from, url.to), complete: true };
+          const widget = src.complete ? new ImageWidget(src.url, filled(alt), lang) : new LinkWidget(alt, src.url, false, filled(alt));
           // The image stays visible: its Markdown only shows (above it) while the cursor is inside the
           // image syntax itself, not anywhere on the line, so the layout does not jump while editing nearby
           if (touches(node.from, node.to)) decos.push(Decoration.widget({ widget, side: 1 }).range(node.to));
@@ -368,7 +388,7 @@ function build(state: EditorState): DecorationSet {
           }
           if (!isActive(head.from, head.to)) {
             // Without a title of its own: the type's name (in the app language for the known types)
-            const title = callout.title || (isKnownCalloutType(callout.type) ? tl(lang, `callout.${callout.kind}`) : calloutTypeTitle(callout.type));
+            const title = filled(callout.title) || (isKnownCalloutType(callout.type) ? tl(lang, `callout.${callout.kind}`) : calloutTypeTitle(callout.type));
             const widget = new CalloutHeadWidget(callout.kind, title, foldable, collapsed, head.from, state.readOnly, lang);
             replace(head.from, collapsed ? last.to : head.to, Decoration.replace({ widget }));
           }
@@ -413,11 +433,11 @@ function build(state: EditorState): DecorationSet {
               src = doc.sliceString(node.from, end);
             }
             if (isActive(node.from, end)) return;
-            replace(doc.lineAt(node.from).from, doc.lineAt(end).to, Decoration.replace({ widget: new TableWidget(fillReleasePlaceholders(src, release.releases, releaseOpts!), lang, false), block: true }));
+            replace(doc.lineAt(node.from).from, doc.lineAt(end).to, Decoration.replace({ widget: new TableWidget(fillReleasePlaceholders(src, release.releases, releaseOpts!), lang, false, variables), block: true }));
             return false;
           }
           if (!isActive(node.from, node.to)) {
-            blockWidget(node, Decoration.replace({ widget: new TableWidget(text(), lang, !state.readOnly), block: true }));
+            blockWidget(node, Decoration.replace({ widget: new TableWidget(text(), lang, !state.readOnly, hasVariables(text()) ? variables : null, foreign), block: true }));
             return false;
           }
           return;
@@ -435,7 +455,7 @@ function build(state: EditorState): DecorationSet {
             blockWidget(node, Decoration.replace({ widget: new TableWidget(releaseHistoryTable(release.releases, releaseOpts!), lang, false), block: true }));
             return false;
           }
-          if (!editing && (langInfo === 'query' || langInfo === 'gallery' || langInfo === 'carousel')) {
+          if (!editing && !foreign && (langInfo === 'query' || langInfo === 'gallery' || langInfo === 'carousel')) {
             const widget =
               langInfo === 'query' ? new QueryWidget(body, stamp, state.readOnly, lang) : langInfo === 'carousel' ? new CarouselWidget(body, lang) : new GalleryWidget(body, lang);
             blockWidget(node, Decoration.replace({ widget, block: true }));
@@ -509,7 +529,7 @@ function build(state: EditorState): DecorationSet {
     const lineActive = !all && active.has(l);
 
     // ![[Note]], ![[Note#Heading]], ![[Note#^block]] on their own line: the referenced text, read-only
-    const embed = lineActive ? null : parseEmbedLine(ln.text);
+    const embed = lineActive || foreign ? null : parseEmbedLine(ln.text);
     if (embed && free(ln.from, ln.to)) {
       replace(ln.from, ln.to, Decoration.replace({ widget: embedWidgetFor(state, embed, state.facet(noteIdFacet), lang), block: true }));
       continue;
@@ -535,17 +555,31 @@ function build(state: EditorState): DecorationSet {
     }
 
     if (!lineActive && TOC_ANCHOR_RE.test(ln.text)) {
-      tocHeadings ??= extractHeadings(doc.toString());
+      tocHeadings ??= extractHeadings(doc.toString()).map((h) => ({ ...h, text: filled(h.text) }));
       replace(ln.from, ln.to, Decoration.replace({ widget: new TocWidget(ln.text, tocHeadings, lang), block: true }));
       continue;
     }
 
-    for (const m of ln.text.matchAll(/\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g)) {
+    for (const m of foreign ? [] : ln.text.matchAll(/\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g)) {
       const from = ln.from + m.index!;
       const to = from + m[0].length;
       protectedRanges.push([from, to]);
       if (lineActive) decos.push(mark('cm-wikilink').range(from, to));
       else replace(from, to, Decoration.replace({ widget: new WikiWidget(m[1].trim(), m[2]?.trim() ?? null) }));
+    }
+    // Variables: the value, or the placeholder while the cursor is in it
+    if (variables && hasVariables(ln.text)) {
+      const math = mathOf(doc);
+      for (const p of findPlaceholders(ln.text)) {
+        const from = ln.from + p.from;
+        const to = ln.from + p.to;
+        if (inRanges(codeRanges, from, to) || math.some((s) => from < s.to && to > s.from) || /\[\[[^[\]]*$/.test(ln.text.slice(Math.max(0, p.from - 600), p.from))) continue;
+        protectedRanges.push([from, to]);
+        // The source of a link on the cursor's line stays in one piece
+        const inUrl = tree.resolveInner(from, 1).name === 'URL';
+        if (inUrl || touches(from, to)) decos.push(mark('cm-variable-src').range(from, to));
+        else replace(from, to, Decoration.replace({ widget: new VariableWidget(variables.resolve(p.name, p.fallback), lang) }));
+      }
     }
     const def = /^\[\^([^\]\s]+)\]:\s?/.exec(ln.text);
     if (def) {
@@ -612,8 +646,8 @@ function build(state: EditorState): DecorationSet {
         replace(ln.from + start, ln.from + m.index! + m[0].length);
       }
     }
-    const matcher = getAutoLinkMatcher(state.facet(noteIdFacet), stamp);
-    if (matcher.regex) {
+    const matcher = foreign ? null : getAutoLinkMatcher(state.facet(noteIdFacet), stamp);
+    if (matcher?.regex) {
       matcher.regex.lastIndex = 0;
       for (const m of ln.text.matchAll(matcher.regex)) {
         const from = ln.from + m.index!;

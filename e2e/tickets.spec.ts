@@ -1,4 +1,4 @@
-import { test, expect, enableFeature, serverNote, serverNotes, uid } from './helpers';
+import { test, expect, enableFeature, expectDatabasesHidden, groupWithDatabases, serverNote, serverNotes, uid } from './helpers';
 import type { APIRequestContext, Page } from '@playwright/test';
 
 const hexId = () => [...Array(16)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
@@ -65,6 +65,47 @@ test('own project: number, board, ticket header and status chips in the document
   await expect(page.locator('[data-ticket-backlinks]').first()).toContainText('Offline numbers');
 });
 
+test('plain HTTP: projects, tickets and databases without the APIs of secure contexts', async ({ page }) => {
+  // 127.0.0.1 counts as secure, so take away what a browser hides on http://
+  await page.addInitScript(() => {
+    for (const key of ['randomUUID', 'subtle']) delete (Crypto.prototype as unknown as Record<string, unknown>)[key];
+    for (const key of ['clipboard', 'locks', 'storage', 'mediaDevices', 'serviceWorker']) delete (Navigator.prototype as unknown as Record<string, unknown>)[key];
+    delete (window as unknown as Record<string, unknown>).caches;
+  });
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await enableFeature(page, 'tickets');
+  await enableFeature(page, 'database');
+  const folder = `Insecure ${uid()}`;
+  const tableFolder = `Table ${uid()}`;
+  const key = `H${letters()}`;
+  await seed(page.request, [
+    { path: `${folder}/Readme.md`, content: 'About the project' },
+    { path: `${tableFolder}/Ada.md`, content: '---\ncompany: Analytical\n---\nAda' },
+  ]);
+  await page.goto(`/f/${encodeURIComponent(folder)}`);
+  expect(await page.evaluate(() => 'randomUUID' in crypto || 'clipboard' in navigator || 'caches' in window)).toBe(false);
+  await page.locator('[data-make-project]').click();
+  await page.locator('[data-project-key]').fill(key);
+  await page.getByRole('button', { name: 'Create project' }).click();
+  const project = page.locator(`[data-project="${key}"]`);
+  await expect(project).toBeVisible();
+  await project.locator('[data-new-ticket]').click();
+  await page.locator('[data-new-ticket-title]').fill('Over HTTP');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(page.locator('[data-ticket-id]')).toHaveText(`${key}-1`, { timeout: 15_000 });
+
+  await page.goto(`/f/${encodeURIComponent(tableFolder)}`);
+  await page.locator('[data-make-database]').click();
+  await expect(page.locator('[data-database]')).toBeVisible();
+  for (const f of [folder, tableFolder]) {
+    await expect
+      .poll(async () => (await serverNotes(page.request)).find((n) => n.path.startsWith(`${f}/_database-`))?.path ?? '', { timeout: 15_000 })
+      .toMatch(/_database-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.md$/);
+  }
+  expect(errors).toEqual([]);
+});
+
 test('group projects follow the group switch for every member', async ({ page, openAs }) => {
   const name = `Tickets ${uid()}`;
   const created = await page.request.post('/api/groups', { data: { name } });
@@ -103,6 +144,11 @@ test('group projects follow the group switch for every member', async ({ page, o
   // "Projects" shows the group's project
   await ben.goto('/projects');
   await expect(ben.locator(`[data-project-link="${key}"]`)).toBeVisible();
+});
+
+test('database notes of a group are in no list, its project still works', async ({ page }) => {
+  const group = await groupWithDatabases(page.request);
+  await expectDatabasesHidden(page, group);
 });
 
 test('workflow: enforced order, a rule from a template and a GitLab webhook that moves the ticket', async ({ page }) => {

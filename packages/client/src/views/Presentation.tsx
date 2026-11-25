@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { isTitleSlide, SLIDE_FORMATS, slideFormatOf, slideRatio, splitSlides, type NoteReleaseInfo, type SlideFormat } from '@kladde/shared';
+import { isTitleSlide, SLIDE_FORMATS, slideFormatOf, slideRatio, splitSlides, type NoteReleaseInfo, type SlideFormat, type VariableScope } from '@kladde/shared';
 import { Editor } from '../editor/Editor';
 import type { EmbedResolver } from '../editor/embedContext';
 import { AspectRatio, ChevronLeft, ChevronRight, CloseFullscreen, Fullscreen, SpeakerNotes, X } from '../lib/icons';
@@ -30,6 +30,7 @@ export interface PresentationProps {
   onFormat?: (format: SlideFormat) => void;
   resolveEmbed?: EmbedResolver;
   releases?: NoteReleaseInfo[] | null;
+  variables?: VariableScope | null;
   /** Callouts (#86) drawn as boxes (default) or as plain quotes */
   callouts?: boolean;
 }
@@ -41,7 +42,7 @@ const canvasOf = (format: SlideFormat) => {
 
 const fullscreenOn = () => typeof document !== 'undefined' && !!document.fullscreenElement;
 
-export default function Presentation({ docKey, title, content, onClose, onFormat, resolveEmbed, releases = null, callouts = true }: PresentationProps) {
+export default function Presentation({ docKey, title, content, onClose, onFormat, resolveEmbed, releases = null, variables = null, callouts = true }: PresentationProps) {
   useLang();
   const rootRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -257,7 +258,7 @@ export default function Presentation({ docKey, title, content, onClose, onFormat
           >
             <div ref={bodyRef} className={`slide-body ${centered ? 'slide-title' : ''}`} style={{ fontSize: BASE_FONT }}>
               <div className="slide-inner">
-                <Editor key={`${current}:${format}`} docKey={`present:${docKey}:${current}`} value={slide.markdown} readOnly resolveEmbed={resolveEmbed} releases={releases} callouts={callouts} />
+                <Editor key={`${current}:${format}`} docKey={`present:${docKey}:${current}`} value={slide.markdown} readOnly resolveEmbed={resolveEmbed} releases={releases} variables={variables} callouts={callouts} />
               </div>
             </div>
             <div className="slide-footer" aria-hidden="true">

@@ -24,12 +24,15 @@ import {
   type QueryResult,
   type QueryRow,
   type TaskStatus,
+  type VariableScope,
+  resolveVariables,
 } from '@kladde/shared';
+import { copyText } from '../lib/clipboard';
 import { getLang, locale, tl, type Lang } from '../lib/i18n';
 import { dataTable, groupedTable, openTableCell, parseMarkdownTable, stripInline, type CellRef, type DataRow, type TableEditing } from './datatable';
 import { editorHost, type TicketChip } from './host';
 import { embedContext } from './embedContext';
-import { DiagramKind, drawDiagram, openDiagram } from './diagram';
+import { DiagramKind, drawDiagram, isPrinting, openDiagram } from './diagram';
 import { CALLOUT_ICON_PATHS } from './calloutIcons';
 
 /** Moves the cursor into a block so it shows its source (the "✎" button of block widgets) */
@@ -84,12 +87,15 @@ export class TableWidget extends BlockWidget {
   constructor(
     src: string,
     lang: Lang = getLang(),
-    readonly canEdit = false
+    readonly canEdit = false,
+    readonly variables: VariableScope | null = null,
+    /** Text from outside the vault: [[links]] stay text */
+    readonly foreign = false
   ) {
     super(src, lang);
   }
   eq(other: TableWidget) {
-    return other.src === this.src && other.lang === this.lang && other.canEdit === this.canEdit;
+    return other.foreign === this.foreign && other.src === this.src && other.lang === this.lang && other.canEdit === this.canEdit && other.variables === this.variables;
   }
   toDOM(view: EditorView) {
     const t = parseMarkdownTable(this.src);
@@ -130,8 +136,8 @@ export class TableWidget extends BlockWidget {
       view,
       dataTable(
         t.headers,
-        t.rows.map((r) => ({ cells: r, keys: r.map(stripInline), raw: r })),
-        { align: t.align, onWiki: (w) => editorHost.openWiki(w), edit }
+        t.rows.map((r) => ({ cells: r, keys: r.map((c) => (this.variables ? resolveVariables(c, this.variables) : stripInline(c))), raw: r })),
+        { variables: this.variables, align: t.align, plain: this.foreign, onWiki: (w) => editorHost.openWiki(w), edit }
       )
     );
     return frame;
@@ -429,7 +435,7 @@ export class GalleryWidget extends BlockWidget {
       const img = document.createElement('img');
       img.src = url;
       img.alt = alt;
-      img.loading = 'lazy';
+      img.loading = isPrinting() ? 'eager' : 'lazy';
       img.addEventListener('click', () => openLightbox(url));
       grid.append(img);
     }
@@ -466,7 +472,7 @@ export class CarouselWidget extends BlockWidget {
       const img = document.createElement('img');
       img.src = url;
       img.alt = alt;
-      img.loading = 'lazy';
+      img.loading = isPrinting() ? 'eager' : 'lazy';
       img.draggable = false;
       // Portrait images stay portrait: the card takes the image's aspect ratio instead of cropping it
       img.addEventListener('load', () => {
@@ -603,7 +609,8 @@ export class CodeHeaderWidget extends WidgetType {
     copy.textContent = tl(this.uiLang, 'editor.codeCopy');
     copy.addEventListener('mousedown', (e) => {
       e.preventDefault();
-      void navigator.clipboard?.writeText(this.code).then(() => {
+      void copyText(this.code).then((ok) => {
+        if (!ok) return;
         copy.textContent = tl(this.uiLang, 'editor.codeCopied');
         setTimeout(() => (copy.textContent = tl(this.uiLang, 'editor.codeCopy')), 1200);
       });
@@ -870,20 +877,29 @@ function localNotePath(url: string): string | null {
 export class LinkWidget extends WidgetType {
   constructor(
     readonly text: string,
-    readonly url: string
+    readonly url: string,
+    /** The URL may be opened (false: it has a variable without a value) */
+    readonly complete = true,
+    /** Link text to show as it is (with the values of variables) instead of `text` as Markdown */
+    readonly label: string | null = null,
+    /** Text from outside the vault: no path in it names one of the reader's notes */
+    readonly foreign = false
   ) {
     super();
   }
   eq(o: LinkWidget) {
-    return o.text === this.text && o.url === this.url;
+    return o.foreign === this.foreign && o.text === this.text && o.url === this.url && o.complete === this.complete && o.label === this.label;
+  }
+  private shown(): string {
+    return (this.label ?? stripInline(this.text)).trim();
   }
   toDOM() {
     // A path link to a note (OKF bundles in the AI memory, #94) opens the note like a [[link]]
-    const notePath = localNotePath(this.url);
+    const notePath = this.complete && !this.foreign ? localNotePath(this.url) : null;
     if (notePath && editorHost.wikiExists(notePath)) {
       const s = document.createElement('span');
       s.className = 'cm-wikilink';
-      s.textContent = stripInline(this.text) || this.url;
+      s.textContent = this.shown() || this.url;
       s.title = this.url;
       s.addEventListener('mousedown', (e) => {
         e.preventDefault();
@@ -891,12 +907,12 @@ export class LinkWidget extends WidgetType {
       });
       return s;
     }
-    const href = safeUrl(this.url);
+    const href = this.complete ? safeUrl(this.url) : null;
     if (!href) {
       // javascript:, data: and other schemes never become a clickable link (stored XSS through shared notes)
       const s = document.createElement('span');
       s.className = 'cm-link cm-link-blocked';
-      s.textContent = stripInline(this.text) || this.url;
+      s.textContent = this.shown() || this.url;
       s.title = this.url;
       return s;
     }
@@ -908,13 +924,13 @@ export class LinkWidget extends WidgetType {
     const external = externalUrl(this.url);
     if (!external) {
       a.className = 'cm-link';
-      a.textContent = stripInline(this.text) || this.url;
+      a.textContent = this.shown() || this.url;
       return a;
     }
     // External links are pills: site icon + link text (or a short form of the URL)
     a.className = 'cm-link-pill';
     a.title = this.url;
-    a.append(siteIcon(external), Object.assign(document.createElement('span'), { className: 'cm-link-pill-text', textContent: stripInline(this.text).trim() || shortUrl(external) }));
+    a.append(siteIcon(external), Object.assign(document.createElement('span'), { className: 'cm-link-pill-text', textContent: this.shown() || shortUrl(external) }));
     return a;
   }
   ignoreEvent() {
@@ -1194,7 +1210,7 @@ export class ImageWidget extends WidgetType {
     img.className = 'cm-img';
     img.src = src;
     img.alt = this.alt;
-    img.loading = 'lazy';
+    img.loading = isPrinting() ? 'eager' : 'lazy';
     img.addEventListener('click', () => openLightbox(src));
     return img;
   }

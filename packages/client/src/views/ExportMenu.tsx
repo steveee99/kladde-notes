@@ -1,18 +1,22 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Download, FileCode, FileSpreadsheet, FileText, Loader2, PictureAsPdf, Printer } from '../lib/icons';
-import { safeExportFilename, stripFrontmatter } from '@kladde/shared';
+import { fillVariables, safeExportFilename, stripFrontmatter, type VariableScope } from '@kladde/shared';
+import { printNote, usePrintable } from '../lib/printing';
 import { t, tl, useLang } from '../lib/i18n';
 
 interface ExportMenuProps {
   title: string;
   content: string;
+  /** Fills `{{var:name}}` */
+  variables?: VariableScope;
   /** Offers the slide PDF (#87): the note is set up as a presentation */
   slides?: boolean;
 }
 
-export function ExportMenu({ title, content, slides = false }: ExportMenuProps) {
+export function ExportMenu({ title, content, variables, slides = false }: ExportMenuProps) {
   const lang = useLang();
+  usePrintable(content);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<'word' | 'pdf' | 'slides' | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -71,7 +75,7 @@ export function ExportMenu({ title, content, slides = false }: ExportMenuProps) 
 
   const exportMarkdown = () => {
     setOpen(false);
-    const body = stripFrontmatter(content);
+    const body = stripFrontmatter(variables ? fillVariables(content, variables) : content);
     const finalText = body && !body.endsWith('\n') ? `${body}\n` : body;
     const url = URL.createObjectURL(new Blob([finalText], { type: 'text/markdown;charset=utf-8' }));
     const a = document.createElement('a');
@@ -88,9 +92,9 @@ export function ExportMenu({ title, content, slides = false }: ExportMenuProps) 
     setOpen(false);
     try {
       const mod = await import('../lib/noteExport');
-      if (kind === 'word') await mod.exportNoteAsWord(title, content);
-      else if (kind === 'slides') await mod.exportNoteAsSlides(title, content);
-      else await mod.exportNoteAsPdf(title, content);
+      if (kind === 'word') await mod.exportNoteAsWord(title, content, variables);
+      else if (kind === 'slides') await mod.exportNoteAsSlides(title, content, variables);
+      else await mod.exportNoteAsPdf(title, content, variables);
     } catch (err) {
       alert(t('export.failed', { error: (err as Error).message }));
     } finally {
@@ -179,7 +183,7 @@ export function ExportMenu({ title, content, slides = false }: ExportMenuProps) 
               className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
               onClick={() => {
                 setOpen(false);
-                requestAnimationFrame(() => window.print());
+                void printNote();
               }}
             >
               <Printer size={16} className="shrink-0" />

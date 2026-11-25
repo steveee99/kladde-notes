@@ -84,6 +84,7 @@ import {
   dailyDueResolver,
   toDateString,
   zettelId,
+  keepRemoteBody,
   normalizeDueWords,
   splitPath,
   toggleTask,
@@ -101,6 +102,8 @@ import {
   type ReleaseBump,
   findDatabaseNote,
   isDatabasePath,
+  isSchemaPath,
+  isVariablesPath,
   newDatabaseNoteContent,
   parseDatabase,
   MILESTONE_FOLDER,
@@ -225,9 +228,10 @@ class Vault {
     if (this.userId !== userId) return;
     this.db = db;
     for (const n of await this.db.getAll('notes')) this.notes.set(n.id, n);
-    this.pathStamp++;
     this.sharedFolders = ((await this.db.get('meta', 'sharedFolders')) as SharedFolder[] | undefined) ?? [];
     this.groups = ((await this.db.get('meta', 'groups')) as GroupInfo[] | undefined) ?? [];
+    // Together with the emit below: a render in between would keep an empty folder list for this stamp
+    this.pathStamp++;
     this.ready = true;
     this.emit();
     window.addEventListener('online', this.kick);
@@ -427,7 +431,7 @@ class Vault {
     const stamp = this.pathStamp;
     if (this.databaseStamp === stamp) return;
     const spaceOf = (n: LocalNote) => (n.group ? `g:${n.group}` : n.owner ? `u:${n.owner}` : '');
-    const databases = [...this.notes.values()].filter((n) => !n.deleted && isDatabasePath(n.path));
+    const databases = [...this.notes.values()].filter((n) => !n.deleted && isSchemaPath(n.path));
     if (!databases.length) {
       this.databaseStamp = stamp;
       return;
@@ -470,6 +474,23 @@ class Vault {
     // Set only once loaded: when the server cannot be reached, the next sync tries again
     if (ids.length) await this.fetchFull(ids, { keep: true });
     this.databaseStamp = stamp;
+  }
+
+  /** `pathStamp` of the last look at the variable definitions (online mode) */
+  private variableStamp = -1;
+
+  /** Online mode: the notes that define variables are loaded in full and kept, every note below them may need the values */
+  private async loadVariableNotes(): Promise<void> {
+    const stamp = this.pathStamp;
+    if (this.variableStamp === stamp) return;
+    const ids: string[] = [];
+    for (const n of this.notes.values()) {
+      if (n.deleted || !isVariablesPath(n.path)) continue;
+      if (n.partial) ids.push(n.id);
+      else if (n.cachedAt) this.notes.set(n.id, { ...n, cachedAt: undefined });
+    }
+    if (ids.length) await this.fetchFull(ids, { keep: true });
+    this.variableStamp = stamp;
   }
 
   /** Keeps the texts of at most MAX_CACHED opened notes; the ones opened longest ago become catalog entries again */
@@ -817,7 +838,8 @@ class Vault {
       const cur = splitPath(note.path);
       path = this.uniquePath(patch.folder ?? cur.folder, patch.title ?? cur.name, id, spaceOf(note));
     }
-    const content = patch.content !== undefined ? normalizeDueWords(patch.content) : note.content;
+    // A remote note's text is never written: whatever wants to (a task, a mention, an old tab) changes its frontmatter at most
+    const content = patch.content !== undefined ? keepRemoteBody(note.content, normalizeDueWords(patch.content)) : note.content;
     if (content === note.content && path === note.path) return;
     await this.put({ ...note, content, path, updatedAt: Date.now(), dirty: true });
     const oldName = splitPath(note.path).name;
@@ -871,7 +893,7 @@ class Vault {
       const before = this.notes.get(c.id);
       // Online mode: a catalog entry's text is not here, so a new text for it was computed from nothing
       if (!before || before.deleted || before.partial || before.access === 'read' || before.content === c.content) continue;
-      let note: LocalNote = { ...before, content: c.content, updatedAt: now, dirty: true };
+      let note: LocalNote = { ...before, content: keepRemoteBody(before.content, c.content), updatedAt: now, dirty: true };
       if (note.base === undefined && note.version > 0 && !before.dirty) note = { ...note, base: before.content, basePath: before.path };
       this.notes.set(note.id, note);
       written.push(note);
@@ -1713,6 +1735,7 @@ class Vault {
       await this.pull();
       if (this.relinks.length) await this.sendRelinks();
       if (this.online) await this.loadDatabaseFolders();
+      if (this.online) await this.loadVariableNotes();
       if (firstPull && !this.notes.has(this.foldersNoteId())) await this.seed();
       else if (this.notes.has(this.foldersNoteId()) && this.setting(FEATURES_SETTING) === undefined && !isReadOnly()) {
         await this.setSetting(FEATURES_SETTING, this.features());
@@ -2043,7 +2066,7 @@ function cleanFolder(path: string): string {
 }
 
 /** Which space a note lives in: own notes, another user's space (shares) or a group (#58) */
-function spaceOf(n: LocalNote): string {
+export function spaceOf(n: LocalNote): string {
   if (n.group) return `group:${n.group}`;
   return n.access === 'owner' ? 'own' : `user:${n.owner ?? ''}`;
 }

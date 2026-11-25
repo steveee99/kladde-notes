@@ -3,9 +3,11 @@ import { AccountExportView } from './views/AccountExport';
 import { applyAccentOf } from './lib/accent';
 import { openNoteLink } from './lib/panes';
 import { SplitNoteView } from './views/SplitView';
-import { INBOX_FOLDER, Me, projectTitleOf, runQuery } from '@kladde/shared';
+import { INBOX_FOLDER, isHiddenPath, Me, projectTitleOf, runQuery, splitPath } from '@kladde/shared';
 import { api, ApiError, uploadFile } from './lib/api';
 import { match, navigate, usePath } from './lib/router';
+import { loadRemoteEmbed } from './data/remoteNotes';
+import { variablesOfNote } from './data/variables';
 import { vault } from './data/vault';
 import { onlineQueries } from './data/onlineQueries';
 import { uploads } from './data/uploads';
@@ -82,7 +84,14 @@ Object.assign(editorHost, {
     if (!note || note.deleted) return null;
     // Online mode: only the catalog entry until the text is loaded (read-only meanwhile)
     if (note.partial) vault.prefetch(note.id);
-    return { id: note.id, title: links.notes.get(note.id)?.title ?? target, content: note.content, canWrite: note.access !== 'read' && !isReadOnly() && !note.partial };
+    return { id: note.id, title: links.notes.get(note.id)?.title ?? target, content: note.content, canWrite: note.access !== 'read' && !isReadOnly() && !note.partial, variables: variablesOfNote(note) };
+  },
+  loadRemote: loadRemoteEmbed,
+  newRemoteNote: (besideId: string, onCreated: (title: string) => void) => {
+    const beside = vault.get(besideId);
+    const folder = beside ? splitPath(beside.path).folder : undefined;
+    const shared = beside && !beside.group && beside.access !== 'owner' ? vault.sharedFolderOf(beside) : undefined;
+    openDialog({ kind: 'remote', onCreated, ...(beside?.group ? { group: beside.group, folder } : shared?.canCreate ? { shared } : beside?.access === 'owner' ? { folder } : {}) });
   },
   runQuery: (src: string) => {
     // Online mode: over every note on the server (the device has the texts of only the notes it loaded)
@@ -98,7 +107,10 @@ Object.assign(editorHost, {
   setFrontmatter: (id: string, updates: Record<string, string | null>) => void vault.setFrontmatter(id, updates),
   noteTitles: () => {
     const rc = vault.roleConfig();
-    return vault.list().map((n) => projectTitleOf(n.path, n.content, rc));
+    return vault
+      .list()
+      .filter((n) => !isHiddenPath(n.path))
+      .map((n) => projectTitleOf(n.path, n.content, rc));
   },
   tags: () => vault.tagCounts(),
   people: (noteId: string) => (vault.features().mentions.enabled ? vault.peopleOf(noteId) : []),

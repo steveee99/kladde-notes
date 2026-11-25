@@ -40,6 +40,20 @@ services:
       - GITLAB_LABEL=${GITLAB_LABEL:-}
       # GitLab with a certificate from your own CA: mount the CA (PEM) and point Node at it (see docs/GITLAB.md)
       # - NODE_EXTRA_CA_CERTS=/certs/gitlab-ca.pem
+      # GitLab/GitHub notes (docs/REMOTE_NOTES.md): read access for EVERY user of this Kladde. Use read-only project or
+      # group tokens and limit them with REMOTE_ALLOWED_PATHS. Empty tokens = off (or *_PUBLIC=1: public projects only).
+      # Admins can also set this in the app; *_TOKEN_FILE reads a token from a file (Docker secrets)
+      - REMOTE_GITLAB_URL=${REMOTE_GITLAB_URL:-}
+      - REMOTE_GITLAB_INTERNAL_URL=${REMOTE_GITLAB_INTERNAL_URL:-}
+      - REMOTE_GITLAB_TOKEN=${REMOTE_GITLAB_TOKEN:-}
+      - REMOTE_GITLAB_TOKEN_FILE=${REMOTE_GITLAB_TOKEN_FILE:-}
+      - REMOTE_GITLAB_PUBLIC=${REMOTE_GITLAB_PUBLIC:-}
+      - REMOTE_GITHUB_URL=${REMOTE_GITHUB_URL:-}
+      - REMOTE_GITHUB_TOKEN=${REMOTE_GITHUB_TOKEN:-}
+      - REMOTE_GITHUB_TOKEN_FILE=${REMOTE_GITHUB_TOKEN_FILE:-}
+      - REMOTE_GITHUB_PUBLIC=${REMOTE_GITHUB_PUBLIC:-}
+      # Groups or repositories users may read (comma-separated, e.g. team/docs,handbook); empty = whatever the token can
+      - REMOTE_ALLOWED_PATHS=${REMOTE_ALLOWED_PATHS:-}
       # Daily full backup (database + encrypted attachments) in data/backups; how many to keep, 0 = off.
       # Only the default: admins change it under Settings → Administration → Backups. The key is never in a backup
       - BACKUP_KEEP=${BACKUP_KEEP:-7}

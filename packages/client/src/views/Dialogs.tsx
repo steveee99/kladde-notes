@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChefHat, ClipboardPaste, Draw, FileText, FileType2, Globe, Lightbulb, Loader2, X } from '../lib/icons';
+import { ChefHat, ClipboardPaste, Draw, FileText, FileType2, Globe, Lightbulb, Loader2, RemoteDoc, X } from '../lib/icons';
 import { INBOX_FOLDER, Recipe, recipeNoteTitle, recipeToMarkdown, SharedFolder, Template, ZETTEL_TYPES, ZettelType } from '@kladde/shared';
 import { api } from '../lib/api';
 import { vault } from '../data/vault';
@@ -12,6 +12,8 @@ import { isCoarsePointer, useVisualViewport } from '../lib/viewport';
 import { useModal } from '../lib/modal';
 import { Dropdown } from './Dropdown';
 import { AttachmentPicker } from './AttachmentPicker';
+import { VariablesDialog } from './VariablesDialog';
+import { RemoteNoteDialog } from './RemoteNoteDialog';
 import { WebClipDialog } from './WebClipDialog';
 
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
@@ -89,9 +91,10 @@ function NewNoteDialog({ folder, type, shared, group }: { folder?: string; type?
       setBusy(false);
     }
   };
-  const kinds: { value: NewNoteKind | 'zettel' | 'recipe' | 'clip'; label: string; Icon: typeof FileText; hint?: string }[] = [
+  const kinds: { value: NewNoteKind | 'zettel' | 'recipe' | 'clip' | 'remote'; label: string; Icon: typeof FileText; hint?: string }[] = [
     { value: 'note', label: tl(lang, 'nav.newNoteShort'), Icon: FileText },
     { value: 'drawing', label: tl(lang, 'nav.drawingNote'), Icon: Draw, hint: tl(lang, 'nav.drawingNoteTitle') },
+    { value: 'remote', label: tl(lang, 'remote.kind'), Icon: RemoteDoc, hint: tl(lang, 'remote.kindHint') },
   ];
   if (!shared && !group) {
     kinds.push({ value: 'pdf', label: tl(lang, 'nav.pdfNote'), Icon: FileType2, hint: tl(lang, 'nav.pdfNoteTitle') });
@@ -114,6 +117,7 @@ function NewNoteDialog({ folder, type, shared, group }: { folder?: string; type?
               if (value === 'zettel') openDialog({ kind: 'zettel' });
               else if (value === 'recipe') openDialog({ kind: 'recipe' });
               else if (value === 'clip') openDialog({ kind: 'clip' });
+              else if (value === 'remote') openDialog({ kind: 'remote', folder: target, title, shared, group });
               else setKind(value);
             }}
           >
@@ -343,6 +347,8 @@ export function Dialogs() {
     );
   if (dialog?.kind === 'zettel') return <ZettelDialog />;
   if (dialog?.kind === 'recipe') return <RecipeDialog initialUrl={dialog.url} />;
+  if (dialog?.kind === 'remote') return <RemoteNoteDialog key={dialog.noteId ?? ''} {...dialog} onClose={closeDialog} />;
+  if (dialog?.kind === 'variables') return <VariablesDialog key={`${dialog.space}/${dialog.folder}`} space={dialog.space} folder={dialog.folder} onClose={closeDialog} />;
   if (dialog?.kind === 'attachment') return <AttachmentPicker onPick={dialog.onPick} />;
   if (dialog?.kind === 'clip') return <WebClipDialog key={dialog.url ?? ''} initialUrl={dialog.url} title={dialog.title} selection={dialog.selection} />;
   return null;

@@ -8,7 +8,7 @@ import {
   MILESTONE_FOLDER,
   RELEASE_NOTES_FOLDER,
   databaseFileName,
-  isDatabasePath,
+  isSchemaPath,
   isMilestoneContent,
   isTicketContent,
   milestoneMeta,
@@ -41,6 +41,7 @@ import {
   type StatusCategory,
   type TicketMeta,
 } from '@kladde/shared';
+import { newUuid } from '../lib/uuid';
 import { vault } from './vault';
 import type { LocalNote } from './db';
 import { compareText, getLang, t } from '../lib/i18n';
@@ -141,7 +142,7 @@ function build(): Index {
   const projects: ProjectInfo[] = [];
   const projectAt = new Map<string, ProjectInfo>();
   for (const n of notes) {
-    if (!isDatabasePath(n.path) || !ticketsActiveIn(n)) continue;
+    if (!isSchemaPath(n.path) || !ticketsActiveIn(n)) continue;
     const config = parseProject(n.content);
     if (!config) continue;
     const folder = splitPath(n.path).folder;
@@ -389,7 +390,7 @@ async function createIn(space: TicketSpace, folder: string, title: string, conte
 /** Turns a folder into a project: a database note with the project settings */
 export async function createProject(space: TicketSpace, folder: string, key: string, requireDocs = false): Promise<LocalNote> {
   guard();
-  return createIn(space, folder, databaseFileName(crypto.randomUUID()).replace(/\.md$/, ''), newProjectContent(key, getLang(), requireDocs));
+  return createIn(space, folder, databaseFileName(newUuid()).replace(/\.md$/, ''), newProjectContent(key, getLang(), requireDocs));
 }
 
 /**

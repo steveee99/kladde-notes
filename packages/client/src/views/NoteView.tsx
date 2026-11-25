@@ -72,12 +72,17 @@ import {
   createPeriodicExtractor,
   parseFrontmatter,
   fillReleasePlaceholders,
+  fillVariables,
+  resolveVariables,
+  EMPTY_VARIABLE_SCOPE,
+  type VariableScope,
   type NoteRelease,
   isFolderProjectHome,
   isProjectNote,
   isSingleProjectFile,
   excalidrawSceneOf,
   pdfNoteOf,
+  remoteNoteOf,
   projectTitleOf,
   setExcalidrawScene,
   safeExportFilename,
@@ -93,6 +98,7 @@ import {
 import { useVault, vault } from '../data/vault';
 import { useOnlineBacklinks } from '../data/online';
 import type { LocalNote } from '../data/db';
+import { copyText } from '../lib/clipboard';
 import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
 import { Editor, insertAtLineStart, insertText, toggleCode, toggleWrap, wrapSelection } from '../editor/Editor';
@@ -113,6 +119,7 @@ import { Avatar } from './Avatar';
 import { MoveToGroupSheet, groupPath, groupRoleLabel } from './Groups';
 import { PresenceBar, useAnnouncePresence } from './PresenceBar';
 import { folderDisplayName, t, useLang, type I18nKey, type Lang } from '../lib/i18n';
+import { printNote, usePrintable } from '../lib/printing';
 import { setLocalGraphDepth, setSourceMode, useLocalGraphDepth, useSourceMode, type NoteSplitTab } from '../lib/prefs';
 import { activePane, usePane, usePanePanel } from '../lib/panes';
 import { isCoarsePointer } from '../lib/viewport';
@@ -127,6 +134,9 @@ import { refreshConfluence, useConfluence } from '../lib/confluence';
 import { ConfluenceDialog } from './ConfluenceDialog';
 import { ReleaseDialog, releaseChipLabel } from './ReleaseDialog';
 import { releaseRenderOptions } from '../editor/releases';
+import { useVariables, variablesOfNote } from '../data/variables';
+import { fetchRemote, remoteDisplayText, remoteExportText, remoteProblemText, useRemoteNote } from '../data/remoteNotes';
+import { RemoteNotePanel } from './RemoteNotePanel';
 import { DEMO } from '../demo/demoApi';
 import { useComments } from '../data/comments';
 import { onCommentOpen, setCommentRanges } from '../editor/comments';
@@ -378,6 +388,7 @@ function NoteOverflowMenu({
   onAddProperty,
   onConfluence,
   onVersioning,
+  variables,
   exportContent,
   align,
   onAlign,
@@ -419,14 +430,17 @@ function NoteOverflowMenu({
   /** Release versioning (#53): own notes, and notes that have it turned on */
   onVersioning?: () => void;
   /** What exports contain (a versioned note: its latest release, placeholders filled); default `content` */
-  exportContent?: () => Promise<string>;
+  exportContent?: (anywhere: boolean) => Promise<string>;
   align: NoteAlign;
   /** Only for editable notes */
   onAlign?: (align: NoteAlign) => void;
+  /** Fills `{{var:name}}` in exports */
+  variables: VariableScope;
   /** Presentation mode (#87) is on: "Start presentation" and the slide PDF among the exports */
   onPresent?: () => void;
 }) {
   useLang();
+  usePrintable(content);
   const [open, setOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [busy, setBusy] = useState<'word' | 'pdf' | 'slides' | null>(null);
@@ -489,7 +503,7 @@ function NoteOverflowMenu({
 
   const exportMarkdown = async () => {
     setOpen(false);
-    const body = stripFrontmatter(exportContent ? await exportContent() : content);
+    const body = stripFrontmatter(fillVariables(exportContent ? await exportContent(true) : content, variables));
     const finalText = body && !body.endsWith('\n') ? `${body}\n` : body;
     const url = URL.createObjectURL(new Blob([finalText], { type: 'text/markdown;charset=utf-8' }));
     const a = document.createElement('a');
@@ -506,10 +520,10 @@ function NoteOverflowMenu({
     setOpen(false);
     try {
       const mod = await import('../lib/noteExport');
-      const text = exportContent ? await exportContent() : content;
-      if (kind === 'word') await mod.exportNoteAsWord(title, text);
-      else if (kind === 'slides') await mod.exportNoteAsSlides(title, text);
-      else await mod.exportNoteAsPdf(title, text);
+      const text = exportContent ? await exportContent(false) : content;
+      if (kind === 'word') await mod.exportNoteAsWord(title, text, variables);
+      else if (kind === 'slides') await mod.exportNoteAsSlides(title, text, variables);
+      else await mod.exportNoteAsPdf(title, text, variables);
     } catch (err) {
       alert(t('export.failed', { error: (err as Error).message }));
     } finally {
@@ -787,7 +801,7 @@ function NoteOverflowMenu({
                   className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
                   onClick={() => {
                     setOpen(false);
-                    requestAnimationFrame(() => window.print());
+                    void printNote();
                   }}
                 >
                   <Printer size={15} className="shrink-0" />
@@ -926,6 +940,7 @@ function MoveNoteSheet({
 function NoteInspectorPane({
   noteId,
   outline,
+  variables,
   tasks,
   view,
   canEdit,
@@ -943,6 +958,7 @@ function NoteInspectorPane({
   tickets?: TicketInfo[];
   noteId: string;
   outline: Outline;
+  variables: VariableScope;
   tasks: Task[];
   view: EditorView | null;
   canEdit: boolean;
@@ -1012,7 +1028,7 @@ function NoteInspectorPane({
 
       <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto scrollbar-thin pr-0.5 pt-2">
         {shown === 'comments' && commentsTab?.panel}
-        {shown === 'toc' && <OutlinePanel outline={outline} view={view} canEdit={canEdit} onJump={onJump} />}
+        {shown === 'toc' && <OutlinePanel outline={outline} variables={variables} view={view} canEdit={canEdit} onJump={onJump} />}
         {shown === 'tasks' && <NoteTasksPanel noteId={noteId} tasks={tasks} view={view} canEdit={canEdit} onJump={onJump} />}
 
         {shown === 'links' && (
@@ -1033,7 +1049,7 @@ function NoteInspectorPane({
                     <li key={b.id}>
                       <button className={item} onClick={() => navigate(`/n/${b.id}`)}>
                         <div className="truncate text-body-l text-on-surface">{projectTitleOf(b.path, b.content, rc)}</div>
-                        {excerpt(b.content, 85) && <div className="mt-0.5 line-clamp-2 text-body-m text-on-surface-variant">{excerpt(b.content, 85)}</div>}
+                        {excerpt(b.content, 85) && <div className="mt-0.5 line-clamp-2 text-body-m text-on-surface-variant">{resolveVariables(excerpt(b.content, 85), variablesOfNote(b))}</div>}
                       </button>
                     </li>
                   ))}
@@ -1203,7 +1219,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
     return () => window.removeEventListener('online', retry);
   }, [fetchFailed]);
   // Comments (#68): threads on passages, kept on the server (only for notes it already has)
-  const commentsOn = !!note && !vault.standalone && !DEMO && vault.features().comments.enabled && note.version > 0;
+  const commentsOn = !!note && !vault.standalone && !DEMO && vault.features().comments.enabled && note.version > 0 && !remoteNoteOf(note.content);
   const threads = useComments(id, commentsOn);
   const [commentDraft, setCommentDraft] = useState<CommentAnchor | null>(null);
   // ?thread=<id> (from a notification) opens the comments tab on that thread
@@ -1369,10 +1385,14 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
     if (pane === 'main') history.replaceState(null, '', location.pathname);
   }, [view, hasNote]);
 
+  // Variables of the note's folder (`{{var:name}}`): change with them and when the note moves
+  const variables = useVariables(note);
+  // A remote note shows a document from GitLab/GitHub: live, read-only, nothing of it in the note itself
+  const remote = useRemoteNote(note, variables);
   // Headings for the outline, live from the editor while the side panel is open
-  const outline = useOutline(splitOpen && !focusMode ? view : null, note?.content ?? '');
+  const outline = useOutline(splitOpen && !focusMode ? view : null, remote ? remote.text : (note?.content ?? ''));
   // Tasks of the note for the tasks tab, live from the editor as well
-  const noteTasks = useNoteTasks(splitOpen && !focusMode ? view : null, note?.content ?? '', note?.access === 'owner' ? vault.taskDueResolver()(note.path) : null);
+  const noteTasks = useNoteTasks(splitOpen && !focusMode ? view : null, remote ? remote.text : (note?.content ?? ''), note?.access === 'owner' && !remote ? vault.taskDueResolver()(note.path) : null);
 
   if (!note) {
     return (
@@ -1455,6 +1475,13 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
     return fillReleasePlaceholders(text, releases, releaseRenderOptions(lang));
   };
 
+  /** A remote note's document as it is now, for exports (`anywhere`: images by their address on the host, not through this server) */
+  const remoteText = async (anywhere: boolean): Promise<string> => {
+    const r = await fetchRemote(id);
+    if (r.state === 'ok') return anywhere ? remoteExportText(r) : remoteDisplayText(id, r);
+    return `*${t('remote.exportMissing', { problem: remoteProblemText(r.state) })}*\n`;
+  };
+
   const pdf = pdfNoteOf(note.content);
   const align = noteAlignOf(note.content);
   const drawing = excalidrawSceneOf(note.content);
@@ -1463,15 +1490,12 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const showDrawing = drawing !== null && !drawingAsText;
 
   const copyMarkdown = async () => {
-    const clean = stripFrontmatter(note.content);
-    try {
-      await navigator.clipboard.writeText(clean);
-      setCopiedMd(true);
-      if (copyTimer.current) clearTimeout(copyTimer.current);
-      copyTimer.current = setTimeout(() => setCopiedMd(false), 1800);
-    } catch {
-      /* ignore */
-    }
+    const clean = remote ? (remote.result.state === 'ok' ? remoteExportText(remote.result) : '') : stripFrontmatter(note.content);
+    if (remote && !clean) return;
+    if (!(await copyText(clean))) return;
+    setCopiedMd(true);
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => setCopiedMd(false), 1800);
   };
 
   const jumpToPos = (pos: number, closeSheet = false) => {
@@ -1585,8 +1609,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                   <span>{releaseChipLabel(note)}</span>
                 </button>
               )}
-              {readOnly && (
-                <span title={sharedReadOnly ? t('note.readOnlyShared') : t('common.readOnly')}>
+              {(readOnly || remote) && (
+                <span title={remote ? t('remote.readOnly') : sharedReadOnly ? t('note.readOnlyShared') : t('common.readOnly')}>
                   <Lock size={15} className="mr-1 text-on-surface-variant" />
                 </span>
               )}
@@ -1620,7 +1644,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               </button>
               <NoteOverflowMenu
                 title={title || displayName}
-                content={note.content}
+                content={remote ? remote.text : note.content}
                 isOwner={canRename}
                 canShare={isOwner && !vault.standalone}
                 mayDelete={mayDelete}
@@ -1628,7 +1652,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 onConfluence={isOwner && confluence?.connection ? () => setConfluenceOpen(true) : undefined}
                 onHistory={() => setShowHistory(true)}
                 onVersioning={!DEMO && (note.access === 'owner' || groupManager || note.versioning) ? () => setReleaseOpen(true) : undefined}
-                exportContent={note.versioning ? exportContent : undefined}
+                variables={remote ? EMPTY_VARIABLE_SCOPE : variables}
+                exportContent={remote ? remoteText : note.versioning ? exportContent : undefined}
                 onMove={() => setMoving(true)}
                 onMoveToGroup={isOwner && !vault.standalone && !DEMO ? () => setMovingToGroup(true) : undefined}
                 onDuplicate={mayDuplicate ? () => void duplicateNote() : undefined}
@@ -1637,13 +1662,13 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 favorite={features.favorites.enabled ? vault.isFavorite(id) : null}
                 onToggleFavorite={() => void vault.toggleFavorite(id).catch(() => undefined)}
                 onIcon={features.icons.enabled && !readOnly ? () => setPickingIcon(true) : undefined}
-                sourceMode={readOnly ? null : sourceMode}
+                sourceMode={readOnly || remote ? null : sourceMode}
                 onToggleSource={() => setSourceMode(!sourceMode)}
                 focusMode={features.focus.enabled && !showPdf ? focus : null}
                 onToggleFocus={() => setFocusMode(!focus)}
                 onFinishProject={isProject ? () => confirm(t('para.finishConfirm')) && void vault.archiveProject(id) : undefined}
                 onAddProperty={
-                  !readOnly && view
+                  !readOnly && view && !remote
                     ? () => {
                         const key = prompt(t('note.addPropertyPrompt'))?.trim().replace(/:+$/, '');
                         if (key) applyFrontmatter(view, { [key]: '' }, key);
@@ -1652,8 +1677,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 }
                 onConvertProject={isSingleProject ? () => void vault.convertProjectToFolder(id) : undefined}
                 align={align}
-                onAlign={!readOnly && view && !showPdf ? (value) => applyFrontmatter(view, { align: value === 'left' ? null : value }) : undefined}
-                onPresent={features.presentation.enabled && !showPdf ? () => setPresenting(true) : undefined}
+                onAlign={!readOnly && view && !showPdf && !remote ? (value) => applyFrontmatter(view, { align: value === 'left' ? null : value }) : undefined}
+                onPresent={features.presentation.enabled && !showPdf && !remote ? () => setPresenting(true) : undefined}
               />
             </div>
           </div>
@@ -1698,7 +1723,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
           />
           <h1 className="font-display mb-3 hidden break-words text-headline-l print:block">{title || displayName}</h1>
           {/* Word count sits under the title instead of a bar over the content */}
-          {!showPdf && features.writingStats.enabled && (
+          {!showPdf && !remote && features.writingStats.enabled && (
             <div className="no-print -mt-1 mb-2">
               <NoteStats content={note.content} view={view} tick={statsTick} lang={lang} />
             </div>
@@ -1747,7 +1772,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               </button>
             </div>
           )}
-          {!showPdf && (
+          {remote && <RemoteNotePanel note={note} view={remote} canEdit={!readOnly} stamp={version} callouts={features.callouts.enabled} onView={setView} />}
+          {!showPdf && !remote && (
             // A line and room between the header (title, stats, PARA bar) and the text (not in focus mode, which hides
             // the header), and room below the text before the footer
             <div
@@ -1762,6 +1788,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               presenceNote={id}
               dim={focus && features.focus.dim}
               releases={note.versioning ? (note.releases ?? []) : null}
+              variables={variables}
               onChange={(content) => {
                 // Echoes of synced or programmatic changes equal the stored text; only real typing counts
                 if (content !== vault.get(id)?.content) memoryEdit.current.edited = true;
@@ -1795,7 +1822,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                     {memoryBacklinks.map((b) => (
                       <button key={b.id} className="w-full min-w-0 rounded-xl border border-dashed border-outline-variant p-3 text-left text-sm transition hover:border-primary/40" onClick={() => navigate(`/n/${b.id}`)}>
                         <div className="truncate font-medium">{memoryMeta(b.content, b.path).title}</div>
-                        <div className="line-clamp-1 break-words text-on-surface-variant">{memoryMeta(b.content, b.path).description || excerpt(b.content, 90)}</div>
+                        <div className="line-clamp-1 break-words text-on-surface-variant">{memoryMeta(b.content, b.path).description || resolveVariables(excerpt(b.content, 90), variablesOfNote(b))}</div>
                       </button>
                     ))}
                   </div>
@@ -1808,7 +1835,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                     {backlinks.map((b) => (
                       <button key={b.id} className="w-full min-w-0 rounded-xl border border-outline-variant p-3 text-left text-sm transition hover:border-primary/40" onClick={() => navigate(`/n/${b.id}`)}>
                         <div className="truncate font-medium">{projectTitleOf(b.path, b.content, rc)}</div>
-                        <div className="line-clamp-1 break-words text-on-surface-variant">{excerpt(b.content, 90)}</div>
+                        <div className="line-clamp-1 break-words text-on-surface-variant">{resolveVariables(excerpt(b.content, 90), variablesOfNote(b))}</div>
                       </button>
                     ))}
                   </div>
@@ -1842,7 +1869,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             </div>
           )}
         </div>
-        {!showPdf && !readOnly && (
+        {!showPdf && !readOnly && !remote && (
           <div className={`no-print sticky bottom-0 z-20 ${focus ? 'nav:hidden' : ''}`}>
             <Toolbar view={view} lang={lang} />
           </div>
@@ -1864,9 +1891,10 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             <NoteInspectorPane
               noteId={id}
               outline={outline}
+              variables={remote ? EMPTY_VARIABLE_SCOPE : variables}
               tasks={noteTasks}
               view={view}
-              canEdit={!readOnly && !showPdf}
+              canEdit={!readOnly && !showPdf && !remote}
               backlinks={backlinks}
               mentions={mentions}
               tickets={ticketLinks}
@@ -1914,9 +1942,10 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               <NoteInspectorPane
                 noteId={id}
                 outline={outline}
+              variables={remote ? EMPTY_VARIABLE_SCOPE : variables}
                 tasks={noteTasks}
               view={view}
-              canEdit={!readOnly && !showPdf}
+              canEdit={!readOnly && !showPdf && !remote}
                 backlinks={backlinks}
                 mentions={mentions}
                 local={local}
@@ -1973,6 +2002,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
             title={title || displayName}
             content={note.content}
             releases={note.versioning ? (note.releases ?? []) : null}
+            variables={variables}
             callouts={features.callouts.enabled}
             onFormat={!readOnly && view ? (format) => applyFrontmatter(view, { presentation: format }) : undefined}
             onClose={() => setPresenting(false)}
@@ -1980,12 +2010,12 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
         </Suspense>
       )}
       {releaseOpen && <ReleaseDialog note={note} locked={locked} onClose={() => setReleaseOpen(false)} />}
-      {showHistory && <HistoryDialog noteId={id} current={note.content} canRestore={!readOnly} onClose={() => setShowHistory(false)} />}
+      {showHistory && <HistoryDialog noteId={id} variables={variables} current={note.content} canRestore={!readOnly} onClose={() => setShowHistory(false)} />}
       {pickingIcon && (
         <IconPickerDialog
           title={t('icons.noteTitle')}
           current={noteIconOf(note.content)}
-          onPick={(next) => (view && !showPdf ? applyFrontmatter(view, { icon: next }) : void vault.setNoteIcon(id, next))}
+          onPick={(next) => (view && !showPdf && !remote ? applyFrontmatter(view, { icon: next }) : void vault.setNoteIcon(id, next))}
           onClose={() => setPickingIcon(false)}
         />
       )}

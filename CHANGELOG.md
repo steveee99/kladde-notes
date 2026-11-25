@@ -4,6 +4,16 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Variables: folders and groups define variables that their subfolders inherit and can override ("Variables …" in the folder header, the folder menu or the group). `{{var:name}}` in notes and templates always shows the current value, also in link and image addresses, tables, embeds, presentations, exports and on public links; `{{var:name|fallback}}` sets a value for where it is not defined. Typing `{{` offers the variables of the note's folder. See [docs/VARIABLES.md](docs/VARIABLES.md).
+- New: GitLab/GitHub notes show a Markdown document from a repository, always loaded live and read-only (“New → GitLab/GitHub note”, `/gitlab`). The address may contain variables, relative links and images work, and the note can be embedded and exported. Admins set the access on the container (`REMOTE_GITLAB_TOKEN`, `REMOTE_GITHUB_TOKEN`, …, `REMOTE_ALLOWED_PATHS`) or under Settings → Administration → GitLab/GitHub; it applies to everyone. See [docs/REMOTE_NOTES.md](docs/REMOTE_NOTES.md).
+- Fixed: Database notes (`_database-<uuid>`, which hold the settings of a database or project) no longer show in the folder tree of groups, in both modes. They, and numbered copies of them, also stay out of note counts, favorites, tabs, link suggestions, backlinks, query results, the weekly review, the activity of a group and the MCP lists and searches.
+- Fixed: Full screen of a drawing covers the whole app: the top bar (and on phones and tablets the bottom bar) no longer stays visible over the canvas, also in the split view. The canvas keeps clear of the notch and the home indicator.
+- Fixed: Creating ticket projects and databases and adding attachments offline works again when Kladde is opened over plain HTTP; they failed with “crypto.randomUUID is not a function”.
+- Fixed: The copy buttons (code blocks, note as Markdown, public links, tokens and addresses) also work over plain HTTP, and show “Copied” only when something was copied.
+- Fixed: Images in the PDF and Word export and in print keep their proportions and are never enlarged; portrait images take at most about half of the page height. Photos stored sideways (EXIF) are no longer stretched, text no longer overlaps the image before it, and a heading stays with its image or diagram.
+- Fixed: Mermaid diagrams and mind maps in the PDF, slide and Word export and in print have a readable size instead of a thumbnail (small ones grow a little, large ones fit the page), and always use light colors on white.
+- Fixed: Printing a note (menu or Ctrl+P) includes the whole note: the end of long notes and images further down were missing. Headings printed from the dark scheme are readable, and galleries and carousels are no longer cropped.
+
 ## [2.18.0] – 2026-11-22
 
 - New: Online mode for teams that are always online with very large vaults (`KLADDE_MODE=online`, experimental). Devices keep only a list of the notes and load a note's text when it opens, instead of a full offline copy: with 100,000 notes the first start takes 8 instead of 13 seconds and a restart 2 instead of 10. Renaming a note rewrites the links in every note on the server. Without a connection only notes opened before can be read; the local graph beside a note shows only opened notes so far.

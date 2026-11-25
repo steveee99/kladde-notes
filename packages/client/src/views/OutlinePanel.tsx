@@ -5,18 +5,20 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type { EditorView } from '@codemirror/view';
-import { sectionLastIndex } from '@kladde/shared';
+import { resolveVariables, sectionLastIndex, type VariableScope } from '@kladde/shared';
 import { ChevronDown, ChevronRight, UnfoldLess, UnfoldMore } from '../lib/icons';
 import { canFold, moveSection, setAllSectionsFolded, toggleSectionFold, type Outline } from '../editor/outline';
 import { t, useLang } from '../lib/i18n';
 
 export function OutlinePanel({
   outline,
+  variables,
   view,
   canEdit,
   onJump,
 }: {
   outline: Outline;
+  variables: VariableScope;
   view: EditorView | null;
   canEdit: boolean;
   onJump: (pos: number) => void;
@@ -128,7 +130,7 @@ export function OutlinePanel({
                     h.level === 1 ? 'text-label-l' : h.level === 2 ? 'text-body-m' : 'text-body-s'
                   } ${isActive ? '' : h.level <= 2 ? 'text-on-surface' : 'text-on-surface-variant'} ${canDrag ? 'cursor-grab active:cursor-grabbing' : ''}`}
                 >
-                  {h.text}
+                  {resolveVariables(h.text, variables)}
                 </button>
               </div>
             </li>
