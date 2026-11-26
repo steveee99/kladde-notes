@@ -90,8 +90,6 @@ import {
   keepRemoteBody,
   normalizeDueWords,
   splitPath,
-  toggleTask,
-  setTaskStatus,
   type TaskStatus,
   takeTaskBlock,
   appendTaskLines,
@@ -122,6 +120,7 @@ import {
   MILESTONE_FOLDER,
 } from '@kladde/shared';
 import { api, ApiError, restoreTrash, restoreTrashBatch } from '../lib/api';
+import { changeTask } from '../lib/taskChange';
 import { compareText, getLang, locale, t } from '../lib/i18n';
 import { isReadOnly } from '../lib/readOnly';
 import { clientId, presence } from '../lib/presence';
@@ -1631,12 +1630,12 @@ class Vault {
 
   async toggleTask(id: string, line: number): Promise<void> {
     const note = await this.withText(id);
-    if (note) await this.update(id, { content: toggleTask(note.content, line) });
+    if (note) await this.update(id, { content: changeTask(note.content, line) });
   }
 
   async setTaskStatus(id: string, line: number, status: TaskStatus): Promise<void> {
     const note = await this.withText(id);
-    if (note) await this.update(id, { content: setTaskStatus(note.content, line, status) });
+    if (note) await this.update(id, { content: changeTask(note.content, line, status) });
   }
 
   /**

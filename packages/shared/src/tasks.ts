@@ -14,6 +14,10 @@
  * Completing a repeating task ticks it and inserts the next open one with the following due date above.
  *
  * Status lives in the checkbox: [ ] open, [O] in progress, [H] blocked (on hold), [x] done.
+ *
+ * Subtasks and dependencies (#75): tasks indented below a task are its subtasks (the parent shows "2 / 5").
+ * A task gets an id with "🆔 id" or a block id "^id" at its end; "⛔ id" or "after:^id" (several: "⛔ a,b")
+ * makes it wait until those tasks are done (`waiting`), also across notes on the task page (`withDependencies`).
  */
 
 import { NoteMemo, type MemoNote } from './noteMemo.js';
@@ -46,6 +50,16 @@ export interface Task {
   indent: string;
   /** The due date is not written in the task but comes from its note (a daily note's date) */
   dueFromNote?: boolean;
+  /** Its id for dependencies: "🆔 id" or a block id "^id" at the end (#75) */
+  id?: string;
+  /** Ids of the tasks it waits for: "⛔ id,id2" or "after:^id" (#75) */
+  after?: string[];
+  /** Line of the task it is indented below (#75) */
+  parent?: number;
+  /** Its direct subtasks: how many, and how many of them are done (#75) */
+  subtasks?: { done: number; total: number };
+  /** A task it waits for is not done yet (#75) */
+  waiting?: boolean;
 }
 
 /** Matches a task line; group 2 is the status character */
@@ -66,6 +80,11 @@ export const DUE_PATTERN = `(?:📅\\s*|\\bdue:)(${DUE_VALUE})`;
 const DUE = new RegExp(DUE_PATTERN, 'iu');
 const DUE_WORD_ONLY = new RegExp(`^(?:${DUE_WORDS})$`, 'iu');
 const REPEAT = /(?:🔁\s*|\bevery:)((?:\d+\s*)?[\p{L},]+)/iu;
+/** "⛔ a,b" or "after:^a" (several separated by commas) */
+const AFTER = /(?:⛔\s*|\bafter:)(\^?[\w-]+(?:,\^?[\w-]+)*)/u;
+/** "🆔 id" anywhere, or a block id "^id" at the end of the line */
+const TASK_ID = /🆔\s*([\w-]+)/u;
+const BLOCK_ID = /(?:^|\s)\^([\w-]+)$/u;
 // Starts at the ✅ (a leading `\s*` would rescan every run of spaces from each position)
 const DONE_DATE = /✅\s*(\d{4}-\d{2}-\d{2})/;
 
@@ -153,7 +172,14 @@ export function parseTasks(content: string, today = new Date(), defaultDue: stri
     if (inFence) return;
     const m = TASK_LINE.exec(raw);
     if (!m) return;
-    const rest = m[3];
+    let rest = m[3];
+    const after = AFTER.exec(rest);
+    if (after) rest = rest.slice(0, after.index) + rest.slice(after.index + after[0].length);
+    // The block id stays the last word when finishing appends "✅ date" behind it
+    const tagged = TASK_ID.exec(rest);
+    const id = tagged ?? BLOCK_ID.exec(withoutDoneDate(rest).trimEnd());
+    if (tagged) rest = rest.slice(0, tagged.index) + rest.slice(tagged.index + tagged[0].length);
+    else if (id) rest = rest.replace(new RegExp(`(^|\\s)\\^${id[1]}(?=\\s|$)`, 'u'), '$1');
     const due = DUE.exec(rest);
     const repeat = REPEAT.exec(rest);
     const time = TIME.exec(rest);
@@ -171,9 +197,93 @@ export function parseTasks(content: string, today = new Date(), defaultDue: stri
       time: time ? `${time[1].padStart(2, '0')}:${time[2]}` : null,
       indent: m[1],
       ...(!due && defaultDue ? { dueFromNote: true } : {}),
+      ...(id ? { id: id[1] } : {}),
+      ...(after ? { after: after[1].split(',').map((x) => x.replace(/^\^/, '')) } : {}),
     });
   });
+  return linkTasks(tasks);
+}
+
+/** Width of a task's indentation (a tab counts as four spaces) */
+function indentWidth(indent: string): number {
+  let w = 0;
+  for (const ch of indent) {
+    if (ch === ' ') w++;
+    else if (ch === '\t') w += 4;
+    else break;
+  }
+  return w;
+}
+
+/**
+ * Subtasks and dependencies inside one note's tasks (in line order, as `parseTasks` returns them): sets `parent`,
+ * `subtasks` and `waiting`. Changes the given task objects; returns the same array.
+ */
+export function linkTasks<T extends Task>(tasks: T[]): T[] {
+  const stack: T[] = [];
+  for (const task of tasks) {
+    const w = indentWidth(task.indent);
+    while (stack.length && indentWidth(stack[stack.length - 1].indent) >= w) stack.pop();
+    const parent = stack[stack.length - 1];
+    if (parent) {
+      task.parent = parent.line;
+      const sub = (parent.subtasks ??= { done: 0, total: 0 });
+      sub.total++;
+      if (task.done) sub.done++;
+    }
+    stack.push(task);
+  }
+  if (tasks.some((t) => t.after)) {
+    const done = doneById(tasks);
+    for (const t of tasks) if (t.after) t.waiting = t.after.some((id) => done.get(id) === false);
+  }
   return tasks;
+}
+
+/** Whether the task with each id is done; an id used twice counts as done only when every task with it is */
+function doneById(tasks: readonly Task[]): Map<string, boolean> {
+  const done = new Map<string, boolean>();
+  for (const t of tasks) if (t.id) done.set(t.id, (done.get(t.id) ?? true) && t.done);
+  return done;
+}
+
+/**
+ * Dependencies across notes (#75): `waiting` from the tasks of all notes, for the task page and queries. Returns a
+ * new array when something changes; tasks whose state changes are copied, the others are kept (cached rows stay).
+ */
+export function withDependencies<T extends Task>(tasks: readonly T[]): readonly T[] {
+  if (!tasks.some((t) => t.after)) return tasks;
+  const done = doneById(tasks);
+  let changed = false;
+  const out = tasks.map((t) => {
+    if (!t.after) return t;
+    const waiting = t.after.some((id) => done.get(id) === false);
+    if (!!t.waiting === waiting) return t;
+    changed = true;
+    return { ...t, waiting };
+  });
+  return changed ? out : tasks;
+}
+
+/**
+ * Finishing the last open subtask also finishes its parent, and so on upwards (#75, opt-in per device).
+ * `line` is the task that was just finished, in `content` as it is now.
+ */
+export function completeParents(content: string, line: number, today = new Date()): string {
+  let out = content;
+  let at = line;
+  for (let guard = 0; guard < 50; guard++) {
+    const tasks = parseTasks(out, today);
+    const task = tasks.find((t) => t.line === at);
+    if (!task?.done || task.parent === undefined) return out;
+    const parent = tasks.find((t) => t.line === task.parent);
+    if (!parent || parent.done || !parent.subtasks || parent.subtasks.done < parent.subtasks.total) return out;
+    const before = out.split('\n').length;
+    out = setTaskStatus(out, parent.line, 'done', today);
+    // A repeating parent gets its next occurrence inserted above it: the finished one moved down a line
+    at = parent.line + (out.split('\n').length - before);
+  }
+  return out;
 }
 
 /** Month steps keep the day but stop at the month's end (31.01. → 28.02.) */

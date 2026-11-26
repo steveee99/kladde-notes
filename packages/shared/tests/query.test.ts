@@ -28,6 +28,18 @@ describe('query', () => {
     expect(r.rows[0].values.text).toBe('Dach');
   });
 
+  it('knows subtasks and dependencies across notes (#75)', () => {
+    const vault = [
+      { id: 'a', path: 'A.md', content: '- [ ] Angebot 🆔 angebot\n  - [x] Preise\n  - [ ] Text', createdAt: 1, updatedAt: 1 },
+      { id: 'b', path: 'Sub/B.md', content: '- [ ] Bestellen ⛔ angebot\n- [ ] Frei', createdAt: 1, updatedAt: 1 },
+    ];
+    const next = runQuery('TASKS FROM "Sub" WHERE waiting = false', vault);
+    expect(next.rows.map((r) => r.values.text)).toEqual(['Frei']);
+    const all = runQuery('TASKS WHERE subtasks != ""', vault);
+    expect(all.rows.map((r) => [r.values.text, r.values.subtasks])).toEqual([['Angebot', '1/2']]);
+    expect(runQuery('TASKS WHERE parent = Angebot', vault).rows).toHaveLength(2);
+  });
+
   it('builds kanban lanes in the given order, case-insensitively', () => {
     const r = runQuery('KANBAN BY status VALUES "fertig", "Aktiv", "offen" FROM "1 Projekte"', notes);
     expect(r.lanes?.map((l) => [l.value, l.rows.map((x) => x.noteId)])).toEqual([

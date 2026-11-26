@@ -13,6 +13,7 @@
  * of only the group field and aggregates becomes a summary with one row per group.
  * KANBAN makes one column per value of the status field (default: the distinct values found). All clauses are optional and case-insensitive.
  * Fields: title, path, folder, created, updated, tags, links, due, time (tasks: reminder HH:MM), done, status (tasks: open|doing|blocked|done) and any frontmatter key.
+ * Tasks also have (#75): waiting (true while a task named with ⛔/after: is open, in any note), subtasks ("2/5"), parent (text of the task above).
  * Operators: = != < <= > >= contains ~ (substring, case-insensitive). AND binds tighter than OR.
  * `tags contains "area"` also matches nested tags such as `area/health`.
  * Values: "text", numbers, YYYY-MM-DD, today, tomorrow, true/false.
@@ -22,7 +23,7 @@ import { isHiddenPath } from './database.js';
 import { extractMeta, type NoteMeta } from './markdown.js';
 import { NoteMemo } from './noteMemo.js';
 import { memoryMeta } from './memory.js';
-import { TaskCache, toDateString } from './tasks.js';
+import { TaskCache, toDateString, type Task } from './tasks.js';
 import { tagMatches } from './tags.js';
 
 export type QueryMode = 'table' | 'list' | 'tasks' | 'kanban';
@@ -307,6 +308,8 @@ const taskCache = new TaskCache();
 export function runQuery(src: string | Query, notes: QueryNote[], today = new Date(), opts: QueryOptions = {}): QueryResult {
   const query = typeof src === 'string' ? parseQuery(src) : src;
   let rows: QueryRow[] = [];
+  /** Rows of tasks with dependencies: resolved against the tasks of every note below (#75) */
+  const waitingOn = new Map<QueryRow, Task>();
   for (const note of notes) {
     // Database and variables notes hold a folder's settings
     if (isHiddenPath(note.path)) continue;
@@ -325,17 +328,41 @@ export function runQuery(src: string | Query, notes: QueryNote[], today = new Da
       ...memoryFields(note.content, meta.frontmatter, today),
     };
     if (query.mode === 'tasks') {
-      for (const t of taskCache.tasksOf(note, today, opts.defaultDue?.(note.path) ?? null)) {
-        rows.push({
+      const tasks = taskCache.tasksOf(note, today, opts.defaultDue?.(note.path) ?? null);
+      for (const t of tasks) {
+        const parent = t.parent === undefined ? undefined : tasks.find((p) => p.line === t.parent);
+        const row: QueryRow = {
           noteId: note.id,
           path: note.path,
           line: t.line,
-          values: { ...base, note: meta.title, text: t.text, due: t.due ?? '', time: t.time ?? '', done: t.done, status: t.status, repeat: t.repeat ?? '' },
-        });
+          values: {
+            ...base,
+            note: meta.title,
+            text: t.text,
+            due: t.due ?? '',
+            time: t.time ?? '',
+            done: t.done,
+            status: t.status,
+            repeat: t.repeat ?? '',
+            waiting: !!t.waiting,
+            subtasks: t.subtasks ? `${t.subtasks.done}/${t.subtasks.total}` : '',
+            parent: parent?.text ?? '',
+          },
+        };
+        if (t.after) waitingOn.set(row, t);
+        rows.push(row);
       }
     } else {
       rows.push({ noteId: note.id, path: note.path, values: base });
     }
+  }
+  if (waitingOn.size) {
+    const done = new Map<string, boolean>();
+    for (const note of notes) {
+      if (isHiddenPath(note.path)) continue;
+      for (const t of taskCache.tasksOf(note, today, opts.defaultDue?.(note.path) ?? null)) if (t.id) done.set(t.id, (done.get(t.id) ?? true) && t.done);
+    }
+    for (const [row, t] of waitingOn) row.values.waiting = t.after!.some((id) => done.get(id) === false);
   }
   if (query.where.length) {
     rows = rows.filter((r) => query.where.some((group) => group.every((c) => matches(r.values, c, today))));

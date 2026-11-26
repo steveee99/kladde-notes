@@ -66,7 +66,7 @@ function tasksOf(n: IndexedNote, day: string): OnlineTaskNote {
   if (n.tasks && n.tasksDay === day) return n.tasks;
   n.tasksDay = day;
   const tasks: OnlineTaskTuple[] = parseTasks(n.content).map((t) => {
-    const tuple: OnlineTaskTuple = [t.line, t.status, t.text, t.due, t.repeat, t.time, t.doneDate, t.indent];
+    const tuple: OnlineTaskTuple = [t.line, t.status, t.text, t.due, t.repeat, t.time, t.doneDate, t.indent, t.id ?? null, t.after?.join(',') ?? null];
     // Trailing defaults are left out: most tasks have no time, done date or unusual indentation
     while (tuple.length > 3 && (tuple[tuple.length - 1] === null || (tuple.length === 8 && tuple[7] === '- '))) tuple.pop();
     return tuple;

@@ -245,6 +245,16 @@ describe('MCP tools', () => {
     expect((await call(token, 'toggle_task', { id: 'anna-0001', line: 0 })).isError).toBe(true);
   });
 
+  it('lists subtasks and dependencies across notes (#75)', async () => {
+    expect((await call(token, 'create_note', { title: 'Plan 75', folder: 'Tasks75', content: '- [ ] Umzug 🆔 umzug75\n  - [x] Kartons\n  - [ ] Packen' })).isError).toBeFalsy();
+    expect((await call(token, 'create_note', { title: 'Party 75', folder: 'Tasks75', content: '- [ ] Party feiern ⛔ umzug75' })).isError).toBeFalsy();
+    const tasks = (await call(token, 'list_tasks', { limit: 500 })).structuredContent.tasks as { text: string; path: string }[];
+    const mine = tasks.filter((t) => t.path.startsWith('Tasks75/'));
+    expect(mine.find((t) => t.text === 'Umzug')).toMatchObject({ id: 'umzug75', subtasks: { done: 1, total: 2 } });
+    expect(mine.find((t) => t.text === 'Packen')).toMatchObject({ parent_line: 0 });
+    expect(mine.find((t) => t.text === 'Party feiern')).toMatchObject({ waits_for: ['umzug75'], waiting: true });
+  });
+
   it('answers protocol details: notifications, batches and unknown methods', async () => {
     const res = await fetch(`${base}/mcp`, {
       method: 'POST',

@@ -2615,6 +2615,15 @@ const de = {
   'bulk.done': 'Fertig',
   'bulk.countNotes': '{n} Notizen',
   'bulk.moved': '{n} Notizen nach „{folder}“ verschoben',
+  'tasks.waiting': 'Wartet',
+  'tasks.waitingTitle': 'Wartet auf: {ids}',
+  'tasks.afterTitle': 'Nach: {ids} (erledigt oder unbekannt)',
+  'tasks.idTitle': 'Aufgaben-ID „{id}“: andere Aufgaben warten mit ⛔ {id} auf diese',
+  'tasks.subtasksTitle': '{done} von {total} Unteraufgaben erledigt',
+  'tasks.hideWaiting': 'Nur nächste Schritte',
+  'settings.completeParentsTitle': 'Übergeordnete Aufgabe mit abhaken',
+  'settings.completeParentsDesc': 'Ist die letzte Unteraufgabe erledigt, wird die Aufgabe darüber auch abgehakt (auf diesem Gerät).',
+  'settings.completeParentsLabel': 'Übergeordnete Aufgaben automatisch abhaken',
 } as const;
 
 export type I18nKey = keyof typeof de;
@@ -5150,6 +5159,15 @@ const en: Record<I18nKey, string> = {
   'bulk.done': 'Done',
   'bulk.countNotes': '{n} notes',
   'bulk.moved': 'Moved {n} notes to “{folder}”',
+  'tasks.waiting': 'Waiting',
+  'tasks.waitingTitle': 'Waits for: {ids}',
+  'tasks.afterTitle': 'After: {ids} (done or unknown)',
+  'tasks.idTitle': 'Task id “{id}”: other tasks wait for this one with ⛔ {id}',
+  'tasks.subtasksTitle': '{done} of {total} subtasks done',
+  'tasks.hideWaiting': 'Next steps only',
+  'settings.completeParentsTitle': 'Complete parent tasks',
+  'settings.completeParentsDesc': 'When the last subtask is done, the task above it is ticked off too (on this device).',
+  'settings.completeParentsLabel': 'Tick off parent tasks automatically',
 };
 
 const dict: Record<Lang, Record<I18nKey, string>> = { de, en };

@@ -4,7 +4,7 @@
  * remembered per device.
  */
 import { useMemo, useState } from 'react';
-import { AlignJustify, AtSign, Kanban, List, ListChecks } from '../lib/icons';
+import { AlignJustify, AtSign, Ban, Kanban, List, ListChecks } from '../lib/icons';
 import { mentionsUser, toDateString, type TaskStatus } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { TaskBuckets, TaskKanban, TaskQuickAdd, collectTasks, type TaskRow } from './TaskParts';
@@ -26,10 +26,12 @@ interface TaskPagePrefs {
   showDone: boolean;
   /** Only tasks that mention the user (`@username`, #69) */
   mine: boolean;
+  /** Only the next steps: no task that waits for another one (#75) */
+  actionable: boolean;
 }
 
 const PREFS_KEY = 'kladde.tasksPage';
-const DEFAULTS: TaskPagePrefs = { layout: 'list', compact: false, status: 'all', folder: '*', sort: 'due', showDone: false, mine: false };
+const DEFAULTS: TaskPagePrefs = { layout: 'list', compact: false, status: 'all', folder: '*', sort: 'due', showDone: false, mine: false, actionable: false };
 
 function readPrefs(): TaskPagePrefs {
   try {
@@ -42,6 +44,7 @@ function readPrefs(): TaskPagePrefs {
       sort: raw.sort === 'note' || raw.sort === 'text' ? raw.sort : 'due',
       showDone: raw.showDone === true,
       mine: raw.mine === true,
+      actionable: raw.actionable === true,
     };
   } catch {
     return DEFAULTS;
@@ -87,9 +90,10 @@ export function TasksView() {
     return all
       .filter((tk) => folder === '*' || tk.folder === folder)
       .filter((tk) => !me || mentionsUser(tk.text, me))
+      .filter((tk) => !prefs.actionable || tk.done || !tk.waiting)
       .filter((tk) => (tk.done ? prefs.showDone || (prefs.layout === 'kanban' && !!tk.doneDate && tk.doneDate >= recent) : prefs.status === 'all' || tk.status === prefs.status))
       .sort(compare(prefs.sort));
-  }, [all, folder, prefs.showDone, prefs.status, prefs.sort, prefs.layout, prefs.mine]);
+  }, [all, folder, prefs.showDone, prefs.status, prefs.sort, prefs.layout, prefs.mine, prefs.actionable]);
   const open = filtered.filter((tk) => !tk.done);
   const done = filtered.filter((tk) => tk.done);
   const openTotal = all.filter((tk) => !tk.done).length;
@@ -165,6 +169,11 @@ export function TasksView() {
         {vault.features().mentions.enabled && !vault.standalone && (
           <button type="button" className="chip" aria-pressed={prefs.mine} onClick={() => setPrefs({ mine: !prefs.mine })} data-assigned-to-me>
             <AtSign size={14} /> {t('tasks.assignedToMe')}
+          </button>
+        )}
+        {all.some((tk) => tk.waiting) && (
+          <button type="button" className="chip" aria-pressed={prefs.actionable} onClick={() => setPrefs({ actionable: !prefs.actionable })} data-actionable-only>
+            <Ban size={14} /> {t('tasks.hideWaiting')}
           </button>
         )}
         <label className="ml-auto flex items-center gap-2 text-body-m text-muted">

@@ -12,6 +12,7 @@ import {
   keepRemoteBody,
   normalizeDueWords,
   parseTasks,
+  withDependencies,
   runQuery,
   semanticSearch,
   remoteNoteOf,
@@ -763,7 +764,7 @@ export const TOOLS: ToolDef[] = [
     name: 'list_tasks',
     title: 'Aufgaben auflisten',
     description:
-      'Lists Markdown tasks ("- [ ] …") from all of the user\'s notes, sorted by due date. Due dates are written "📅 YYYY-MM-DD", repeats "🔁 weekly", reminder times "⏰ 09:00". Use toggle_task to tick one off.',
+      'Lists Markdown tasks ("- [ ] …") from all of the user\'s notes, sorted by due date. Due dates are written "📅 YYYY-MM-DD", repeats "🔁 weekly", reminder times "⏰ 09:00". Tasks indented below a task are its subtasks (`parent_line`, `subtasks`); "🆔 id" (or "^id" at the end) names a task and "⛔ id" makes another wait for it (`waiting` while it is open, also across notes). Use toggle_task to tick one off.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -779,11 +780,26 @@ export const TOOLS: ToolDef[] = [
       if (until && !/^\d{4}-\d{2}-\d{2}$/.test(until)) throw new ToolError('due_until braucht das Format YYYY-MM-DD.');
       const today = ctx.today ?? new Date();
       const dueOf = taskDue(ctx);
-      const tasks = space(ctx).flatMap((n) =>
-        parseTasks(n.content, today, dueOf(n.path))
-          .filter((t) => (includeDone || !t.done) && (!until || (t.due !== null && t.due <= until)))
-          .map((t) => ({ note_id: n.id, note: splitPath(n.path).name, path: n.path, line: t.line, text: t.text, done: t.done, status: t.status, due: t.due, time: t.time, repeat: t.repeat }))
-      );
+      // Dependencies are resolved over all tasks first (#75): a task waits while one it names is open in any note
+      const parsed = withDependencies(space(ctx).flatMap((n) => parseTasks(n.content, today, dueOf(n.path)).map((t) => ({ ...t, n }))));
+      const tasks = parsed
+        .filter((t) => (includeDone || !t.done) && (!until || (t.due !== null && t.due <= until)))
+        .map(({ n, ...t }) => ({
+          note_id: n.id,
+          note: splitPath(n.path).name,
+          path: n.path,
+          line: t.line,
+          text: t.text,
+          done: t.done,
+          status: t.status,
+          due: t.due,
+          time: t.time,
+          repeat: t.repeat,
+          ...(t.parent !== undefined ? { parent_line: t.parent } : {}),
+          ...(t.subtasks ? { subtasks: t.subtasks } : {}),
+          ...(t.id ? { id: t.id } : {}),
+          ...(t.after ? { waits_for: t.after, waiting: !!t.waiting } : {}),
+        }));
       tasks.sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999') || a.path.localeCompare(b.path) || a.line - b.line);
       return { today: toDateString(today), total: tasks.length, tasks: tasks.slice(0, int(args, 'limit', 200, 500)) };
     },

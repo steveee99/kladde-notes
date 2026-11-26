@@ -13,10 +13,8 @@ import {
   serializeMarkdownTable,
   setFrontmatter,
   setTableCell,
-  setTaskStatus,
   TASK_STATUSES,
   toDateString,
-  toggleTask,
   type CalloutKind,
   type MarkdownTable,
   type NoteHeading,
@@ -29,6 +27,7 @@ import {
   resolveVariables,
 } from '@kladde/shared';
 import { copyText } from '../lib/clipboard';
+import { changeTask } from '../lib/taskChange';
 import { getLang, locale, tl, type Lang } from '../lib/i18n';
 import { dataTable, groupedTable, openTableCell, parseMarkdownTable, stripInline, type CellRef, type DataRow, type TableEditing } from './datatable';
 import { editorHost, type TicketChip } from './host';
@@ -792,24 +791,29 @@ export function openStatusMenu(anchor: HTMLElement, current: TaskStatus, lang: L
   if (moveFocus) (items.find((it) => it.getAttribute('aria-checked') === 'true') ?? items[0])?.focus({ preventScroll: true });
 }
 
+/** Puts `next` into the editor as one change over the part that differs (a task, its next occurrence, its parents) */
+function replaceChangedLines(view: EditorView, next: string) {
+  const cur = view.state.doc.toString();
+  if (cur === next) return;
+  let start = 0;
+  while (start < cur.length && start < next.length && cur[start] === next[start]) start++;
+  let endCur = cur.length;
+  let endNext = next.length;
+  while (endCur > start && endNext > start && cur[endCur - 1] === next[endNext - 1]) {
+    endCur--;
+    endNext--;
+  }
+  view.dispatch({ changes: { from: start, to: endCur, insert: next.slice(start, endNext) } });
+}
+
 /** Rewrites the status of the task in `lineIndex` as one minimal change */
 export function setLineStatus(view: EditorView, lineIndex: number, status: TaskStatus) {
-  const doc = view.state.doc;
-  const oldLines = doc.toString().split('\n');
-  const newLines = setTaskStatus(doc.toString(), lineIndex, status).split('\n');
-  const added = newLines.length - oldLines.length;
-  const line = doc.line(lineIndex + 1);
-  view.dispatch({ changes: { from: line.from, to: line.to, insert: newLines.slice(lineIndex, lineIndex + 1 + added).join('\n') } });
+  replaceChangedLines(view, changeTask(view.state.doc.toString(), lineIndex, status));
 }
 
 /** Ticks a task with the shared logic (repeating tasks get their next occurrence) as one minimal change */
 export function toggleLine(view: EditorView, lineIndex: number) {
-  const doc = view.state.doc;
-  const oldLines = doc.toString().split('\n');
-  const newLines = toggleTask(doc.toString(), lineIndex).split('\n');
-  const added = newLines.length - oldLines.length;
-  const line = doc.line(lineIndex + 1);
-  view.dispatch({ changes: { from: line.from, to: line.to, insert: newLines.slice(lineIndex, lineIndex + 1 + added).join('\n') } });
+  replaceChangedLines(view, changeTask(view.state.doc.toString(), lineIndex));
 }
 
 function externalUrl(url: string): URL | null {
@@ -1301,7 +1305,8 @@ export class ImageWidget extends WidgetType {
 export class DueWidget extends WidgetType {
   constructor(
     readonly date: string,
-    readonly kind: 'due' | 'repeat' | 'time',
+    /** Also the task links (#75): its id, the ids it waits for (`waiting` while one is open) and the subtask progress */
+    readonly kind: 'due' | 'repeat' | 'time' | 'id' | 'after' | 'waiting' | 'progress' | 'progress-done',
     readonly lang: Lang = getLang()
   ) {
     super();
@@ -1312,10 +1317,17 @@ export class DueWidget extends WidgetType {
   toDOM() {
     // Same symbols as the task lists (icons from lib/icons, drawn as CSS masks in .cm-due::before), no emoji
     const s = document.createElement('span');
-    if (this.kind === 'repeat' || this.kind === 'time') {
-      s.className = 'cm-due';
-      s.dataset.kind = this.kind;
+    if (this.kind !== 'due') {
+      s.className = `cm-due${this.kind === 'waiting' ? ' today' : this.kind === 'progress-done' ? ' done' : ''}`;
+      s.dataset.kind = this.kind === 'waiting' ? 'after' : this.kind === 'progress-done' ? 'progress' : this.kind;
       s.textContent = this.date;
+      if (this.kind === 'after' || this.kind === 'waiting') {
+        s.title = tl(this.lang, this.kind === 'waiting' ? 'tasks.waitingTitle' : 'tasks.afterTitle', { ids: this.date.replace(/,/g, ', ') });
+      } else if (this.kind === 'id') s.title = tl(this.lang, 'tasks.idTitle', { id: this.date });
+      else if (this.kind !== 'repeat' && this.kind !== 'time') {
+        const [done, total] = this.date.split('/');
+        s.title = tl(this.lang, 'tasks.subtasksTitle', { done, total });
+      }
       return s;
     }
     const today = toDateString(new Date());

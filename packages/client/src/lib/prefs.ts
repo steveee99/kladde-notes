@@ -387,3 +387,29 @@ export function setPinchZoom(on: boolean): void {
 export function usePinchZoom(): boolean {
   return useSyncExternalStore(subscribe, () => pinchZoom);
 }
+
+/**
+ * Finishing the last open subtask ticks off the task above it too (#75), per device (Settings → Work). Applied by
+ * `withParents` wherever a task is ticked: the editor, the task page and the note's tasks panel.
+ */
+const COMPLETE_PARENTS_KEY = 'kladde_complete_parents';
+let completeParentTasks = readBool(COMPLETE_PARENTS_KEY, false);
+
+export function getCompleteParents(): boolean {
+  return completeParentTasks;
+}
+
+export function setCompleteParents(on: boolean): void {
+  if (completeParentTasks === on) return;
+  completeParentTasks = on;
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(COMPLETE_PARENTS_KEY, on ? '1' : '0');
+  } catch {
+    // ignore
+  }
+  listeners.forEach((l) => l());
+}
+
+export function useCompleteParents(): boolean {
+  return useSyncExternalStore(subscribe, () => completeParentTasks);
+}
