@@ -1,8 +1,8 @@
-import { EditorState, Extension, Facet, Range, StateEffect, StateField } from '@codemirror/state';
+import { EditorState, Extension, Facet, Range, StateEffect, StateField, type Text } from '@codemirror/state';
 import { Decoration, DecorationSet, EditorView, ViewPlugin, WidgetType } from '@codemirror/view';
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
-import { findMath, isHighlightedLine, parseCodeInfo, ticketIdPattern, type MathSpan, MENTION_RE, mentionName, CALLOUT_TONES, calloutTypeTitle, escapeRegExp, isKnownCalloutType, parseCalloutLine, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, cardLineUrl, parseGitlabUrl, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, findPlaceholders, hasVariables, maskVariables, resolveVariables, resolveVariableUrl, type NoteHeading, type ReleaseField } from '@kladde/shared';
+import { findMath, isHighlightedLine, parseCodeInfo, ticketIdPattern, type MathSpan, MENTION_RE, mentionName, CALLOUT_TONES, calloutTypeTitle, escapeRegExp, isKnownCalloutType, parseCalloutLine, extractHeadings, fillReleasePlaceholders, hasReleasePlaceholders, parseEmbedLine, cardLineUrl, parseGitlabUrl, RELEASE_FIELD_RE, releaseFieldValue, releaseHistoryTable, TOC_ANCHOR_RE, VERSION_HISTORY_LINE_RE, findPlaceholders, hasVariables, maskVariables, resolveVariables, resolveVariableUrl, parseTasks, type Task, type NoteHeading, type ReleaseField } from '@kladde/shared';
 import { getLang, tl } from '../lib/i18n';
 import {
   AutoLinkWidget,
@@ -660,6 +660,22 @@ function build(state: EditorState): DecorationSet {
         const from = ln.from + m.index!;
         replace(from, from + m[0].length, Decoration.replace({ widget: new DueWidget(`${m[1].padStart(2, '0')}:${m[2]}`, 'time', lang) }));
       }
+      // Dependencies and ids (#75): "⛔ a,b" / "after:^a" and "🆔 id" / a trailing "^id" become chips
+      const linked = tasksOfDoc(doc).get(l - 1);
+      for (const m of ln.text.matchAll(/(?:⛔\s*|\bafter:)(\^?[\w-]+(?:,\^?[\w-]+)*)/gu)) {
+        const from = ln.from + m.index!;
+        const ids = m[1].replace(/\^/g, '');
+        replace(from, from + m[0].length, Decoration.replace({ widget: new DueWidget(ids, linked?.waiting ? 'waiting' : 'after', lang) }));
+      }
+      for (const m of ln.text.matchAll(/🆔\s*([\w-]+)|(?:^|\s)\^([\w-]+)(?=\s*(?:✅\s*\d{4}-\d{2}-\d{2}\s*)?$)/gu)) {
+        const id = m[1] ?? m[2];
+        const from = ln.from + m.index! + (m[1] ? 0 : m[0].indexOf('^'));
+        replace(from, ln.from + m.index! + m[0].length, Decoration.replace({ widget: new DueWidget(id, 'id', lang) }));
+      }
+      if (linked?.subtasks) {
+        const { done, total } = linked.subtasks;
+        decos.push(Decoration.widget({ widget: new DueWidget(`${done}/${total}`, done === total ? 'progress-done' : 'progress', lang), side: 1 }).range(ln.to));
+      }
       for (const m of ln.text.matchAll(/✅\s*\d{4}-\d{2}-\d{2}/g)) {
         // Hide the space in front too (found by hand: a leading `\s*` in the regex backtracks quadratically)
         let start = m.index!;
@@ -714,6 +730,17 @@ const remoteHostsWatcher = ViewPlugin.define((view) => {
   const off = editorHost.onRemoteHosts(() => view.dispatch({ effects: refreshEffect.of(Date.now()) }));
   return { destroy: off };
 });
+
+/** The tasks of a document by line (0-based), for subtask progress and waiting chips (#75); cached per document */
+const docTasks = new WeakMap<Text, Map<number, Task>>();
+function tasksOfDoc(doc: Text): Map<number, Task> {
+  let hit = docTasks.get(doc);
+  if (!hit) {
+    hit = new Map(parseTasks(doc.toString()).map((t) => [t.line, t]));
+    docTasks.set(doc, hit);
+  }
+  return hit;
+}
 
 export function livePreview(): Extension {
   return [

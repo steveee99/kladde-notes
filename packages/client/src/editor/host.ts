@@ -65,6 +65,8 @@ export interface EditorHost {
   recordVoice(): Promise<File | null>;
   /** Text of a voice note from the server's speech-to-text, null when the server has none */
   transcribe: ((url: string) => Promise<string>) | null;
+  /** The link preview (#130) is on: hovering a [[link]] shows the target in a card */
+  linkPreview(): boolean;
   registerFlush(fn: () => void): () => void;
   flush(): void;
   requestSave(): void;
@@ -74,6 +76,7 @@ const flushers = new Set<() => void>();
 
 export const editorHost: EditorHost = {
   openWiki: () => {},
+  linkPreview: () => false,
   wikiExists: () => true,
   openNote: () => {},
   resolveEmbed: () => null,

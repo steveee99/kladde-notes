@@ -124,6 +124,14 @@ export interface FeatureSettings {
   presentation: {
     enabled: boolean;
   };
+  /** Link preview (#130): hovering a [[link]] (a long press on touch screens) shows the target note in a floating card */
+  linkPreview: {
+    enabled: boolean;
+  };
+  /** Habit tracker (#134): habits defined per space, checked off in the daily notes, with streaks and a heatmap */
+  habits: {
+    enabled: boolean;
+  };
   /** Callouts (#86): `> [!type] Title` quotes shown as colored boxes with an icon, `-`/`+` collapsible; otherwise plain quotes */
   callouts: {
     enabled: boolean;
@@ -300,6 +308,8 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
     database: { enabled: optInFlag(obj.database) },
     tickets: { enabled: optInFlag(obj.tickets) },
     presentation: { enabled: optInFlag(obj.presentation) },
+    linkPreview: { enabled: optInFlag(obj.linkPreview) },
+    habits: { enabled: optInFlag(obj.habits) },
     callouts: { enabled: optOutFlag(obj.callouts) },
     calendarView: { enabled: optOutFlag(obj.calendarView) },
     activity: { enabled: optOutFlag(obj.activity) },

@@ -43,6 +43,24 @@ describe('SpaceIndexes', () => {
     expect(spaces.search(anna.id, 'garten')[0].snippet).toContain('Garten');
   });
 
+  it('finds conceptual matches and related notes among the visible notes (#84)', () => {
+    const { notes, spaces, anna, cleo } = setup();
+    notes.push(anna.id, [
+      note('note-sem-01', 'Inbox/Umzug.md', '# Umzug\nNeue Wohnung, Miete und Kartons packen'),
+      note('note-sem-02', 'Inbox/Mietvertrag.md', '# Mietvertrag\nDie Wohnung ab März, Miete zahlen'),
+      note('note-sem-03', 'Inbox/Rezept.md', '# Kuchen\nMehl, Zucker und Eier'),
+    ]);
+    notes.push(cleo.id, [note('note-sem-04', 'Inbox/Fremd.md', 'Wohnung und Miete von Cleo')]);
+    const hits = spaces.semantic(anna.id, 'neue Wohnung mieten')!.map((h) => h.id);
+    expect(hits).toEqual(expect.arrayContaining(['note-sem-01', 'note-sem-02']));
+    expect(hits).not.toContain('note-sem-04');
+    expect(hits).not.toContain('note-sem-03');
+    const related = spaces.semantic(anna.id, '', { relatedTo: 'note-sem-01' })!.map((h) => h.id);
+    expect(related[0]).toBe('note-sem-02');
+    expect(related).not.toContain('note-sem-01');
+    expect(spaces.semantic(anna.id, '', { relatedTo: 'note-sem-04' })).toBeNull();
+  });
+
   it('follows edits, deletions and notes moved to a group', () => {
     const { notes, groups, spaces, anna } = setup();
     notes.push(anna.id, [note('note-own-01', 'Inbox/A.md', 'alter Text')]);

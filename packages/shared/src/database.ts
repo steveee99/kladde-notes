@@ -25,6 +25,7 @@
  * case-insensitively), written as plain YAML so they stay readable in `query` blocks and other tools.
  */
 
+import { isHabitsPath } from './habits.js';
 import { splitPath } from './markdown.js';
 import { readFrontmatterYaml, setFrontmatterValues, type YamlMap, type YamlValue } from './yaml.js';
 import { safeUrl } from './util.js';
@@ -107,8 +108,8 @@ export const isDatabasePath = (path: string): boolean => DATABASE_OR_COPY.test(p
 /** Whether a note can be its folder's schema note; copies of one are hidden (`isDatabasePath`) but never define a database */
 export const isSchemaPath = (path: string): boolean => DATABASE_NAME.test(path.slice(path.lastIndexOf('/') + 1));
 
-/** Notes that only hold settings (database schema, variables, custom note types): kept out of lists, the tree, search and the graph */
-export const isHiddenPath = (path: string): boolean => isDatabasePath(path) || isVariablesPath(path) || isNoteTypePath(path);
+/** Notes that only hold settings (database schema, variables, custom note types, habits): kept out of lists, the tree, search and the graph */
+export const isHiddenPath = (path: string): boolean => isDatabasePath(path) || isVariablesPath(path) || isNoteTypePath(path) || isHabitsPath(path);
 
 /** The database note of a folder, if there is one */
 export function findDatabaseNote<T extends { path: string; content: string }>(folder: string, notes: Iterable<T>): T | null {

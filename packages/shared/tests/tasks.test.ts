@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextDue, normalizeDueWords, parseTasks, toggleTask, setTaskStatus, bucketOf, setTaskMeta, shortcutDate, takeTaskBlock, appendTaskLines } from '../src/tasks';
+import { completeParents, nextDue, normalizeDueWords, resolveDue, withDependencies, parseTasks, toggleTask, setTaskStatus, bucketOf, setTaskMeta, shortcutDate, takeTaskBlock, appendTaskLines } from '../src/tasks';
 
 const today = new Date(2026, 10, 8); // 2026-11-08, a Sunday
 
@@ -41,6 +41,75 @@ describe('tasks', () => {
     const out = toggleTask('- [ ] Gießen 📅 2026-11-08 🔁 wöchentlich', 0, today);
     expect(out.split('\n')).toEqual(['- [ ] Gießen 📅 2026-11-15 🔁 wöchentlich', '- [x] Gießen 📅 2026-11-08 🔁 wöchentlich ✅ 2026-11-08']);
     expect(toggleTask(out, 1, today).split('\n')[1]).toBe('- [ ] Gießen 📅 2026-11-08 🔁 wöchentlich');
+  });
+
+  it('links subtasks and dependencies (#75)', () => {
+    const tasks = parseTasks(
+      [
+        '- [ ] Umzug 🆔 umzug',
+        '  - [x] Kartons kaufen ^kartons',
+        '  - [ ] Packen ⛔ kartons',
+        '    - [ ] Küche',
+        '  - [ ] Wagen mieten after:^packen',
+        '- [ ] Party ⛔ umzug,kartons',
+        '- [x] Fertig ^done ✅ 2026-11-01',
+        '- [ ] Danach after:^done',
+      ].join('\n'),
+      today
+    );
+    const [umzug, kartons, packen, kueche, wagen, party, fertig, danach] = tasks;
+    expect(umzug).toMatchObject({ text: 'Umzug', id: 'umzug', subtasks: { done: 1, total: 3 } });
+    expect(umzug.parent).toBeUndefined();
+    expect(kartons).toMatchObject({ text: 'Kartons kaufen', id: 'kartons', parent: 0 });
+    expect(packen).toMatchObject({ text: 'Packen', after: ['kartons'], waiting: false, parent: 0, subtasks: { done: 0, total: 1 } });
+    expect(kueche.parent).toBe(2);
+    // An unknown id does not hold a task back
+    expect(wagen).toMatchObject({ text: 'Wagen mieten', after: ['packen'], waiting: false });
+    expect(party).toMatchObject({ text: 'Party', after: ['umzug', 'kartons'], waiting: true });
+    expect(fertig).toMatchObject({ text: 'Fertig', id: 'done', doneDate: '2026-11-01' });
+    expect(danach.waiting).toBe(false);
+  });
+
+  it('resolves dependencies across notes and completes parents (#75)', () => {
+    const a = parseTasks('- [ ] Angebot 🆔 angebot', today);
+    const b = parseTasks('- [ ] Bestellen ⛔ angebot', today);
+    expect(b[0].waiting).toBe(false);
+    const all = withDependencies([...a, ...b]);
+    expect(all[1].waiting).toBe(true);
+    // The cached task itself is not changed
+    expect(b[0].waiting).toBe(false);
+    const doneA = parseTasks('- [x] Angebot 🆔 angebot', today);
+    expect(withDependencies([...doneA, ...b])[1].waiting).toBe(false);
+
+    const note = '- [ ] Projekt\n  - [x] Eins\n  - [ ] Zwei\n- [ ] Anderes';
+    const ticked = toggleTask(note, 2, today);
+    expect(completeParents(ticked, 2, today).split('\n')[0]).toBe('- [x] Projekt ✅ 2026-11-08');
+    // Not all done yet: the parent stays open
+    const untouched = toggleTask(note.replace('[x] Eins', '[ ] Eins'), 2, today);
+    expect(completeParents(untouched, 2, today).split('\n')[0]).toBe('- [ ] Projekt');
+  });
+
+  it('resolves natural-language due words (#133)', () => {
+    // today is Sunday 2026-11-08
+    expect(resolveDue('übermorgen', today)).toBe('2026-11-10');
+    expect(resolveDue('Freitag', today)).toBe('2026-11-13');
+    expect(resolveDue('sunday', today)).toBe('2026-11-15');
+    expect(resolveDue('mon', today)).toBe('2026-11-09');
+    expect(resolveDue('in-3-tagen', today)).toBe('2026-11-11');
+    expect(resolveDue('in-2-weeks', today)).toBe('2026-11-22');
+    expect(resolveDue('in-1-monat', today)).toBe('2026-12-08');
+    expect(resolveDue('nächste-woche', today)).toBe('2026-11-09');
+    expect(resolveDue('next-month', today)).toBe('2026-12-01');
+    expect(resolveDue('ende-woche', today)).toBe('2026-11-08');
+    expect(resolveDue('end-of-month', today)).toBe('2026-11-30');
+    expect(resolveDue('2026-01-02', today)).toBe('2026-01-02');
+    expect(resolveDue('irgendwann', today)).toBe('irgendwann');
+    const [t] = parseTasks('- [ ] Bericht due:freitag', today);
+    expect(t).toMatchObject({ text: 'Bericht', due: '2026-11-13' });
+    // Unknown words and words that only start like one stay text
+    expect(parseTasks('- [ ] a due:irgendwann', today)[0]).toMatchObject({ text: 'a due:irgendwann', due: null });
+    expect(parseTasks('- [ ] a due:montagabend', today)[0].due).toBeNull();
+    expect(normalizeDueWords('- [ ] a due:in-2-tagen 📅 freitag', today)).toBe('- [ ] a due:2026-11-10 📅 2026-11-13');
   });
 
   it('normalizes relative due words and buckets', () => {

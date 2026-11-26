@@ -23,6 +23,9 @@ import {
   X,
   Kanban,
   RemoteDoc,
+  Search,
+  FindReplace,
+  Flame,
 } from '../lib/icons';
 import { t } from '../lib/i18n';
 import { navigate } from '../lib/router';
@@ -30,6 +33,7 @@ import { toggleMaterialSidebarMode } from '../lib/sidebarMode';
 import { setColorSchemeChoice, getColorSchemeChoice } from '../lib/theme';
 import { isReadOnly, setReadOnly } from '../lib/readOnly';
 import { toggleFocusMode } from '../lib/focus';
+import { lastFocusedEditor, openFind } from '../editor/find';
 import { closeSide, openInSide, sideNoteId, splitAvailable } from '../lib/panes';
 import { closeOtherTabs, neighborTab, tabIds } from '../lib/tabs';
 import { DEMO } from '../demo/demoApi';
@@ -64,6 +68,7 @@ export function buildCommands(path: string): Command[] {
     { id: 'go-home', label: t('cmd.goHome'), icon: i(<Home size={16} />), run: () => navigate('/') },
     { id: 'go-tasks', label: t('cmd.goTasks'), icon: i(<ListChecks size={16} />), keywords: 'todo', run: () => navigate('/tasks') },
     ticketsAnywhere() && { id: 'go-projects', label: t('cmd.goProjects'), icon: i(<Kanban size={16} />), keywords: 'tickets milestones', run: () => navigate('/projects') },
+    features.habits.enabled && { id: 'go-habits', label: t('cmd.goHabits'), icon: i(<Flame size={16} />), keywords: 'habit gewohnheit streak', run: () => navigate('/habits') },
     features.calendarView.enabled && { id: 'go-calendar', label: t('cmd.goCalendar'), icon: i(<CalendarMonth size={16} />), run: () => navigate('/calendar') },
     { id: 'go-inbox', label: t('cmd.goInbox'), icon: i(<InboxIcon size={16} />), keywords: 'eingang', run: () => navigate('/inbox') },
     { id: 'go-notes', label: t('cmd.goNotes'), icon: i(<FileText size={16} />), run: () => navigate('/notes') },
@@ -85,6 +90,9 @@ export function buildCommands(path: string): Command[] {
       run: () => setReadOnly(!locked),
     },
     !DEMO && { id: 'sync', label: t('cmd.syncNow'), icon: i(<RefreshCw size={16} />), hint: 'Ctrl/⌘+S', keywords: 'sync', run: () => vault.kick() },
+    // After the palette closed and gave the focus back, so the find field keeps it
+    !!noteId && { id: 'find', label: t('cmd.findInNote'), icon: i(<Search size={16} />), hint: 'Ctrl/⌘+F', keywords: 'find suchen', run: () => setTimeout(() => openFind(), 60) },
+    !!noteId && !locked && !lastFocusedEditor()?.state.readOnly && { id: 'replace', label: t('cmd.replaceInNote'), icon: i(<FindReplace size={16} />), hint: 'Ctrl/⌘+Alt+F', keywords: 'replace ersetzen', run: () => setTimeout(() => openFind(undefined, true), 60) },
     !!noteId && features.focus.enabled && { id: 'focus', label: t('cmd.focusMode'), icon: i(<CenterFocus size={16} />), hint: 'Ctrl/⌘+Shift+F', keywords: 'zen', run: toggleFocusMode },
     !!noteId && splitAvailable() && { id: 'open-side', label: t('cmd.openSide'), icon: i(<VerticalSplit size={16} />), keywords: 'split daneben', run: () => openInSide(noteId) },
     !!sideNoteId() && { id: 'close-side', label: t('cmd.closeSide'), icon: i(<X size={16} />), run: closeSide },

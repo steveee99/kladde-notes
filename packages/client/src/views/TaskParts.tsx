@@ -5,8 +5,8 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarClock, Plus, Repeat, X } from '../lib/icons';
-import { NoteMemo, TASK_STATUSES, type OnlineTaskNote, Task, TaskBucket, TaskStatus, bucketOf, parseTasks, projectTitleOf, roleOfPath, shortcutDate, splitPath } from '@kladde/shared';
+import { Ban, CalendarClock, ListChecks, Plus, Repeat, X } from '../lib/icons';
+import { NoteMemo, TASK_STATUSES, type OnlineTaskNote, Task, TaskBucket, TaskStatus, bucketOf, linkTasks, parseTasks, withDependencies, projectTitleOf, roleOfPath, shortcutDate, splitPath } from '@kladde/shared';
 import { vault } from '../data/vault';
 import { onlineTasks, taskOfTuple } from '../data/onlineTasks';
 import { navigate } from '../lib/router';
@@ -194,6 +194,28 @@ export function TaskMeta({ task, className = '' }: { task: TaskRow; className?: 
 export const STATUS_TONE: Record<TaskStatus, string> = { open: 'text-on-surface-variant', doing: 'text-primary', blocked: 'text-warn', done: 'text-ok' };
 
 /** "In Arbeit" / "Blockiert" next to a task in the list (open tasks need no label) */
+/** Progress of the subtasks ("2 / 5") and whether the task waits for another one (#75) */
+export function TaskLinks({ task }: { task: Task }) {
+  return (
+    <>
+      {task.waiting && (
+        <span className="chip shrink-0 border-amber/40 px-2 py-0 text-[11px] text-amber" data-task-waiting="" title={t('tasks.waitingTitle', { ids: (task.after ?? []).join(', ') })}>
+          <Ban size={11} /> {t('tasks.waiting')}
+        </span>
+      )}
+      {task.subtasks && (
+        <span
+          className={`chip shrink-0 px-2 py-0 font-mono text-[11px] ${task.subtasks.done === task.subtasks.total ? 'text-green' : 'text-soft'}`}
+          data-task-progress=""
+          title={t('tasks.subtasksTitle', { done: task.subtasks.done, total: task.subtasks.total })}
+        >
+          <ListChecks size={11} /> {task.subtasks.done}/{task.subtasks.total}
+        </span>
+      )}
+    </>
+  );
+}
+
 export function StatusChip({ status }: { status: TaskStatus }) {
   if (status !== 'doing' && status !== 'blocked') return null;
   return <span className={`chip shrink-0 px-2 py-0 text-[11px] ${STATUS_TONE[status]}`}>{t(`task.status.${status}`)}</span>;
@@ -210,7 +232,7 @@ export function TaskItem({ task, compact }: { task: TaskRow; compact: boolean })
   const locked = useReadOnly();
   const bucket = bucketOf(task);
   // Without a second line (note, date, status) the row is centered instead of aligned to the first line
-  const hasMeta = task.status === 'doing' || task.status === 'blocked' || !!task.due || !!task.repeat || !!task.noteTitle;
+  const hasMeta = task.status === 'doing' || task.status === 'blocked' || !!task.due || !!task.repeat || !!task.noteTitle || !!task.subtasks || !!task.waiting;
   const top = !compact && hasMeta;
   return (
     <li
@@ -244,6 +266,7 @@ export function TaskItem({ task, compact }: { task: TaskRow; compact: boolean })
         <>
           <span className={`min-w-0 flex-1 truncate text-sm ${task.done ? 'text-on-surface-variant line-through' : ''}`}>{task.text || t('home.taskEmpty')}</span>
           <StatusChip status={task.status} />
+          <TaskLinks task={task} />
           {task.repeat && <Repeat size={11} className="shrink-0 text-on-surface-variant" />}
           {task.due && <span className={`cm-due shrink-0 ${bucket === 'overdue' ? 'overdue' : bucket === 'today' ? 'today' : ''}`}>{formatDue(task.due)}</span>}
           <button className="hidden max-w-[30%] shrink-0 truncate text-xs text-on-surface-variant hover:text-primary sm:block" onClick={() => navigate(`/n/${task.noteId}`)}>
@@ -256,6 +279,7 @@ export function TaskItem({ task, compact }: { task: TaskRow; compact: boolean })
           {hasMeta && (
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               <StatusChip status={task.status} />
+              <TaskLinks task={task} />
               {task.due && (
                 <span className={`cm-due ${bucket === 'overdue' ? 'overdue' : bucket === 'today' ? 'today' : ''}`}>
                   <CalendarClock size={11} className="mr-1 inline" />
@@ -364,7 +388,7 @@ export function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
             </h3>
             {list.slice(0, shown[status] ?? TASK_PAGE).map((tk) => {
               const bucket = bucketOf(tk);
-              const hasMeta = (!!tk.due && tk.status !== 'done') || !!tk.repeat || !!tk.noteTitle;
+              const hasMeta = (!!tk.due && tk.status !== 'done') || !!tk.repeat || !!tk.noteTitle || !!tk.subtasks || !!tk.waiting;
               return (
                 <div
                   key={`${tk.noteId}:${tk.line}:${tk.text}`}
@@ -401,6 +425,7 @@ export function TaskKanban({ tasks }: { tasks: TaskRow[] }) {
                     <div className={`break-words text-sm leading-snug ${tk.status === 'done' ? 'text-on-surface-variant line-through' : ''}`}>{tk.text || t('home.taskEmpty')}</div>
                     {hasMeta && (
                       <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <TaskLinks task={tk} />
                         {tk.due && tk.status !== 'done' && (
                           <span className={`cm-due ${bucket === 'overdue' ? 'overdue' : bucket === 'today' ? 'today' : ''}`}>{formatDue(tk.due)}</span>
                         )}
@@ -452,7 +477,7 @@ function remoteTaskRows(prefix: string, dueOf: (path: string) => string | null, 
     if (hit?.key !== noteKey) {
       const noteTitle = remote.title ?? projectTitleOf(n.path, '', roleConfig);
       const folder = splitPath(n.path).folder;
-      const list = roleOfPath(n.path, roleConfig) === 'archive' ? EMPTY : remote.tasks.map((tk) => ({ ...taskOfTuple(tk, defaultDue), noteId: n.id, noteTitle, folder }));
+      const list = roleOfPath(n.path, roleConfig) === 'archive' ? EMPTY : linkTasks(remote.tasks.map((tk) => ({ ...taskOfTuple(tk, defaultDue), noteId: n.id, noteTitle, folder })));
       hit = { key: noteKey, rows: list };
       remoteRows.set(remote, hit);
     }
@@ -507,8 +532,10 @@ export function collectTasks(version: number): TaskRow[] {
     cache.rows = rows;
     return cache.tasks;
   }
-  const out: TaskRow[] = [];
-  for (const noteRows of rows) for (const row of noteRows) out.push(row);
+  const collected: TaskRow[] = [];
+  for (const noteRows of rows) for (const row of noteRows) collected.push(row);
+  // Dependencies across notes (#75): a task waits while one it names is open in any note
+  const out = withDependencies(collected).slice();
   // ISO dates sort as plain strings; localeCompare costs seconds with 100,000s of tasks
   out.sort((a, b) => {
     const x = a.due ?? '9999';

@@ -90,8 +90,6 @@ import {
   keepRemoteBody,
   normalizeDueWords,
   splitPath,
-  toggleTask,
-  setTaskStatus,
   type TaskStatus,
   takeTaskBlock,
   appendTaskLines,
@@ -121,7 +119,8 @@ import {
   parseDatabase,
   MILESTONE_FOLDER,
 } from '@kladde/shared';
-import { api, ApiError } from '../lib/api';
+import { api, ApiError, restoreTrash, restoreTrashBatch } from '../lib/api';
+import { changeTask } from '../lib/taskChange';
 import { compareText, getLang, locale, t } from '../lib/i18n';
 import { isReadOnly } from '../lib/readOnly';
 import { clientId, presence } from '../lib/presence';
@@ -145,6 +144,20 @@ export function newId(): string {
 
 /** Synced setting with the ordered list of favorite note ids */
 const FAVORITES_SETTING = 'favorites';
+/** Synced setting with the saved searches (#78), in the user's order */
+const SAVED_SEARCHES_SETTING = 'savedSearches';
+
+/** A saved search (#78): a query for the search overlay, or a view of the task page with its filters */
+export interface SavedSearch {
+  id: string;
+  name: string;
+  /** The query as typed (search overlay) */
+  q: string;
+  kind: 'notes' | 'tasks';
+  /** Task page filters (`kind: 'tasks'`), as the page stores them */
+  filters?: Record<string, unknown>;
+}
+
 /** Synced setting with favorite group folders (#58): "<group id>/<folder>", the folder empty for the group itself */
 const FAVORITE_GROUP_FOLDERS_SETTING = 'favoriteGroupFolders';
 
@@ -155,6 +168,12 @@ const FAVORITE_GROUP_FOLDERS_SETTING = 'favoriteGroupFolders';
  */
 /** Notifications loaded at a time (the panel and the list page load more on request) */
 export const NOTIFICATION_PAGE = 10;
+
+/** What a folder deletion put into the trash: the notes and their trash batch (#131: undo) */
+export interface DeletedNotes {
+  ids: string[];
+  batch: string;
+}
 
 class Vault {
   notes = new Map<string, LocalNote>();
@@ -1303,6 +1322,47 @@ class Vault {
     await this.setSetting(TEMPLATES_SETTING, this.templates().filter((t) => t.id !== id));
   }
 
+  // ------------------------------------------------------------------ saved searches (#78, synced setting)
+
+  savedSearches(): SavedSearch[] {
+    const raw = this.setting<unknown>(SAVED_SEARCHES_SETTING);
+    if (!Array.isArray(raw)) return [];
+    return raw.filter(
+      (x): x is SavedSearch => !!x && typeof x === 'object' && typeof (x as SavedSearch).id === 'string' && typeof (x as SavedSearch).name === 'string' && typeof (x as SavedSearch).q === 'string'
+    ).map((x) => ({ ...x, kind: x.kind === 'tasks' ? 'tasks' : 'notes' }));
+  }
+
+  private async writeSavedSearches(list: SavedSearch[]): Promise<void> {
+    if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    await this.setSetting(SAVED_SEARCHES_SETTING, list);
+  }
+
+  async saveSearch(entry: Omit<SavedSearch, 'id'>): Promise<SavedSearch> {
+    const saved: SavedSearch = { ...entry, name: entry.name.trim().slice(0, 80) || entry.q.slice(0, 80), id: newId().slice(0, 12) };
+    await this.writeSavedSearches([...this.savedSearches(), saved]);
+    return saved;
+  }
+
+  async renameSavedSearch(id: string, name: string): Promise<void> {
+    const clean = name.trim().slice(0, 80);
+    if (!clean) return;
+    await this.writeSavedSearches(this.savedSearches().map((x) => (x.id === id ? { ...x, name: clean } : x)));
+  }
+
+  async removeSavedSearch(id: string): Promise<void> {
+    await this.writeSavedSearches(this.savedSearches().filter((x) => x.id !== id));
+  }
+
+  /** Moves a saved search one place up (-1) or down (1) */
+  async moveSavedSearch(id: string, dir: -1 | 1): Promise<void> {
+    const list = this.savedSearches();
+    const i = list.findIndex((x) => x.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    await this.writeSavedSearches(list);
+  }
+
   // ------------------------------------------------------------------ favorites (synced setting)
 
   /** Favorite note ids in the user's order; ids of deleted or unknown notes are skipped */
@@ -1314,6 +1374,28 @@ class Vault {
 
   isFavorite(id: string): boolean {
     return this.favoriteIds().includes(id);
+  }
+
+  /** Makes all `ids` favorites in one write (#132: bulk actions); returns how many were added */
+  async addFavorites(ids: string[]): Promise<number> {
+    if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    const list = this.favoriteIds();
+    const added = ids.filter((id) => !list.includes(id));
+    if (added.length) await this.setSetting(FAVORITES_SETTING, [...list, ...added]);
+    return added.length;
+  }
+
+  /** Adds `tag` to the note's frontmatter `tags` (kept when it already has it); returns whether the note changed */
+  async addTag(id: string, tag: string): Promise<boolean> {
+    const clean = tag.trim().replace(/^#/, '').replace(/\s+/g, '-');
+    if (!clean) return false;
+    const note = await this.withText(id);
+    if (!note || isReadOnly()) return false;
+    const { data } = parseFrontmatter(note.content);
+    const existing = (data.tags ?? '').replace(/[[\]]/g, '').split(',').map((x) => x.trim().replace(/^#/, '')).filter(Boolean);
+    if (existing.some((x) => x.toLowerCase() === clean.toLowerCase())) return false;
+    await this.update(id, { content: setFrontmatter(note.content, { tags: [...existing, clean].join(', ') }) });
+    return true;
   }
 
   /** Adds or removes a note from the favorites; returns whether it is a favorite afterwards */
@@ -1423,6 +1505,35 @@ class Vault {
     // The memory's index drops the entry (#94)
     if (this.isMemoryNote(note)) await this.memoryUpkeep(note.path, null);
     this.schedule(0);
+  }
+
+  /**
+   * Brings notes back right after they were deleted (#131: "Undo" in the toast). A deletion that is still
+   * waiting on this device (offline) is simply taken back; one the server already has goes through the trash,
+   * at the old path. `batch` restores a folder deleted with its notes. Returns how many notes came back.
+   */
+  async undoDelete(ids: string[], batch?: string): Promise<number> {
+    if (isReadOnly()) return 0;
+    // Let a push that is underway finish first, so the server and this device agree on what is deleted
+    if (!this.standalone && navigator.onLine) await this.sync().catch(() => {});
+    const now = Date.now();
+    let back = 0;
+    const onServer: string[] = [];
+    for (const id of ids) {
+      const local = this.notes.get(id);
+      if (local?.deleted && local.dirty) {
+        const { trashBatch: _b, trashFolder: _f, ...rest } = local;
+        await this.put({ ...rest, deleted: false, updatedAt: now, dirty: true });
+        back++;
+      } else if (!local || local.deleted) onServer.push(id);
+    }
+    if (onServer.length) {
+      if (batch) back += (await restoreTrashBatch(batch)).restored.length;
+      else for (const id of onServer) back += (await restoreTrash(id)).restored.length;
+    }
+    this.schedule(0);
+    if (onServer.length) await this.sync().catch(() => {});
+    return back;
   }
 
   // ------------------------------------------------------------------ AI memory (#94)
@@ -1574,12 +1685,12 @@ class Vault {
 
   async toggleTask(id: string, line: number): Promise<void> {
     const note = await this.withText(id);
-    if (note) await this.update(id, { content: toggleTask(note.content, line) });
+    if (note) await this.update(id, { content: changeTask(note.content, line) });
   }
 
   async setTaskStatus(id: string, line: number, status: TaskStatus): Promise<void> {
     const note = await this.withText(id);
-    if (note) await this.update(id, { content: setTaskStatus(note.content, line, status) });
+    if (note) await this.update(id, { content: changeTask(note.content, line, status) });
   }
 
   /**
@@ -1719,20 +1830,21 @@ class Vault {
   }
 
   /** Deletes a folder with every note and subfolder below it */
-  async deleteFolderWithNotes(folder: string): Promise<boolean> {
+  async deleteFolderWithNotes(folder: string): Promise<false | DeletedNotes> {
     if (!folder || isReadOnly()) return false;
     const now = Date.now();
     const trashBatch = newId();
-    for (const note of this.notesBelow(folder)) await this.put({ ...note, deleted: true, updatedAt: now, dirty: true, trashBatch, trashFolder: folder });
+    const below = this.notesBelow(folder);
+    for (const note of below) await this.put({ ...note, deleted: true, updatedAt: now, dirty: true, trashBatch, trashFolder: folder });
     await this.setFolders(this.storedFolders().filter((f) => f !== folder && !f.startsWith(`${folder}/`)));
     await this.forgetFolderIcons(folder);
     this.schedule(0);
     if (!this.standalone) void api('/folders/deleted', { method: 'POST', json: { folder } }).catch(() => {});
-    return true;
+    return { ids: below.map((n) => n.id), batch: trashBatch };
   }
 
   /** Deletes a group folder with every note in it (to the group's trash); owners and editors of the group only */
-  async deleteGroupFolder(groupId: string, folder: string): Promise<boolean> {
+  async deleteGroupFolder(groupId: string, folder: string): Promise<false | DeletedNotes> {
     if (!folder || isReadOnly() || !canWriteInGroup(this.group(groupId)?.role)) return false;
     const now = Date.now();
     const trashBatch = newId();
@@ -1742,7 +1854,7 @@ class Vault {
     });
     for (const note of below) await this.put({ ...note, deleted: true, updatedAt: now, dirty: true, trashBatch, trashFolder: folder });
     this.schedule(0);
-    return true;
+    return { ids: below.map((n) => n.id), batch: trashBatch };
   }
 
   /**
@@ -1872,6 +1984,8 @@ class Vault {
       database: { enabled: false },
       tickets: { enabled: false },
       presentation: { enabled: false },
+      linkPreview: { enabled: false },
+      habits: { enabled: false },
       callouts: { enabled: true },
       calendarView: { enabled: true },
       activity: { enabled: true },

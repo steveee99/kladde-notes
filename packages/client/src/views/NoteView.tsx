@@ -47,6 +47,7 @@ import {
   Share2,
   SlidersHorizontal,
   Star,
+  Search,
   Tags,
   Trash2,
   Undo2,
@@ -107,6 +108,10 @@ import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
 import { Editor, insertAtLineStart, insertText, toggleCode, toggleWrap, wrapSelection } from '../editor/Editor';
 import { attachmentMarkdown, editorHost } from '../editor/host';
+import { openFind } from '../editor/find';
+import { MoveNoteSheet } from './MoveNoteSheet';
+import { useRelatedNotes } from '../lib/semantic';
+import { toastDeleted } from '../lib/undoDelete';
 import { useOutline, type Outline } from '../editor/outline';
 import { OutlinePanel } from './OutlinePanel';
 import { NoteTasksPanel, useNoteTasks } from './NoteTasksPanel';
@@ -120,7 +125,6 @@ import { MemoryPanel } from './MemoryPanel';
 import { MilestoneTickets, TicketBacklinks, TicketPanel } from './TicketPanel';
 import { milestoneOfNote, ticketOfNote, ticketsDocumentedIn, type TicketInfo } from '../data/tickets';
 import { Graph, GraphLegend } from './Graph';
-import { Sheet } from './Dialogs';
 import { Avatar } from './Avatar';
 import { MoveToGroupSheet, groupPath, groupRoleLabel } from './Groups';
 import { PresenceBar, useAnnouncePresence } from './PresenceBar';
@@ -128,7 +132,6 @@ import { folderDisplayName, t, useLang, type I18nKey, type Lang } from '../lib/i
 import { printNote, usePrintable } from '../lib/printing';
 import { setLocalGraphDepth, setSourceMode, useLocalGraphDepth, useSourceMode, type NoteSplitTab } from '../lib/prefs';
 import { activePane, usePane, usePanePanel } from '../lib/panes';
-import { isCoarsePointer } from '../lib/viewport';
 import { useModal } from '../lib/modal';
 import { useRightPaneHost } from './WerkbankShell';
 import { IconPickerDialog } from './IconPicker';
@@ -179,6 +182,7 @@ function Toolbar({ view, lang }: { view: EditorView | null; lang: Lang }) {
       {btn(Code, `${t('note.toolbarCode')} (${mod}+Shift+M)`, () => toggleCode(view))}
       {btn(ImageIcon, t('note.toolbarUpload'), () => file.current?.click())}
       {btn(Images, t('note.toolbarAttachment'), () => editorHost.pickAttachment((f) => insertText(view, `\n${attachmentMarkdown(f)}\n`)))}
+      {btn(Search, t('note.toolbarFind'), () => openFind(view))}
       {btn(Undo2, t('note.toolbarUndo'), () => undo(view))}
       <input
         ref={file}
@@ -400,6 +404,7 @@ function NoteOverflowMenu({
   align,
   onAlign,
   onPresent,
+  onFind,
 }: {
   title: string;
   content: string;
@@ -447,6 +452,8 @@ function NoteOverflowMenu({
   variables: VariableScope;
   /** Presentation mode (#87) is on: "Start presentation" and the slide PDF among the exports */
   onPresent?: () => void;
+  /** Find and replace in the note (#129); only while an editor shows the note */
+  onFind?: () => void;
 }) {
   useLang();
   usePrintable(content);
@@ -571,6 +578,17 @@ function NoteOverflowMenu({
                 onCopy();
               }}
             />
+            {onFind && (
+              <MenuItem
+                icon={Search}
+                label={t('note.findMenu')}
+                onClick={() => {
+                  setOpen(false);
+                  // After the menu closed and gave the focus back
+                  setTimeout(onFind, 30);
+                }}
+              />
+            )}
             {favorite !== null && (
               <MenuItem
                 icon={Star}
@@ -898,60 +916,31 @@ function NoteOverflowMenu({
   );
 }
 
-/** Material 3 modal sheet for picking a destination folder when moving a note */
-function MoveNoteSheet({
-  noteTitle,
-  currentFolder,
-  folders = vault.folders(),
-  onMove,
-  onClose,
-}: {
-  noteTitle: string;
-  currentFolder: string;
-  /** Folders to choose from: the own ones, or those of the note's group (#58) */
-  folders?: string[];
-  onMove: (folder: string) => void;
-  onClose: () => void;
-}) {
-  const lang = useLang();
-  const [filter, setFilter] = useState('');
-  const allFolders = ['', ...folders];
-  const q = filter.trim().toLowerCase();
-  const visible = q
-    ? allFolders.filter((f) => (f ? folderDisplayName(f, lang) : t('common.topLevelPlain')).toLowerCase().includes(q) || f.toLowerCase().includes(q))
-    : allFolders;
-
+/** Notes about the same topics (#84), by the semantic search: shown in the side panel's links tab */
+function RelatedNotes({ noteId, item }: { noteId: string; item: string }) {
+  const version = useVault();
+  const related = useRelatedNotes(noteId, version);
+  const rc = vault.roleConfig();
   return (
-    <Sheet title={t('note.moveTitle')} onClose={onClose}>
-      <p className="mb-3 text-sm text-on-surface-variant">{t('note.moveDesc', { name: noteTitle })}</p>
-      {allFolders.length > 7 && (
-        <input
-          className="input mb-3"
-          placeholder={t('common.filter')}
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          autoFocus={!isCoarsePointer()}
-        />
-      )}
-      <ul className="max-h-72 space-y-1 overflow-y-auto scrollbar-thin">
-        {visible.map((f) => {
-          const active = f === currentFolder;
-          return (
-            <li key={f || '__root__'}>
-              <button
-                type="button"
-                onClick={() => onMove(f)}
-                className={`flex w-full items-center gap-3 rounded-full px-3.5 py-2.5 text-left text-sm transition-colors ${active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface hover:bg-surface-container-high'}`}
-              >
-                <Folder size={16} className={active ? 'shrink-0' : 'shrink-0 text-primary'} />
-                <span className="min-w-0 flex-1 truncate">{f ? folderDisplayName(f, lang) : t('common.topLevelPlain')}</span>
-                {active && <Check size={16} className="shrink-0" />}
+    <section data-related-notes="">
+      <h3 className="mb-2 px-2 text-title-s text-on-surface-variant">{t('note.relatedTitle')}</h3>
+      {related === null ? (
+        <p className="px-2 text-body-m text-muted">{t('note.relatedLoading')}</p>
+      ) : related.length === 0 ? (
+        <p className="px-2 text-body-m text-on-surface-variant">{t('note.relatedEmpty')}</p>
+      ) : (
+        <ul className="space-y-1">
+          {related.map((r) => (
+            <li key={r.id}>
+              <button className={item} onClick={() => navigate(`/n/${r.id}`)}>
+                <div className="truncate text-body-l text-on-surface">{projectTitleOf(r.path, r.content, rc)}</div>
+                {excerpt(r.content, 85) && <div className="mt-0.5 line-clamp-2 text-body-m text-on-surface-variant">{resolveVariables(excerpt(r.content, 85), variablesOfNote(r))}</div>}
               </button>
             </li>
-          );
-        })}
-      </ul>
-    </Sheet>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -1097,6 +1086,10 @@ function NoteInspectorPane({
                 </ul>
               )}
             </section>
+
+            <hr className="border-0 border-t border-outline-variant" />
+
+            <RelatedNotes noteId={noteId} item={item} />
           </div>
         )}
 
@@ -1552,7 +1545,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
 
   const handleDelete = () => {
     if (confirm(t('note.deleteConfirm', { name: displayName }))) {
-      void vault.remove(id);
+      void vault.remove(id).then(() => toastDeleted([id], t('undo.noteDeleted', { name: displayName })));
       navigate(noteGroup ? groupPath(noteGroup.id, folder) : !isOwner ? '/shared' : folder ? `/f/${encodeURIComponent(folder)}` : '/notes', true);
     }
   };
@@ -1709,6 +1702,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 align={align}
                 onAlign={!readOnly && view && !showPdf && !remote ? (value) => applyFrontmatter(view, { align: value === 'left' ? null : value }) : undefined}
                 onPresent={features.presentation.enabled && !showPdf && !remote ? () => setPresenting(true) : undefined}
+                onFind={view && !showPdf ? () => openFind(view) : undefined}
               />
             </div>
           </div>

@@ -28,6 +28,8 @@ import {
   Mood,
   Psychology,
   Slideshow,
+  Link2,
+  Flame,
   Callout,
   Smartphone,
   Star,
@@ -107,7 +109,7 @@ function useFeatures(lang: Lang): Feature[] {
   const server = !vault.standalone;
   const serverHint = L('features.serverHint');
 
-  const flag = (key: 'comments' | 'mentions' | 'activity' | 'calendarView' | 'heatmap' | 'review' | 'favorites' | 'icons' | 'writingStats' | 'database' | 'tickets' | 'presentation' | 'callouts' | 'mcp' | 'notifications' | 'calendar' | 'shortcuts') => ({
+  const flag = (key: 'comments' | 'mentions' | 'activity' | 'calendarView' | 'heatmap' | 'review' | 'favorites' | 'icons' | 'writingStats' | 'database' | 'tickets' | 'presentation' | 'linkPreview' | 'habits' | 'callouts' | 'mcp' | 'notifications' | 'calendar' | 'shortcuts') => ({
     active: features[key].enabled,
     setActive: (on: boolean) => save((f) => ({ ...f, [key]: { ...f[key], enabled: on } })),
   });
@@ -318,6 +320,22 @@ function useFeatures(lang: Lang): Feature[] {
       summary: L('features.sum.presentation'),
       details: L('features.presentationDesc'),
       ...flag('presentation'),
+    },
+    {
+      id: 'linkPreview',
+      Icon: Link2,
+      title: L('features.linkPreviewTitle'),
+      summary: L('features.sum.linkPreview'),
+      details: L('features.linkPreviewDesc'),
+      ...flag('linkPreview'),
+    },
+    {
+      id: 'habits',
+      Icon: Flame,
+      title: L('features.habitsTitle'),
+      summary: L('features.sum.habits'),
+      details: L('features.habitsDesc'),
+      ...flag('habits'),
     },
     {
       id: 'callouts',

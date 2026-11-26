@@ -4,7 +4,8 @@ import { isHiddenPath, isExcalidrawNote, pdfNoteOf, remoteNoteOf, projectTitleOf
 import { useVault, vault } from '../data/vault';
 import { api } from '../lib/api';
 import type { LocalNote } from '../data/db';
-import { CheckSquare, Draw, FileText, FileType2, Psychology, RemoteDoc, Search as SearchIcon, Users, X } from '../lib/icons';
+import { CheckSquare, Draw, FileText, FileType2, Psychology, RemoteDoc, SavedSearch, Search as SearchIcon, Users, X } from '../lib/icons';
+import { isReadOnly } from '../lib/readOnly';
 import { openInSide, splitAvailable } from '../lib/panes';
 import { formatDue } from '../editor/widgets';
 import { collectTasks, type TaskRow } from './TaskParts';
@@ -14,6 +15,7 @@ import { navigate } from '../lib/router';
 import { useVisualViewport } from '../lib/viewport';
 import { AttachmentHitList, useAttachmentSearch } from './AttachmentHits';
 import { ItemIcon } from './IconPicker';
+import { useSimilarNotes } from '../lib/semantic';
 
 /*
  * Search and command palette as an overlay (Ctrl/⌘+K, the search field in the top bar, the search button on
@@ -24,23 +26,25 @@ import { ItemIcon } from './IconPicker';
 
 const OPEN_EVENT = 'kladde:open-search';
 
-/** Opens the search overlay (or puts the focus back into its field when it is open already) */
-export function openSearch(): void {
-  window.dispatchEvent(new CustomEvent(OPEN_EVENT));
+/** Opens the search overlay (or puts the focus back into its field when it is open already); `query` fills the field */
+export function openSearch(query?: string): void {
+  window.dispatchEvent(new CustomEvent<{ query?: string }>(OPEN_EVENT, { detail: { query } }));
 }
 
 /** Mounted once in the shell: shows the overlay on `openSearch()` */
 export function SearchDialogHost({ commands }: { commands?: () => Command[] } = {}) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<{ query: string; n: number } | null>(null);
   useEffect(() => {
-    const onOpen = () => {
-      setOpen(true);
+    const onOpen = (e: Event) => {
+      const query = (e as CustomEvent<{ query?: string } | null>).detail?.query;
+      // A saved search (#78) opens with its query, also when the overlay is open already
+      setOpen((cur) => (query !== undefined ? { query, n: (cur?.n ?? 0) + 1 } : cur ?? { query: '', n: 0 }));
       requestAnimationFrame(() => document.querySelector<HTMLInputElement>('[data-search-dialog-input]')?.select());
     };
     window.addEventListener(OPEN_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_EVENT, onOpen);
   }, []);
-  return open ? <SearchDialog onClose={() => setOpen(false)} commands={commands} /> : null;
+  return open ? <SearchDialog key={open.n} initialQuery={open.query} onClose={() => setOpen(null)} commands={commands} /> : null;
 }
 
 const MEMORY_PREF = 'kladde_search_memory';
@@ -86,16 +90,17 @@ type Item =
 const MAX_TASKS = 5;
 const MAX_COMMANDS = 6;
 
-function SearchDialog({ onClose, commands }: { onClose: () => void; commands?: () => Command[] }) {
+function SearchDialog({ onClose, commands, initialQuery = '' }: { onClose: () => void; commands?: () => Command[]; initialQuery?: string }) {
   const version = useVault();
   const lang = useLang();
   const vp = useVisualViewport();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const returnFocus = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null);
   const commandMode = query.trimStart().startsWith('>');
+  const saved = vault.savedSearches().some((x) => x.kind === 'notes' && x.q === query.trim());
   const text = commandMode ? query.trimStart().slice(1) : query;
   const terms = useMemo(() => searchTerms(text), [text]);
   const attachmentHits = useAttachmentSearch(commandMode ? '' : query);
@@ -159,6 +164,10 @@ function SearchDialog({ onClose, commands }: { onClose: () => void; commands?: (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [terms, version, withMemory, memoryOn, commandMode, remoteHits]);
 
+  // Conceptual matches below the exact ones (#84)
+  const exact = useMemo(() => new Set(notes.map((n) => n.id)), [notes]);
+  const similar = useSimilarNotes(text, exact, { enabled: !commandMode && terms.length > 0, withMemory, version });
+
   const tasks = useMemo(() => {
     if (commandMode || !terms.length) return [];
     return collectTasks(version)
@@ -173,6 +182,7 @@ function SearchDialog({ onClose, commands }: { onClose: () => void; commands?: (
 
   const sections: { key: string; label: string; items: Item[] }[] = [
     { key: 'notes', label: terms.length ? t('palette.notes') : t('search.recent'), items: notes.map((note) => ({ kind: 'note' as const, note })) },
+    { key: 'similar', label: t('palette.similar'), items: similar.map((note) => ({ kind: 'note' as const, note })) },
     { key: 'tasks', label: t('palette.tasks'), items: tasks.map((task) => ({ kind: 'task' as const, task })) },
     { key: 'commands', label: t('palette.commands'), items: matchedCommands.map((command) => ({ kind: 'command' as const, command })) },
   ].filter((sec) => sec.items.length);
@@ -293,6 +303,24 @@ function SearchDialog({ onClose, commands }: { onClose: () => void; commands?: (
           {!commandMode && (
             <div className="flex items-center gap-2 px-3 pb-1 pt-1.5">
               <p className="min-w-0 flex-1 text-label-m text-muted">{terms.length ? t('search.resultsCount', { n: notes.length }) : ''}</p>
+              {terms.length > 0 && !isReadOnly() && (
+                <button
+                  type="button"
+                  className="chip shrink-0"
+                  data-save-search
+                  aria-pressed={saved}
+                  disabled={saved}
+                  title={t('saved.saveTitle')}
+                  onClick={() => {
+                    const name = prompt(t('saved.namePrompt'), query.trim());
+                    if (name === null) return;
+                    void vault.saveSearch({ name: name || query.trim(), q: query.trim(), kind: 'notes' }).catch((err: Error) => alert(err.message));
+                    inputRef.current?.focus();
+                  }}
+                >
+                  <SavedSearch size={14} /> {saved ? t('saved.saved') : t('saved.save')}
+                </button>
+              )}
               {memoryOn && (
                 <button type="button" className="chip shrink-0" aria-pressed={withMemory} onClick={toggleMemory} data-search-memory>
                   <Psychology size={14} /> {t('memory.searchToggle')}

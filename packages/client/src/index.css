@@ -638,6 +638,16 @@ progress {
   .chip[aria-checked='true'] {
     @apply border-acc-line bg-acc-bg text-acc-hi;
   }
+  /* Find and replace in a note (editor/find.tsx, #129) */
+  .find-bar {
+    @apply border-b border-line bg-panel px-2 py-1.5;
+  }
+  .find-toggle {
+    @apply inline-flex h-8 min-w-8 items-center justify-center rounded-md px-1.5 font-mono text-caption text-muted state-layer;
+  }
+  .find-toggle[aria-pressed='true'] {
+    @apply bg-acc-bg text-acc-hi;
+  }
   /* Segmented button (wrap the buttons in .segmented, mark the chosen one with aria-pressed) */
   .segmented {
     @apply inline-flex h-9 overflow-hidden rounded-md border border-line2 nav:h-8;
@@ -2752,6 +2762,36 @@ span.cm-checkbox {
 [data-theme='werkbank'] .cm-due[data-kind='time'] {
   --due-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath d='M504.92-489.31v-177.54q0-9.9-6.4-16.29-6.39-6.4-16.3-6.4t-16.3 6.4q-6.38 6.39-6.38 16.29v184.54q0 5.83 2 10.73 2 4.89 6 9.5l145.54 149.39q6.69 7.3 16.92 7.19 10.23-.12 17.31-7.19 7.07-7.08 7.07-16.81 0-9.73-7.07-16.42L504.92-489.31ZM480.07-100q-78.22 0-147.4-29.92t-120.99-81.71q-51.81-51.79-81.75-120.94Q100-401.71 100-479.93q0-78.22 29.92-147.4t81.71-120.99q51.79-51.81 120.94-81.75Q401.71-860 479.93-860q78.22 0 147.4 29.92t120.99 81.71q51.81 51.79 81.75 120.94Q860-558.29 860-480.07q0 78.22-29.92 147.4t-81.71 120.99q-51.79 51.81-120.94 81.75Q558.29-100 480.07-100ZM480-480Zm0 334.61q138.08 0 236.35-98.26 98.26-98.27 98.26-236.35 0-138.08-98.26-236.35-98.27-98.26-236.35-98.26-138.08 0-236.35 98.26-98.26 98.27-98.26 236.35 0 138.08 98.26 236.35 98.27 98.26 236.35 98.26Z'/%3E%3C/svg%3E");
 }
+/* Task links (#75): id in mono without a symbol, "waits for" with a block symbol, subtask progress with a checklist */
+[data-theme='werkbank'] .cm-due[data-kind='id'] {
+  padding-left: 6px;
+  font-family: var(--font-mono, 'JetBrains Mono Variable', monospace);
+  background: rgb(var(--raised));
+  color: rgb(var(--muted));
+}
+[data-theme='werkbank'] .cm-due[data-kind='id']::before {
+  content: '#';
+  width: auto;
+  height: auto;
+  background: none;
+  -webkit-mask: none;
+  mask: none;
+}
+[data-theme='werkbank'] .cm-due[data-kind='after'] {
+  background: rgb(var(--raised));
+  color: rgb(var(--soft));
+  --due-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath d='M331.86-129.92q-69.37-29.92-120.68-81.21-51.31-51.29-81.25-120.63Q100-401.1 100-479.93q0-78.84 29.92-148.21t81.21-120.68q51.29-51.31 120.63-81.25Q401.1-860 479.93-860q78.84 0 148.21 29.92t120.68 81.21q51.31 51.29 81.25 120.63Q860-558.9 860-480.07q0 78.84-29.92 148.21t-81.21 120.68q-51.29 51.31-120.63 81.25Q558.9-100 480.07-100q-78.84 0-148.21-29.92ZM480-145.39q61.77 0 118.46-21.26 56.69-21.27 102.08-61.81L228.46-700.54q-39.54 46.39-61.31 102.75-21.76 56.37-21.76 117.79 0 140.07 97.27 237.34 97.27 97.27 237.34 97.27Zm250.92-114.07q38.93-45.39 61.31-102.08 22.38-56.69 22.38-118.46 0-140.07-97.27-237.34-97.27-97.27-237.34-97.27-61.55 0-118.24 21.57-56.68 21.58-102.3 62.12l471.46 471.46ZM480-480Z'/%3E%3C/svg%3E");
+}
+[data-theme='werkbank'] .cm-due[data-kind='progress'] {
+  margin-left: 0.4em;
+  background: rgb(var(--raised));
+  color: rgb(var(--soft));
+  --due-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath d='M227.39-296.31 388.08-457q6.69-6.31 16-6.19 9.3.11 16.39 6.81 6.3 6.69 6.3 15.99 0 9.31-6.69 16L248-252.31q-8.61 8.62-20.23 8.62-11.62 0-20.23-8.62l-91.92-91.92q-6.7-6.69-6.5-15.81.19-9.11 6.88-15.81 6.69-6.69 15.81-6.38 9.11.31 15.81 6.38l79.77 79.54Zm0-304.61 160.69-160.69q6.69-6.31 16-6.2 9.3.12 16.39 6.81 6.3 6.69 6.3 16 0 9.31-6.69 16L248-556.92q-8.61 8.61-20.23 8.61-11.62 0-20.23-8.61l-91.92-91.93q-6.7-6.69-6.5-15.8.19-9.12 6.88-15.81 6.69-6.69 15.81-6.38 9.11.3 15.81 6.38l79.77 79.54ZM543.08-305q-9.68 0-16.19-6.56-6.51-6.56-6.51-16.31t6.51-16.13q6.51-6.38 16.19-6.38h294.61q9.67 0 16.18 6.56t6.51 16.3q0 9.75-6.51 16.13-6.51 6.39-16.18 6.39H543.08Zm0-304.62q-9.68 0-16.19-6.56-6.51-6.56-6.51-16.3 0-9.75 6.51-16.13 6.51-6.39 16.19-6.39h294.61q9.67 0 16.18 6.56t6.51 16.31q0 9.75-6.51 16.13-6.51 6.38-16.18 6.38H543.08Z'/%3E%3C/svg%3E");
+}
+[data-theme='werkbank'] .cm-due.done {
+  background: rgb(var(--green-bg));
+  color: rgb(var(--green));
+}
 [data-theme='werkbank'] .cm-due.today {
   background: rgb(var(--amber-bg));
   color: rgb(var(--amber-hi));
@@ -3704,4 +3744,59 @@ span.cm-checkbox {
   .gl-refresh.gl-spin {
     animation: none;
   }
+}
+
+/* Find and replace (#129): CodeMirror's panel holder and the match marks */
+.cm-editor .cm-panels {
+  background: transparent;
+  color: inherit;
+  z-index: 15;
+}
+.cm-editor .cm-panels-top {
+  border-bottom: 0;
+}
+.cm-editor .cm-searchMatch {
+  background: rgb(var(--amber-bg));
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgb(var(--amber) / 0.45);
+}
+.cm-editor .cm-searchMatch-selected {
+  background: rgb(var(--amber) / 0.55);
+  color: rgb(var(--strong));
+}
+
+/* Link preview (#130, editor/linkPreview.ts): a floating card, so it has the one shadow floating layers get */
+.link-preview {
+  position: fixed;
+  z-index: 85;
+  width: min(22rem, calc(100vw - 16px));
+  max-height: 16rem;
+  overflow: hidden;
+  cursor: pointer;
+  padding: 10px 12px;
+  background: rgb(var(--raised));
+  border-color: rgb(var(--line2));
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.28);
+}
+.link-preview-title {
+  font-family: 'Newsreader Variable', Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: rgb(var(--strong));
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.link-preview-text {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: rgb(var(--body));
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.link-preview-hint {
+  margin-top: 6px;
+  font-size: 0.6875rem;
+  color: rgb(var(--muted));
 }

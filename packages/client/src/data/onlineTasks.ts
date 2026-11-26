@@ -71,7 +71,7 @@ export const onlineTasks = new OnlineTaskStore();
 
 /** A task from the server's tuple; `defaultDue` as `parseTasks` applies it (a daily note's date) */
 export function taskOfTuple(tuple: OnlineTaskTuple, defaultDue: string | null): Task {
-  const [line, status, text, due = null, repeat = null, time = null, doneDate = null, indent = '- '] = tuple;
+  const [line, status, text, due = null, repeat = null, time = null, doneDate = null, indent = '- ', id = null, after = null] = tuple;
   return {
     line,
     text,
@@ -83,5 +83,7 @@ export function taskOfTuple(tuple: OnlineTaskTuple, defaultDue: string | null): 
     time,
     indent,
     ...(!due && defaultDue ? { dueFromNote: true } : {}),
+    ...(id ? { id } : {}),
+    ...(after ? { after: after.split(',') } : {}),
   };
 }

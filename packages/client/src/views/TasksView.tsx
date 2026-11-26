@@ -3,8 +3,11 @@
  * list grouped by bucket or as a Kanban board. Filters (status, folder, done) and the sort order are
  * remembered per device.
  */
-import { useMemo, useState } from 'react';
-import { AlignJustify, AtSign, Kanban, List, ListChecks } from '../lib/icons';
+import { useEffect, useMemo, useState } from 'react';
+import { AlignJustify, AtSign, Ban, Kanban, List, ListChecks, SavedSearch } from '../lib/icons';
+import { TASK_PREFS_KEY, TASK_VIEW_EVENT } from '../lib/savedSearch';
+import { isReadOnly } from '../lib/readOnly';
+import { showToast } from '../lib/toast';
 import { mentionsUser, toDateString, type TaskStatus } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { TaskBuckets, TaskKanban, TaskQuickAdd, collectTasks, type TaskRow } from './TaskParts';
@@ -26,10 +29,12 @@ interface TaskPagePrefs {
   showDone: boolean;
   /** Only tasks that mention the user (`@username`, #69) */
   mine: boolean;
+  /** Only the next steps: no task that waits for another one (#75) */
+  actionable: boolean;
 }
 
-const PREFS_KEY = 'kladde.tasksPage';
-const DEFAULTS: TaskPagePrefs = { layout: 'list', compact: false, status: 'all', folder: '*', sort: 'due', showDone: false, mine: false };
+const PREFS_KEY = TASK_PREFS_KEY;
+const DEFAULTS: TaskPagePrefs = { layout: 'list', compact: false, status: 'all', folder: '*', sort: 'due', showDone: false, mine: false, actionable: false };
 
 function readPrefs(): TaskPagePrefs {
   try {
@@ -42,6 +47,7 @@ function readPrefs(): TaskPagePrefs {
       sort: raw.sort === 'note' || raw.sort === 'text' ? raw.sort : 'due',
       showDone: raw.showDone === true,
       mine: raw.mine === true,
+      actionable: raw.actionable === true,
     };
   } catch {
     return DEFAULTS;
@@ -74,6 +80,22 @@ export function TasksView() {
       return next;
     });
 
+  // A saved task view (#78) opened from the sidebar while the page is showing
+  useEffect(() => {
+    const onView = () => setPrefsState(readPrefs());
+    window.addEventListener(TASK_VIEW_EVENT, onView);
+    return () => window.removeEventListener(TASK_VIEW_EVENT, onView);
+  }, []);
+  const saveView = () => {
+    const name = prompt(t('saved.namePrompt'), t('saved.taskViewDefault'));
+    if (!name) return;
+    const { layout, compact, status, folder: f, sort, showDone, mine, actionable } = prefs;
+    void vault
+      .saveSearch({ name, q: '', kind: 'tasks', filters: { layout, compact, status, folder: f, sort, showDone, mine, actionable } })
+      .then(() => showToast(t('saved.savedToast', { name }), 'ok'))
+      .catch((err: Error) => alert(err.message));
+  };
+
   const all = collectTasks(version);
   const folders = useMemo(() => [...new Set(all.map((tk) => tk.folder))].sort(compareText), [all]);
   // A remembered folder that no longer has tasks falls back to "all folders"
@@ -87,9 +109,10 @@ export function TasksView() {
     return all
       .filter((tk) => folder === '*' || tk.folder === folder)
       .filter((tk) => !me || mentionsUser(tk.text, me))
+      .filter((tk) => !prefs.actionable || tk.done || !tk.waiting)
       .filter((tk) => (tk.done ? prefs.showDone || (prefs.layout === 'kanban' && !!tk.doneDate && tk.doneDate >= recent) : prefs.status === 'all' || tk.status === prefs.status))
       .sort(compare(prefs.sort));
-  }, [all, folder, prefs.showDone, prefs.status, prefs.sort, prefs.layout, prefs.mine]);
+  }, [all, folder, prefs.showDone, prefs.status, prefs.sort, prefs.layout, prefs.mine, prefs.actionable]);
   const open = filtered.filter((tk) => !tk.done);
   const done = filtered.filter((tk) => tk.done);
   const openTotal = all.filter((tk) => !tk.done).length;
@@ -165,6 +188,16 @@ export function TasksView() {
         {vault.features().mentions.enabled && !vault.standalone && (
           <button type="button" className="chip" aria-pressed={prefs.mine} onClick={() => setPrefs({ mine: !prefs.mine })} data-assigned-to-me>
             <AtSign size={14} /> {t('tasks.assignedToMe')}
+          </button>
+        )}
+        {all.some((tk) => tk.waiting) && (
+          <button type="button" className="chip" aria-pressed={prefs.actionable} onClick={() => setPrefs({ actionable: !prefs.actionable })} data-actionable-only>
+            <Ban size={14} /> {t('tasks.hideWaiting')}
+          </button>
+        )}
+        {!isReadOnly() && (
+          <button type="button" className="chip" onClick={saveView} data-save-task-view title={t('saved.taskViewTitle')}>
+            <SavedSearch size={14} /> {t('saved.saveView')}
           </button>
         )}
         <label className="ml-auto flex items-center gap-2 text-body-m text-muted">

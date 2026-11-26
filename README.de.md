@@ -1,5 +1,11 @@
 # Kladde
 
+[![Version](https://img.shields.io/github/v/tag/steveee99/kladde-notes?label=version&sort=semver)](CHANGELOG.md)
+[![CI](https://github.com/steveee99/kladde-notes/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/steveee99/kladde-notes/actions/workflows/ci.yml)
+[![Node](https://img.shields.io/badge/node-24-339933?logo=node.js&logoColor=white)](Dockerfile)
+[![License: MIT](https://img.shields.io/github/license/steveee99/kladde-notes)](LICENSE)
+[![Demo](https://img.shields.io/badge/demo-GitHub%20Pages-blue)](https://steveee99.github.io/kladde-notes/)
+
 [English](README.md) · **Deutsch**
 
 **Kladde** ist eine selbst gehostete Notiz-App für den Browser: Markdown mit Live-Vorschau, Aufgaben mit Fälligkeit und Wiederholung, Abfragen und Kanban-Boards über die eigenen Notizen – offline nutzbar auf Handy, iPad und Desktop, synchronisiert sobald wieder online. Zugang nur per Einladung, Anmeldung per **Passkey**, optional **mit GitLab** – oder mit Benutzername und Passwort, wo Passkeys nicht gehen (lokales Netz ohne HTTPS).
@@ -38,7 +44,7 @@
 | **Konto-Export** | Einstellungen → Konto exportieren: alle eigenen Notizen, Anhänge, Vorlagen, Einstellungen und Freigaben (auf Wunsch mit Verlauf) als ZIP, im Hintergrund erstellt und in eine andere Kladde importierbar |
 | **Tabellen & Diagramme** | GFM-Tabellen als interaktive Tabellen (sortieren, filtern) und direkt in der Vorschau bearbeitbar: Zelle anklicken (Tab/Enter springt weiter), Spalten einfügen/umbenennen/entfernen, Zeilen hinzufügen/entfernen – in der Markdown-Ansicht bleibt es reiner Text; Mermaid-Diagramme (` ```mermaid `) und Mindmaps (` ```mindmap `) direkt in der Vorschau |
 | **Abfragen & Kanban** | ```` ```query ```` -Blöcke: `TABLE`, `LIST`, `TASKS` sowie **`KANBAN`** (`KANBAN BY status VALUES "offen", "läuft", "fertig"`) mit interaktivem Drag-and-Drop; `GROUP BY` und die Aggregate `COUNT`, `SUM`, `AVG`, `MIN`, `MAX` (`TABLE status, COUNT, SUM(stunden) GROUP BY status`) |
-| **Aufgaben** | `- [ ] Text 📅 2026-11-30 🔁 monatlich` oder handytauglich `due:morgen every:week`; freie Aufgaben auf der Startseite ohne Notiz; eine **Aufgabenseite** (`/tasks`) mit Liste und Kanban, Filtern und einem Aufgaben-Tab im Seitenpanel der Notiz; Schnellmenü für Fälligkeiten (Heute/Morgen/Woche); Doppelklick springt zur Quellnotiz |
+| **Aufgaben** | `- [ ] Text 📅 2026-11-30 🔁 monatlich` oder handytauglich `due:morgen every:week` (auch `due:freitag`, `due:in-3-tagen`, `due:nächste-woche`, `due:ende-monat`); Unteraufgaben mit Fortschritt und Abhängigkeiten (`🆔 id`, `⛔ id`); freie Aufgaben auf der Startseite ohne Notiz; eine **Aufgabenseite** (`/tasks`) mit Liste und Kanban, Filtern und einem Aufgaben-Tab im Seitenpanel der Notiz; Schnellmenü für Fälligkeiten (Heute/Morgen/Woche); Doppelklick springt zur Quellnotiz |
 | **Kalender** | `/calendar` mit Monats-, Wochen- und Agenda-Ansicht der fälligen Aufgaben (mit Erinnerungszeit), Tagesnotizen und Notizen mit `date:`/`deadline:`; eine Aufgabe auf einen anderen Tag ziehen verschiebt sie, ein Klick auf einen Tag öffnet seine Tagesnotiz; Filter nach Status, Ordner und Tag; darunter die Aktivitäts-Heatmap |
 | **PARA** | Ordner Inbox, Projekte, Bereiche, Ressourcen, Archiv. **Inbox als Arbeitsliste** (`/inbox`): jeder Gedanke ist eine eigene Notiz und wird per Klick zu Projekt, Bereich, Ressource, Zettel oder Archiv. **Projekte** mit `status: aktiv/pausiert/fertig`; „Abschließen“ setzt Status + Datum und verschiebt nach `4 Archiv/…`, „Wiederherstellen“ zurück. Ganze Ordner archivieren. Aktive Projekte auf dem Startbildschirm, mit Hinweis „kein nächster Schritt“ |
 | **Tages-, Wochen- & Monatsnotizen** | Eine Tagesnotiz pro Tag (`Strg/⌘+Shift+D`) mit Datumsnavigation und übernommenen Aufgaben; optional Wochen- (`2026-W47`, `Strg/⌘+Alt+W`) und Monatsnotizen (`2026-11`, `Strg/⌘+Alt+M`) mit eigenem Ordner, Namensschema und eigener Vorlage (`{{days}}`, `{{weeks}}` verlinken Tage und Wochen), verknüpft von Tag zu Woche zu Monat |
@@ -128,7 +134,7 @@ PUBLIC_URL=https://notes.example.org docker compose up --build -d
 docker logs kladde   # enthält die erste Einladung
 ```
 
-Die App läuft dann auf Port `13002`. **Passkeys brauchen HTTPS** (außer auf localhost) und sind an die Domain aus `PUBLIC_URL` gebunden – betreibe die App hinter einem Reverse-Proxy (Caddy, nginx, Traefik) und setze `TRUST_PROXY=1`. Ohne HTTPS (z. B. direkt über `http://192.168.1.10:13002` im Heimnetz) meldest du dich mit Benutzername und Passwort an.
+Die App läuft dann auf Port `13002`. **Passkeys brauchen HTTPS** (außer auf localhost) und sind an die Domain aus `PUBLIC_URL` gebunden – betreibe die App hinter einem Reverse-Proxy (Caddy, nginx, Traefik) und setze `TRUST_PROXY=1`. Schritt für Schritt, auch fürs Heimnetz ohne öffentliche Adresse: [`docs/installation/HTTPS.de.md`](docs/installation/HTTPS.de.md). Ohne HTTPS (z. B. direkt über `http://192.168.1.10:13002` im Heimnetz) meldest du dich mit Benutzername und Passwort an.
 
 CLI-Werkzeug (Import/Export, Suche, Anhänge, Sicherung & Verwaltung):
 

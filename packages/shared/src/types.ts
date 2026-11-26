@@ -153,9 +153,10 @@ export interface PushChange {
 
 /**
  * Online mode: one task as a tuple, to keep `GET /api/online/tasks` small with many notes:
- * [line, status, text, due, repeat, time, doneDate, indent]; trailing nulls and the indentation "- " are left out
+ * [line, status, text, due, repeat, time, doneDate, indent, id, after (ids joined by ",")]; trailing nulls and the
+ * indentation "- " are left out. Subtasks follow from line and indentation (`linkTasks`, #75)
  */
-export type OnlineTaskTuple = [number, 'open' | 'doing' | 'blocked' | 'done', string, (string | null)?, (string | null)?, (string | null)?, (string | null)?, string?];
+export type OnlineTaskTuple = [number, 'open' | 'doing' | 'blocked' | 'done', string, (string | null)?, (string | null)?, (string | null)?, (string | null)?, string?, (string | null)?, (string | null)?];
 
 /** Online mode: the tasks of one note, with its frontmatter title (the device knows the path from its catalog) */
 export interface OnlineTaskNote {

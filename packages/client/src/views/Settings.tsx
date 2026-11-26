@@ -19,7 +19,7 @@ import { api, deleteAvatar, setDisplayName, uploadAvatar } from '../lib/api';
 import { useConfluence } from '../lib/confluence';
 import { Lang, locale, setLang, tl, useLang, type I18nKey } from '../lib/i18n';
 import { Dropdown } from './Dropdown';
-import { CODE_COLLAPSE_OPTIONS, EDITOR_FONT_SIZES, NOTE_WIDTHS, setNoteWidth, useNoteWidth, type NoteWidth, setCodeBlockPrefs, setEditorFontSize, setInboxZero, setLigatures, setPinchZoom, useCodeBlockPrefs, useEditorFontSize, useInboxZero, useLigatures, usePinchZoom } from '../lib/prefs';
+import { CODE_COLLAPSE_OPTIONS, setCompleteParents, useCompleteParents, EDITOR_FONT_SIZES, NOTE_WIDTHS, setNoteWidth, useNoteWidth, type NoteWidth, setCodeBlockPrefs, setEditorFontSize, setInboxZero, setLigatures, setPinchZoom, useCodeBlockPrefs, useEditorFontSize, useInboxZero, useLigatures, usePinchZoom } from '../lib/prefs';
 import { setColorSchemeChoice, useColorSchemeChoice } from '../lib/theme';
 import { CODE_THEMES, setCodeTheme, useCodeTheme } from '../lib/codeTheme';
 import { useVault, vault } from '../data/vault';
@@ -244,6 +244,7 @@ export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (m
   const loc = locale(lang);
   const inboxZero = useInboxZero();
   const pinchZoom = usePinchZoom();
+  const completeParents = useCompleteParents();
   const ligatures = useLigatures();
   const codeBlocks = useCodeBlockPrefs();
   const editorFontSize = useEditorFontSize();
@@ -456,6 +457,14 @@ export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (m
               label={tl(lang, 'settings.inboxZeroLabel')}
               checked={inboxZero}
               onChange={setInboxZero}
+            />
+            <SwitchRow
+              id="complete-parents-switch"
+              title={tl(lang, 'settings.completeParentsTitle')}
+              desc={tl(lang, 'settings.completeParentsDesc')}
+              label={tl(lang, 'settings.completeParentsLabel')}
+              checked={completeParents}
+              onChange={setCompleteParents}
             />
           </>
         )}

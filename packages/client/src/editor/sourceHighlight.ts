@@ -1,7 +1,7 @@
 import { EditorState, Extension, Range, Text } from '@codemirror/state';
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
-import { TOC_ANCHOR_RE, toDateString } from '@kladde/shared';
+import { DUE_PATTERN, TOC_ANCHOR_RE, resolveDue, toDateString } from '@kladde/shared';
 import { editorHost } from './host';
 import { refreshEffect } from './livePreview';
 
@@ -346,12 +346,7 @@ function highlightMindmapLine(text: string, lineFrom: number, isRoot: boolean, a
   }
 }
 
-function resolveTaskDue(raw: string, todayStr: string, tomorrowStr: string): string {
-  const word = raw.toLowerCase();
-  if (word === 'heute' || word === 'today') return todayStr;
-  if (word === 'morgen' || word === 'tomorrow') return tomorrowStr;
-  return raw;
-}
+const DUE_ALL = new RegExp(DUE_PATTERN, 'giu');
 
 export function buildSourceDecorations(state: EditorState, visibleRanges: readonly { from: number; to: number }[]): DecorationSet {
   const doc = state.doc;
@@ -608,7 +603,6 @@ export function buildSourceDecorations(state: EditorState, visibleRanges: readon
 
   const now = new Date();
   const todayStr = toDateString(now);
-  const tomorrowStr = toDateString(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
   const fmEndLine = fm?.endLine ?? 0;
 
   for (const [startL, endL] of lineRanges) {
@@ -692,11 +686,11 @@ export function buildSourceDecorations(state: EditorState, visibleRanges: readon
 
       // Task due dates, repeat rules, and completion stamps
       if (/^\s*(?:>\s*)*[-*+]\s+\[[ xXoOhH]\]/.test(ln.text)) {
-        for (const m of ln.text.matchAll(/(?:📅\s*|\bdue:)(\d{4}-\d{2}-\d{2}|heute|morgen|today|tomorrow)/gi)) {
+        for (const m of ln.text.matchAll(DUE_ALL)) {
           const from = ln.from + m.index!;
           const to = from + m[0].length;
           if (overlaps(protectedRanges, from, to)) continue;
-          const dateStr = resolveTaskDue(m[1], todayStr, tomorrowStr);
+          const dateStr = resolveDue(m[1], now);
           const cls = dateStr < todayStr ? 'cm-src-due-overdue' : dateStr === todayStr ? 'cm-src-due-today' : 'cm-src-due';
           addMark(from, to, cls);
         }

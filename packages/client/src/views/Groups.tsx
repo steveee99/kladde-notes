@@ -3,6 +3,7 @@
  * lists and creates groups, the group view browses its folders and notes, the settings sheet manages members,
  * renames and deletes the group, and the move sheet moves own notes or folders into a group.
  */
+import { toastDeleted } from '../lib/undoDelete';
 import { useCallback, useEffect, useState } from 'react';
 import { GROUP_ROLES, ISSUES_FOLDER, canWriteInGroup, findDatabaseNote, isHiddenPath, splitPath, type GroupDetails, type GroupInfo, type GroupRole } from '@kladde/shared';
 import { Activity as ActivityIcon, ArrowLeft, ChevronRight, CornerLeftUp, Folder, FolderInput, FolderPlus, Kanban, Loader2, Plus, Settings, Star, Trash2, Users, Variables } from '../lib/icons';
@@ -171,7 +172,11 @@ export function GroupView({ groupId, folder = '' }: { groupId: string; folder?: 
                   const name = folder.split('/').pop() ?? folder;
                   if (!confirm(n ? t('list.deleteFolderConfirm', { folder: name, n }) : t('list.deleteEmptyFolderConfirm', { folder: name }))) return;
                   const up = folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) : '';
-                  void vault.deleteGroupFolder(groupId, folder).then((ok) => ok && navigate(groupPath(groupId, up), true));
+                  void vault.deleteGroupFolder(groupId, folder).then((done) => {
+                    if (!done) return;
+                    navigate(groupPath(groupId, up), true);
+                    toastDeleted(done.ids, t('undo.folderDeleted', { name }), done.batch);
+                  });
                 },
               },
             ] as (MenuAction | false)[]).filter((x): x is MenuAction => !!x)}

@@ -25,6 +25,8 @@ export type FeatureArtId =
   | 'database'
   | 'tickets'
   | 'presentation'
+  | 'linkPreview'
+  | 'habits'
   | 'callouts'
   | 'memory'
   | 'mcp'
@@ -326,6 +328,46 @@ const ART: Record<FeatureArtId, ReactNode> = {
       <circle cx={72} cy={85} r={1.6} className="fill-primary" />
       <circle cx={80} cy={85} r={1.6} className="fill-outline" />
       <circle cx={88} cy={85} r={1.6} className="fill-outline" />
+    </>
+  ),
+  linkPreview: (
+    <>
+      <Card x={12} y={12} w={70} h={66} />
+      <Bar x={20} y={20} w={40} h={5} className="fill-on-surface" o={0.75} />
+      <Bar x={20} y={32} w={50} />
+      <Bar x={20} y={40} w={22} />
+      <Bar x={45} y={40} w={24} className="fill-primary" o={0.9} />
+      <Bar x={20} y={48} w={46} />
+      <path d="M58 46 l4 9 l2 -3 l4 4 l2 -2 l-4 -4 l3 -2 Z" className="fill-on-surface" />
+      <rect x={76} y={24} width={72} height={54} rx={6} className="fill-surface-container-highest" />
+      <rect x={76} y={24} width={72} height={54} rx={6} className="fill-none stroke-primary" strokeWidth={1.2} />
+      <Bar x={84} y={32} w={44} h={5} className="fill-on-surface" o={0.8} />
+      <Bar x={84} y={44} w={56} />
+      <Bar x={84} y={52} w={50} />
+      <Bar x={84} y={60} w={40} />
+    </>
+  ),
+  habits: (
+    <>
+      <Card x={12} y={10} w={136} h={70} />
+      {[0, 1, 2].map((row) => (
+        <g key={row}>
+          <circle cx={24} cy={24 + row * 19} r={4} className={['fill-primary', 'fill-tertiary', 'fill-ok'][row]} />
+          <Bar x={32} y={22 + row * 19} w={[30, 24, 28][row]} className="fill-on-surface" o={0.6} />
+          {Array.from({ length: 7 }, (_, i) => (
+            <rect
+              key={i}
+              x={76 + i * 9.5}
+              y={19.5 + row * 19}
+              width={7.5}
+              height={9}
+              rx={2}
+              className={(row * 3 + i) % 4 === 3 ? 'fill-surface-container-highest' : ['fill-primary', 'fill-tertiary', 'fill-ok'][row]}
+              fillOpacity={(row * 3 + i) % 4 === 3 ? 1 : 0.85}
+            />
+          ))}
+        </g>
+      ))}
     </>
   ),
   callouts: (

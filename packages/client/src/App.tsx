@@ -47,6 +47,7 @@ const AdminView = lazy(() => import('./views/Admin').then((m) => ({ default: m.A
 const NoteTypesView = lazy(() => import('./views/NoteTypesView').then((m) => ({ default: m.NoteTypesView })));
 const TemplatesView = lazy(() => import('./views/Templates').then((m) => ({ default: m.TemplatesView })));
 const ImportSettingsView = lazy(() => import('./views/ImportSettings').then((m) => ({ default: m.ImportSettingsView })));
+const HabitsView = lazy(() => import('./views/HabitsView').then((m) => ({ default: m.HabitsView })));
 const CalendarSettingsView = lazy(() => import('./views/CalendarSettings').then((m) => ({ default: m.CalendarSettingsView })));
 const NotificationSettingsView = lazy(() => import('./views/NotificationSettings').then((m) => ({ default: m.NotificationSettingsView })));
 const OAuthConsent = lazy(() => import('./views/OAuthConsent').then((m) => ({ default: m.OAuthConsent })));
@@ -78,6 +79,7 @@ Object.assign(editorHost, {
   },
   wikiExists: (title: string) => !!vault.findByTitle(title),
   openNote: (id: string) => openNoteLink(id),
+  linkPreview: () => vault.features().linkPreview.enabled,
   // Only through the link index (title, frontmatter id, Zettel id); the vault only holds notes this reader may see
   resolveEmbed: (target: string) => {
     const links = vault.links();
@@ -240,6 +242,7 @@ export function App() {
   else if (weekDate) page = <PeriodicEmptyView key={`w${weekDate.date}`} kind="week" date={weekDate.date} />;
   else if (monthDate) page = <PeriodicEmptyView key={`m${monthDate.date}`} kind="month" date={monthDate.date} />;
   else if (path === '/calendar') page = <CalendarView />;
+  else if (path === '/habits') page = <HabitsView />;
   else if (path === '/notifications' && !me.standalone) page = <NotificationsView />;
   else if (path === '/activity' && !me.standalone) {
     const q = new URLSearchParams(location.search);

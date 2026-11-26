@@ -4,13 +4,20 @@
  *   - [ ] Steuer machen 📅 2026-11-30 🔁 monatlich
  *   - [ ] Müll rausbringen due:morgen every:week
  *
- * Due date: "📅 YYYY-MM-DD" or "due:YYYY-MM-DD" (also due:heute / due:morgen, turned into a date on save).
+ * Due date: "📅 YYYY-MM-DD" or "due:YYYY-MM-DD", or a relative word turned into a date on save (`DUE_WORDS`):
+ * due:heute/today, morgen/tomorrow, übermorgen, a weekday (freitag/friday/fri: the next one after today),
+ * in-3-tagen/in-2-weeks/in-1-monat, nächste-woche/next-week (Monday), nächster-monat/next-month (the 1st),
+ * ende-woche/end-of-week (Sunday), ende-monat/end-of-month (the last day).
  * Reminder time: "⏰ 09:00" or "remind:9:00" (on the due day; Web Push reminders, calendar feed).
  * Repeat: "🔁 <rule>" or "every:<rule>" with day|week|month|year, täglich|wöchentlich|monatlich|jährlich,
  * or "2 weeks", "3 tage", or weekdays like "mo,do".
  * Completing a repeating task ticks it and inserts the next open one with the following due date above.
  *
  * Status lives in the checkbox: [ ] open, [O] in progress, [H] blocked (on hold), [x] done.
+ *
+ * Subtasks and dependencies (#75): tasks indented below a task are its subtasks (the parent shows "2 / 5").
+ * A task gets an id with "🆔 id" or a block id "^id" at its end; "⛔ id" or "after:^id" (several: "⛔ a,b")
+ * makes it wait until those tasks are done (`waiting`), also across notes on the task page (`withDependencies`).
  */
 
 import { NoteMemo, type MemoNote } from './noteMemo.js';
@@ -43,14 +50,41 @@ export interface Task {
   indent: string;
   /** The due date is not written in the task but comes from its note (a daily note's date) */
   dueFromNote?: boolean;
+  /** Its id for dependencies: "🆔 id" or a block id "^id" at the end (#75) */
+  id?: string;
+  /** Ids of the tasks it waits for: "⛔ id,id2" or "after:^id" (#75) */
+  after?: string[];
+  /** Line of the task it is indented below (#75) */
+  parent?: number;
+  /** Its direct subtasks: how many, and how many of them are done (#75) */
+  subtasks?: { done: number; total: number };
+  /** A task it waits for is not done yet (#75) */
+  waiting?: boolean;
 }
 
 /** Matches a task line; group 2 is the status character */
 // The text group starts with a non-space (or is empty), so the whitespace before it can only match one way
 // (an overlapping `\s+(.*)` backtracks quadratically on long runs of spaces)
 export const TASK_LINE = /^(\s*[-*+]\s+)\[([ xXoOhH])\]\s+(\S.*|)$/;
-const DUE = /(?:📅\s*|\bdue:)(\d{4}-\d{2}-\d{2}|heute|morgen|today|tomorrow)/i;
+/** Relative due words (alternation, longest first); `resolveDue` turns each into a date */
+export const DUE_WORDS =
+  'übermorgen|uebermorgen|day-after-tomorrow|heute|today|morgen|tomorrow' +
+  '|in-\\d{1,3}-(?:tagen|tage|tag|days|day|wochen|woche|weeks|week|monaten|monate|monat|months|month|jahren|jahre|jahr|years|year)' +
+  '|nächste-woche|naechste-woche|next-week|nächsten-monat|nächster-monat|naechster-monat|naechsten-monat|next-month' +
+  '|ende-woche|ende-der-woche|end-of-week|ende-monat|ende-des-monats|end-of-month' +
+  '|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|monday|tuesday|wednesday|thursday|friday|saturday|sunday' +
+  '|mon|tue|wed|thu|fri|sat|sun';
+const DUE_VALUE = `\\d{4}-\\d{2}-\\d{2}|(?:${DUE_WORDS})(?![\\p{L}\\d-])`;
+/** A due date in a task line; group 1 is the date or the relative word */
+export const DUE_PATTERN = `(?:📅\\s*|\\bdue:)(${DUE_VALUE})`;
+const DUE = new RegExp(DUE_PATTERN, 'iu');
+const DUE_WORD_ONLY = new RegExp(`^(?:${DUE_WORDS})$`, 'iu');
 const REPEAT = /(?:🔁\s*|\bevery:)((?:\d+\s*)?[\p{L},]+)/iu;
+/** "⛔ a,b" or "after:^a" (several separated by commas) */
+const AFTER = /(?:⛔\s*|\bafter:)(\^?[\w-]+(?:,\^?[\w-]+)*)/u;
+/** "🆔 id" anywhere, or a block id "^id" at the end of the line */
+const TASK_ID = /🆔\s*([\w-]+)/u;
+const BLOCK_ID = /(?:^|\s)\^([\w-]+)$/u;
 // Starts at the ✅ (a leading `\s*` would rescan every run of spaces from each position)
 const DONE_DATE = /✅\s*(\d{4}-\d{2}-\d{2})/;
 
@@ -78,11 +112,46 @@ export function parseDate(s: string): Date {
   return new Date(y, m - 1, d);
 }
 
-function resolveDue(raw: string, today: Date): string {
+const DUE_WEEKDAYS: Record<string, number> = {
+  sonntag: 0, sunday: 0, sun: 0,
+  montag: 1, monday: 1, mon: 1,
+  dienstag: 2, tuesday: 2, tue: 2,
+  mittwoch: 3, wednesday: 3, wed: 3,
+  donnerstag: 4, thursday: 4, thu: 4,
+  freitag: 5, friday: 5, fri: 5,
+  samstag: 6, saturday: 6, sat: 6,
+};
+
+/**
+ * The date of a due value: a date stays as it is, a relative word (`DUE_WORDS`) is counted from `today`.
+ * A weekday is the next such day after today (on a Friday, "freitag" is a week later).
+ */
+export function resolveDue(raw: string, today: Date = new Date()): string {
   const word = raw.toLowerCase();
+  if (!DUE_WORD_ONLY.test(word)) return raw;
   if (word === 'heute' || word === 'today') return toDateString(today);
   if (word === 'morgen' || word === 'tomorrow') return toDateString(addDays(today, 1));
-  return raw;
+  if (word === 'übermorgen' || word === 'uebermorgen' || word === 'day-after-tomorrow') return toDateString(addDays(today, 2));
+  const wd = DUE_WEEKDAYS[word];
+  if (wd !== undefined) return toDateString(addDays(today, ((wd - today.getDay() + 6) % 7) + 1));
+  const rel = /^in-(\d+)-(\p{L}+)$/u.exec(word);
+  if (rel) {
+    const n = Number(rel[1]);
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const unit = rel[2];
+    if (unit.startsWith('tag') || unit.startsWith('day')) d.setDate(d.getDate() + n);
+    else if (unit.startsWith('woche') || unit.startsWith('week')) d.setDate(d.getDate() + 7 * n);
+    else if (unit.startsWith('monat') || unit.startsWith('month')) addMonths(d, n);
+    else addMonths(d, 12 * n);
+    return toDateString(d);
+  }
+  if (/woche|week/.test(word)) {
+    // Monday is 1 … Sunday 7
+    const iso = today.getDay() || 7;
+    return toDateString(addDays(today, word.startsWith('ende') || word.startsWith('end') ? 7 - iso : 8 - iso));
+  }
+  if (word.startsWith('ende') || word.startsWith('end')) return toDateString(new Date(today.getFullYear(), today.getMonth() + 1, 0));
+  return toDateString(new Date(today.getFullYear(), today.getMonth() + 1, 1));
 }
 
 function addDays(d: Date, n: number): Date {
@@ -103,7 +172,19 @@ export function parseTasks(content: string, today = new Date(), defaultDue: stri
     if (inFence) return;
     const m = TASK_LINE.exec(raw);
     if (!m) return;
-    const rest = m[3];
+    let rest = m[3];
+    const after = AFTER.exec(rest);
+    if (after) rest = rest.slice(0, after.index) + rest.slice(after.index + after[0].length);
+    // The block id stays the last word when finishing appends "✅ date" behind it
+    const tagged = TASK_ID.exec(rest);
+    const id = tagged ?? BLOCK_ID.exec(withoutDoneDate(rest).trimEnd());
+    if (tagged) rest = rest.slice(0, tagged.index) + rest.slice(tagged.index + tagged[0].length);
+    else if (id) {
+      // The last word "^id" (no regex built from note text)
+      const words = rest.split(' ');
+      const at = words.lastIndexOf(`^${id[1]}`);
+      if (at >= 0) rest = [...words.slice(0, at), ...words.slice(at + 1)].join(' ');
+    }
     const due = DUE.exec(rest);
     const repeat = REPEAT.exec(rest);
     const time = TIME.exec(rest);
@@ -121,9 +202,93 @@ export function parseTasks(content: string, today = new Date(), defaultDue: stri
       time: time ? `${time[1].padStart(2, '0')}:${time[2]}` : null,
       indent: m[1],
       ...(!due && defaultDue ? { dueFromNote: true } : {}),
+      ...(id ? { id: id[1] } : {}),
+      ...(after ? { after: after[1].split(',').map((x) => x.replace(/^\^/, '')) } : {}),
     });
   });
+  return linkTasks(tasks);
+}
+
+/** Width of a task's indentation (a tab counts as four spaces) */
+function indentWidth(indent: string): number {
+  let w = 0;
+  for (const ch of indent) {
+    if (ch === ' ') w++;
+    else if (ch === '\t') w += 4;
+    else break;
+  }
+  return w;
+}
+
+/**
+ * Subtasks and dependencies inside one note's tasks (in line order, as `parseTasks` returns them): sets `parent`,
+ * `subtasks` and `waiting`. Changes the given task objects; returns the same array.
+ */
+export function linkTasks<T extends Task>(tasks: T[]): T[] {
+  const stack: T[] = [];
+  for (const task of tasks) {
+    const w = indentWidth(task.indent);
+    while (stack.length && indentWidth(stack[stack.length - 1].indent) >= w) stack.pop();
+    const parent = stack[stack.length - 1];
+    if (parent) {
+      task.parent = parent.line;
+      const sub = (parent.subtasks ??= { done: 0, total: 0 });
+      sub.total++;
+      if (task.done) sub.done++;
+    }
+    stack.push(task);
+  }
+  if (tasks.some((t) => t.after)) {
+    const done = doneById(tasks);
+    for (const t of tasks) if (t.after) t.waiting = t.after.some((id) => done.get(id) === false);
+  }
   return tasks;
+}
+
+/** Whether the task with each id is done; an id used twice counts as done only when every task with it is */
+function doneById(tasks: readonly Task[]): Map<string, boolean> {
+  const done = new Map<string, boolean>();
+  for (const t of tasks) if (t.id) done.set(t.id, (done.get(t.id) ?? true) && t.done);
+  return done;
+}
+
+/**
+ * Dependencies across notes (#75): `waiting` from the tasks of all notes, for the task page and queries. Returns a
+ * new array when something changes; tasks whose state changes are copied, the others are kept (cached rows stay).
+ */
+export function withDependencies<T extends Task>(tasks: readonly T[]): readonly T[] {
+  if (!tasks.some((t) => t.after)) return tasks;
+  const done = doneById(tasks);
+  let changed = false;
+  const out = tasks.map((t) => {
+    if (!t.after) return t;
+    const waiting = t.after.some((id) => done.get(id) === false);
+    if (!!t.waiting === waiting) return t;
+    changed = true;
+    return { ...t, waiting };
+  });
+  return changed ? out : tasks;
+}
+
+/**
+ * Finishing the last open subtask also finishes its parent, and so on upwards (#75, opt-in per device).
+ * `line` is the task that was just finished, in `content` as it is now.
+ */
+export function completeParents(content: string, line: number, today = new Date()): string {
+  let out = content;
+  let at = line;
+  for (let guard = 0; guard < 50; guard++) {
+    const tasks = parseTasks(out, today);
+    const task = tasks.find((t) => t.line === at);
+    if (!task?.done || task.parent === undefined) return out;
+    const parent = tasks.find((t) => t.line === task.parent);
+    if (!parent || parent.done || !parent.subtasks || parent.subtasks.done < parent.subtasks.total) return out;
+    const before = out.split('\n').length;
+    out = setTaskStatus(out, parent.line, 'done', today);
+    // A repeating parent gets its next occurrence inserted above it: the finished one moved down a line
+    at = parent.line + (out.split('\n').length - before);
+  }
+  return out;
 }
 
 /** Month steps keep the day but stop at the month's end (31.01. → 28.02.) */
@@ -185,6 +350,8 @@ export function nextDue(rule: string, from: string | null, today = new Date()): 
   return toDateString(d);
 }
 
+const DUE_WORD_GLOBAL = new RegExp(`(📅\\s*|\\bdue:)(${DUE_WORDS})(?![\\p{L}\\d-])`, 'giu');
+
 /** Normalizes relative due words ("due:morgen") into dates, so the date does not move every day */
 export function normalizeDueWords(content: string, today = new Date()): string {
   // Only in task lines and outside `inline code`, so examples in text stay as they are
@@ -194,7 +361,7 @@ export function normalizeDueWords(content: string, today = new Date()): string {
       TASK_LINE.test(line)
         ? line
             .split(/(`[^`]*`)/)
-            .map((part, i) => (i % 2 ? part : part.replace(/(📅\s*|\bdue:)(heute|morgen|today|tomorrow)\b/gi, (_, p, w) => `${p}${resolveDue(w, today)}`)))
+            .map((part, i) => (i % 2 ? part : part.replace(DUE_WORD_GLOBAL, (_, p, w) => `${p}${resolveDue(w, today)}`)))
             .join('')
         : line
     )
@@ -228,7 +395,7 @@ export function setTaskStatus(content: string, line: number, status: TaskStatus,
   if (task?.repeat) {
     const next = nextDue(task.repeat, task.due, today);
     if (next) {
-      const rest = DUE.test(m[3]) ? m[3].replace(DUE, (s) => s.replace(/(\d{4}-\d{2}-\d{2}|heute|morgen|today|tomorrow)$/i, next)) : `${m[3]} 📅 ${next}`;
+      const rest = DUE.test(m[3]) ? m[3].replace(DUE, (s, value: string) => s.slice(0, s.length - value.length) + next) : `${m[3]} 📅 ${next}`;
       lines.splice(line, 0, `${m[1]}[ ] ${rest}`);
     }
   }
