@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- Changed: Pinching no longer zooms the whole app on phones and tablets, so the top bar and the navigation stay in view. Settings → Editor → "Pinch to zoom" turns it back on for this device; the graph keeps its own pinch zoom.
+
 ## [2.23.0] – 2026-11-25
 
 - New: Note tabs have a context menu (right click): pin, close, close others, close tabs to the right or to the left. Pinned tabs move to the front, keep a pin instead of the close button and stay open until they are unpinned; closing others or to one side never closes them.
