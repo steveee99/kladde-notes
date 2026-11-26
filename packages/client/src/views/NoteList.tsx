@@ -1,6 +1,6 @@
 import { toastDeleted } from '../lib/undoDelete';
-import { useState, useSyncExternalStore } from 'react';
-import { Activity as ActivityIcon, Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, Kanban, LayoutGrid, List, Plus, Table2, Trash2, Users, Variables } from '../lib/icons';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { Activity as ActivityIcon, Archive, ArchiveRestore, ArrowDownAZ, CheckBoxBlank, CheckSquare, ChevronRight, Clock, CornerLeftUp, Folder, FolderInput, FolderPlus, Hash, Kanban, LayoutGrid, List, Plus, SelectCheck, Star, Table2, Trash2, Users, Variables } from '../lib/icons';
 import { PageBody, PageHeader } from './PageHeader';
 import { INBOX_FOLDER, ISSUES_FOLDER, archiveTarget, excerpt, extractMeta, findDatabaseNote, databaseFileName, inferPropertyKeys, isHiddenPath, newDatabaseContent, projectTitleOf, resolveVariables, restoreTarget, splitPath } from '@kladde/shared';
 import type { SharedFolder } from '@kladde/shared';
@@ -15,6 +15,8 @@ import { describePermissions } from './ShareDialog';
 import { activityPath, NewMark } from './ActivityView';
 import { Avatar } from './Avatar';
 import { MoveToGroupSheet } from './Groups';
+import { MoveNoteSheet } from './MoveNoteSheet';
+import { showToast } from '../lib/toast';
 import { DatabaseView } from './DatabaseView';
 import { MakeProjectSheet, ProjectView } from './ProjectView';
 import { useItemMenu, type MenuAction } from './ContextMenu';
@@ -89,19 +91,56 @@ export function ViewSwitch() {
 const fmtDate = (ts: number, lang: Lang, long = false) =>
   new Date(ts).toLocaleDateString(locale(lang), long ? { day: '2-digit', month: '2-digit', year: 'numeric' } : { day: 'numeric', month: 'short' });
 
+/**
+ * Selecting several notes (#132). The list provides it for own notes: Ctrl/⌘+click toggles a note (and starts
+ * selecting), Shift+click selects the range from the last one, and while selecting a plain click toggles.
+ */
+interface NoteSelection {
+  active: boolean;
+  selected: ReadonlySet<string>;
+  /** Handles a click on a note; true when it was a selection click (the note is not opened) */
+  onItem(id: string, e: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }): boolean;
+}
+const SelectionContext = createContext<NoteSelection | null>(null);
+
+/** Click on a note: a selection click, or else opening it */
+function useOpenOrSelect(id: string) {
+  const sel = useContext(SelectionContext);
+  const selected = !!sel?.selected.has(id);
+  return {
+    sel,
+    selected,
+    onClick: (e: React.MouseEvent | React.KeyboardEvent) => {
+      if (sel?.onItem(id, e)) {
+        e.preventDefault();
+        return;
+      }
+      navigate(`/n/${id}`);
+    },
+  };
+}
+
+function SelectMark({ selected }: { selected: boolean }) {
+  return selected ? <CheckSquare size={18} className="shrink-0 text-acc-hi" aria-hidden /> : <CheckBoxBlank size={18} className="shrink-0 text-muted" aria-hidden />;
+}
+
 function NoteRow({ note }: { note: LocalNote }) {
   const lang = useLang();
   const meta = extractMeta(note.path, note.content);
   const title = projectTitleOf(note.path, note.content, vault.roleConfig());
+  const { sel, selected, onClick } = useOpenOrSelect(note.id);
   return (
     <li
       role="button"
       tabIndex={0}
-      {...(note.access === 'owner' ? dragSource({ kind: 'note', id: note.id }) : {})}
-      onClick={() => navigate(`/n/${note.id}`)}
-      onKeyDown={(e) => e.key === 'Enter' && navigate(`/n/${note.id}`)}
-      className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-surface-container-high/60"
+      aria-pressed={sel?.active ? selected : undefined}
+      data-note-item={note.id}
+      {...(note.access === 'owner' && !sel?.active ? dragSource({ kind: 'note', id: note.id }) : {})}
+      onClick={onClick}
+      onKeyDown={(e) => (e.key === 'Enter' || (sel?.active && e.key === ' ')) && onClick(e)}
+      className={`flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 transition-colors ${selected ? 'bg-line' : 'hover:bg-surface-container-high/60'}`}
     >
+      {sel?.active && <SelectMark selected={selected} />}
       <NewMark noteId={note.id} />
       <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
       {note.access !== 'owner' && (
@@ -118,6 +157,7 @@ function NoteRow({ note }: { note: LocalNote }) {
 
 function NoteTable({ notes }: { notes: LocalNote[] }) {
   const lang = useLang();
+  const sel = useContext(SelectionContext);
   const rc = vault.roleConfig();
   return (
     <div className="card overflow-x-auto scrollbar-thin">
@@ -136,9 +176,23 @@ function NoteTable({ notes }: { notes: LocalNote[] }) {
             const meta = extractMeta(n.path, n.content);
             const title = projectTitleOf(n.path, n.content, rc);
             return (
-              <tr key={n.id} tabIndex={0} onClick={() => navigate(`/n/${n.id}`)} onKeyDown={(e) => e.key === 'Enter' && navigate(`/n/${n.id}`)} className="cursor-pointer border-t border-outline-variant/60 transition-colors hover:bg-surface-container-high/60">
+              <tr
+                key={n.id}
+                tabIndex={0}
+                data-note-item={n.id}
+                aria-selected={sel?.active ? sel.selected.has(n.id) : undefined}
+                onClick={(e) => (sel?.onItem(n.id, e) ? undefined : navigate(`/n/${n.id}`))}
+                onKeyDown={(e) => {
+                  if (sel?.active && (e.key === ' ' || e.key === 'Enter')) {
+                    e.preventDefault();
+                    sel.onItem(n.id, e);
+                  } else if (e.key === 'Enter') navigate(`/n/${n.id}`);
+                }}
+                className={`cursor-pointer border-t border-outline-variant/60 transition-colors ${sel?.selected.has(n.id) ? 'bg-line' : 'hover:bg-surface-container-high/60'}`}
+              >
                 <td className="max-w-[18rem] truncate px-3 py-2 font-medium">
                   <span className="inline-flex max-w-full items-center gap-2">
+                    {sel?.active && <SelectMark selected={sel.selected.has(n.id)} />}
                     <NewMark noteId={n.id} />
                     <span className="truncate">{title}</span>
                   </span>
@@ -190,16 +244,20 @@ export function NoteCard({ note }: { note: LocalNote }) {
   const lang = useLang();
   const meta = extractMeta(note.path, note.content);
   const title = projectTitleOf(note.path, note.content, vault.roleConfig());
+  const { sel, selected, onClick } = useOpenOrSelect(note.id);
   return (
     <div
       role="button"
       tabIndex={0}
-      {...(note.access === 'owner' ? dragSource({ kind: 'note', id: note.id }) : {})}
-      onClick={() => navigate(`/n/${note.id}`)}
-      onKeyDown={(e) => e.key === 'Enter' && navigate(`/n/${note.id}`)}
-      className="card group w-full min-w-0 cursor-pointer p-4 text-left transition-all duration-200 hover:bg-surface-container"
+      aria-pressed={sel?.active ? selected : undefined}
+      data-note-item={note.id}
+      {...(note.access === 'owner' && !sel?.active ? dragSource({ kind: 'note', id: note.id }) : {})}
+      onClick={onClick}
+      onKeyDown={(e) => (e.key === 'Enter' || (sel?.active && e.key === ' ')) && onClick(e)}
+      className={`card group w-full min-w-0 cursor-pointer p-4 text-left transition-all duration-200 ${selected ? 'border-acc-line bg-acc-bg' : 'hover:bg-surface-container'}`}
     >
       <div className="flex items-center gap-2">
+        {sel?.active && <SelectMark selected={selected} />}
         <NewMark noteId={note.id} />
         <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
         {note.access !== 'owner' && (
@@ -218,6 +276,151 @@ export function NoteCard({ note }: { note: LocalNote }) {
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** The selection of the note list (#132): ids in list order, so Shift+click selects a range */
+function useNoteSelection(order: string[]) {
+  const [active, setActive] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const anchor = useRef<string | null>(null);
+  const orderRef = useRef(order);
+  orderRef.current = order;
+  // Notes that left the list (moved, deleted) leave the selection too
+  const key = order.join(',');
+  useEffect(() => {
+    setSelected((cur) => {
+      const ids = new Set(orderRef.current);
+      const next = new Set([...cur].filter((id) => ids.has(id)));
+      return next.size === cur.size ? cur : next;
+    });
+  }, [key]);
+  const stop = useCallback(() => {
+    setActive(false);
+    setSelected(new Set());
+    anchor.current = null;
+  }, []);
+  const onItem = useCallback(
+    (id: string, e: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) => {
+      if (e.shiftKey && (active || anchor.current)) {
+        const ids = orderRef.current;
+        const from = ids.indexOf(anchor.current ?? id);
+        const to = ids.indexOf(id);
+        if (from < 0 || to < 0) return false;
+        const range = ids.slice(Math.min(from, to), Math.max(from, to) + 1);
+        setSelected((cur) => new Set([...cur, ...range]));
+        setActive(true);
+        return true;
+      }
+      if (e.ctrlKey || e.metaKey || active) {
+        setSelected((cur) => {
+          const next = new Set(cur);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          return next;
+        });
+        anchor.current = id;
+        setActive(true);
+        return true;
+      }
+      return false;
+    },
+    [active]
+  );
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !document.querySelector('[role="dialog"]')) stop();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [active, stop]);
+  const value = useMemo<NoteSelection>(() => ({ active, selected, onItem }), [active, selected, onItem]);
+  return {
+    value,
+    start: () => setActive(true),
+    stop,
+    selectAll: () => setSelected(new Set(orderRef.current)),
+  };
+}
+
+/** The bar above a list while notes are selected: how many, and what can be done with them */
+function SelectionBar({ ids, all, folder, onSelectAll, onDone }: { ids: string[]; all: number; folder: string; onSelectAll: () => void; onDone: () => void }) {
+  const lang = useLang();
+  const [moving, setMoving] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const n = ids.length;
+  const favorites = vault.features().favorites.enabled;
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    try {
+      await fn();
+    } catch (err) {
+      showToast((err as Error).message, 'danger');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const btn = (Icon: typeof Star, label: string, onClick: () => void, attrs: Record<string, string> = {}, danger = false) => (
+    <button type="button" className={`btn-text h-8 shrink-0 px-2 ${danger ? 'text-red' : ''}`} disabled={!n || busy} onClick={onClick} {...attrs}>
+      <Icon size={17} /> <span className="phone:sr-only">{label}</span>
+    </button>
+  );
+  return (
+    <div role="toolbar" aria-label={t('bulk.toolbar')} data-selection-bar="" className="sticky top-0 z-20 mb-3 flex flex-wrap items-center gap-1 rounded-lg border border-line bg-panel px-2 py-1.5 anim-fade-in">
+      <span className="px-1.5 font-mono text-caption text-soft" aria-live="polite">
+        {t('bulk.selected', { n })}
+      </span>
+      {n < all && (
+        <button type="button" className="btn-text h-8 shrink-0 px-2 text-caption" onClick={onSelectAll}>
+          {t('bulk.selectAll')}
+        </button>
+      )}
+      <span className="flex-1" />
+      {btn(FolderInput, t('bulk.move'), () => setMoving(true), { 'data-bulk-move': '' })}
+      {btn(Hash, t('bulk.tag'), () => {
+        const tag = prompt(t('bulk.tagPrompt'))?.trim().replace(/^#/, '');
+        if (!tag) return;
+        void run(async () => {
+          let changed = 0;
+          for (const id of ids) if (await vault.addTag(id, tag)) changed++;
+          showToast(t('bulk.tagged', { n: changed, tag }), 'ok');
+        });
+      }, { 'data-bulk-tag': '' })}
+      {favorites &&
+        btn(Star, t('bulk.favorite'), () =>
+          void run(async () => {
+            const added = await vault.addFavorites(ids);
+            showToast(t('bulk.favorited', { n: added }), 'ok');
+          }), { 'data-bulk-favorite': '' }
+        )}
+      {btn(Trash2, t('bulk.delete'), () => {
+        if (!confirm(t('bulk.deleteConfirm', { n }))) return;
+        void run(async () => {
+          const gone = [...ids];
+          const first = splitPath(vault.get(gone[0])?.path ?? '').name;
+          for (const id of gone) await vault.remove(id);
+          toastDeleted(gone, gone.length === 1 ? t('undo.noteDeleted', { name: first }) : t('undo.notesDeleted', { n: gone.length }));
+        });
+      }, { 'data-bulk-delete': '' }, true)}
+      <button type="button" className="btn-tonal h-8 shrink-0 px-3" onClick={onDone}>
+        {t('bulk.done')}
+      </button>
+      {moving && (
+        <MoveNoteSheet
+          noteTitle={t('bulk.countNotes', { n })}
+          currentFolder={folder}
+          onMove={(target) => {
+            setMoving(false);
+            void run(async () => {
+              for (const id of ids) await vault.moveNote(id, target);
+              showToast(t('bulk.moved', { n, folder: target ? folderDisplayName(target, lang) : t('common.topLevelPlain') }), 'ok');
+            });
+          }}
+          onClose={() => setMoving(false)}
+        />
+      )}
     </div>
   );
 }
@@ -354,6 +557,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
       : compareText(projectTitleOf(a.path, a.content, rc), projectTitleOf(b.path, b.content, rc), lang) ||
         compareText(a.path, b.path, lang)
   );
+  const selection = useNoteSelection(notes.map((n) => n.id));
   const dbNote = mode === 'folder' && folder ? findDatabaseNote(folder, vault.list().filter((n) => n.access === 'owner' && !n.group)) : null;
   // A database that is a project shows board, backlog and roadmap when tickets are on
   const project = dbNote && folder ? projectAt({}, folder) : undefined;
@@ -391,6 +595,7 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
       attrs: { 'data-make-project': '' },
     },
     mode === 'folder' && folder && !readOnly && !dbNote && features.database.enabled && !protectedFolders.has(folder) && { icon: Table2, label: t('db.makeBtn'), title: t('db.makeTitle'), onSelect: makeDatabase, attrs: { 'data-make-database': '' } },
+    mode !== 'shared' && !readOnly && !dbNote && notes.length > 0 && !selection.value.active && { icon: SelectCheck, label: t('bulk.start'), title: t('bulk.startTitle'), onSelect: selection.start, attrs: { 'data-select-notes': '' } },
     mode !== 'shared' && { icon: Variables, label: t('vars.label'), title: t('vars.menu'), onSelect: () => openDialog({ kind: 'variables', space: 'own', folder: folder ?? '' }), attrs: { 'data-open-variables': '' } },
     mode === 'folder' && folder && features.activity.enabled && !vault.standalone && !DEMO && {
       icon: ActivityIcon,
@@ -506,7 +711,12 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
       ) : notes.length === 0 ? (
         <div className="empty-sheet anim-fade-in"><p className="empty-title">{t('list.emptyFolder')}</p></div>
       ) : (
-        <NoteCollection notes={notes} />
+        <SelectionContext.Provider value={readOnly ? null : selection.value}>
+          {selection.value.active && !readOnly && (
+            <SelectionBar ids={[...selection.value.selected]} all={notes.length} folder={folder ?? ''} onSelectAll={selection.selectAll} onDone={selection.stop} />
+          )}
+          <NoteCollection notes={notes} />
+        </SelectionContext.Provider>
       )}
       </PageBody>
     </div>

@@ -1322,6 +1322,28 @@ class Vault {
     return this.favoriteIds().includes(id);
   }
 
+  /** Makes all `ids` favorites in one write (#132: bulk actions); returns how many were added */
+  async addFavorites(ids: string[]): Promise<number> {
+    if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    const list = this.favoriteIds();
+    const added = ids.filter((id) => !list.includes(id));
+    if (added.length) await this.setSetting(FAVORITES_SETTING, [...list, ...added]);
+    return added.length;
+  }
+
+  /** Adds `tag` to the note's frontmatter `tags` (kept when it already has it); returns whether the note changed */
+  async addTag(id: string, tag: string): Promise<boolean> {
+    const clean = tag.trim().replace(/^#/, '').replace(/\s+/g, '-');
+    if (!clean) return false;
+    const note = await this.withText(id);
+    if (!note || isReadOnly()) return false;
+    const { data } = parseFrontmatter(note.content);
+    const existing = (data.tags ?? '').replace(/[[\]]/g, '').split(',').map((x) => x.trim().replace(/^#/, '')).filter(Boolean);
+    if (existing.some((x) => x.toLowerCase() === clean.toLowerCase())) return false;
+    await this.update(id, { content: setFrontmatter(note.content, { tags: [...existing, clean].join(', ') }) });
+    return true;
+  }
+
   /** Adds or removes a note from the favorites; returns whether it is a favorite afterwards */
   async toggleFavorite(id: string): Promise<boolean> {
     if (isReadOnly()) throw new Error(t('vault.readOnlyError'));

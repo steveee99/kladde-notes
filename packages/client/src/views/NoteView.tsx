@@ -109,6 +109,7 @@ import { useReadOnly } from '../lib/readOnly';
 import { Editor, insertAtLineStart, insertText, toggleCode, toggleWrap, wrapSelection } from '../editor/Editor';
 import { attachmentMarkdown, editorHost } from '../editor/host';
 import { openFind } from '../editor/find';
+import { MoveNoteSheet } from './MoveNoteSheet';
 import { toastDeleted } from '../lib/undoDelete';
 import { useOutline, type Outline } from '../editor/outline';
 import { OutlinePanel } from './OutlinePanel';
@@ -123,7 +124,6 @@ import { MemoryPanel } from './MemoryPanel';
 import { MilestoneTickets, TicketBacklinks, TicketPanel } from './TicketPanel';
 import { milestoneOfNote, ticketOfNote, ticketsDocumentedIn, type TicketInfo } from '../data/tickets';
 import { Graph, GraphLegend } from './Graph';
-import { Sheet } from './Dialogs';
 import { Avatar } from './Avatar';
 import { MoveToGroupSheet, groupPath, groupRoleLabel } from './Groups';
 import { PresenceBar, useAnnouncePresence } from './PresenceBar';
@@ -131,7 +131,6 @@ import { folderDisplayName, t, useLang, type I18nKey, type Lang } from '../lib/i
 import { printNote, usePrintable } from '../lib/printing';
 import { setLocalGraphDepth, setSourceMode, useLocalGraphDepth, useSourceMode, type NoteSplitTab } from '../lib/prefs';
 import { activePane, usePane, usePanePanel } from '../lib/panes';
-import { isCoarsePointer } from '../lib/viewport';
 import { useModal } from '../lib/modal';
 import { useRightPaneHost } from './WerkbankShell';
 import { IconPickerDialog } from './IconPicker';
@@ -913,63 +912,6 @@ function NoteOverflowMenu({
           document.body
         )}
     </div>
-  );
-}
-
-/** Material 3 modal sheet for picking a destination folder when moving a note */
-function MoveNoteSheet({
-  noteTitle,
-  currentFolder,
-  folders = vault.folders(),
-  onMove,
-  onClose,
-}: {
-  noteTitle: string;
-  currentFolder: string;
-  /** Folders to choose from: the own ones, or those of the note's group (#58) */
-  folders?: string[];
-  onMove: (folder: string) => void;
-  onClose: () => void;
-}) {
-  const lang = useLang();
-  const [filter, setFilter] = useState('');
-  const allFolders = ['', ...folders];
-  const q = filter.trim().toLowerCase();
-  const visible = q
-    ? allFolders.filter((f) => (f ? folderDisplayName(f, lang) : t('common.topLevelPlain')).toLowerCase().includes(q) || f.toLowerCase().includes(q))
-    : allFolders;
-
-  return (
-    <Sheet title={t('note.moveTitle')} onClose={onClose}>
-      <p className="mb-3 text-sm text-on-surface-variant">{t('note.moveDesc', { name: noteTitle })}</p>
-      {allFolders.length > 7 && (
-        <input
-          className="input mb-3"
-          placeholder={t('common.filter')}
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          autoFocus={!isCoarsePointer()}
-        />
-      )}
-      <ul className="max-h-72 space-y-1 overflow-y-auto scrollbar-thin">
-        {visible.map((f) => {
-          const active = f === currentFolder;
-          return (
-            <li key={f || '__root__'}>
-              <button
-                type="button"
-                onClick={() => onMove(f)}
-                className={`flex w-full items-center gap-3 rounded-full px-3.5 py-2.5 text-left text-sm transition-colors ${active ? 'bg-secondary-container text-on-secondary-container font-medium' : 'text-on-surface hover:bg-surface-container-high'}`}
-              >
-                <Folder size={16} className={active ? 'shrink-0' : 'shrink-0 text-primary'} />
-                <span className="min-w-0 flex-1 truncate">{f ? folderDisplayName(f, lang) : t('common.topLevelPlain')}</span>
-                {active && <Check size={16} className="shrink-0" />}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </Sheet>
   );
 }
 
