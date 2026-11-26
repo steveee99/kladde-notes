@@ -21,9 +21,10 @@ export interface Device {
  * A Kladde server with one account and devices that sync with it. Each device is a fresh copy of the client
  * modules with its own IndexedDB; requests to `/api` go to the server with the account's session.
  */
-export async function startSyncServer() {
+export async function startSyncServer({ online = false }: { online?: boolean } = {}) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kladde-client-sync-'));
-  const ctx = createKladdeApp({ db: openDatabase(':memory:'), dataDir, env: {}, standalone: false, isProduction: false, publicUrl: null, trustProxy: false });
+  const env = online ? { KLADDE_MODE: 'online' } : {};
+  const ctx = createKladdeApp({ db: openDatabase(':memory:'), dataDir, env, standalone: false, isProduction: false, publicUrl: null, trustProxy: false });
   const user = ctx.users.createUser('anna');
   let cookie = `kladde_session=${ctx.users.createSession(user.id)}`;
   const server: Server = ctx.app.listen(0, '127.0.0.1');
@@ -31,10 +32,13 @@ export async function startSyncServer() {
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
   let offline = false;
+  /** Paths of the requests the devices made, e.g. to see that a note's text was loaded only once */
+  const requests: string[] = [];
   const realFetch = globalThis.fetch;
   vi.stubGlobal('fetch', (input: string | URL | Request, init: RequestInit = {}) => {
     if (offline) return Promise.reject(new TypeError('Failed to fetch'));
     const url = new URL(String(input), base);
+    requests.push(`${init.method ?? 'GET'} ${url.pathname}`);
     return realFetch(url, { ...init, headers: { ...(init.headers as Record<string, string>), Cookie: cookie } });
   });
 
@@ -45,16 +49,27 @@ export async function startSyncServer() {
     vi.resetModules();
     vi.stubGlobal('indexedDB', idb);
     const { vault } = await import('../../src/data/vault');
+    // Online mode (`KLADDE_MODE=online`): the app learns it from /auth/me and sets it before opening
+    vault.online = online;
     await vault.open(user.id);
     const d = { vault, idb };
     devices.push(d);
     return d;
   };
 
+  /** Notes written straight on the server, as if another device had pushed them */
+  const serverPush = (changes: { id: string; path: string; content: string }[]) =>
+    ctx.notes.push(
+      user.id,
+      changes.map((c) => ({ ...c, baseVersion: ctx.notes.pull(user.id, 0).notes.find((n) => n.id === c.id)?.version ?? 0, deleted: false, createdAt: Date.now(), updatedAt: Date.now() }))
+    );
+
   return {
     ctx,
     user,
     device,
+    requests,
+    serverPush,
     /** Every following request fails like one without a network */
     setOffline(on: boolean) {
       offline = on;
