@@ -4,6 +4,7 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: More due date words in tasks (#133): `due:übermorgen`, weekdays (`due:freitag`, `due:friday`, `due:fri`: the next one after today), `due:in-3-tagen`/`due:in-2-weeks`/`due:in-1-monat`, `due:nächste-woche`/`due:next-week` (Monday), `due:nächster-monat`/`due:next-month` (the 1st), `due:ende-woche`/`due:end-of-week` (Sunday) and `due:ende-monat`/`due:end-of-month`. Like `due:morgen` they become a date when the note is saved; the Apple Shortcuts task action accepts them too.
 - Changed: Pinching no longer zooms the whole app on phones and tablets, so the top bar and the navigation stay in view. Settings → Editor → "Pinch to zoom" turns it back on for this device; the graph keeps its own pinch zoom.
 
 ## [2.23.0] – 2026-11-25

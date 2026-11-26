@@ -4,7 +4,10 @@
  *   - [ ] Steuer machen 📅 2026-11-30 🔁 monatlich
  *   - [ ] Müll rausbringen due:morgen every:week
  *
- * Due date: "📅 YYYY-MM-DD" or "due:YYYY-MM-DD" (also due:heute / due:morgen, turned into a date on save).
+ * Due date: "📅 YYYY-MM-DD" or "due:YYYY-MM-DD", or a relative word turned into a date on save (`DUE_WORDS`):
+ * due:heute/today, morgen/tomorrow, übermorgen, a weekday (freitag/friday/fri: the next one after today),
+ * in-3-tagen/in-2-weeks/in-1-monat, nächste-woche/next-week (Monday), nächster-monat/next-month (the 1st),
+ * ende-woche/end-of-week (Sunday), ende-monat/end-of-month (the last day).
  * Reminder time: "⏰ 09:00" or "remind:9:00" (on the due day; Web Push reminders, calendar feed).
  * Repeat: "🔁 <rule>" or "every:<rule>" with day|week|month|year, täglich|wöchentlich|monatlich|jährlich,
  * or "2 weeks", "3 tage", or weekdays like "mo,do".
@@ -49,7 +52,19 @@ export interface Task {
 // The text group starts with a non-space (or is empty), so the whitespace before it can only match one way
 // (an overlapping `\s+(.*)` backtracks quadratically on long runs of spaces)
 export const TASK_LINE = /^(\s*[-*+]\s+)\[([ xXoOhH])\]\s+(\S.*|)$/;
-const DUE = /(?:📅\s*|\bdue:)(\d{4}-\d{2}-\d{2}|heute|morgen|today|tomorrow)/i;
+/** Relative due words (alternation, longest first); `resolveDue` turns each into a date */
+export const DUE_WORDS =
+  'übermorgen|uebermorgen|day-after-tomorrow|heute|today|morgen|tomorrow' +
+  '|in-\\d{1,3}-(?:tagen|tage|tag|days|day|wochen|woche|weeks|week|monaten|monate|monat|months|month|jahren|jahre|jahr|years|year)' +
+  '|nächste-woche|naechste-woche|next-week|nächsten-monat|nächster-monat|naechster-monat|naechsten-monat|next-month' +
+  '|ende-woche|ende-der-woche|end-of-week|ende-monat|ende-des-monats|end-of-month' +
+  '|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|monday|tuesday|wednesday|thursday|friday|saturday|sunday' +
+  '|mon|tue|wed|thu|fri|sat|sun';
+const DUE_VALUE = `\\d{4}-\\d{2}-\\d{2}|(?:${DUE_WORDS})(?![\\p{L}\\d-])`;
+/** A due date in a task line; group 1 is the date or the relative word */
+export const DUE_PATTERN = `(?:📅\\s*|\\bdue:)(${DUE_VALUE})`;
+const DUE = new RegExp(DUE_PATTERN, 'iu');
+const DUE_WORD_ONLY = new RegExp(`^(?:${DUE_WORDS})$`, 'iu');
 const REPEAT = /(?:🔁\s*|\bevery:)((?:\d+\s*)?[\p{L},]+)/iu;
 // Starts at the ✅ (a leading `\s*` would rescan every run of spaces from each position)
 const DONE_DATE = /✅\s*(\d{4}-\d{2}-\d{2})/;
@@ -78,11 +93,46 @@ export function parseDate(s: string): Date {
   return new Date(y, m - 1, d);
 }
 
-function resolveDue(raw: string, today: Date): string {
+const DUE_WEEKDAYS: Record<string, number> = {
+  sonntag: 0, sunday: 0, sun: 0,
+  montag: 1, monday: 1, mon: 1,
+  dienstag: 2, tuesday: 2, tue: 2,
+  mittwoch: 3, wednesday: 3, wed: 3,
+  donnerstag: 4, thursday: 4, thu: 4,
+  freitag: 5, friday: 5, fri: 5,
+  samstag: 6, saturday: 6, sat: 6,
+};
+
+/**
+ * The date of a due value: a date stays as it is, a relative word (`DUE_WORDS`) is counted from `today`.
+ * A weekday is the next such day after today (on a Friday, "freitag" is a week later).
+ */
+export function resolveDue(raw: string, today: Date = new Date()): string {
   const word = raw.toLowerCase();
+  if (!DUE_WORD_ONLY.test(word)) return raw;
   if (word === 'heute' || word === 'today') return toDateString(today);
   if (word === 'morgen' || word === 'tomorrow') return toDateString(addDays(today, 1));
-  return raw;
+  if (word === 'übermorgen' || word === 'uebermorgen' || word === 'day-after-tomorrow') return toDateString(addDays(today, 2));
+  const wd = DUE_WEEKDAYS[word];
+  if (wd !== undefined) return toDateString(addDays(today, ((wd - today.getDay() + 6) % 7) + 1));
+  const rel = /^in-(\d+)-(\p{L}+)$/u.exec(word);
+  if (rel) {
+    const n = Number(rel[1]);
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const unit = rel[2];
+    if (unit.startsWith('tag') || unit.startsWith('day')) d.setDate(d.getDate() + n);
+    else if (unit.startsWith('woche') || unit.startsWith('week')) d.setDate(d.getDate() + 7 * n);
+    else if (unit.startsWith('monat') || unit.startsWith('month')) addMonths(d, n);
+    else addMonths(d, 12 * n);
+    return toDateString(d);
+  }
+  if (/woche|week/.test(word)) {
+    // Monday is 1 … Sunday 7
+    const iso = today.getDay() || 7;
+    return toDateString(addDays(today, word.startsWith('ende') || word.startsWith('end') ? 7 - iso : 8 - iso));
+  }
+  if (word.startsWith('ende') || word.startsWith('end')) return toDateString(new Date(today.getFullYear(), today.getMonth() + 1, 0));
+  return toDateString(new Date(today.getFullYear(), today.getMonth() + 1, 1));
 }
 
 function addDays(d: Date, n: number): Date {
@@ -185,6 +235,8 @@ export function nextDue(rule: string, from: string | null, today = new Date()): 
   return toDateString(d);
 }
 
+const DUE_WORD_GLOBAL = new RegExp(`(📅\\s*|\\bdue:)(${DUE_WORDS})(?![\\p{L}\\d-])`, 'giu');
+
 /** Normalizes relative due words ("due:morgen") into dates, so the date does not move every day */
 export function normalizeDueWords(content: string, today = new Date()): string {
   // Only in task lines and outside `inline code`, so examples in text stay as they are
@@ -194,7 +246,7 @@ export function normalizeDueWords(content: string, today = new Date()): string {
       TASK_LINE.test(line)
         ? line
             .split(/(`[^`]*`)/)
-            .map((part, i) => (i % 2 ? part : part.replace(/(📅\s*|\bdue:)(heute|morgen|today|tomorrow)\b/gi, (_, p, w) => `${p}${resolveDue(w, today)}`)))
+            .map((part, i) => (i % 2 ? part : part.replace(DUE_WORD_GLOBAL, (_, p, w) => `${p}${resolveDue(w, today)}`)))
             .join('')
         : line
     )
@@ -228,7 +280,7 @@ export function setTaskStatus(content: string, line: number, status: TaskStatus,
   if (task?.repeat) {
     const next = nextDue(task.repeat, task.due, today);
     if (next) {
-      const rest = DUE.test(m[3]) ? m[3].replace(DUE, (s) => s.replace(/(\d{4}-\d{2}-\d{2}|heute|morgen|today|tomorrow)$/i, next)) : `${m[3]} 📅 ${next}`;
+      const rest = DUE.test(m[3]) ? m[3].replace(DUE, (s, value: string) => s.slice(0, s.length - value.length) + next) : `${m[3]} 📅 ${next}`;
       lines.splice(line, 0, `${m[1]}[ ] ${rest}`);
     }
   }

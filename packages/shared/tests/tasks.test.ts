@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextDue, normalizeDueWords, parseTasks, toggleTask, setTaskStatus, bucketOf, setTaskMeta, shortcutDate, takeTaskBlock, appendTaskLines } from '../src/tasks';
+import { nextDue, normalizeDueWords, resolveDue, parseTasks, toggleTask, setTaskStatus, bucketOf, setTaskMeta, shortcutDate, takeTaskBlock, appendTaskLines } from '../src/tasks';
 
 const today = new Date(2026, 10, 8); // 2026-11-08, a Sunday
 
@@ -41,6 +41,29 @@ describe('tasks', () => {
     const out = toggleTask('- [ ] Gießen 📅 2026-11-08 🔁 wöchentlich', 0, today);
     expect(out.split('\n')).toEqual(['- [ ] Gießen 📅 2026-11-15 🔁 wöchentlich', '- [x] Gießen 📅 2026-11-08 🔁 wöchentlich ✅ 2026-11-08']);
     expect(toggleTask(out, 1, today).split('\n')[1]).toBe('- [ ] Gießen 📅 2026-11-08 🔁 wöchentlich');
+  });
+
+  it('resolves natural-language due words (#133)', () => {
+    // today is Sunday 2026-11-08
+    expect(resolveDue('übermorgen', today)).toBe('2026-11-10');
+    expect(resolveDue('Freitag', today)).toBe('2026-11-13');
+    expect(resolveDue('sunday', today)).toBe('2026-11-15');
+    expect(resolveDue('mon', today)).toBe('2026-11-09');
+    expect(resolveDue('in-3-tagen', today)).toBe('2026-11-11');
+    expect(resolveDue('in-2-weeks', today)).toBe('2026-11-22');
+    expect(resolveDue('in-1-monat', today)).toBe('2026-12-08');
+    expect(resolveDue('nächste-woche', today)).toBe('2026-11-09');
+    expect(resolveDue('next-month', today)).toBe('2026-12-01');
+    expect(resolveDue('ende-woche', today)).toBe('2026-11-08');
+    expect(resolveDue('end-of-month', today)).toBe('2026-11-30');
+    expect(resolveDue('2026-01-02', today)).toBe('2026-01-02');
+    expect(resolveDue('irgendwann', today)).toBe('irgendwann');
+    const [t] = parseTasks('- [ ] Bericht due:freitag', today);
+    expect(t).toMatchObject({ text: 'Bericht', due: '2026-11-13' });
+    // Unknown words and words that only start like one stay text
+    expect(parseTasks('- [ ] a due:irgendwann', today)[0]).toMatchObject({ text: 'a due:irgendwann', due: null });
+    expect(parseTasks('- [ ] a due:montagabend', today)[0].due).toBeNull();
+    expect(normalizeDueWords('- [ ] a due:in-2-tagen 📅 freitag', today)).toBe('- [ ] a due:2026-11-10 📅 2026-11-13');
   });
 
   it('normalizes relative due words and buckets', () => {

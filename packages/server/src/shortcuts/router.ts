@@ -8,6 +8,7 @@ import {
   extractDailyNoteDate,
   extractMeta,
   normalizeDueWords,
+  resolveDue,
   parseTasks,
   resolveDailyNote,
   shiftDateString,
@@ -235,8 +236,8 @@ export function shortcutsRouters(opts: ShortcutsOptions): { bearerRouter: expres
       if (!taskText) throw new ShortcutError('Gib "text" an.');
       const due = text(body, 'due', 40).trim().toLowerCase();
       // Shortcuts' date format "2026-11-30T09:00:00+01:00" also works: only the day counts
-      const dueDay = /^\d{4}-\d{2}-\d{2}/.exec(due)?.[0] ?? (['today', 'tomorrow', 'heute', 'morgen'].includes(due) ? due : '');
-      if (due && !dueDay) throw new ShortcutError('"due" braucht YYYY-MM-DD, today oder tomorrow.');
+      const dueDay = /^\d{4}-\d{2}-\d{2}/.exec(due)?.[0] ?? (resolveDue(due) !== due ? due : '');
+      if (due && !dueDay) throw new ShortcutError('"due" braucht YYYY-MM-DD, today, tomorrow, einen Wochentag oder z. B. in-3-tagen.');
       const repeat = text(body, 'repeat', 40).trim();
       if (repeat && !/^(?:\d+\s*)?[\p{L},]+$/u.test(repeat)) throw new ShortcutError('"repeat" ist ungültig (z. B. weekly, 2 weeks, monatlich).');
       const time = text(body, 'time', 10).trim();
