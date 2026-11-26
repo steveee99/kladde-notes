@@ -638,6 +638,16 @@ progress {
   .chip[aria-checked='true'] {
     @apply border-acc-line bg-acc-bg text-acc-hi;
   }
+  /* Find and replace in a note (editor/find.tsx, #129) */
+  .find-bar {
+    @apply border-b border-line bg-panel px-2 py-1.5;
+  }
+  .find-toggle {
+    @apply inline-flex h-8 min-w-8 items-center justify-center rounded-md px-1.5 font-mono text-caption text-muted state-layer;
+  }
+  .find-toggle[aria-pressed='true'] {
+    @apply bg-acc-bg text-acc-hi;
+  }
   /* Segmented button (wrap the buttons in .segmented, mark the chosen one with aria-pressed) */
   .segmented {
     @apply inline-flex h-9 overflow-hidden rounded-md border border-line2 nav:h-8;
@@ -3704,4 +3714,23 @@ span.cm-checkbox {
   .gl-refresh.gl-spin {
     animation: none;
   }
+}
+
+/* Find and replace (#129): CodeMirror's panel holder and the match marks */
+.cm-editor .cm-panels {
+  background: transparent;
+  color: inherit;
+  z-index: 15;
+}
+.cm-editor .cm-panels-top {
+  border-bottom: 0;
+}
+.cm-editor .cm-searchMatch {
+  background: rgb(var(--amber-bg));
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgb(var(--amber) / 0.45);
+}
+.cm-editor .cm-searchMatch-selected {
+  background: rgb(var(--amber) / 0.55);
+  color: rgb(var(--strong));
 }

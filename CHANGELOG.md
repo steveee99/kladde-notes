@@ -4,6 +4,7 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Find and replace inside a note (#129): Ctrl/⌘+F opens a find bar above the text with the number of matches, match case, whole words and regular expressions; Ctrl/⌘+Alt+F (Ctrl+H on Windows and Linux) opens it with replace and replace all. Enter and Shift+Enter (or F3, Ctrl/⌘+G) move between matches, Escape closes it. On phones it is in the toolbar and in the ⋮ menu ("Find and replace"), and the command palette has "Find in note" and "Replace in note". Read-only notes get find without replace.
 - New: More due date words in tasks (#133): `due:übermorgen`, weekdays (`due:freitag`, `due:friday`, `due:fri`: the next one after today), `due:in-3-tagen`/`due:in-2-weeks`/`due:in-1-monat`, `due:nächste-woche`/`due:next-week` (Monday), `due:nächster-monat`/`due:next-month` (the 1st), `due:ende-woche`/`due:end-of-week` (Sunday) and `due:ende-monat`/`due:end-of-month`. Like `due:morgen` they become a date when the note is saved; the Apple Shortcuts task action accepts them too.
 - Changed: Pinching no longer zooms the whole app on phones and tablets, so the top bar and the navigation stay in view. Settings → Editor → "Pinch to zoom" turns it back on for this device; the graph keeps its own pinch zoom.
 

@@ -23,6 +23,8 @@ import {
   X,
   Kanban,
   RemoteDoc,
+  Search,
+  FindReplace,
 } from '../lib/icons';
 import { t } from '../lib/i18n';
 import { navigate } from '../lib/router';
@@ -30,6 +32,7 @@ import { toggleMaterialSidebarMode } from '../lib/sidebarMode';
 import { setColorSchemeChoice, getColorSchemeChoice } from '../lib/theme';
 import { isReadOnly, setReadOnly } from '../lib/readOnly';
 import { toggleFocusMode } from '../lib/focus';
+import { lastFocusedEditor, openFind } from '../editor/find';
 import { closeSide, openInSide, sideNoteId, splitAvailable } from '../lib/panes';
 import { closeOtherTabs, neighborTab, tabIds } from '../lib/tabs';
 import { DEMO } from '../demo/demoApi';
@@ -85,6 +88,9 @@ export function buildCommands(path: string): Command[] {
       run: () => setReadOnly(!locked),
     },
     !DEMO && { id: 'sync', label: t('cmd.syncNow'), icon: i(<RefreshCw size={16} />), hint: 'Ctrl/⌘+S', keywords: 'sync', run: () => vault.kick() },
+    // After the palette closed and gave the focus back, so the find field keeps it
+    !!noteId && { id: 'find', label: t('cmd.findInNote'), icon: i(<Search size={16} />), hint: 'Ctrl/⌘+F', keywords: 'find suchen', run: () => setTimeout(() => openFind(), 60) },
+    !!noteId && !locked && !lastFocusedEditor()?.state.readOnly && { id: 'replace', label: t('cmd.replaceInNote'), icon: i(<FindReplace size={16} />), hint: 'Ctrl/⌘+Alt+F', keywords: 'replace ersetzen', run: () => setTimeout(() => openFind(undefined, true), 60) },
     !!noteId && features.focus.enabled && { id: 'focus', label: t('cmd.focusMode'), icon: i(<CenterFocus size={16} />), hint: 'Ctrl/⌘+Shift+F', keywords: 'zen', run: toggleFocusMode },
     !!noteId && splitAvailable() && { id: 'open-side', label: t('cmd.openSide'), icon: i(<VerticalSplit size={16} />), keywords: 'split daneben', run: () => openInSide(noteId) },
     !!sideNoteId() && { id: 'close-side', label: t('cmd.closeSide'), icon: i(<X size={16} />), run: closeSide },

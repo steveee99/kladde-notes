@@ -41,6 +41,7 @@ const MAP = {
   ArrowUp: 'arrow_upward', ArrowDown: 'arrow_downward', Webhook: 'webhook', Route: 'route',
   Dashboard: 'dashboard', Memory: 'memory', HardDrive: 'hard_drive', Database: 'database', Speed: 'speed', MarkRead: 'mark_email_read', NotificationsActive: 'notifications_active', NotificationsOff: 'notifications_off',
   BugReport: 'bug_report', SubdirectoryArrowRight: 'subdirectory_arrow_right', Stars: 'stars', AccountTree: 'account_tree',
+  FindReplace: 'find_replace', Flame: 'local_fire_department', SavedSearch: 'saved_search', SelectCheck: 'select_check_box', Bookmark: 'bookmark',
   CheckBoxBlank: 'check_box_outline_blank', Keep: 'keep', KeepOff: 'keep_off', TabClose: 'tab_close', TabCloseRight: 'tab_close_right', FirstPage: 'first_page', MoreHoriz: 'more_horiz', WidthNormal: 'width_normal',
 };
 

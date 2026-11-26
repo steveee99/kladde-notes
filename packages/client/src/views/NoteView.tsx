@@ -47,6 +47,7 @@ import {
   Share2,
   SlidersHorizontal,
   Star,
+  Search,
   Tags,
   Trash2,
   Undo2,
@@ -107,6 +108,7 @@ import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
 import { Editor, insertAtLineStart, insertText, toggleCode, toggleWrap, wrapSelection } from '../editor/Editor';
 import { attachmentMarkdown, editorHost } from '../editor/host';
+import { openFind } from '../editor/find';
 import { useOutline, type Outline } from '../editor/outline';
 import { OutlinePanel } from './OutlinePanel';
 import { NoteTasksPanel, useNoteTasks } from './NoteTasksPanel';
@@ -179,6 +181,7 @@ function Toolbar({ view, lang }: { view: EditorView | null; lang: Lang }) {
       {btn(Code, `${t('note.toolbarCode')} (${mod}+Shift+M)`, () => toggleCode(view))}
       {btn(ImageIcon, t('note.toolbarUpload'), () => file.current?.click())}
       {btn(Images, t('note.toolbarAttachment'), () => editorHost.pickAttachment((f) => insertText(view, `\n${attachmentMarkdown(f)}\n`)))}
+      {btn(Search, t('note.toolbarFind'), () => openFind(view))}
       {btn(Undo2, t('note.toolbarUndo'), () => undo(view))}
       <input
         ref={file}
@@ -400,6 +403,7 @@ function NoteOverflowMenu({
   align,
   onAlign,
   onPresent,
+  onFind,
 }: {
   title: string;
   content: string;
@@ -447,6 +451,8 @@ function NoteOverflowMenu({
   variables: VariableScope;
   /** Presentation mode (#87) is on: "Start presentation" and the slide PDF among the exports */
   onPresent?: () => void;
+  /** Find and replace in the note (#129); only while an editor shows the note */
+  onFind?: () => void;
 }) {
   useLang();
   usePrintable(content);
@@ -571,6 +577,17 @@ function NoteOverflowMenu({
                 onCopy();
               }}
             />
+            {onFind && (
+              <MenuItem
+                icon={Search}
+                label={t('note.findMenu')}
+                onClick={() => {
+                  setOpen(false);
+                  // After the menu closed and gave the focus back
+                  setTimeout(onFind, 30);
+                }}
+              />
+            )}
             {favorite !== null && (
               <MenuItem
                 icon={Star}
@@ -1709,6 +1726,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 align={align}
                 onAlign={!readOnly && view && !showPdf && !remote ? (value) => applyFrontmatter(view, { align: value === 'left' ? null : value }) : undefined}
                 onPresent={features.presentation.enabled && !showPdf && !remote ? () => setPresenting(true) : undefined}
+                onFind={view && !showPdf ? () => openFind(view) : undefined}
               />
             </div>
           </div>
