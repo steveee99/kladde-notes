@@ -132,6 +132,10 @@ export interface FeatureSettings {
   habits: {
     enabled: boolean;
   };
+  /** Mini game on the home page (opt-in): the notebook flaps through pencils, a short break between tasks */
+  minigame: {
+    enabled: boolean;
+  };
   /** Callouts (#86): `> [!type] Title` quotes shown as colored boxes with an icon, `-`/`+` collapsible; otherwise plain quotes */
   callouts: {
     enabled: boolean;
@@ -310,6 +314,7 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
     presentation: { enabled: optInFlag(obj.presentation) },
     linkPreview: { enabled: optInFlag(obj.linkPreview) },
     habits: { enabled: optInFlag(obj.habits) },
+    minigame: { enabled: optInFlag(obj.minigame) },
     callouts: { enabled: optOutFlag(obj.callouts) },
     calendarView: { enabled: optOutFlag(obj.calendarView) },
     activity: { enabled: optOutFlag(obj.activity) },
