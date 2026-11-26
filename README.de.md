@@ -1,5 +1,11 @@
 # Kladde
 
+[![Version](https://img.shields.io/github/v/tag/steveee99/kladde-notes?label=version&sort=semver)](CHANGELOG.md)
+[![CI](https://github.com/steveee99/kladde-notes/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/steveee99/kladde-notes/actions/workflows/ci.yml)
+[![Node](https://img.shields.io/badge/node-24-339933?logo=node.js&logoColor=white)](Dockerfile)
+[![License: MIT](https://img.shields.io/github/license/steveee99/kladde-notes)](LICENSE)
+[![Demo](https://img.shields.io/badge/demo-GitHub%20Pages-blue)](https://steveee99.github.io/kladde-notes/)
+
 [English](README.md) · **Deutsch**
 
 **Kladde** ist eine selbst gehostete Notiz-App für den Browser: Markdown mit Live-Vorschau, Aufgaben mit Fälligkeit und Wiederholung, Abfragen und Kanban-Boards über die eigenen Notizen – offline nutzbar auf Handy, iPad und Desktop, synchronisiert sobald wieder online. Zugang nur per Einladung, Anmeldung per **Passkey**, optional **mit GitLab** – oder mit Benutzername und Passwort, wo Passkeys nicht gehen (lokales Netz ohne HTTPS).
