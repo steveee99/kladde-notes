@@ -121,7 +121,7 @@ import {
   parseDatabase,
   MILESTONE_FOLDER,
 } from '@kladde/shared';
-import { api, ApiError } from '../lib/api';
+import { api, ApiError, restoreTrash, restoreTrashBatch } from '../lib/api';
 import { compareText, getLang, locale, t } from '../lib/i18n';
 import { isReadOnly } from '../lib/readOnly';
 import { clientId, presence } from '../lib/presence';
@@ -155,6 +155,12 @@ const FAVORITE_GROUP_FOLDERS_SETTING = 'favoriteGroupFolders';
  */
 /** Notifications loaded at a time (the panel and the list page load more on request) */
 export const NOTIFICATION_PAGE = 10;
+
+/** What a folder deletion put into the trash: the notes and their trash batch (#131: undo) */
+export interface DeletedNotes {
+  ids: string[];
+  batch: string;
+}
 
 class Vault {
   notes = new Map<string, LocalNote>();
@@ -1425,6 +1431,35 @@ class Vault {
     this.schedule(0);
   }
 
+  /**
+   * Brings notes back right after they were deleted (#131: "Undo" in the toast). A deletion that is still
+   * waiting on this device (offline) is simply taken back; one the server already has goes through the trash,
+   * at the old path. `batch` restores a folder deleted with its notes. Returns how many notes came back.
+   */
+  async undoDelete(ids: string[], batch?: string): Promise<number> {
+    if (isReadOnly()) return 0;
+    // Let a push that is underway finish first, so the server and this device agree on what is deleted
+    if (!this.standalone && navigator.onLine) await this.sync().catch(() => {});
+    const now = Date.now();
+    let back = 0;
+    const onServer: string[] = [];
+    for (const id of ids) {
+      const local = this.notes.get(id);
+      if (local?.deleted && local.dirty) {
+        const { trashBatch: _b, trashFolder: _f, ...rest } = local;
+        await this.put({ ...rest, deleted: false, updatedAt: now, dirty: true });
+        back++;
+      } else if (!local || local.deleted) onServer.push(id);
+    }
+    if (onServer.length) {
+      if (batch) back += (await restoreTrashBatch(batch)).restored.length;
+      else for (const id of onServer) back += (await restoreTrash(id)).restored.length;
+    }
+    this.schedule(0);
+    if (onServer.length) await this.sync().catch(() => {});
+    return back;
+  }
+
   // ------------------------------------------------------------------ AI memory (#94)
 
   /** The signed-in user's name: their actor id (`human:<name>`) in the AI memory */
@@ -1719,20 +1754,21 @@ class Vault {
   }
 
   /** Deletes a folder with every note and subfolder below it */
-  async deleteFolderWithNotes(folder: string): Promise<boolean> {
+  async deleteFolderWithNotes(folder: string): Promise<false | DeletedNotes> {
     if (!folder || isReadOnly()) return false;
     const now = Date.now();
     const trashBatch = newId();
-    for (const note of this.notesBelow(folder)) await this.put({ ...note, deleted: true, updatedAt: now, dirty: true, trashBatch, trashFolder: folder });
+    const below = this.notesBelow(folder);
+    for (const note of below) await this.put({ ...note, deleted: true, updatedAt: now, dirty: true, trashBatch, trashFolder: folder });
     await this.setFolders(this.storedFolders().filter((f) => f !== folder && !f.startsWith(`${folder}/`)));
     await this.forgetFolderIcons(folder);
     this.schedule(0);
     if (!this.standalone) void api('/folders/deleted', { method: 'POST', json: { folder } }).catch(() => {});
-    return true;
+    return { ids: below.map((n) => n.id), batch: trashBatch };
   }
 
   /** Deletes a group folder with every note in it (to the group's trash); owners and editors of the group only */
-  async deleteGroupFolder(groupId: string, folder: string): Promise<boolean> {
+  async deleteGroupFolder(groupId: string, folder: string): Promise<false | DeletedNotes> {
     if (!folder || isReadOnly() || !canWriteInGroup(this.group(groupId)?.role)) return false;
     const now = Date.now();
     const trashBatch = newId();
@@ -1742,7 +1778,7 @@ class Vault {
     });
     for (const note of below) await this.put({ ...note, deleted: true, updatedAt: now, dirty: true, trashBatch, trashFolder: folder });
     this.schedule(0);
-    return true;
+    return { ids: below.map((n) => n.id), batch: trashBatch };
   }
 
   /**

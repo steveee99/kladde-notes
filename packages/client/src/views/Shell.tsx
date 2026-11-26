@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { hideToast, holdToast, showToast, useToast } from '../lib/toast';
 import {
   AlertTriangle,
   Bell,
@@ -1595,20 +1596,7 @@ function useFavoriteShortcut(showToast: (text: string, tone?: 'ok' | 'warn' | 'd
 }
 
 export function Shell({ me, children, isAdmin }: { me: Me; children: React.ReactNode; isAdmin?: boolean }) {
-  const [toast, setToast] = useState<{ text: string; tone: 'ok' | 'warn' | 'danger' } | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showToast = useCallback((text: string, tone: 'ok' | 'warn' | 'danger' = 'ok') => {
-    setToast({ text, tone });
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setToast(null), 2600);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
-  }, []);
+  const toast = useToast();
 
   useSearchShortcut();
   useSaveShortcut(showToast);
@@ -1623,14 +1611,32 @@ export function Shell({ me, children, isAdmin }: { me: Me; children: React.React
       {toast &&
         createPortal(
           <div
+            key={toast.id}
             role="status"
             aria-live="polite"
-            className="m3-snackbar no-print pointer-events-none fixed bottom-24 left-1/2 z-[80] flex min-h-12 max-w-[min(calc(100vw-2rem),42rem)] -translate-x-1/2 items-center gap-3 px-4 py-3 text-body-m anim-fade-up nav:bottom-6"
+            onPointerEnter={() => holdToast(true)}
+            onPointerLeave={() => holdToast(false)}
+            onFocus={() => holdToast(true)}
+            onBlur={() => holdToast(false)}
+            className={`m3-snackbar no-print fixed bottom-24 left-1/2 z-[80] flex min-h-12 max-w-[min(calc(100vw-2rem),42rem)] -translate-x-1/2 items-center gap-3 py-2 pl-4 text-body-m anim-fade-up nav:bottom-6 ${toast.action ? 'pr-2' : 'pointer-events-none pr-4'}`}
           >
             {toast.tone === 'ok' && <CheckCircle2 size={20} className="shrink-0 text-inverse-primary" />}
             {toast.tone === 'warn' && <CloudOff size={20} className="shrink-0" />}
             {toast.tone === 'danger' && <AlertTriangle size={20} className="shrink-0" />}
-            <span className="truncate">{toast.text}</span>
+            <span className="min-w-0 truncate">{toast.text}</span>
+            {toast.action && (
+              <button
+                type="button"
+                className="btn-text shrink-0 text-inverse-primary"
+                onClick={() => {
+                  const run = toast.action!.run;
+                  hideToast();
+                  void run();
+                }}
+              >
+                {toast.action.label}
+              </button>
+            )}
           </div>,
           document.body
         )}

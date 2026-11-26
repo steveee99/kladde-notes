@@ -109,6 +109,7 @@ import { useReadOnly } from '../lib/readOnly';
 import { Editor, insertAtLineStart, insertText, toggleCode, toggleWrap, wrapSelection } from '../editor/Editor';
 import { attachmentMarkdown, editorHost } from '../editor/host';
 import { openFind } from '../editor/find';
+import { toastDeleted } from '../lib/undoDelete';
 import { useOutline, type Outline } from '../editor/outline';
 import { OutlinePanel } from './OutlinePanel';
 import { NoteTasksPanel, useNoteTasks } from './NoteTasksPanel';
@@ -1569,7 +1570,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
 
   const handleDelete = () => {
     if (confirm(t('note.deleteConfirm', { name: displayName }))) {
-      void vault.remove(id);
+      void vault.remove(id).then(() => toastDeleted([id], t('undo.noteDeleted', { name: displayName })));
       navigate(noteGroup ? groupPath(noteGroup.id, folder) : !isOwner ? '/shared' : folder ? `/f/${encodeURIComponent(folder)}` : '/notes', true);
     }
   };

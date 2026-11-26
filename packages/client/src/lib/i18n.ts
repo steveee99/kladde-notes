@@ -2592,6 +2592,13 @@ const de = {
   'cmd.replaceInNote': 'In Notiz ersetzen',
   'note.findMenu': 'Suchen und ersetzen',
   'note.toolbarFind': 'In Notiz suchen',
+  'undo.action': 'Rückgängig',
+  'undo.noteDeleted': '„{name}“ gelöscht',
+  'undo.folderDeleted': 'Ordner „{name}“ gelöscht',
+  'undo.notesDeleted': '{n} Notizen gelöscht',
+  'undo.restoredOne': 'Notiz wiederhergestellt',
+  'undo.restoredMany': '{n} Notizen wiederhergestellt',
+  'undo.failed': 'Wiederherstellen fehlgeschlagen: {error}',
 } as const;
 
 export type I18nKey = keyof typeof de;
@@ -5104,6 +5111,13 @@ const en: Record<I18nKey, string> = {
   'cmd.replaceInNote': 'Replace in note',
   'note.findMenu': 'Find and replace',
   'note.toolbarFind': 'Find in note',
+  'undo.action': 'Undo',
+  'undo.noteDeleted': '“{name}” deleted',
+  'undo.folderDeleted': 'Folder “{name}” deleted',
+  'undo.notesDeleted': '{n} notes deleted',
+  'undo.restoredOne': 'Note restored',
+  'undo.restoredMany': '{n} notes restored',
+  'undo.failed': 'Could not restore: {error}',
 };
 
 const dict: Record<Lang, Record<I18nKey, string>> = { de, en };

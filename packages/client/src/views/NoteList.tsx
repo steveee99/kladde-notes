@@ -1,3 +1,4 @@
+import { toastDeleted } from '../lib/undoDelete';
 import { useState, useSyncExternalStore } from 'react';
 import { Activity as ActivityIcon, Archive, ArchiveRestore, ArrowDownAZ, ChevronRight, Clock, CornerLeftUp, Folder, FolderPlus, Kanban, LayoutGrid, List, Plus, Table2, Trash2, Users, Variables } from '../lib/icons';
 import { PageBody, PageHeader } from './PageHeader';
@@ -426,7 +427,11 @@ export function NoteList({ folder, mode }: { folder?: string; mode: 'folder' | '
         const name = folderDisplayName(folder, lang);
         if (!confirm(n ? t('list.deleteFolderConfirm', { folder: name, n }) : t('list.deleteEmptyFolderConfirm', { folder: name }))) return;
         const up = folder.includes('/') ? folder.slice(0, folder.lastIndexOf('/')) : '';
-        void vault.deleteFolderWithNotes(folder).then((ok) => ok && navigate(up ? `/f/${encodeURIComponent(up)}` : '/notes', true));
+        void vault.deleteFolderWithNotes(folder).then((done) => {
+          if (!done) return;
+          navigate(up ? `/f/${encodeURIComponent(up)}` : '/notes', true);
+          toastDeleted(done.ids, t('undo.folderDeleted', { name }), done.batch);
+        });
       },
     },
   ];

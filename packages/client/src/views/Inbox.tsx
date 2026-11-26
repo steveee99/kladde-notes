@@ -1,3 +1,4 @@
+import { toastDeleted } from '../lib/undoDelete';
 import { useState } from 'react';
 import { Trash2 } from '../lib/icons';
 import { INBOX_FOLDER, excerpt, isHiddenPath, splitPath } from '@kladde/shared';
@@ -22,7 +23,10 @@ function InboxItem({ note }: { note: LocalNote }) {
   const remove = () => {
     if (!confirm(t('inbox.deleteConfirm', { name }))) return;
     setLeaving(true);
-    void vault.remove(note.id).catch(() => setLeaving(false));
+    void vault
+      .remove(note.id)
+      .then(() => toastDeleted([note.id], t('undo.noteDeleted', { name })))
+      .catch(() => setLeaving(false));
   };
   return (
     <li className={`flex flex-col gap-2 px-3.5 py-3 transition-all duration-300 hover:bg-raised/50 sm:flex-row sm:items-center sm:justify-between sm:gap-4 ${leaving ? 'translate-x-8 opacity-0' : ''}`}>
