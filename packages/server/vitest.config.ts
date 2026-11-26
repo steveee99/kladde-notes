@@ -7,5 +7,11 @@ export default defineConfig({
   test: {
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    // `npm run test:coverage`: v8 coverage of the sources, reports in ./coverage (git-ignored)
+    coverage: {
+      provider: 'v8',
+      include: ['src/**'],
+      reporter: ['text-summary', 'html', 'json-summary'],
+    },
   },
 });
