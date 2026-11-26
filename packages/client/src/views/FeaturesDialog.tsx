@@ -31,6 +31,7 @@ import {
   Link2,
   Flame,
   Gamepad,
+  Speed,
   Callout,
   Smartphone,
   Star,
@@ -71,6 +72,7 @@ const NotificationSettingsView = lazy(() => import('./NotificationSettings').the
 const CalendarSettingsView = lazy(() => import('./CalendarSettings').then((m) => ({ default: m.CalendarSettingsView })));
 const ShortcutsSettingsView = lazy(() => import('./ShortcutsSettings').then((m) => ({ default: m.ShortcutsSettingsView })));
 const ConfluenceSettingsView = lazy(() => import('./ConfluenceSettings').then((m) => ({ default: m.ConfluenceSettingsView })));
+const CockpitConnectionsView = lazy(() => import('./CockpitConnections').then((m) => ({ default: m.CockpitConnectionsView })));
 
 /** One feature in the dialog */
 interface Feature {
@@ -338,6 +340,25 @@ function useFeatures(lang: Lang): Feature[] {
       details: L('features.habitsDesc'),
       ...flag('habits'),
     },
+    server &&
+      !DEMO && {
+        id: 'cockpit',
+        Icon: Speed,
+        title: L('features.cockpitTitle'),
+        summary: L('features.sum.cockpit'),
+        details: L('features.cockpitDesc'),
+        active: features.cockpit.enabled,
+        setActive: async (on: boolean) => {
+          await save((f) => ({ ...f, cockpit: { enabled: on } }));
+          // The first dashboard with the widgets most people need; later switches keep what is there
+          if (on) await import('../data/cockpit').then((m) => m.ensureDefaultDashboard(lang));
+        },
+        settings: () => (
+          <Suspense fallback={null}>
+            <CockpitConnectionsView />
+          </Suspense>
+        ),
+      },
     {
       id: 'minigame',
       Icon: Gamepad,

@@ -1,4 +1,4 @@
-import type { GitlabCardResponse, QueryResult, RemoteHost } from '@kladde/shared';
+import type { GitlabCardResponse, QueryResult, RemoteHost, VariableScope } from '@kladde/shared';
 import type { EmbedNote } from './embedContext';
 import { t } from '../lib/i18n';
 
@@ -42,6 +42,8 @@ export interface EditorHost {
   /** The preview card of a GitLab address (shared/gitlabCard.ts) */
   loadGitlabCard(url: string, refresh?: boolean): Promise<GitlabCardState>;
   runQuery(src: string): QueryResult | { error: string } | { loading: true };
+  /** Development cockpit: mounts a ```cockpit block's widget into `el` (null while the feature is off); returns the unmount */
+  mountCockpit: ((el: HTMLElement, src: string, doc: string, variables: VariableScope | null) => () => void) | null;
   toggleTask(noteId: string, line: number): void;
   /** Opens the note a task lives in, scrolled to the task's line */
   openTask(noteId: string, line: number): void;
@@ -86,6 +88,7 @@ export const editorHost: EditorHost = {
   onRemoteHosts: () => () => {},
   loadGitlabCard: () => Promise.resolve({ state: 'host_not_configured' }),
   runQuery: () => ({ error: t('editor.notAvailable') }),
+  mountCockpit: null,
   toggleTask: () => {},
   openTask: () => {},
   setFrontmatter: () => {},

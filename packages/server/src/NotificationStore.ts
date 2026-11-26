@@ -54,7 +54,8 @@ export interface NewNotification {
 export const NOTIFICATION_PAGE_MAX = 100;
 
 /** App path a notification opens */
-export function notificationUrl(n: { noteId: string; line?: number; threadId?: string; groupId?: string }): string {
+export function notificationUrl(n: { kind?: NotificationKind; noteId: string; line?: number; threadId?: string; groupId?: string }): string {
+  if (n.kind === 'cockpit') return `/cockpit/${encodeURIComponent(n.noteId)}`;
   if (n.groupId) return `/groups/${encodeURIComponent(n.groupId)}`;
   return `/n/${n.noteId}${n.threadId ? `?thread=${encodeURIComponent(n.threadId)}` : n.line !== undefined ? `?line=${n.line + 1}` : ''}`;
 }
@@ -67,6 +68,8 @@ export interface Delivery {
   name: string;
   /** App path a click opens */
   url: string;
+  /** Cockpit: the new rows (the body of the push) */
+  text?: string;
 }
 
 /** Delivers a notification right away: a live event to open apps and Web Push to the devices */
@@ -82,8 +85,10 @@ export function notificationPush(d: Delivery, lang: 'de' | 'en', noteId: string)
         ? en ? `${d.actor} replied to a comment` : `${d.actor} hat auf einen Kommentar geantwortet`
         : d.kind === 'group_added'
           ? en ? `${d.actor} added you to a group` : `${d.actor} hat dich zu einer Gruppe hinzugefügt`
-          : en ? `${d.actor} commented` : `${d.actor} hat kommentiert`;
-  return { title, body: d.name, tag: `${d.kind}-${noteId}`, url: d.url, lang };
+          : d.kind === 'cockpit'
+            ? en ? `New in “${d.name}”` : `Neu in „${d.name}“`
+            : en ? `${d.actor} commented` : `${d.actor} hat kommentiert`;
+  return { title, body: d.kind === 'cockpit' ? (d.text ?? '') : d.name, tag: `${d.kind}-${noteId}`, url: d.url, lang };
 }
 
 export class NotificationStore {
@@ -108,8 +113,8 @@ export class NotificationStore {
       .run(id, n.userId, n.kind, n.noteId, n.actorId, now, this.cipher.encryptJson(payload, `notification:${id}`));
     this.db.prepare('DELETE FROM notifications WHERE user_id = ? AND at < ?').run(n.userId, now - KEEP_DAYS * 86_400_000);
     const actor = this.users.getUser(n.actorId)?.username ?? '';
-    const name = n.groupId ? n.path : (n.path.split('/').pop()?.replace(/\.md$/i, '') ?? '');
-    this.deliver(n.userId, { kind: n.kind, actor, name, url: notificationUrl(n) });
+    const name = n.groupId || n.kind === 'cockpit' ? n.path : (n.path.split('/').pop()?.replace(/\.md$/i, '') ?? '');
+    this.deliver(n.userId, { kind: n.kind, actor, name, url: notificationUrl(n), ...(n.kind === 'cockpit' ? { text: n.text.slice(0, 300) } : {}) });
   }
 
   /**

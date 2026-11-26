@@ -125,6 +125,17 @@ export class RemoteInstances {
     return [...this.env, ...own];
   }
 
+  /**
+   * Every configured GitLab, with or without a shared token: the cockpit reads them with each user's own token, so an
+   * admin can allow an instance for personal tokens only
+   */
+  gitlabHosts(): RemoteInstance[] {
+    const own = this.stored()
+      .filter((s) => s.kind === 'gitlab' && !this.overridden(s))
+      .map((s): RemoteInstance => ({ ...s, apiBase: apiBaseOf(s.kind, s.url), fromEnv: false }));
+    return [...this.env.filter((e) => e.kind === 'gitlab'), ...own];
+  }
+
   get(id: string): RemoteInstance | undefined {
     return this.active().find((i) => i.id === id);
   }

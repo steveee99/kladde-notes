@@ -1987,6 +1987,7 @@ class Vault {
       linkPreview: { enabled: false },
       habits: { enabled: false },
       minigame: { enabled: false },
+      cockpit: { enabled: false },
       callouts: { enabled: true },
       calendarView: { enabled: true },
       activity: { enabled: true },
