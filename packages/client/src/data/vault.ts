@@ -144,6 +144,20 @@ export function newId(): string {
 
 /** Synced setting with the ordered list of favorite note ids */
 const FAVORITES_SETTING = 'favorites';
+/** Synced setting with the saved searches (#78), in the user's order */
+const SAVED_SEARCHES_SETTING = 'savedSearches';
+
+/** A saved search (#78): a query for the search overlay, or a view of the task page with its filters */
+export interface SavedSearch {
+  id: string;
+  name: string;
+  /** The query as typed (search overlay) */
+  q: string;
+  kind: 'notes' | 'tasks';
+  /** Task page filters (`kind: 'tasks'`), as the page stores them */
+  filters?: Record<string, unknown>;
+}
+
 /** Synced setting with favorite group folders (#58): "<group id>/<folder>", the folder empty for the group itself */
 const FAVORITE_GROUP_FOLDERS_SETTING = 'favoriteGroupFolders';
 
@@ -1306,6 +1320,47 @@ class Vault {
 
   async removeTemplate(id: string): Promise<void> {
     await this.setSetting(TEMPLATES_SETTING, this.templates().filter((t) => t.id !== id));
+  }
+
+  // ------------------------------------------------------------------ saved searches (#78, synced setting)
+
+  savedSearches(): SavedSearch[] {
+    const raw = this.setting<unknown>(SAVED_SEARCHES_SETTING);
+    if (!Array.isArray(raw)) return [];
+    return raw.filter(
+      (x): x is SavedSearch => !!x && typeof x === 'object' && typeof (x as SavedSearch).id === 'string' && typeof (x as SavedSearch).name === 'string' && typeof (x as SavedSearch).q === 'string'
+    ).map((x) => ({ ...x, kind: x.kind === 'tasks' ? 'tasks' : 'notes' }));
+  }
+
+  private async writeSavedSearches(list: SavedSearch[]): Promise<void> {
+    if (isReadOnly()) throw new Error(t('vault.readOnlyError'));
+    await this.setSetting(SAVED_SEARCHES_SETTING, list);
+  }
+
+  async saveSearch(entry: Omit<SavedSearch, 'id'>): Promise<SavedSearch> {
+    const saved: SavedSearch = { ...entry, name: entry.name.trim().slice(0, 80) || entry.q.slice(0, 80), id: newId().slice(0, 12) };
+    await this.writeSavedSearches([...this.savedSearches(), saved]);
+    return saved;
+  }
+
+  async renameSavedSearch(id: string, name: string): Promise<void> {
+    const clean = name.trim().slice(0, 80);
+    if (!clean) return;
+    await this.writeSavedSearches(this.savedSearches().map((x) => (x.id === id ? { ...x, name: clean } : x)));
+  }
+
+  async removeSavedSearch(id: string): Promise<void> {
+    await this.writeSavedSearches(this.savedSearches().filter((x) => x.id !== id));
+  }
+
+  /** Moves a saved search one place up (-1) or down (1) */
+  async moveSavedSearch(id: string, dir: -1 | 1): Promise<void> {
+    const list = this.savedSearches();
+    const i = list.findIndex((x) => x.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    await this.writeSavedSearches(list);
   }
 
   // ------------------------------------------------------------------ favorites (synced setting)

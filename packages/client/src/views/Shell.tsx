@@ -44,6 +44,9 @@ import {
   Variables,
   Flag,
   CheckBoxBlank,
+  SavedSearch as SavedSearchIcon,
+  ArrowUp,
+  ArrowDown,
 } from '../lib/icons';
 import {
   isExcalidrawNote,
@@ -88,6 +91,8 @@ import { createDrawingNote, createPdfNote } from '../lib/newNote';
 import { DEMO } from '../demo/demoApi';
 import { groupPath } from './Groups';
 import { useItemMenu, type MenuAction } from './ContextMenu';
+import { openSavedSearch, savedSearchCount } from '../lib/savedSearch';
+import type { SavedSearch } from '../data/vault';
 import { openInSide, useSplitAvailable } from '../lib/panes';
 
 /** The own folder a route shows (`/f/<folder>`) or that holds the open own note; null elsewhere */
@@ -497,6 +502,54 @@ function SidebarNoteRow({
           </span>
         )}
       </div>
+      {menu.button && (
+        <span className={`absolute right-1.5 top-1/2 -translate-y-1/2 ${menu.open ? 'flex' : 'hidden group-hover/note:flex group-focus-within/note:flex'}`}>{menu.button}</span>
+      )}
+      {menu.menu}
+    </li>
+  );
+}
+
+/** A saved search in the sidebar (#78): opens it; its menu renames, moves and removes it */
+function SavedSearchRow({ saved, index, total, count, onNavigate }: { saved: SavedSearch; index: number; total: number; count: number | null; onNavigate?: () => void }) {
+  const locked = useReadOnly();
+  const fail = (err: Error) => alert(err.message);
+  const menu = useItemMenu(
+    locked
+      ? []
+      : [
+          {
+            icon: Pencil,
+            label: t('saved.rename'),
+            onSelect: () => {
+              const name = prompt(t('saved.namePrompt'), saved.name);
+              if (name) void vault.renameSavedSearch(saved.id, name).catch(fail);
+            },
+          },
+          ...(index > 0 ? [{ icon: ArrowUp, label: t('saved.moveUp'), onSelect: () => void vault.moveSavedSearch(saved.id, -1).catch(fail) }] : []),
+          ...(index < total - 1 ? [{ icon: ArrowDown, label: t('saved.moveDown'), onSelect: () => void vault.moveSavedSearch(saved.id, 1).catch(fail) }] : []),
+          { icon: Trash2, label: t('saved.remove'), danger: true, onSelect: () => void vault.removeSavedSearch(saved.id).catch(fail) },
+        ],
+    t('saved.actions', { name: saved.name })
+  );
+  const Icon = saved.kind === 'tasks' ? ListChecks : SavedSearchIcon;
+  return (
+    <li className="group/note relative" data-saved-search={saved.id}>
+      <button
+        type="button"
+        onContextMenu={menu.rowProps.onContextMenu}
+        onKeyDown={menu.rowProps.onKeyDown}
+        onClick={() => {
+          openSavedSearch(saved);
+          onNavigate?.();
+        }}
+        className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md pl-2.5 pr-3 text-left text-body-m text-soft transition-colors hover:bg-raised hover:text-text"
+        title={saved.kind === 'tasks' ? saved.name : `${saved.name} · ${saved.q}`}
+      >
+        <Icon size={14} className="shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{saved.name}</span>
+        {count !== null && <span className="shrink-0 font-mono text-[11px] text-muted group-hover/note:invisible">{count}</span>}
+      </button>
       {menu.button && (
         <span className={`absolute right-1.5 top-1/2 -translate-y-1/2 ${menu.open ? 'flex' : 'hidden group-hover/note:flex group-focus-within/note:flex'}`}>{menu.button}</span>
       )}
@@ -1077,6 +1130,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
   const locked = useReadOnly();
   const [newRoot, setNewRoot] = useState(false);
   const [favoritesOpen, setFavoritesOpen] = useSectionOpen('favorites', () => window.innerHeight >= 700);
+  const [savedOpen, setSavedOpen] = useSectionOpen('savedSearches', () => true);
   const [foldersOpen, setFoldersOpen] = useSectionOpen('folders', () => true);
   const [groupsOpen, setGroupsOpen] = useSectionOpen('groups', () => true);
   const [navOpen, setNavOpen] = useSectionOpen('nav', () => true);
@@ -1168,6 +1222,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
   // Group folders (#58) as favorites: "Group/Folder"
   const favoriteGroupFolders = features.favorites.enabled ? vault.favoriteGroupFolders() : [];
   const favoriteCount = favoriteNotes.length + favoriteGroupFolders.length;
+  const savedSearches = vault.savedSearches();
 
   const nav = (to: string) => {
     navigate(to);
@@ -1337,6 +1392,18 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
                   })}
                   {favoriteNotes.map((n) => (
                     <SidebarNoteRow key={n.id} note={n} label={projectTitleOf(n.path, n.content, roleConfig)} active={activeNoteId === n.id} depth={0} onNavigate={onNavigate} />
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+          {savedSearches.length > 0 && (
+            <>
+              <SectionHeader label={t('saved.section')} open={savedOpen} onToggle={() => setSavedOpen(!savedOpen)} count={savedSearches.length} />
+              {savedOpen && (
+                <ul data-saved-searches className="shrink-0 space-y-px">
+                  {savedSearches.map((saved, i) => (
+                    <SavedSearchRow key={saved.id} saved={saved} index={i} total={savedSearches.length} count={savedSearchCount(saved)} onNavigate={onNavigate} />
                   ))}
                 </ul>
               )}

@@ -2624,6 +2624,20 @@ const de = {
   'settings.completeParentsTitle': 'Übergeordnete Aufgabe mit abhaken',
   'settings.completeParentsDesc': 'Ist die letzte Unteraufgabe erledigt, wird die Aufgabe darüber auch abgehakt (auf diesem Gerät).',
   'settings.completeParentsLabel': 'Übergeordnete Aufgaben automatisch abhaken',
+  'saved.section': 'Gespeicherte Suchen',
+  'saved.save': 'Suche speichern',
+  'saved.saved': 'Gespeichert',
+  'saved.saveTitle': 'Diese Suche in der Seitenleiste merken (auf allen Geräten)',
+  'saved.namePrompt': 'Name der gespeicherten Suche',
+  'saved.rename': 'Umbenennen',
+  'saved.moveUp': 'Nach oben',
+  'saved.moveDown': 'Nach unten',
+  'saved.remove': 'Entfernen',
+  'saved.actions': 'Aktionen für „{name}“',
+  'saved.saveView': 'Ansicht speichern',
+  'saved.taskViewTitle': 'Diese Filter als gespeicherte Suche in der Seitenleiste merken',
+  'saved.taskViewDefault': 'Meine Aufgaben',
+  'saved.savedToast': '„{name}“ gespeichert',
 } as const;
 
 export type I18nKey = keyof typeof de;
@@ -5168,6 +5182,20 @@ const en: Record<I18nKey, string> = {
   'settings.completeParentsTitle': 'Complete parent tasks',
   'settings.completeParentsDesc': 'When the last subtask is done, the task above it is ticked off too (on this device).',
   'settings.completeParentsLabel': 'Tick off parent tasks automatically',
+  'saved.section': 'Saved searches',
+  'saved.save': 'Save search',
+  'saved.saved': 'Saved',
+  'saved.saveTitle': 'Keep this search in the sidebar (on all devices)',
+  'saved.namePrompt': 'Name of the saved search',
+  'saved.rename': 'Rename',
+  'saved.moveUp': 'Move up',
+  'saved.moveDown': 'Move down',
+  'saved.remove': 'Remove',
+  'saved.actions': 'Actions for “{name}”',
+  'saved.saveView': 'Save view',
+  'saved.taskViewTitle': 'Keep these filters as a saved search in the sidebar',
+  'saved.taskViewDefault': 'My tasks',
+  'saved.savedToast': 'Saved “{name}”',
 };
 
 const dict: Record<Lang, Record<I18nKey, string>> = { de, en };

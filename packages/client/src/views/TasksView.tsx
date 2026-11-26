@@ -3,8 +3,11 @@
  * list grouped by bucket or as a Kanban board. Filters (status, folder, done) and the sort order are
  * remembered per device.
  */
-import { useMemo, useState } from 'react';
-import { AlignJustify, AtSign, Ban, Kanban, List, ListChecks } from '../lib/icons';
+import { useEffect, useMemo, useState } from 'react';
+import { AlignJustify, AtSign, Ban, Kanban, List, ListChecks, SavedSearch } from '../lib/icons';
+import { TASK_PREFS_KEY, TASK_VIEW_EVENT } from '../lib/savedSearch';
+import { isReadOnly } from '../lib/readOnly';
+import { showToast } from '../lib/toast';
 import { mentionsUser, toDateString, type TaskStatus } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
 import { TaskBuckets, TaskKanban, TaskQuickAdd, collectTasks, type TaskRow } from './TaskParts';
@@ -30,7 +33,7 @@ interface TaskPagePrefs {
   actionable: boolean;
 }
 
-const PREFS_KEY = 'kladde.tasksPage';
+const PREFS_KEY = TASK_PREFS_KEY;
 const DEFAULTS: TaskPagePrefs = { layout: 'list', compact: false, status: 'all', folder: '*', sort: 'due', showDone: false, mine: false, actionable: false };
 
 function readPrefs(): TaskPagePrefs {
@@ -76,6 +79,22 @@ export function TasksView() {
       }
       return next;
     });
+
+  // A saved task view (#78) opened from the sidebar while the page is showing
+  useEffect(() => {
+    const onView = () => setPrefsState(readPrefs());
+    window.addEventListener(TASK_VIEW_EVENT, onView);
+    return () => window.removeEventListener(TASK_VIEW_EVENT, onView);
+  }, []);
+  const saveView = () => {
+    const name = prompt(t('saved.namePrompt'), t('saved.taskViewDefault'));
+    if (!name) return;
+    const { layout, compact, status, folder: f, sort, showDone, mine, actionable } = prefs;
+    void vault
+      .saveSearch({ name, q: '', kind: 'tasks', filters: { layout, compact, status, folder: f, sort, showDone, mine, actionable } })
+      .then(() => showToast(t('saved.savedToast', { name }), 'ok'))
+      .catch((err: Error) => alert(err.message));
+  };
 
   const all = collectTasks(version);
   const folders = useMemo(() => [...new Set(all.map((tk) => tk.folder))].sort(compareText), [all]);
@@ -174,6 +193,11 @@ export function TasksView() {
         {all.some((tk) => tk.waiting) && (
           <button type="button" className="chip" aria-pressed={prefs.actionable} onClick={() => setPrefs({ actionable: !prefs.actionable })} data-actionable-only>
             <Ban size={14} /> {t('tasks.hideWaiting')}
+          </button>
+        )}
+        {!isReadOnly() && (
+          <button type="button" className="chip" onClick={saveView} data-save-task-view title={t('saved.taskViewTitle')}>
+            <SavedSearch size={14} /> {t('saved.saveView')}
           </button>
         )}
         <label className="ml-auto flex items-center gap-2 text-body-m text-muted">

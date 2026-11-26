@@ -246,7 +246,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
           </button>
           <button
             type="button"
-            onClick={openSearch}
+            onClick={() => openSearch()}
             aria-haspopup="dialog"
             aria-keyshortcuts="Control+K Meta+K"
             className="mx-auto flex h-8 w-full max-w-[520px] items-center gap-2.5 rounded-md border border-line2 bg-bg px-3 text-left text-body-m text-muted outline-none transition-colors hover:border-edge focus-visible:border-acc"
@@ -349,7 +349,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
             </button>
             <span className="font-display min-w-0 truncate pl-1 text-[21px] leading-7">Kladde</span>
             <div className="m3-status ml-auto flex shrink-0 items-center gap-0.5 pr-1">
-              <button type="button" className="btn-icon shrink-0 sm:hidden" onClick={openSearch} aria-label={t('common.search')} title={t('common.search')}>
+              <button type="button" className="btn-icon shrink-0 sm:hidden" onClick={() => openSearch()} aria-label={t('common.search')} title={t('common.search')}>
                 <SearchIcon size={22} />
               </button>
               <ReadOnlyToggle />
@@ -377,7 +377,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
             {ticketsAnywhere() && <NavItem bar className="hidden tablet:flex" to="/projects" Icon={Kanban} label={t('nav.projects')} />}
             <NavItem bar to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} badgeLabel={t('nav.badgeInbox', { n: inboxCount })} />
             <NavItem bar to="/notes" Icon={FileText} label={t('nav.notes')} />
-            <Destination bar className="hidden tablet:flex" active={false} onClick={openSearch} Icon={SearchIcon} label={t('common.search')} title={t('common.search')} />
+            <Destination bar className="hidden tablet:flex" active={false} onClick={() => openSearch()} Icon={SearchIcon} label={t('common.search')} title={t('common.search')} />
             <NavItem bar className="hidden tablet:flex" to="/tags" Icon={Tags} label={t('nav.tags')} />
             <NavItem bar className="hidden md:tablet:flex" to="/graph" Icon={Network} label={t('nav.graphShort')} />
             <Destination
