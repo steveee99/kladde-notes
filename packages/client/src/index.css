@@ -330,6 +330,10 @@ html,
 body {
   overflow: hidden;
 }
+/* Pinch zoom switched off (lib/prefs.ts applyPinchZoom): scrolling stays, pinching and double-tap zoom do not scale the app */
+html[data-pinch-zoom='off'] {
+  touch-action: pan-x pan-y;
+}
 /*
  * iOS 26 (WebKit 301108): a home-screen app installed with the translucent status bar gets a viewport
  * that is short by the status bar's height for as long as the page is not taller than it, so the

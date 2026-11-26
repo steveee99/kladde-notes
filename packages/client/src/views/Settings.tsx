@@ -19,7 +19,7 @@ import { api, deleteAvatar, setDisplayName, uploadAvatar } from '../lib/api';
 import { useConfluence } from '../lib/confluence';
 import { Lang, locale, setLang, tl, useLang, type I18nKey } from '../lib/i18n';
 import { Dropdown } from './Dropdown';
-import { CODE_COLLAPSE_OPTIONS, EDITOR_FONT_SIZES, NOTE_WIDTHS, setNoteWidth, useNoteWidth, type NoteWidth, setCodeBlockPrefs, setEditorFontSize, setInboxZero, setLigatures, useCodeBlockPrefs, useEditorFontSize, useInboxZero, useLigatures } from '../lib/prefs';
+import { CODE_COLLAPSE_OPTIONS, EDITOR_FONT_SIZES, NOTE_WIDTHS, setNoteWidth, useNoteWidth, type NoteWidth, setCodeBlockPrefs, setEditorFontSize, setInboxZero, setLigatures, setPinchZoom, useCodeBlockPrefs, useEditorFontSize, useInboxZero, useLigatures, usePinchZoom } from '../lib/prefs';
 import { setColorSchemeChoice, useColorSchemeChoice } from '../lib/theme';
 import { CODE_THEMES, setCodeTheme, useCodeTheme } from '../lib/codeTheme';
 import { useVault, vault } from '../data/vault';
@@ -243,6 +243,7 @@ export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (m
   const lang = useLang();
   const loc = locale(lang);
   const inboxZero = useInboxZero();
+  const pinchZoom = usePinchZoom();
   const ligatures = useLigatures();
   const codeBlocks = useCodeBlockPrefs();
   const editorFontSize = useEditorFontSize();
@@ -488,6 +489,14 @@ export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (m
                 onChange={(v) => setNoteWidth(v as NoteWidth)}
               />
             </SettingRow>
+            <SwitchRow
+              id="pinch-zoom-switch"
+              title={tl(lang, 'settings.pinchZoomTitle')}
+              desc={tl(lang, 'settings.pinchZoomDesc')}
+              label={tl(lang, 'settings.pinchZoomLabel')}
+              checked={pinchZoom}
+              onChange={setPinchZoom}
+            />
             <SwitchRow
               id="ligatures-switch"
               title={tl(lang, 'settings.ligaturesTitle')}

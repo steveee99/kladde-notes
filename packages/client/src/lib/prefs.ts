@@ -346,3 +346,44 @@ export function setCodeBlockPrefs(patch: Partial<CodeBlockPrefs>): void {
 export function useCodeBlockPrefs(): CodeBlockPrefs {
   return useSyncExternalStore(subscribe, () => codeBlocks);
 }
+
+/**
+ * Pinch zoom of the whole app, per device (Settings → Editor). Off by default: a pinch scaled the page and
+ * pushed the top and bottom bars out of view. `data-pinch-zoom="off"` on <html> sets `touch-action: pan-x pan-y`
+ * (index.css), and WebKit's `gesturestart` is cancelled as well, since older iOS versions ignore touch-action
+ * for pinches. Views with their own pinch handling (graph) use `touch-action: none` and keep working.
+ * The editor font size stays the way to make text larger.
+ */
+const PINCH_ZOOM_KEY = 'kladde_pinch_zoom';
+let pinchZoom = readBool(PINCH_ZOOM_KEY, false);
+
+function blockGesture(e: Event): void {
+  e.preventDefault();
+}
+
+export function applyPinchZoom(): void {
+  if (typeof document === 'undefined') return;
+  if (pinchZoom) {
+    delete document.documentElement.dataset.pinchZoom;
+    document.removeEventListener('gesturestart', blockGesture);
+  } else {
+    document.documentElement.dataset.pinchZoom = 'off';
+    document.addEventListener('gesturestart', blockGesture, { passive: false });
+  }
+}
+
+export function setPinchZoom(on: boolean): void {
+  if (pinchZoom === on) return;
+  pinchZoom = on;
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(PINCH_ZOOM_KEY, on ? '1' : '0');
+  } catch {
+    // ignore
+  }
+  applyPinchZoom();
+  listeners.forEach((l) => l());
+}
+
+export function usePinchZoom(): boolean {
+  return useSyncExternalStore(subscribe, () => pinchZoom);
+}
