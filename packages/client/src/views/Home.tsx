@@ -11,6 +11,7 @@ import { PageBody, PageHeader, Panel } from './PageHeader';
 import { HabitsToday } from './HabitsToday';
 import { habits as loadHabits } from '../data/habits';
 import { ActivityHeatmap } from './ActivityHeatmap';
+import { FlightGame, minigameBest } from './FlightGame';
 import { TaskBuckets, TaskKanban, TaskQuickAdd, collectTasks } from './TaskParts';
 import { locale, t, useLang } from '../lib/i18n';
 import { useInboxZero } from '../lib/prefs';
@@ -21,6 +22,7 @@ export function HomeView() {
   const inboxZero = useInboxZero();
   const locked = useReadOnly();
   const habitsList = vault.features().habits.enabled ? loadHabits() : [];
+  const [best, setBest] = useState(minigameBest);
   const [compact, setCompactState] = useState(() => {
     try {
       return localStorage.getItem('kladde.tasksCompact') === '1';
@@ -217,6 +219,11 @@ export function HomeView() {
             </Panel>
           )}
           {features.heatmap.enabled && <ActivityHeatmap embedded />}
+          {features.minigame.enabled && (
+            <Panel labelId="home-minigame-heading" label={t('minigame.title')} aside={best > 0 && <span className="pill bg-raised font-mono text-soft">{t('minigame.bestPill', { n: best })}</span>}>
+              <FlightGame onBest={setBest} />
+            </Panel>
+          )}
         </div>
 
         {features.para.enabled && (

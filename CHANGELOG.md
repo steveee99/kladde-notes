@@ -5,6 +5,7 @@ All user-visible changes to Kladde.
 ## [Unreleased]
 
 - New: Publish a folder as a website: "Share folder" → "Publish as a website (read-only)" makes every note in the folder and its subfolders readable without an account under `/p/<address>`. The address is random like a public link, or an own one ("team-docs") set in the same dialog; changing it retires the old one, and the website follows the folder when it is renamed or moved and goes down with it. Guests get the folder tree with search, each note under its own address (`/p/<address>/Folder/Note`), working `[[links]]` and embeds between the notes, footnotes, the outline, backlinks, a local graph and the graph of the whole site, and per note "Copy Markdown", "Download as PDF" and the other exports. Variables, note types, releases and remote notes show as on public links; hidden system notes and the folder's path above it stay private.
+- New: Break game (opt-in under Settings → Features): “Notebook flight” on the home page, a small 2D game in the Kladde look. The notebook flaps across dotted paper through the gaps between pencils above a ruler; space, the up arrow, Enter or a click or tap lifts it, every gap passed scores a point and it slowly gets faster. It follows the color scheme and the accent, pauses when you click elsewhere, scroll away or switch tabs, and keeps the best score on this device.
 
 ## [2.24.0] – 2026-11-26
 
