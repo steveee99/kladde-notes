@@ -1,6 +1,6 @@
 import { createContext, lazy, Suspense, useContext, useEffect, useRef, useState } from 'react';
 import { useModal } from '../lib/modal';
-import { CalendarCheck, CalendarDays, CalendarMonth, FileText, Home, Inbox as InboxIcon, Kanban, ListChecks, Menu, Network, PanelLeftClose, PanelLeftOpen, Pencil, Search as SearchIcon, Share2, Tags, Users, X } from '../lib/icons';
+import { CalendarCheck, CalendarDays, CalendarMonth, FileText, Flame, Home, Inbox as InboxIcon, Kanban, ListChecks, Menu, Network, PanelLeftClose, PanelLeftOpen, Pencil, Search as SearchIcon, Share2, Tags, Users, X } from '../lib/icons';
 import { openSearch, SearchDialogHost } from './SearchDialog';
 import { isHiddenPath, APP_VERSION, INBOX_FOLDER, Me, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
@@ -293,6 +293,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
             <NavItem to="/tasks" Icon={ListChecks} label={t('nav.tasks')} badge={taskBadge} badgeLabel={t('nav.badgeTasks', { n: urgentTasks })} />
             {ticketsAnywhere() && <NavItem to="/projects" Icon={Kanban} label={t('nav.projects')} />}
             {features.calendarView.enabled && <NavItem to="/calendar" Icon={CalendarMonth} label={t('nav.calendar')} />}
+            {features.habits.enabled && <NavItem to="/habits" Icon={Flame} label={t('habits.title')} />}
             <NavItem to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} badgeLabel={t('nav.badgeInbox', { n: inboxCount })} />
             <RailDivider />
             <NavItem to="/graph" Icon={Network} label={t('nav.graphShort')} />

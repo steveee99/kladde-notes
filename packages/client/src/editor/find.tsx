@@ -155,15 +155,16 @@ function FindBar({ view, version }: { view: EditorView; version: number }) {
 
   return (
     <div className="find-bar" role="search" aria-label={t('find.label')}>
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1">
         {!readOnly
           ? iconBtn(replaceOpen ? t('find.hideReplace') : t('find.showReplace'), replaceOpen ? ChevronDown : ChevronRight, () => setReplaceOpen((v) => !v))
           : null}
-        <div className="relative min-w-0 flex-1">
+        <div className="relative min-w-[9rem] flex-1">
           <input
             ref={field}
             className={`input h-8 w-full pr-20 text-body-m ${invalid ? 'border-red' : ''}`}
-            type="search"
+            type="text"
+            role="searchbox"
             enterKeyHint="search"
             aria-label={t('find.searchLabel')}
             placeholder={t('find.placeholder')}
@@ -180,7 +181,8 @@ function FindBar({ view, version }: { view: EditorView; version: number }) {
             {count}
           </span>
         </div>
-        <div className="flex shrink-0 items-center gap-0.5">
+        {/* On phones the options take their own line below the field */}
+        <div className="flex shrink-0 items-center gap-0.5 phone:order-last phone:w-full phone:pl-9">
           {toggle(t('find.matchCase'), 'Aa', query.caseSensitive, () => set({ caseSensitive: !query.caseSensitive }))}
           {toggle(t('find.wholeWord'), 'W', query.wholeWord, () => set({ wholeWord: !query.wholeWord }))}
           {toggle(t('find.regexp'), '.*', query.regexp, () => set({ regexp: !query.regexp }))}

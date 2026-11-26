@@ -45,6 +45,7 @@ import {
   Flag,
   CheckBoxBlank,
   SavedSearch as SavedSearchIcon,
+  Flame,
   ArrowUp,
   ArrowDown,
 } from '../lib/icons';
@@ -1332,6 +1333,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
               {navRow('tasks', ListChecks, t('nav.tasks'), { to: '/tasks', badge: <NavBadge tone="warn" count={urgentTasks} /> })}
               {ticketsAnywhere() && navRow('projects', Kanban, t('nav.projects'), { to: '/projects' })}
               {features.calendarView.enabled && navRow('calendar', CalendarMonth, t('nav.calendar'), { to: '/calendar' })}
+              {features.habits.enabled && navRow('habits', Flame, t('habits.title'), { to: '/habits' })}
               {!vault.standalone &&
                 !DEMO &&
                 navRow('notifications', Bell, t('notices.title'), { to: '/notifications', badge: <NavBadge count={vault.unreadNotifications} /> })}

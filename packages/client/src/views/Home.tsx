@@ -8,6 +8,8 @@ import { navigate } from '../lib/router';
 import { useReadOnly } from '../lib/readOnly';
 import { formatDue } from '../editor/widgets';
 import { PageBody, PageHeader, Panel } from './PageHeader';
+import { HabitsToday } from './HabitsToday';
+import { habits as loadHabits } from '../data/habits';
 import { ActivityHeatmap } from './ActivityHeatmap';
 import { TaskBuckets, TaskKanban, TaskQuickAdd, collectTasks } from './TaskParts';
 import { locale, t, useLang } from '../lib/i18n';
@@ -18,6 +20,7 @@ export function HomeView() {
   const lang = useLang();
   const inboxZero = useInboxZero();
   const locked = useReadOnly();
+  const habitsList = vault.features().habits.enabled ? loadHabits() : [];
   const [compact, setCompactState] = useState(() => {
     try {
       return localStorage.getItem('kladde.tasksCompact') === '1';
@@ -174,6 +177,19 @@ export function HomeView() {
         </Panel>
 
         <div className="flex min-w-0 flex-col gap-7">
+          {vault.features().habits.enabled && habitsList.length > 0 && (
+            <Panel
+              labelId="home-habits-heading"
+              label={t('habits.title')}
+              aside={
+                <button type="button" className="btn-text !h-7 !px-2 text-label-m" onClick={() => navigate('/habits')}>
+                  <span className="hidden sm:inline">{t('habits.open')}</span> <ArrowRight size={14} />
+                </button>
+              }
+            >
+              <HabitsToday />
+            </Panel>
+          )}
           {inboxNotes.length > 0 && (
             <Panel
               labelId="home-inbox-heading"
