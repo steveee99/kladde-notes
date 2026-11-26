@@ -2,6 +2,7 @@ import { LinkIndex, type LinkNote } from './links.js';
 import { extractMeta, parseFrontmatter } from './markdown.js';
 import { NoteMemo } from './noteMemo.js';
 import { PARA } from './para.js';
+import { trimSlashes } from './util.js';
 
 export interface SemanticSearchOptions {
   folder?: string;
@@ -410,7 +411,7 @@ export function semanticSearch(query: string, notes: LinkNote[], options: Semant
   const trimmed = query.trim();
   if (!trimmed || !notes.length) return [];
 
-  const folder = options.folder?.replace(/^\/+|\/+$/g, '');
+  const folder = options.folder === undefined ? undefined : trimSlashes(options.folder);
   const limit = Math.max(1, Math.min(options.limit ?? 10, 100));
   const minScore = options.minScore ?? 0.05;
 
@@ -619,9 +620,9 @@ class IdfMap {
 export function relatedQuery(note: LinkNote): string {
   const meta = extractMeta(note.path, note.content);
   const { body } = parseFrontmatter(note.content);
-  const headings = [...body.matchAll(/^#{1,3}\s+(.+)$/gm)].map((m) => m[1]).slice(0, 8);
+  const headings = [...body.matchAll(/^#{1,3}[ \t]+(\S.*)$/gm)].map((m) => m[1]).slice(0, 8);
   // The opening of the text too: short notes say what they are about there
-  const opening = body.replace(/^#{1,6}\s+.*$/gm, ' ').replace(/[`*_>[\]()!|-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
+  const opening = body.replace(/^#{1,6}[ \t].*$/gm, ' ').replace(/[`*_>[\]()!|-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
   return [meta.title, ...meta.tags.map((t) => t.replace(/[/_-]/g, ' ')), ...meta.links.slice(0, 12), ...headings, opening].join(' ').slice(0, 900);
 }
 

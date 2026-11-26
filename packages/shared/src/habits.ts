@@ -39,8 +39,10 @@ export function habitSlug(name: string): string {
     name
       .toLowerCase()
       .replace(/[^\p{L}\p{N}]+/gu, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 40) || 'habit'
+      // At most one hyphen is left at each end after the line above
+      .replace(/^-/, '')
+      .slice(0, 40)
+      .replace(/-$/, '') || 'habit'
   );
 }
 
@@ -62,7 +64,7 @@ export function parseHabits(content: string): Habit[] {
   const out: Habit[] = [];
   const seen = new Set<string>();
   for (const line of body.split('\n')) {
-    const m = /^\s*[-*+]\s+(.+)$/.exec(line);
+    const m = /^[ \t]*[-*+][ \t]+(\S.*)$/.exec(line);
     if (!m) continue;
     const [first, target, idRaw] = m[1].split('|').map((p) => p.trim());
     const icon = EMOJI.exec(first)?.[1] ?? '';
@@ -125,7 +127,7 @@ export function setHabitCheckin(content: string, habit: Habit, done: boolean): s
     return lines.join('\n');
   }
   const entry = `- [x] ${habit.icon ? `${habit.icon} ` : ''}${habit.name} ${habitTag(habit.id)}`;
-  const body = content.replace(/\s+$/, '');
+  const body = content.trimEnd();
   if (!body) return `${entry}\n`;
   // Right below a task list it joins the list; after text it starts a new paragraph
   const lastLine = body.split('\n').pop() ?? '';

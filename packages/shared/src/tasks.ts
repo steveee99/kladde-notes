@@ -179,7 +179,12 @@ export function parseTasks(content: string, today = new Date(), defaultDue: stri
     const tagged = TASK_ID.exec(rest);
     const id = tagged ?? BLOCK_ID.exec(withoutDoneDate(rest).trimEnd());
     if (tagged) rest = rest.slice(0, tagged.index) + rest.slice(tagged.index + tagged[0].length);
-    else if (id) rest = rest.replace(new RegExp(`(^|\\s)\\^${id[1]}(?=\\s|$)`, 'u'), '$1');
+    else if (id) {
+      // The last word "^id" (no regex built from note text)
+      const words = rest.split(' ');
+      const at = words.lastIndexOf(`^${id[1]}`);
+      if (at >= 0) rest = [...words.slice(0, at), ...words.slice(at + 1)].join(' ');
+    }
     const due = DUE.exec(rest);
     const repeat = REPEAT.exec(rest);
     const time = TIME.exec(rest);

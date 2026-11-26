@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseQuery, runQuery } from '../src/query';
 import { addChecklist, cardLineUrl, createPeriodicExtractor, extractDailyNoteDate, resolveDailyNote, resolvePeriodicNote } from '../src/index';
-import { findInlineMath, findMath, parseExportInlines, fillReleasePlaceholders, hasReleasePlaceholders, buildCalendar, filterGraph, pdfNoteOf, LinkIndex, normalizeTag, renameTag, tagBeforeCursor, nextDue, parseFrontmatter, parseTasks, rruleOf, setTaskMeta, setTaskStatus, stripBlockIds, extractHeadings, trimSlashes } from '../src/index';
+import { findInlineMath, findMath, parseExportInlines, fillReleasePlaceholders, hasReleasePlaceholders, buildCalendar, filterGraph, pdfNoteOf, LinkIndex, normalizeTag, renameTag, tagBeforeCursor, nextDue, parseFrontmatter, parseTasks, rruleOf, setTaskMeta, setTaskStatus, stripBlockIds, extractHeadings, trimSlashes, habitSlug, parseHabits, setHabitCheckin, relatedQuery, semanticSearch } from '../src/index';
 
 /** Runs `fn` and fails if it takes longer than a linear scan should (the CodeQL polynomial-ReDoS inputs) */
 function fast(fn: () => unknown, ms = 250) {
@@ -13,6 +13,15 @@ function fast(fn: () => unknown, ms = 250) {
 const N = 50_000;
 
 describe('regexes stay linear on hostile input', () => {
+  it('habits, related notes and task ids (#134, #84, #75)', () => {
+    fast(() => habitSlug(`a${'-'.repeat(N)}b`));
+    fast(() => parseHabits(`* ${'  '.repeat(N)}x`));
+    fast(() => setHabitCheckin(`x${' '.repeat(N)}y`, { id: 'a', name: 'A', icon: '', target: { kind: 'daily' } }, true));
+    fast(() => relatedQuery({ id: 'x', path: 'x.md', content: `# ${'  '.repeat(N)}x\n#${' '.repeat(N)}` }));
+    fast(() => semanticSearch('wohnung', [{ id: 'x', path: 'x.md', content: 'Wohnung' }], { folder: `${'/'.repeat(N)}a` }));
+    fast(() => parseTasks(`- [ ] a ${'^b '.repeat(N / 3)}^c`));
+  });
+
   it('ticket checklists and GitLab card lines', () => {
     fast(() => addChecklist(`* [ ] ${'  '.repeat(N)}x\n${' '.repeat(N)}`, ['Abnahme']));
     fast(() => addChecklist(`${'- [ ] '.repeat(N / 6)}\n`, ['a']));
