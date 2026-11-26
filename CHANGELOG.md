@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Break game (opt-in under Settings → Features): “Notebook flight” on the home page, a small 2D game in the Kladde look. The notebook flaps across dotted paper through the gaps between pencils above a ruler; space, the up arrow, Enter or a click or tap lifts it, every gap passed scores a point and it slowly gets faster. It follows the color scheme and the accent, pauses when you click elsewhere, scroll away or switch tabs, and keeps the best score on this device.
+
 ## [2.24.0] – 2026-11-26
 
 - Docs: Guide to setting up an HTTPS certificate in front of Kladde (`docs/installation/HTTPS.md`, German `HTTPS.de.md`): Caddy, nginx with certbot, Traefik, and for home networks a DNS challenge, Tailscale or an own CA, with checks and common problems.

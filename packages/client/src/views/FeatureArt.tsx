@@ -27,6 +27,7 @@ export type FeatureArtId =
   | 'presentation'
   | 'linkPreview'
   | 'habits'
+  | 'minigame'
   | 'callouts'
   | 'memory'
   | 'mcp'
@@ -345,6 +346,35 @@ const ART: Record<FeatureArtId, ReactNode> = {
       <Bar x={84} y={44} w={56} />
       <Bar x={84} y={52} w={50} />
       <Bar x={84} y={60} w={40} />
+    </>
+  ),
+  minigame: (
+    <>
+      <Card x={8} y={8} w={144} h={74} />
+      {Array.from({ length: 8 * 4 }, (_, k) => (
+        <circle key={k} cx={20 + (k % 8) * 17} cy={18 + Math.floor(k / 8) * 13} r={0.9} className="fill-outline-variant" />
+      ))}
+      <rect x={8} y={70} width={144} height={12} className="fill-surface-container-high" />
+      {[0, 1, 2].map((p) => {
+        const x = 70 + p * 34;
+        const gap = [38, 30, 44][p];
+        return (
+          <g key={p}>
+            <rect x={x} y={8} width={12} height={gap - 18} className="fill-tertiary" />
+            <path d={`M${x} ${gap - 10} h12 l-6 9 Z`} className="fill-tertiary" fillOpacity={0.55} />
+            <rect x={x} y={gap + 22} width={12} height={70 - gap - 22} className="fill-tertiary" />
+            <path d={`M${x} ${gap + 22} h12 l-6 -9 Z`} className="fill-tertiary" fillOpacity={0.55} />
+          </g>
+        );
+      })}
+      <g transform="translate(40 38) rotate(-12)">
+        <rect x={-7} y={-9} width={14} height={18} rx={2.5} className="fill-primary" />
+        <rect x={2.5} y={-9} width={1.6} height={18} className="fill-on-primary" fillOpacity={0.55} />
+      </g>
+      <path d="M22 36 h8 M20 42 h8" className="stroke-on-surface-variant" strokeWidth={1.4} strokeLinecap="round" strokeOpacity={0.5} />
+      <text x={80} y={22} textAnchor="middle" fontSize={11} fontWeight={700} className="fill-on-surface">
+        12
+      </text>
     </>
   ),
   habits: (
