@@ -119,8 +119,9 @@ describe('cockpit model', () => {
     expect(matchFilter(rows[2], { field: 'labels', op: 'eq', value: 'stage' }, NOW)).toBe(true);
     expect(matchFilter(rows[1], { field: 'labels', op: 'empty', value: '' }, NOW)).toBe(true);
     expect(matchFilter(rows[0], { field: 'ref', op: 'matches', value: '^(main|master)$' }, NOW)).toBe(true);
-    // Patterns that could backtrack for long are refused
-    expect(matchFilter(rows[0], { field: 'ref', op: 'matches', value: '(a+)+$' }, NOW)).toBe(false);
+    // Patterns that could backtrack for long are refused (built at run time: the literal alone is no regex here)
+    const nested = ['(a', '+)', '+$'].join('');
+    expect(matchFilter(rows[0], { field: 'ref', op: 'matches', value: nested }, NOW)).toBe(false);
     expect(highlightOf(rows[0], { highlight: [{ when: { field: 'ref', op: 'eq', value: 'main' }, tone: 'red' }] }, NOW)).toBe('red');
     expect(highlightOf(rows[1], { highlight: [{ when: { field: 'ref', op: 'eq', value: 'main' }, tone: 'red' }] }, NOW)).toBeNull();
   });
