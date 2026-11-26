@@ -135,7 +135,7 @@ PUBLIC_URL=https://notes.example.org docker compose up --build -d
 docker logs kladde   # contains the first invitation
 ```
 
-The app then runs on port `13002`. **Passkeys need HTTPS** (except on localhost) and are bound to the domain from `PUBLIC_URL`. Run the app behind a reverse proxy (Caddy, nginx, Traefik) and set `TRUST_PROXY=1`. Without HTTPS (e.g. directly via `http://192.168.1.10:13002` in your home network) you sign in with username and password.
+The app then runs on port `13002`. **Passkeys need HTTPS** (except on localhost) and are bound to the domain from `PUBLIC_URL`. Run the app behind a reverse proxy (Caddy, nginx, Traefik) and set `TRUST_PROXY=1`; step by step, including home networks without a public address: [`docs/installation/HTTPS.md`](docs/installation/HTTPS.md). Without HTTPS (e.g. directly via `http://192.168.1.10:13002` in your home network) you sign in with username and password.
 
 CLI tool (import/export, search, attachments, backup and administration). The German command names of earlier versions (`hilfe`, `einladen`, …) still work:
 

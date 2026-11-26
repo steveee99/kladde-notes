@@ -128,7 +128,7 @@ PUBLIC_URL=https://notes.example.org docker compose up --build -d
 docker logs kladde   # enthält die erste Einladung
 ```
 
-Die App läuft dann auf Port `13002`. **Passkeys brauchen HTTPS** (außer auf localhost) und sind an die Domain aus `PUBLIC_URL` gebunden – betreibe die App hinter einem Reverse-Proxy (Caddy, nginx, Traefik) und setze `TRUST_PROXY=1`. Ohne HTTPS (z. B. direkt über `http://192.168.1.10:13002` im Heimnetz) meldest du dich mit Benutzername und Passwort an.
+Die App läuft dann auf Port `13002`. **Passkeys brauchen HTTPS** (außer auf localhost) und sind an die Domain aus `PUBLIC_URL` gebunden – betreibe die App hinter einem Reverse-Proxy (Caddy, nginx, Traefik) und setze `TRUST_PROXY=1`. Schritt für Schritt, auch fürs Heimnetz ohne öffentliche Adresse: [`docs/installation/HTTPS.de.md`](docs/installation/HTTPS.de.md). Ohne HTTPS (z. B. direkt über `http://192.168.1.10:13002` im Heimnetz) meldest du dich mit Benutzername und Passwort an.
 
 CLI-Werkzeug (Import/Export, Suche, Anhänge, Sicherung & Verwaltung):
 
