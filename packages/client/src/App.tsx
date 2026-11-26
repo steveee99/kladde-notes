@@ -19,6 +19,7 @@ import { openDialog } from './lib/dialogs';
 import { isReadOnly } from './lib/readOnly';
 import { Invite, LinkDevice, Login } from './views/Auth';
 import { PublicNote } from './views/Public';
+import { PublicSite } from './views/PublicSite';
 import { Shell } from './views/Shell';
 import { HomeView } from './views/Home';
 import { NoteList } from './views/NoteList';
@@ -134,6 +135,14 @@ Object.assign(editorHost, {
   recordVoice,
 });
 
+function safeDecode(part: string): string {
+  try {
+    return decodeURIComponent(part);
+  } catch {
+    return part;
+  }
+}
+
 export function App() {
   const path = usePath();
   // The account from the last visit shows the app at once (also after an update reload); /auth/me confirms it below
@@ -210,6 +219,9 @@ export function App() {
   }, [signedIn, signedOut]);
 
   // Routes without an account
+  // Folder websites: /p/<slug>/<path of the note without .md>
+  const site = /^\/p\/([^/]+)(?:\/(.*))?$/.exec(path);
+  if (site && !me?.standalone) return <PublicSite slug={safeDecode(site[1])} rest={(site[2] ?? '').split('/').map(safeDecode).join('/')} />;
   const pub = match(path, '/s/:token');
   if (pub && !me?.standalone) return <PublicNote token={pub.token} />;
   const invite = match(path, '/invite/:code');

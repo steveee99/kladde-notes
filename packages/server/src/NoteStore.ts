@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, assignTicketNumber, canTransition, isSchemaPath, isTicketContent, parseProject, runAutomations, setTicketFields, hasVariables, isVariablesPath, isNoteTypePath, noteTypesOf, findNoteType, customTypeOf, writeNoteType, propertyPosition, type NoteType, usedVariables, variableDefinitions, variableScope, type VariableDefinitions, type VariableScope, subtaskProgress, ticketEvents, ticketMeta, workflowStatus, type ProjectConfig, contentHash, embedsOf, extractMeta, numberedTicketId, parseGroupFeatures, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, publicRemoteContent, remoteNoteOf, type RemoteSource, type RemoteSnapshot, splitPath, renameWikiLinks } from '@kladde/shared';
+import { GroupInfo, GroupMoveRequest, GroupRole, canWriteInGroup, groupMovePath, NoteRelease, NoteReleaseInfo, ReleaseBump, NoteVersion, NoteVersionInfo, FolderPermissions, FolderShares, NoteAccess, NoteShare, NoteShares, PublicNote, type PublicSiteNote, isHiddenPath, PullResponse, PushChange, PushResult, SharedFolder, SYSTEM_PREFIX, SyncedNote, TrashEntry, MAX_NOTE_BYTES, MAX_EMBED_DEPTH, LinkIndex, PublicEmbed, cleanPath, cleanReleaseNote, assignTicketNumber, canTransition, isSchemaPath, isTicketContent, parseProject, runAutomations, setTicketFields, hasVariables, isVariablesPath, isNoteTypePath, noteTypesOf, findNoteType, customTypeOf, writeNoteType, propertyPosition, type NoteType, usedVariables, variableDefinitions, variableScope, type VariableDefinitions, type VariableScope, subtaskProgress, ticketEvents, ticketMeta, workflowStatus, type ProjectConfig, contentHash, embedsOf, extractMeta, numberedTicketId, parseGroupFeatures, fillReleasePlaceholders, formatSemVer, nextVersion, parseSemVer, publicRemoteContent, remoteNoteOf, type RemoteSource, type RemoteSnapshot, splitPath, renameWikiLinks } from '@kladde/shared';
 import { DataCipher, randomToken } from './crypto.js';
 import { transaction } from './db.js';
 
@@ -1353,23 +1353,50 @@ export class NoteStore {
       )
       .get(token) as (NoteRow & { owner_name: string; owner_avatar: string | null }) | undefined;
     if (!row) return null;
+    const note = this.guestView(row);
+    const embeds = this.publicEmbeds(row.owner_id, row.id, note.content);
+    return {
+      ...note,
+      owner: row.owner_name,
+      ...(row.owner_avatar ? { ownerAvatar: `/api/avatars/${row.owner_avatar}` } : {}),
+      ...(embeds.length ? { embeds } : {}),
+    };
+  }
+
+  /** A note as guests see it (public links, folder websites) */
+  private guestView(row: NoteRow): Omit<PublicNote, 'owner' | 'ownerAvatar' | 'embeds'> {
     // A versioned note shows its latest release, like to read-only share recipients (#53)
     const synced = this.toSynced(row, 'read');
     // A remote note's source stays inside: guests see a placeholder, and nothing is fetched for them
-    const note = { ...synced, content: publicRemoteContent(synced.content) };
-    const embeds = this.publicEmbeds(row.owner_id, row.id, note.content);
+    const content = publicRemoteContent(synced.content);
     return {
-      path: note.path,
-      content: note.content,
-      owner: row.owner_name,
-      ...(row.owner_avatar ? { ownerAvatar: `/api/avatars/${row.owner_avatar}` } : {}),
-      updatedAt: note.releases?.[0]?.releasedAt ?? row.updated_at,
-      ...this.publicVariables(row.owner_id, note.path, note.content),
-      ...this.publicNoteType(row.owner_id, note.content),
-      ...(embeds.length ? { embeds } : {}),
-      ...(note.versioning ? { versioning: true, releases: note.releases ?? [] } : {}),
-      ...(note.showsRelease ? { showsRelease: note.showsRelease } : {}),
+      path: synced.path,
+      content,
+      updatedAt: synced.releases?.[0]?.releasedAt ?? row.updated_at,
+      ...this.publicVariables(row.owner_id, synced.path, content),
+      ...this.publicNoteType(row.owner_id, content),
+      ...(synced.versioning ? { versioning: true, releases: synced.releases ?? [] } : {}),
+      ...(synced.showsRelease ? { showsRelease: synced.showsRelease } : {}),
     };
+  }
+
+  /**
+   * The notes of a published folder and its subfolders as guests see them (folder websites), paths relative to the
+   * folder, without hidden system notes (databases, variables, note types, habits); at most `limit`, by path
+   */
+  publicFolder(ownerId: string, folder: string, limit: number): { notes: PublicSiteNote[]; truncated: boolean } {
+    const clean = cleanPath(folder);
+    const rows = this.db.prepare('SELECT * FROM notes WHERE owner_id = ? AND deleted = 0').all(ownerId) as unknown as NoteRow[];
+    const inside = rows
+      .map((row) => ({ row, path: this.payload(row).path }))
+      .filter((r) => inFolder(r.path, clean) && !isHiddenPath(r.path))
+      .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    const notes = inside.slice(0, limit).map(({ row }) => {
+      const view = this.guestView(row);
+      // Not the note's own id: nothing on the site names a record of the database
+      return { ...view, id: this.cipher.mac(row.id, 'site-note').slice(0, 16), path: view.path.slice(clean.length + 1) };
+    });
+    return { notes, truncated: inside.length > limit };
   }
 
   /**

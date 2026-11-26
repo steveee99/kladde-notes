@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Publish a folder as a website: "Share folder" → "Publish as a website (read-only)" makes every note in the folder and its subfolders readable without an account under `/p/<address>`. The address is random like a public link, or an own one ("team-docs") set in the same dialog; changing it retires the old one, and the website follows the folder when it is renamed or moved and goes down with it. Guests get the folder tree with search, each note under its own address (`/p/<address>/Folder/Note`), working `[[links]]` and embeds between the notes, footnotes, the outline, backlinks, a local graph and the graph of the whole site, and per note "Copy Markdown", "Download as PDF" and the other exports. Variables, note types, releases and remote notes show as on public links; hidden system notes and the folder's path above it stay private.
+
 ## [2.24.0] – 2026-11-26
 
 - Docs: Guide to setting up an HTTPS certificate in front of Kladde (`docs/installation/HTTPS.md`, German `HTTPS.de.md`): Caddy, nginx with certbot, Traefik, and for home networks a DNS challenge, Tailscale or an own CA, with checks and common problems.
