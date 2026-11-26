@@ -182,7 +182,7 @@ export function HomeView() {
               labelId="home-habits-heading"
               label={t('habits.title')}
               aside={
-                <button type="button" className="btn-text !h-7 !px-2 text-label-m" onClick={() => navigate('/habits')}>
+                <button type="button" className="btn-text !h-7 !px-2 text-label-m" onClick={() => navigate('/habits')} title={t('habits.open')} aria-label={t('habits.open')}>
                   <span className="hidden sm:inline">{t('habits.open')}</span> <ArrowRight size={14} />
                 </button>
               }
