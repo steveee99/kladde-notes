@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.24.0] – 2026-11-26
+
 - Docs: Guide to setting up an HTTPS certificate in front of Kladde (`docs/installation/HTTPS.md`, German `HTTPS.de.md`): Caddy, nginx with certbot, Traefik, and for home networks a DNS challenge, Tailscale or an own CA, with checks and common problems.
 - New: Habit tracker (#134, opt-in under Settings → Features): the page "Habits" (`/habits`) sets up habits with a name, an emoji and a target (daily or n times a week), checks them off for today or the last seven days, and shows the current and longest streak, the rate of the last 30 days and a heatmap of 17 weeks. The habits live in a hidden note `_habits-<uuid>.md` of the own space; a check-in is a done task `- [x] … #habit/<id>` in that day's daily note, so the history stays plain Markdown. The home page shows today's habits to check off.
 - New: Link preview (#130, opt-in under Settings → Features): hovering a `[[link]]` in the editor shows a card with the linked note's title and the beginning of its text; `[[Note#Heading]]` and `[[Note#^block]]` show that part, and a missing note says so. On touch screens a long press opens the card. Clicking the card opens the note.
