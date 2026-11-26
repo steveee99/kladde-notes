@@ -2642,6 +2642,17 @@ const de = {
   'note.relatedTitle': 'Ähnliche Notizen',
   'note.relatedLoading': 'Suche ähnliche Notizen …',
   'note.relatedEmpty': 'Keine Notiz zu ähnlichen Themen gefunden.',
+  'features.linkPreviewTitle': 'Link-Vorschau',
+  'features.sum.linkPreview': 'Verlinkte Notizen beim Überfahren ansehen',
+  'features.linkPreviewDesc': 'Fährst du im Editor mit der Maus über einen `[[Link]]`, zeigt eine kleine Karte nach kurzem Warten Titel und Anfang der verlinkten Notiz; ein Link auf eine Überschrift (`[[Notiz#Abschnitt]]`) zeigt diesen Abschnitt. Auf Touch-Geräten öffnet ein langer Druck die Vorschau. Klick auf die Karte öffnet die Notiz. Gibt es die Notiz nicht, steht das in der Karte.',
+  'features.habitsTitle': 'Gewohnheiten',
+  'features.sum.habits': 'Gewohnheiten abhaken, Serien und Verlauf sehen',
+  'features.habitsDesc': 'Fügt die Seite „Gewohnheiten“ (`/habits`) hinzu. Du legst Gewohnheiten mit Name, Symbol und Ziel an (täglich oder n-mal pro Woche); sie stehen in einer versteckten Notiz deines Bereichs und synchronisieren wie jede Notiz. Abgehakt wird in der Tagesnotiz des Tages als normale Aufgabe `- [x] #habit/name`, so bleibt alles einfaches Markdown. Die Seite zeigt die Gewohnheiten von heute zum Abhaken, die aktuelle und die längste Serie, die Quote der letzten 30 Tage und den Verlauf als Heatmap; die Startseite zeigt die offenen von heute.',
+  'preview.missing': 'Diese Notiz gibt es nicht. Ein Klick auf den Link legt sie an.',
+  'preview.loading': 'Lädt …',
+  'preview.noSection': 'Diesen Abschnitt gibt es in der Notiz nicht (mehr).',
+  'preview.empty': 'Die Notiz ist leer.',
+  'preview.open': 'Klicken zum Öffnen',
 } as const;
 
 export type I18nKey = keyof typeof de;
@@ -5204,6 +5215,17 @@ const en: Record<I18nKey, string> = {
   'note.relatedTitle': 'Related notes',
   'note.relatedLoading': 'Looking for related notes …',
   'note.relatedEmpty': 'No note about similar topics found.',
+  'features.linkPreviewTitle': 'Link preview',
+  'features.sum.linkPreview': 'See linked notes on hover',
+  'features.linkPreviewDesc': 'When you hover a `[[link]]` in the editor, a small card shows the title and the beginning of the linked note after a short wait; a link to a heading (`[[Note#Section]]`) shows that section. On touch devices a long press opens the preview. Clicking the card opens the note. If the note does not exist, the card says so.',
+  'features.habitsTitle': 'Habits',
+  'features.sum.habits': 'Check off habits, see streaks and history',
+  'features.habitsDesc': 'Adds the page “Habits” (`/habits`). You set up habits with a name, an icon and a target (daily, or n times a week); they live in a hidden note of your space and sync like any note. Checking one off writes a normal task `- [x] #habit/name` into that day’s daily note, so everything stays plain Markdown. The page shows today’s habits to check off, the current and the longest streak, the rate of the last 30 days and the history as a heatmap; the home page shows the ones still open today.',
+  'preview.missing': 'This note does not exist. Clicking the link creates it.',
+  'preview.loading': 'Loading …',
+  'preview.noSection': 'The note has no such section (any more).',
+  'preview.empty': 'The note is empty.',
+  'preview.open': 'Click to open',
 };
 
 const dict: Record<Lang, Record<I18nKey, string>> = { de, en };

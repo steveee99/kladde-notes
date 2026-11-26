@@ -78,6 +78,7 @@ Object.assign(editorHost, {
   },
   wikiExists: (title: string) => !!vault.findByTitle(title),
   openNote: (id: string) => openNoteLink(id),
+  linkPreview: () => vault.features().linkPreview.enabled,
   // Only through the link index (title, frontmatter id, Zettel id); the vault only holds notes this reader may see
   resolveEmbed: (target: string) => {
     const links = vault.links();

@@ -25,6 +25,7 @@ import { inlineVariables, templateTokenCompletion, templateTokensFacet, variable
 import type { NoteReleaseInfo, VariableScope } from '@kladde/shared';
 import { outlineSupport } from './outline';
 import { findExtension } from './find';
+import { linkPreview } from './linkPreview';
 import { useReadOnly } from '../lib/readOnly';
 import { t as i18n, useLang } from '../lib/i18n';
 
@@ -373,6 +374,7 @@ export function Editor({ docKey, value, readOnly = false, stamp = 0, onChange, o
           inlineVariables,
           outlineSupport,
           findExtension(),
+          linkPreview,
           slideConf.current.of(slideBreakLabel.of(slideRef.current)),
           calloutConf.current.of(calloutsFacet.of(calloutRef.current)),
           hidePropsConf.current.of(hidePropertiesFacet.of(hidePropsRef.current)),

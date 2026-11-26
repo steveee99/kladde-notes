@@ -28,6 +28,7 @@ import {
 } from '@kladde/shared';
 import { copyText } from '../lib/clipboard';
 import { changeTask } from '../lib/taskChange';
+import { consumeLongPress } from './linkPreview';
 import { getLang, locale, tl, type Lang } from '../lib/i18n';
 import { dataTable, groupedTable, openTableCell, parseMarkdownTable, stripInline, type CellRef, type DataRow, type TableEditing } from './datatable';
 import { editorHost, type TicketChip } from './host';
@@ -1004,9 +1005,13 @@ export class WikiWidget extends WidgetType {
     const s = document.createElement('span');
     s.className = `cm-wikilink${editorHost.wikiExists(this.target) ? '' : ' cm-missing'}`;
     s.textContent = this.alias ?? this.target;
-    s.title = this.target;
+    // The link preview (#130) finds its target here; with it on, the card replaces the browser's tooltip
+    s.dataset.wikiTarget = this.target;
+    if (!editorHost.linkPreview()) s.title = this.target;
     s.addEventListener('mousedown', (e) => {
       e.preventDefault();
+      // A long press opened the preview on a touch screen: the tap that ends it does not follow the link
+      if (consumeLongPress()) return;
       editorHost.openWiki(this.target);
     });
     return s;

@@ -3764,3 +3764,39 @@ span.cm-checkbox {
   background: rgb(var(--amber) / 0.55);
   color: rgb(var(--strong));
 }
+
+/* Link preview (#130, editor/linkPreview.ts): a floating card, so it has the one shadow floating layers get */
+.link-preview {
+  position: fixed;
+  z-index: 85;
+  width: min(22rem, calc(100vw - 16px));
+  max-height: 16rem;
+  overflow: hidden;
+  cursor: pointer;
+  padding: 10px 12px;
+  background: rgb(var(--raised));
+  border-color: rgb(var(--line2));
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.28);
+}
+.link-preview-title {
+  font-family: 'Newsreader Variable', Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: rgb(var(--strong));
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.link-preview-text {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: rgb(var(--body));
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.link-preview-hint {
+  margin-top: 6px;
+  font-size: 0.6875rem;
+  color: rgb(var(--muted));
+}

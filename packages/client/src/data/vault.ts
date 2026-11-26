@@ -1984,6 +1984,8 @@ class Vault {
       database: { enabled: false },
       tickets: { enabled: false },
       presentation: { enabled: false },
+      linkPreview: { enabled: false },
+      habits: { enabled: false },
       callouts: { enabled: true },
       calendarView: { enabled: true },
       activity: { enabled: true },
