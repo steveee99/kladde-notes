@@ -271,6 +271,17 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
     res.json({ hits: opts.spaces.search(req.user!.id, q, skip) });
   });
 
+  router.get('/online/semantic', (req, res) => {
+    if (!opts.spaces) return res.status(404).json({ error: 'Nur im Online-Modus.' });
+    const q = typeof req.query.q === 'string' ? req.query.q.slice(0, 400) : '';
+    const related = typeof req.query.related === 'string' ? req.query.related.slice(0, 64) : '';
+    const skip = typeof req.query.skip === 'string' && req.query.skip ? req.query.skip.slice(0, 400) : null;
+    if (!q.trim() && !related) return res.json({ hits: [] });
+    const hits = opts.spaces.semantic(req.user!.id, q, { relatedTo: related || undefined, skipFolder: skip });
+    if (!hits) return notFound(res);
+    res.json({ hits });
+  });
+
   router.get('/online/backlinks/:id', (req, res) => {
     if (!opts.spaces) return res.status(404).json({ error: 'Nur im Online-Modus.' });
     const result = opts.spaces.backlinks(req.user!.id, req.params.id);

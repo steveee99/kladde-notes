@@ -15,6 +15,7 @@ import { navigate } from '../lib/router';
 import { useVisualViewport } from '../lib/viewport';
 import { AttachmentHitList, useAttachmentSearch } from './AttachmentHits';
 import { ItemIcon } from './IconPicker';
+import { useSimilarNotes } from '../lib/semantic';
 
 /*
  * Search and command palette as an overlay (Ctrl/⌘+K, the search field in the top bar, the search button on
@@ -163,6 +164,10 @@ function SearchDialog({ onClose, commands, initialQuery = '' }: { onClose: () =>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [terms, version, withMemory, memoryOn, commandMode, remoteHits]);
 
+  // Conceptual matches below the exact ones (#84)
+  const exact = useMemo(() => new Set(notes.map((n) => n.id)), [notes]);
+  const similar = useSimilarNotes(text, exact, { enabled: !commandMode && terms.length > 0, withMemory, version });
+
   const tasks = useMemo(() => {
     if (commandMode || !terms.length) return [];
     return collectTasks(version)
@@ -177,6 +182,7 @@ function SearchDialog({ onClose, commands, initialQuery = '' }: { onClose: () =>
 
   const sections: { key: string; label: string; items: Item[] }[] = [
     { key: 'notes', label: terms.length ? t('palette.notes') : t('search.recent'), items: notes.map((note) => ({ kind: 'note' as const, note })) },
+    { key: 'similar', label: t('palette.similar'), items: similar.map((note) => ({ kind: 'note' as const, note })) },
     { key: 'tasks', label: t('palette.tasks'), items: tasks.map((task) => ({ kind: 'task' as const, task })) },
     { key: 'commands', label: t('palette.commands'), items: matchedCommands.map((command) => ({ kind: 'command' as const, command })) },
   ].filter((sec) => sec.items.length);

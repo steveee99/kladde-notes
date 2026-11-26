@@ -13,9 +13,11 @@ import {
   parseTasks,
   pdfNoteOf,
   projectTitleOf,
+  relatedNotes,
   runQuery,
   searchSnippet,
   searchTerms,
+  semanticSearch,
   splitPath,
   type DailySettings,
   type LinkNote,
@@ -225,6 +227,28 @@ export class SpaceIndexes {
     });
     ranked.sort((a, b) => (a.inTitle === b.inTitle ? b.n.updatedAt - a.n.updatedAt : a.inTitle ? -1 : 1));
     return ranked.slice(0, MAX_SEARCH_RESULTS).map(({ n }) => ({ id: n.id, snippet: searchSnippet(searchText(n), terms) }));
+  }
+
+  /**
+   * Conceptual matches (#84) among every note the user may see: for a query (the search overlay's "Similar matches")
+   * or, with `relatedTo`, for a note ("Related notes", the note itself left out)
+   */
+  semantic(userId: string, query: string, opts: { relatedTo?: string; skipFolder?: string | null } = {}): OnlineSearchHit[] | null {
+    const pool: IndexedNote[] = [];
+    let target: IndexedNote | undefined;
+    for (const { space, only } of this.visible(userId)) {
+      const own = !only && space === this.spaces.get(userId);
+      for (const n of space.notes.values()) {
+        if (only && !only.has(n.id)) continue;
+        if (n.id === opts.relatedTo) target = n;
+        if (isHiddenPath(n.path)) continue;
+        if (own && opts.skipFolder && (n.path.startsWith(`${opts.skipFolder}/`) || splitPath(n.path).folder === opts.skipFolder)) continue;
+        pool.push(n);
+      }
+    }
+    if (opts.relatedTo && !target) return null;
+    const hits = target ? relatedNotes(target, pool, { limit: 6, corpusKey: `online:${userId}` }) : semanticSearch(query, pool, { limit: 8, minScore: 0.08, corpusKey: `online:${userId}` });
+    return hits.map((h) => ({ id: h.note.id, snippet: h.snippet }));
   }
 
   /** Notes linking to `noteId` and notes mentioning its title without a link, among the notes the user may see */

@@ -110,6 +110,7 @@ import { Editor, insertAtLineStart, insertText, toggleCode, toggleWrap, wrapSele
 import { attachmentMarkdown, editorHost } from '../editor/host';
 import { openFind } from '../editor/find';
 import { MoveNoteSheet } from './MoveNoteSheet';
+import { useRelatedNotes } from '../lib/semantic';
 import { toastDeleted } from '../lib/undoDelete';
 import { useOutline, type Outline } from '../editor/outline';
 import { OutlinePanel } from './OutlinePanel';
@@ -915,6 +916,34 @@ function NoteOverflowMenu({
   );
 }
 
+/** Notes about the same topics (#84), by the semantic search: shown in the side panel's links tab */
+function RelatedNotes({ noteId, item }: { noteId: string; item: string }) {
+  const version = useVault();
+  const related = useRelatedNotes(noteId, version);
+  const rc = vault.roleConfig();
+  return (
+    <section data-related-notes="">
+      <h3 className="mb-2 px-2 text-title-s text-on-surface-variant">{t('note.relatedTitle')}</h3>
+      {related === null ? (
+        <p className="px-2 text-body-m text-muted">{t('note.relatedLoading')}</p>
+      ) : related.length === 0 ? (
+        <p className="px-2 text-body-m text-on-surface-variant">{t('note.relatedEmpty')}</p>
+      ) : (
+        <ul className="space-y-1">
+          {related.map((r) => (
+            <li key={r.id}>
+              <button className={item} onClick={() => navigate(`/n/${r.id}`)}>
+                <div className="truncate text-body-l text-on-surface">{projectTitleOf(r.path, r.content, rc)}</div>
+                {excerpt(r.content, 85) && <div className="mt-0.5 line-clamp-2 text-body-m text-on-surface-variant">{resolveVariables(excerpt(r.content, 85), variablesOfNote(r))}</div>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 /** Supporting split pane on the right of a note: Outline, Links (Backlinks + Mentions), and Local Graph */
 function NoteInspectorPane({
   noteId,
@@ -1057,6 +1086,10 @@ function NoteInspectorPane({
                 </ul>
               )}
             </section>
+
+            <hr className="border-0 border-t border-outline-variant" />
+
+            <RelatedNotes noteId={noteId} item={item} />
           </div>
         )}
 

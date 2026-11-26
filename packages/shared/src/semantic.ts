@@ -611,3 +611,26 @@ class IdfMap {
     return v;
   }
 }
+
+/**
+ * The query that finds notes related to `note` (#84: "Related notes"): its title, tags, link targets, headings and the opening of its text,
+ * so the semantic search compares the note's topics with the others.
+ */
+export function relatedQuery(note: LinkNote): string {
+  const meta = extractMeta(note.path, note.content);
+  const { body } = parseFrontmatter(note.content);
+  const headings = [...body.matchAll(/^#{1,3}\s+(.+)$/gm)].map((m) => m[1]).slice(0, 8);
+  // The opening of the text too: short notes say what they are about there
+  const opening = body.replace(/^#{1,6}\s+.*$/gm, ' ').replace(/[`*_>[\]()!|-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
+  return [meta.title, ...meta.tags.map((t) => t.replace(/[/_-]/g, ' ')), ...meta.links.slice(0, 12), ...headings, opening].join(' ').slice(0, 900);
+}
+
+/** Notes related to `note` among `notes` (the note itself left out), most similar first */
+export function relatedNotes(note: LinkNote, notes: LinkNote[], options: SemanticSearchOptions = {}): SemanticSearchHit[] {
+  const query = relatedQuery(note);
+  const limit = options.limit ?? 6;
+  const hits = semanticSearch(query, notes, { ...options, limit: limit + 1, minScore: options.minScore ?? 0.1 }).filter((h) => h.note.id !== note.id);
+  // A long tail of weak matches says little: keep what comes near the best one
+  const floor = (hits[0]?.score ?? 0) * 0.35;
+  return hits.filter((h) => h.score >= floor).slice(0, limit);
+}

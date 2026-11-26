@@ -2638,6 +2638,10 @@ const de = {
   'saved.taskViewTitle': 'Diese Filter als gespeicherte Suche in der Seitenleiste merken',
   'saved.taskViewDefault': 'Meine Aufgaben',
   'saved.savedToast': '„{name}“ gespeichert',
+  'palette.similar': 'Ähnliche Treffer',
+  'note.relatedTitle': 'Ähnliche Notizen',
+  'note.relatedLoading': 'Suche ähnliche Notizen …',
+  'note.relatedEmpty': 'Keine Notiz zu ähnlichen Themen gefunden.',
 } as const;
 
 export type I18nKey = keyof typeof de;
@@ -5196,6 +5200,10 @@ const en: Record<I18nKey, string> = {
   'saved.taskViewTitle': 'Keep these filters as a saved search in the sidebar',
   'saved.taskViewDefault': 'My tasks',
   'saved.savedToast': 'Saved “{name}”',
+  'palette.similar': 'Similar matches',
+  'note.relatedTitle': 'Related notes',
+  'note.relatedLoading': 'Looking for related notes …',
+  'note.relatedEmpty': 'No note about similar topics found.',
 };
 
 const dict: Record<Lang, Record<I18nKey, string>> = { de, en };
