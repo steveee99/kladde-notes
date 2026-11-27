@@ -67,6 +67,7 @@ The app and its UI are available in **English and German**; the guides in `docs/
 | **Variables** | Folders and groups define variables that subfolders inherit and can override; `{{var:name}}` in notes, templates, links and exports always shows the current value ([guide](docs/VARIABLES.md)) |
 | **Note types** | Model your own types: properties, where they show and whether the frontmatter is visible; notes and templates use them with `type: custom:<name>` ([guide](docs/NOTE_TYPES.md)) |
 | **GitLab/GitHub notes** | A note shows a Markdown document from GitLab or GitHub, always loaded live and read-only; the address may contain variables. The access token is set on the container or in the administration and applies to everyone ([guide](docs/REMOTE_NOTES.md)) |
+| **Plugins** | Build your own apps into Kladde at build time: own navigation entries, pages, commands, settings, encrypted database tables with migrations and background jobs, on Kladde's sign-in, design, notes and sync. A version matrix check stops the build when a plugin does not fit the Kladde version ([guide](docs/PLUGINS.md), example in `examples/kladde-plugin-logbook`, ops repository template in `docs/ops-repo-template/`) |
 | **Templates** | Your own templates under Settings → Templates (`{{title}}`, `{{date}}`, `{{zid}}`), with a default target folder and encrypted sync |
 | **Media** | Images and PDFs by paste, drag and drop or button; image grid with ```` ```gallery ```` and carousel with ```` ```carousel ````; embedded PDF viewer and PDF notes; **voice notes** (record in Quick Capture or with `/audio`, optional transcription); attachments also work offline; code blocks with syntax highlighting and copy button |
 | **Offline & sync** | IndexedDB per account, sync via cursor + versions; concurrent changes (another device, another person, offline edits synced later) are merged with a three-way merge, line by line and word by word within a paragraph; only if both change the same words, the local text is kept as a "(Conflict …)" copy; live updates via Server-Sent Events |
@@ -224,8 +225,11 @@ kladde/
 ├── packages/
 │   ├── shared/   # types, Markdown metadata, task parser (due date/recurrence), query language
 │   ├── server/   # Express + node:sqlite: passkeys (SimpleWebAuthn), GitLab OAuth, sync, sharing, files
-│   └── client/   # React 18 + Vite + Tailwind + CodeMirror 6, IndexedDB sync, PWA
-├── scripts/      # release.mjs, build-desktop.mjs, docker-entrypoint.sh
+│   ├── client/   # React 18 + Vite + Tailwind + CodeMirror 6, IndexedDB sync, PWA
+│   └── plugin-api/  # the only interface for build-time plugins (own SemVer version)
+├── examples/     # kladde-plugin-logbook: example plugin; kladde.plugins.json to build it in
+├── plugins/      # local plugin packages for builds (not in git)
+├── scripts/      # release.mjs, build-desktop.mjs, plugins.mjs, docker-entrypoint.sh
 ├── Dockerfile
 └── docker-compose.yml
 ```

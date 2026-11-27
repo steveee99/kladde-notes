@@ -4,6 +4,12 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Build-time plugins ([docs/PLUGINS.md](docs/PLUGINS.md)): own apps built into the Kladde image with their own navigation entries, pages under `/p/<id>`, command palette entries, a card with settings under Settings → Features (switched per user), routes under `/api/p/<id>`, background jobs, note events, files in the account export and their own database tables. Plugins talk to Kladde only through the new package `@kladde/plugin-api`, which has its own SemVer version (1.0.0), so Kladde releases do not break them. `kladde.plugins.json` pins the plugin packages; `npm run plugins` (also in the Docker build) installs them and stops the build when a plugin's plugin API, React or Kladde range does not fit, a pinned version is not the installed one or two plugins share an id. Plugin tables (`p_<id>_…`) are created by numbered migrations that run at start after a backup; SQLite's authorizer keeps them away from Kladde's tables, a changed released step or a downgrade stops the start, and `cli plugins purge <id>` removes the data of a plugin that was taken out. An example plugin (`examples/kladde-plugin-logbook`) and a template for an ops repository that builds the image with plugins (`docs/ops-repo-template/`) are included.
+
+### Plugin API
+
+- 1.0.0: first version: `defineServerPlugin` (migrations, routes, public routes, note events, jobs, account export, context with database, encryption, notes through the sync, users, feature state, `PLUGIN_<ID>_*` variables) and `defineClientPlugin` (pages, navigation, commands, settings, `useKladde()` with API requests, notes on the device, navigation, toasts and the Werkbank components).
+
 ## [2.27.0] – 2026-11-27
 
 - New: Cockpit source "Missing commits" (`gitlab.compare`): the commits of a branch or tag that another one lacks, e.g. whether everything in `10.100` reached `10.101`. Cherry-picked commits count as contained (by their "cherry picked from commit …" note or the same title) unless switched to "only the same commit"; merge commits are left out unless switched on.

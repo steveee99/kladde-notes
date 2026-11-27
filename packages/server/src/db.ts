@@ -602,6 +602,22 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 31,
+    description: 'Plugins: the schema steps each build-time plugin has applied, with a checksum per step',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE plugin_migrations (
+          plugin_id TEXT NOT NULL,
+          version INTEGER NOT NULL,
+          description TEXT NOT NULL,
+          checksum TEXT NOT NULL,
+          applied_at INTEGER NOT NULL,
+          PRIMARY KEY (plugin_id, version)
+        );
+      `);
+    },
+  },
 ];
 
 /** The schema version this build migrates to */

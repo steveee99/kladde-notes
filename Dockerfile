@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM node:24-alpine AS builder
 
 WORKDIR /app
@@ -6,15 +7,29 @@ COPY package*.json ./
 # Patched dependency copies referenced by "overrides" in package.json
 COPY vendor ./vendor
 COPY packages/shared/package*.json ./packages/shared/
+COPY packages/plugin-api/package*.json ./packages/plugin-api/
 COPY packages/server/package*.json ./packages/server/
 COPY packages/client/package*.json ./packages/client/
+COPY examples/kladde-plugin-logbook/package.json ./examples/kladde-plugin-logbook/
 RUN npm install
 
 COPY packages/shared ./packages/shared
+COPY packages/plugin-api ./packages/plugin-api
 COPY packages/server ./packages/server
 COPY packages/client ./packages/client
+COPY scripts/plugins.mjs ./scripts/plugins.mjs
 
 RUN npm run build --workspace=packages/shared
+RUN npm run build --workspace=packages/plugin-api
+
+# Build-time plugins (docs/PLUGINS.md): without kladde.plugins.json in the build context the image has none.
+# plugins/ holds local plugin packages (tarballs, folders) the list refers to with "file:plugins/…".
+# A private registry: docker build --secret id=npmrc,src=$HOME/.npmrc … (the .npmrc never ends up in the image).
+# An unknown package, a version outside the matrix or a duplicate id stops the build here.
+COPY package.json kladde.plugins.jso[n] ./
+COPY plugins ./plugins
+RUN --mount=type=secret,id=npmrc,target=/root/.npmrc node scripts/plugins.mjs
+
 RUN npm run build --workspace=packages/server
 RUN npm run build --workspace=packages/client
 
@@ -35,12 +50,17 @@ COPY package*.json ./
 # Patched dependency copies referenced by "overrides" in package.json
 COPY vendor ./vendor
 COPY packages/shared/package*.json ./packages/shared/
+COPY packages/plugin-api/package*.json ./packages/plugin-api/
 COPY packages/server/package*.json ./packages/server/
 COPY packages/client/package*.json ./packages/client/
-RUN npm install --omit=dev --workspace=packages/server --workspace=packages/shared
+COPY examples/kladde-plugin-logbook/package.json ./examples/kladde-plugin-logbook/
+RUN npm install --omit=dev --workspace=packages/server --workspace=packages/shared --workspace=packages/plugin-api
 
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /app/packages/plugin-api/dist ./packages/plugin-api/dist
 COPY --from=builder /app/packages/server/dist ./packages/server/dist
+# Server parts of the plugins, bundled with their dependencies (empty without plugins)
+COPY --from=builder /app/packages/server/plugins ./packages/server/plugins
 COPY --from=builder /app/packages/client/dist ./packages/client/dist
 COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 

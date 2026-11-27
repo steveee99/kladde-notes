@@ -27,6 +27,10 @@ import {
   safeFileSegment,
   walkDirectory,
 } from './importScan.js';
+import { PLUGIN_API_VERSION } from '@kladde/plugin-api';
+import { installedPlugins } from './plugins/installed.js';
+import { pluginSchemaVersions, purgePluginData } from './plugins/migrations.js';
+import type { InstalledServerPlugin } from './plugins/types.js';
 
 export { CliError };
 
@@ -38,6 +42,8 @@ export interface CliDeps {
   audit?: AuditLog;
   publicUrl?: string | null;
   defaultBackupDir?: string;
+  /** Build-time plugins of this image (default: the generated list) */
+  plugins?: InstalledServerPlugin[];
 }
 
 export interface CliResult {
@@ -203,6 +209,8 @@ export function cliHelpText(): string {
     '  reset-password <user>      Set a random password and end the sessions',
     '  admin <user> [on|off]      Grant or revoke the admin role',
     '  audit-log [count]          Show the latest audit log entries',
+    '  plugins                    Build-time plugins: version, plugin API range, schema; data of removed ones',
+    '  plugins purge <id> --yes   Delete the tables and schema rows of a plugin that is no longer installed',
     '  help                       Show this help',
     '',
     'The German command names from earlier versions (hilfe, notizen, einladen, …) still work.',
@@ -322,6 +330,27 @@ export async function runCli(argv: string[], deps: CliDeps): Promise<CliResult> 
         `Attachments: ${fRow.n} (${formatBytes(Number(fRow.bytes))})`,
       ];
       return { lines, data: { version: APP_VERSION, users: uCount, notes: nCount, shares: sCount, files: fRow.n, fileBytes: Number(fRow.bytes) } };
+    }
+
+    case 'plugins': {
+      const installed = deps.plugins ?? installedPlugins;
+      const schema = pluginSchemaVersions(deps.db);
+      if (positionals[0] === 'purge') {
+        const id = positionals[1] ?? '';
+        if (!id) throw new CliError('Please name the plugin id: plugins purge <id> --yes');
+        if (installed.some((p) => p.plugin.id === id)) throw new CliError(`The plugin "${id}" is part of this build: remove it from kladde.plugins.json and deploy first.`);
+        if (!schema.has(id)) throw new CliError(`There is no data of a plugin "${id}".`);
+        if (!hasFlag(flags, 'yes', 'y')) throw new CliError(`This deletes all data of the plugin "${id}" for good. Make a backup, then repeat with --yes.`);
+        const dropped = purgePluginData(deps.db, id);
+        deps.audit?.record('admin_command', { detail: `plugins purge ${id}` });
+        return { lines: [`Removed the data of "${id}": ${dropped.length ? dropped.join(', ') : 'no tables'}`], data: { id, dropped } };
+      }
+      const rows = installed.map((p) => ({ id: p.plugin.id, package: p.name, version: p.version, api: p.api, schema: schema.get(p.plugin.id) ?? 0, installed: true }));
+      for (const [id, version] of schema) if (!rows.some((r) => r.id === id)) rows.push({ id, package: '', version: '', api: '', schema: version, installed: false });
+      const lines = rows.length
+        ? rows.map((r) => (r.installed ? `${r.id}  ${r.package} ${r.version}  (plugin API ${r.api}, schema ${r.schema})` : `${r.id}  not installed – its data remains (schema ${r.schema}); "plugins purge ${r.id} --yes" deletes it`))
+        : ['No plugins in this build.'];
+      return { lines: [`Plugin API ${PLUGIN_API_VERSION}`, ...lines], data: { api: PLUGIN_API_VERSION, plugins: rows } };
     }
 
     case 'backup': {
