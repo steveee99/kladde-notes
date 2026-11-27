@@ -9,6 +9,7 @@ import {
   isHiddenPath,
   matchFilter,
   normalizeFeatures,
+  normalizeDashboard,
   normalizeWidget,
   parseCockpitBlock,
   parseDashboardNote,
@@ -18,6 +19,8 @@ import {
   serializeDashboard,
   shareDashboard,
   shareWidget,
+  stateLabel,
+  stateOf,
   widgetVariables,
   type CockpitRow,
 } from '../src/index';
@@ -108,6 +111,33 @@ describe('cockpit model', () => {
     expect(w.source).toEqual({ kind: 'gitlab.groups', params: { group: '{{this.team}}', descendants: true } });
     expect(w.fields).toEqual(['name', 'parent']);
     expect(parseCockpitBlock('source: gitlab.projects\narchived: maybe')?.source.params.archived).toBe('no');
+  });
+
+  it('compares releases and shows a count as a state', () => {
+    expect(blankWidget('gitlab.compare').source.params).toEqual({ cherryPicks: 'match', merges: false });
+    const w = parseCockpitBlock(
+      'source: gitlab.compare\nproject: team/api\nfrom: "10.100"\nto: "10.101"\nview: count\nwidth: 3\nstates:\n  - when: "= 0"\n    label: Vollständig\n    icon: check\n    tone: green\n  - when: "> 0"\n    label: "{{count}} fehlen"\n    icon: warning\n    tone: red\n  - when: "~ 3"\n    label: nope'
+    )!;
+    expect(w.source.params).toEqual({ project: 'team/api', from: '10.100', to: '10.101', cherryPicks: 'match', merges: false });
+    expect(w.width).toBe(3);
+    expect(w.states).toEqual([
+      { op: 'eq', value: 0, label: 'Vollständig', icon: 'check', tone: 'green' },
+      { op: 'gt', value: 0, label: '{{count}} fehlen', icon: 'warning', tone: 'red' },
+    ]);
+    expect(stateOf(0, w.states)?.tone).toBe('green');
+    expect(stateLabel(stateOf(4, w.states)!, 4)).toBe('4 fehlen');
+    expect(stateOf(-1, w.states)).toBeNull();
+    expect(stateOf(5, [{ op: 'ge', value: 5, label: '', icon: 'none', tone: 'neutral' }])?.op).toBe('ge');
+    expect(normalizeWidget({ source: { kind: 'gitlab.mrs' }, states: [{ op: 'le', value: '2', tone: 'pink', icon: 'skull' }] })!.states).toEqual([{ op: 'le', value: 2, label: '', icon: 'none', tone: 'neutral' }]);
+  });
+
+  it('keeps the columns of a dashboard and the widths of its widgets in bounds', () => {
+    expect(normalizeDashboard({}).columns).toBe(2);
+    const d = normalizeDashboard({ columns: 9, widgets: [{ source: { kind: 'gitlab.mrs' }, width: 4 }, { source: { kind: 'gitlab.mrs' }, width: 0 }] });
+    expect(d.columns).toBe(6);
+    expect(d.widgets.map((w) => w.width)).toEqual([4, 1]);
+    expect(parseDashboardNote(serializeDashboard({ ...d, columns: 4 }))?.columns).toBe(4);
+    expect(readShared(shareDashboard({ ...d, columns: 3 }))).toMatchObject({ kind: 'dashboard', dashboard: { columns: 3 } });
   });
 
   it('writes a widget as a block that reads back the same', () => {

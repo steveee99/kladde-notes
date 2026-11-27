@@ -39,7 +39,7 @@ export function isDashboardPath(path: string): boolean {
 // ------------------------------------------------------------------ model
 
 export type CockpitProvider = 'gitlab' | 'jira';
-export type CockpitSourceKind = 'gitlab.mrs' | 'gitlab.jobs' | 'gitlab.projects' | 'gitlab.groups' | 'jira.issues';
+export type CockpitSourceKind = 'gitlab.mrs' | 'gitlab.jobs' | 'gitlab.compare' | 'gitlab.projects' | 'gitlab.groups' | 'jira.issues';
 export type CockpitValue = string | number | boolean | null | string[];
 export type CockpitParamValue = string | number | boolean | string[];
 
@@ -106,6 +106,23 @@ export interface CockpitHighlight {
   tone: CockpitTone;
 }
 
+/** Text and color of a count tile: the first state whose condition the count meets */
+export type CockpitStateOp = 'eq' | 'ne' | 'gt' | 'ge' | 'lt' | 'le';
+export const COCKPIT_STATE_OPS: CockpitStateOp[] = ['eq', 'ne', 'gt', 'ge', 'lt', 'le'];
+export type CockpitStateTone = CockpitTone | 'neutral';
+export const COCKPIT_STATE_TONES: CockpitStateTone[] = ['green', 'amber', 'red', 'accent', 'violet', 'neutral'];
+export type CockpitStateIcon = 'check' | 'warning' | 'error' | 'clock' | 'info' | 'none';
+export const COCKPIT_STATE_ICONS: CockpitStateIcon[] = ['check', 'warning', 'error', 'clock', 'info', 'none'];
+
+export interface CockpitState {
+  op: CockpitStateOp;
+  value: number;
+  /** Shown instead of the number; `{{count}}` puts the number in. Empty: the number */
+  label: string;
+  icon: CockpitStateIcon;
+  tone: CockpitStateTone;
+}
+
 export type CockpitView = 'list' | 'table' | 'count' | 'board';
 export const COCKPIT_VIEWS: CockpitView[] = ['list', 'table', 'count', 'board'];
 
@@ -121,10 +138,12 @@ export interface CockpitWidget {
   /** Board: the field whose values become the columns */
   groupBy?: string;
   highlight: CockpitHighlight[];
+  /** Count view: text, icon and color by the count (the first state that matches); none shows the number */
+  states: CockpitState[];
   /** New rows (after the filters) become a notification (and a push to the devices) */
   notify: boolean;
-  /** Columns of the dashboard grid it takes */
-  width: 1 | 2;
+  /** Columns of the dashboard grid it takes (at most the dashboard's columns) */
+  width: number;
 }
 
 export interface CockpitDashboard {
@@ -133,11 +152,15 @@ export interface CockpitDashboard {
   refreshMinutes: number;
   /** Values for `{{var:name}}` in the widgets' parameters */
   vars: Record<string, string>;
+  /** Columns of the grid on wide screens (phones show one, tablets at most two) */
+  columns: number;
   widgets: CockpitWidget[];
 }
 
 export const COCKPIT_LIMIT = { default: 20, max: 100 };
 export const COCKPIT_MAX_WIDGETS = 30;
+export const COCKPIT_MAX_COLUMNS = 6;
+const MAX_STATES = 8;
 const MAX_FILTERS = 12;
 const MAX_TEXT = 500;
 
@@ -202,6 +225,16 @@ const GROUP_FIELDS: CockpitFieldDef[] = [
   { key: 'parent', label: L('Übergeordnete Gruppe', 'Parent group'), type: 'text' },
   { key: 'description', label: L('Beschreibung', 'Description'), type: 'text' },
   { key: 'visibility', label: L('Sichtbarkeit', 'Visibility'), type: 'state' },
+  { key: 'created', label: L('Erstellt', 'Created'), type: 'date' },
+];
+
+const COMMIT_FIELDS: CockpitFieldDef[] = [
+  { key: 'sha', label: L('Commit', 'Commit'), type: 'key' },
+  { key: 'title', label: L('Titel', 'Title'), type: 'text' },
+  { key: 'author', label: L('Autor', 'Author'), type: 'person' },
+  { key: 'project', label: L('Projekt', 'Project'), type: 'text' },
+  { key: 'jira', label: L('Jira', 'Jira'), type: 'key' },
+  { key: 'merge', label: L('Merge-Commit', 'Merge commit'), type: 'bool' },
   { key: 'created', label: L('Erstellt', 'Created'), type: 'date' },
 ];
 
@@ -302,6 +335,35 @@ export const COCKPIT_SOURCES: Record<CockpitSourceKind, CockpitSourceDef> = {
     fields: JOB_FIELDS,
     defaultFields: ['project', 'name', 'stage', 'ref', 'finished'],
     titleField: 'name',
+  },
+  'gitlab.compare': {
+    kind: 'gitlab.compare',
+    provider: 'gitlab',
+    label: L('GitLab · Fehlende Commits', 'GitLab · missing commits'),
+    description: L('Commits eines Branches oder Tags, die im Ziel fehlen', 'Commits of a branch or tag that the target lacks'),
+    params: [
+      { key: 'project', label: L('Repository', 'Repository'), type: 'text', placeholder: 'gruppe/repo' },
+      { key: 'from', label: L('Quelle (Branch oder Tag)', 'Source (branch or tag)'), type: 'text', placeholder: '10.100' },
+      { key: 'to', label: L('Ziel (Branch oder Tag)', 'Target (branch or tag)'), type: 'text', placeholder: '10.101' },
+      {
+        key: 'cherryPicks',
+        label: L('Cherry-Picks', 'Cherry-picks'),
+        type: 'enum',
+        default: 'match',
+        options: [
+          { value: 'match', label: L('Zählen als enthalten', 'Count as contained') },
+          { value: 'strict', label: L('Nur derselbe Commit zählt', 'Only the same commit counts') },
+        ],
+        hint: L(
+          'Enthalten: das Ziel hat den Commit, einen Commit mit „cherry picked from commit …“ darauf oder einen mit demselben Titel',
+          'Contained: the target has the commit, one with “cherry picked from commit …” for it, or one with the same title'
+        ),
+      },
+      { key: 'merges', label: L('Merge-Commits mitzählen', 'Count merge commits'), type: 'bool', default: false },
+    ],
+    fields: COMMIT_FIELDS,
+    defaultFields: ['sha', 'title', 'author', 'created'],
+    titleField: 'title',
   },
   'gitlab.projects': {
     kind: 'gitlab.projects',
@@ -435,6 +497,34 @@ function normalizeFilter(kind: CockpitSourceKind, raw: unknown): CockpitFilter |
   return { field, op, value: clean(f.value, 300) };
 }
 
+const columnsOf = (v: unknown, fallback: number): number => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) && n >= 1 ? Math.min(COCKPIT_MAX_COLUMNS, n) : fallback;
+};
+
+const STATE_OP_SIGNS: Record<string, CockpitStateOp> = { '=': 'eq', '==': 'eq', '!=': 'ne', '≠': 'ne', '>': 'gt', '>=': 'ge', '≥': 'ge', '<': 'lt', '<=': 'le', '≤': 'le' };
+
+/** A state from untrusted JSON; `when: "> 0"` is short for `op` and `value` */
+function normalizeState(raw: unknown): CockpitState | null {
+  const o = obj(raw);
+  if (!o) return null;
+  let op = o.op as CockpitStateOp;
+  let value = Number(o.value);
+  const when = typeof o.when === 'string' ? /^\s*(==|!=|>=|<=|[=≠><≥≤])\s*(-?\d+(?:\.\d+)?)\s*$/.exec(o.when) : null;
+  if (when) {
+    op = STATE_OP_SIGNS[when[1]];
+    value = Number(when[2]);
+  }
+  if (!COCKPIT_STATE_OPS.includes(op) || !Number.isFinite(value)) return null;
+  return {
+    op,
+    value,
+    label: clean(o.label, 80),
+    icon: COCKPIT_STATE_ICONS.includes(o.icon as CockpitStateIcon) ? (o.icon as CockpitStateIcon) : 'none',
+    tone: COCKPIT_STATE_TONES.includes(o.tone as CockpitStateTone) ? (o.tone as CockpitStateTone) : 'neutral',
+  };
+}
+
 /** A widget from untrusted JSON (a paste, a note, a request); null when it is not one */
 export function normalizeWidget(raw: unknown): CockpitWidget | null {
   const w = obj(raw);
@@ -455,6 +545,7 @@ export function normalizeWidget(raw: unknown): CockpitWidget | null {
     })
     .filter((h): h is CockpitHighlight => !!h)
     .slice(0, MAX_FILTERS);
+  const states = (Array.isArray(w.states) ? w.states : []).map(normalizeState).filter((x): x is CockpitState => !!x).slice(0, MAX_STATES);
   return {
     id: /^[A-Za-z0-9_-]{1,40}$/.test(str(w.id)) ? str(w.id) : newWidgetId(),
     title: clean(w.title, 120) || def.label.de,
@@ -469,8 +560,9 @@ export function normalizeWidget(raw: unknown): CockpitWidget | null {
     fields: fields.length ? fields : [...def.defaultFields],
     ...(known(w.groupBy) ? { groupBy: w.groupBy as string } : {}),
     highlight,
+    states,
     notify: w.notify === true,
-    width: w.width === 2 ? 2 : 1,
+    width: columnsOf(w.width, 1),
   };
 }
 
@@ -491,6 +583,7 @@ export function normalizeDashboard(raw: unknown): CockpitDashboard {
     title: clean(d.title, 120) || 'Dashboard',
     refreshMinutes: Number.isFinite(refresh) && refresh >= 0 ? Math.min(120, refresh) : 5,
     vars,
+    columns: columnsOf(d.columns, 2),
     widgets,
   };
 }
@@ -546,7 +639,7 @@ export function cockpitBlockMarkdown(w: CockpitWidget): string {
 /** A whole dashboard as JSON; its variables travel with empty values so the colleague fills in their own */
 export function shareDashboard(d: CockpitDashboard): string {
   const vars = Object.fromEntries(Object.keys(d.vars).map((k) => [k, '']));
-  return JSON.stringify({ kladde: SHARE_DASHBOARD, v: 1, title: d.title, refreshMinutes: d.refreshMinutes, vars, widgets: d.widgets.map(stripId) }, null, 2);
+  return JSON.stringify({ kladde: SHARE_DASHBOARD, v: 1, title: d.title, refreshMinutes: d.refreshMinutes, columns: d.columns, vars, widgets: d.widgets.map(stripId) }, null, 2);
 }
 
 export type SharedCockpit = { kind: 'widgets'; widgets: CockpitWidget[] } | { kind: 'dashboard'; dashboard: CockpitDashboard };
@@ -578,7 +671,7 @@ export function readShared(text: string): SharedCockpit | null {
 
 // ------------------------------------------------------------------ blocks in notes
 
-const WIDGET_KEYS = new Set(['title', 'source', 'kind', 'view', 'fields', 'limit', 'sort', 'groupBy', 'filters', 'highlight', 'width', 'notify', 'params']);
+const WIDGET_KEYS = new Set(['title', 'source', 'kind', 'view', 'fields', 'limit', 'sort', 'groupBy', 'filters', 'highlight', 'states', 'width', 'notify', 'params']);
 
 const yamlText = (v: YamlValue | undefined): string | undefined => (typeof v === 'string' ? v : undefined);
 
@@ -623,7 +716,8 @@ export function parseCockpitBlock(src: string): CockpitWidget | null {
     fields: list(y.fields),
     limit: yamlText(y.limit),
     groupBy: yamlText(y.groupBy),
-    width: yamlText(y.width) === '2' ? 2 : 1,
+    width: yamlText(y.width),
+    states: Array.isArray(y.states) ? y.states : [],
     ...(sortText ? { sort: { field: sortText.replace(/^[-+]/, ''), dir: sortText.startsWith('-') ? 'desc' : 'asc' } } : {}),
   });
 }
@@ -756,6 +850,19 @@ export function applyWidget(rows: readonly CockpitRow[], w: Pick<CockpitWidget, 
   }
   return { rows: out.slice(0, w.limit), total: out.length };
 }
+
+/** The state of a count tile: the first one whose condition the count meets; null shows the number */
+export function stateOf(count: number, states: readonly CockpitState[]): CockpitState | null {
+  for (const st of states) {
+    const v = st.value;
+    const hit = st.op === 'eq' ? count === v : st.op === 'ne' ? count !== v : st.op === 'gt' ? count > v : st.op === 'ge' ? count >= v : st.op === 'lt' ? count < v : count <= v;
+    if (hit) return st;
+  }
+  return null;
+}
+
+/** A state's label with `{{count}}` filled in; empty when the tile should show the number */
+export const stateLabel = (st: CockpitState, count: number): string => st.label.replace(/\{\{\s*count\s*\}\}/g, String(count));
 
 /** The tone of the first highlight rule a row meets */
 export function highlightOf(row: CockpitRow, w: Pick<CockpitWidget, 'highlight'>, now = Date.now()): CockpitTone | null {

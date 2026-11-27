@@ -9,15 +9,19 @@ import {
   fieldDef,
   highlightOf,
   safeUrl,
+  stateLabel,
+  stateOf,
   type CockpitFieldType,
   type CockpitResult,
   type CockpitRow,
+  type CockpitStateIcon,
+  type CockpitStateTone,
   type CockpitTone,
   type CockpitValue,
   type CockpitWidget,
 } from '@kladde/shared';
 import { runWidget, useResults, widgetState } from '../data/cockpit';
-import { AlertTriangle, BugReport, CloudOff, ExternalLink, GitBranch, Merge, RefreshCw, Ticket, Users } from '../lib/icons';
+import { AlertTriangle, Ban, BugReport, CheckCircle2, Clock, CloudOff, ExternalLink, GitBranch, Info, Merge, RefreshCw, SwapHoriz, Ticket, Users } from '../lib/icons';
 import { compareText, locale, tl, useLang, type Lang } from '../lib/i18n';
 
 const TONE: Record<CockpitTone, string> = {
@@ -34,6 +38,10 @@ const ROW_TONE: Record<CockpitTone, string> = {
   accent: 'shadow-[inset_3px_0_0_rgb(var(--acc))]',
   violet: 'shadow-[inset_3px_0_0_rgb(var(--violet))]',
 };
+
+/** A count tile in the color of its state */
+const STATE_TILE: Record<CockpitStateTone, string> = { ...TONE, neutral: 'bg-raised text-soft' };
+export const STATE_ICONS: Record<Exclude<CockpitStateIcon, 'none'>, typeof Info> = { check: CheckCircle2, warning: AlertTriangle, error: Ban, clock: Clock, info: Info };
 
 /** States of GitLab and Jira in the colors of the design */
 function stateTone(v: string): CockpitTone | null {
@@ -102,7 +110,7 @@ export function FieldValue({ type, value, lang }: { type: CockpitFieldType; valu
 
 const SourceIcon = ({ w, size = 16 }: { w: CockpitWidget; size?: number }) => {
   const kind = w.source.kind;
-  const Icon = kind === 'gitlab.jobs' ? BugReport : kind === 'jira.issues' ? Ticket : kind === 'gitlab.projects' ? GitBranch : kind === 'gitlab.groups' ? Users : Merge;
+  const Icon = kind === 'gitlab.jobs' ? BugReport : kind === 'jira.issues' ? Ticket : kind === 'gitlab.projects' ? GitBranch : kind === 'gitlab.groups' ? Users : kind === 'gitlab.compare' ? SwapHoriz : Merge;
   return <Icon size={size} />;
 };
 
@@ -296,9 +304,18 @@ export function WidgetCard({ widget: w, vars, refreshMinutes = 0, actions, onCon
 
   let body: ReactNode;
   if (shown && w.view === 'count') {
-    body = (
+    const st = stateOf(shown.total, w.states);
+    const label = st ? stateLabel(st, shown.total) : '';
+    const Icon = st && st.icon !== 'none' ? STATE_ICONS[st.icon] : null;
+    body = st ? (
+      <div className={`flex flex-1 items-center gap-2.5 rounded-b-lg px-3.5 py-3 ${STATE_TILE[st.tone]}`} data-cockpit-state={st.tone} data-cockpit-count={shown.total}>
+        {Icon && <Icon size={26} className="shrink-0" />}
+        <span className="min-w-0 flex-1 text-title-m">{label || <span className="font-mono text-[30px] leading-10">{shown.total}</span>}</span>
+        {label && !st.label.includes('{{') && <span className="font-mono text-body-m opacity-80">{shown.total}</span>}
+      </div>
+    ) : (
       <div className="px-3.5 pb-3 pt-1">
-        <span className="font-mono text-[30px] leading-10 text-strong" data-cockpit-count>
+        <span className="font-mono text-[30px] leading-10 text-strong" data-cockpit-count={shown.total}>
           {shown.total}
         </span>
       </div>

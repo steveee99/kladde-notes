@@ -14,7 +14,7 @@ import type { RemoteInstance } from '../remote/RemoteInstances.js';
 import type { HttpTransport } from '../confluence/ConfluenceClient.js';
 import { isPrivateAddress } from '../RecipeImport.js';
 import type { CockpitStore, GitlabConnection, JiraConnection } from './CockpitStore.js';
-import { CockpitError, gitlabFailedJobs, gitlabGroups, gitlabMergeRequests, gitlabProjects, gitlabWhoAmI, JiraClient, type GitlabAccess } from './sources.js';
+import { CockpitError, gitlabCompare, gitlabFailedJobs, gitlabGroups, gitlabMergeRequests, gitlabProjects, gitlabWhoAmI, JiraClient, type GitlabAccess } from './sources.js';
 
 /** A source's rows are read again after this long (all widgets of a dashboard with the same source share one read) */
 const FRESH_MS = 60_000;
@@ -181,6 +181,7 @@ export class CockpitService {
     if (!conn || !host) throw new CockpitError('not_connected');
     const access: GitlabAccess = { fetcher: this.opts.fetcher, host, connection: conn, fresh };
     if (kind === 'gitlab.jobs') return gitlabFailedJobs(access, params);
+    if (kind === 'gitlab.compare') return gitlabCompare(access, params);
     if (kind === 'gitlab.projects') return { rows: await gitlabProjects(access, params), partial: false };
     if (kind === 'gitlab.groups') return { rows: await gitlabGroups(access, params), partial: false };
     return { rows: await gitlabMergeRequests(access, params), partial: false };

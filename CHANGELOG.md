@@ -4,6 +4,10 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Cockpit source "Missing commits" (`gitlab.compare`): the commits of a branch or tag that another one lacks, e.g. whether everything in `10.100` reached `10.101`. Cherry-picked commits count as contained (by their "cherry picked from commit …" note or the same title) unless switched to "only the same commit"; merge commits are left out unless switched on.
+- New: A count widget can show a state instead of the number: rules on the count (=, ≠, >, ≥, <, ≤) set the tile's text (`{{count}}` puts the number in), icon and background color, with a one-click "traffic light" (0 green, else red).
+- New: Dashboards have an adjustable grid of 1 to 6 columns (default 2, in the dashboard settings); a widget's width is chosen in columns. Phones keep one column, tablets at most two.
+
 ## [2.26.0] – 2026-11-27
 
 - New: Two more cockpit sources for GitLab: "Repositories" lists the projects of a group (with its subgroups unless switched off; archived ones hidden, shown or only those; search by name) or, without a group, the ones you are a member of, with path, group, description, visibility, default branch, topics, stars, forks, open issues and last activity. "Groups" lists the subgroups of a group (direct ones or all levels below) or your own groups, with path, parent group, description and visibility. Both work in dashboards, in ```` ```cockpit ```` blocks (`source: gitlab.projects` / `gitlab.groups`) and with notifications about new entries.
