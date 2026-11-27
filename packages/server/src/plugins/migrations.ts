@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { constants, type DatabaseSync } from 'node:sqlite';
-import { pluginTablePrefix } from '@kladde/plugin-api';
+import { PLUGIN_ID_PATTERN, pluginTablePrefix } from '@kladde/plugin-api';
 import type { PluginMigration } from '@kladde/plugin-api/server';
 
 /** A plugin's schema cannot be brought to this build (changed step, downgrade, foreign table, failing SQL) */
@@ -174,8 +174,12 @@ export function pluginSchemaVersions(db: DatabaseSync): Map<string, number> {
  * Only for plugins that are no longer part of the build (`npm run cli -- plugins purge <id>`).
  */
 export function purgePluginData(db: DatabaseSync, pluginId: string): string[] {
+  if (!PLUGIN_ID_PATTERN.test(pluginId)) throw new Error(`Invalid plugin id "${pluginId}"`);
   const prefix = pluginTablePrefix(pluginId);
-  const objects = (db.prepare("SELECT type, name FROM sqlite_master WHERE name LIKE ? ESCAPE '\\' AND type IN ('table', 'view')").all(`${prefix.replace(/_/g, '\\_')}%`) as unknown as { type: string; name: string }[]);
+  // A plain prefix comparison: no LIKE pattern, so nothing in the name needs escaping
+  const objects = db
+    .prepare("SELECT type, name FROM sqlite_master WHERE type IN ('table', 'view') AND substr(name, 1, length(?)) = ?")
+    .all(prefix, prefix) as unknown as { type: string; name: string }[];
   db.exec('BEGIN');
   try {
     for (const o of objects) db.exec(`DROP ${o.type === 'view' ? 'VIEW' : 'TABLE'} IF EXISTS "${o.name.replace(/"/g, '""')}"`);

@@ -9,7 +9,7 @@ import { defineServerPlugin, type ServerPlugin } from '@kladde/plugin-api/server
 import { createKladdeApp } from '../src/app';
 import { openDatabase } from '../src/db';
 import { runCli } from '../src/cliActions';
-import { migratePlugins, PluginMigrationError, pluginSchemaVersions } from '../src/plugins/migrations';
+import { migratePlugins, PluginMigrationError, pluginSchemaVersions, purgePluginData } from '../src/plugins/migrations';
 import type { InstalledServerPlugin } from '../src/plugins/types';
 import logbook from '../../../examples/kladde-plugin-logbook/src/server';
 
@@ -195,6 +195,13 @@ describe('the example plugin in a running Kladde', () => {
     expect(lines).toContain('logbook  not installed');
     await expect(runCli(['plugins', 'purge', 'logbook', '--yes'], { db, users: ctx.users, notes: ctx.notes, files: ctx.files, plugins: [entry(logbook)] })).rejects.toThrow(/part of this build/);
     await expect(runCli(['plugins', 'purge', 'logbook'], { db, users: ctx.users, notes: ctx.notes, files: ctx.files, plugins: [] })).rejects.toThrow(/--yes/);
+    // Purging drops exactly the plugin's tables, nothing with a similar name
+    db.exec('CREATE TABLE p_logbookx_keep (id TEXT)');
+    const purged = await runCli(['plugins', 'purge', 'logbook', '--yes'], { db, users: ctx.users, notes: ctx.notes, files: ctx.files, plugins: [] });
+    expect((purged.data as { dropped: string[] }).dropped.sort()).toEqual(['p_logbook_entries', 'p_logbook_stats']);
+    expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'p_logbookx_keep'").get()).toBeDefined();
+    expect(pluginSchemaVersions(db).has('logbook')).toBe(false);
+    expect(() => purgePluginData(db, 'x%\\')).toThrow(/Invalid plugin id/);
   });
 });
 
