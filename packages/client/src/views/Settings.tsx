@@ -14,7 +14,7 @@ import {
   Trash2,
   Upload,
 } from '../lib/icons';
-import { APP_VERSION, Me, PASSWORD_MIN_LENGTH } from '@kladde/shared';
+import { APP_VERSION, Me, PASSWORD_MIN_LENGTH, type LoginMethod } from '@kladde/shared';
 import { api, deleteAvatar, setDisplayName, uploadAvatar } from '../lib/api';
 import { useConfluence } from '../lib/confluence';
 import { Lang, locale, setLang, tl, useLang, type I18nKey } from '../lib/i18n';
@@ -316,6 +316,7 @@ export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (m
               <section data-security-section>
                 <GroupLabel>{tl(lang, 'settings.securityTitle')}</GroupLabel>
                 <div className="divide-y divide-line [&>*]:py-4">
+          {offers(me, 'passkey') && (
           <div>
             <h3 className="mb-1 text-sm font-medium">{tl(lang, 'settings.passkeysTitle', { username: me.username })}</h3>
             <p className="mb-3 text-sm text-on-surface-variant">{tl(lang, 'settings.passkeysDesc')}</p>
@@ -387,8 +388,9 @@ export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (m
             )}
             {error && <p className="mt-2 text-sm text-error">{error}</p>}
           </div>
+          )}
 
-            <PasswordSection me={me} onMe={onMe} />
+            {offers(me, 'password') && <PasswordSection me={me} onMe={onMe} />}
             <GitLabSection me={me} onMe={onMe} />
                 </div>
               </section>
@@ -606,6 +608,9 @@ export function SettingsView({ me, onMe, onLogout, section }: { me: Me; onMe: (m
   );
 }
 
+/** Whether the server offers this way to sign in (LOGIN_METHODS; older servers send nothing: all) */
+const offers = (me: Me, method: LoginMethod) => !me.loginMethods || me.loginMethods.includes(method);
+
 /** Link a GitLab account for "Sign in with GitLab" (only when the server has GitLab configured) */
 function GitLabSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   const lang = useLang();
@@ -618,7 +623,7 @@ function GitLabSection({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   if (!providers?.gitlab.enabled) return null;
   const name = providers.gitlab.label;
   const linked = me.externalLogins?.find((l) => l.provider === 'gitlab');
-  const canUnlink = me.passkeys.length > 0 || me.hasPassword || (me.externalLogins?.length ?? 0) > 1;
+  const canUnlink = (offers(me, 'passkey') && me.passkeys.length > 0) || (offers(me, 'password') && me.hasPassword) || (me.externalLogins?.length ?? 0) > 1;
   return (
     <div data-gitlab-section>
       <h3 className="mb-1 flex items-center gap-2 text-sm font-medium">

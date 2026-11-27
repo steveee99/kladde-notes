@@ -37,7 +37,7 @@ import { TasksView } from './views/TasksView';
 import { isAdminPath, settingsSectionOf } from './lib/settingsRoutes';
 import { ProjectsView } from './views/ProjectsView';
 import { projectKeys, ticketById } from './data/tickets';
-import { setPluginUser } from './plugins/registry';
+import { mountPluginBlock, pluginBlockFor, pluginSlashBlocks, setPluginUser } from './plugins/registry';
 
 // Pages that are opened now and then load on first use, so the app starts with a smaller bundle (#64).
 // The service worker caches them with everything else, so they work offline too.
@@ -99,6 +99,13 @@ Object.assign(editorHost, {
     return () => setTimeout(() => root.unmount(), 0);
   },
   cockpitEnabled: () => vault.features().cockpit.enabled && !vault.standalone,
+  // Fenced blocks of build-time plugins (docs/PLUGINS.md)
+  pluginBlock: (lang: string) => {
+    const found = pluginBlockFor(lang);
+    return found ? (found.block.height ?? 160) : null;
+  },
+  mountPluginBlock,
+  pluginSlashBlocks: () => pluginSlashBlocks(getLang()),
   // /cockpit and a block's settings: the cockpit's widget editor in its own React root, removed when it closes
   editCockpit: (src: string | null, doc: string, scope: Parameters<typeof editorHost.editCockpit>[2], onSave: (block: string) => void) => {
     const el = document.createElement('div');

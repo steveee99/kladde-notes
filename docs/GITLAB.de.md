@@ -177,6 +177,21 @@ SIGNUP_WITHOUT_INVITE=gitlab
 GITLAB_ALLOWED_GROUPS=firma
 ```
 
+### Nur mit GitLab anmelden
+
+`LOGIN_METHODS` legt fest, welche Anmeldearten es überhaupt gibt (Standard: alle). Mit nur `gitlab` zeigt die Anmeldeseite ausschließlich den GitLab-Knopf: kein Benutzername und Passwort, keine Passkeys, keine Geräte-Codes. Der Server lehnt diese Wege auch selbst ab, und in den Einstellungen verschwinden die Abschnitte für Passkeys und Passwort.
+
+```env
+LOGIN_METHODS=gitlab
+SIGNUP_WITHOUT_INVITE=gitlab      # optional: Kolleginnen und Kollegen kommen ohne Einladung rein
+GITLAB_ALLOWED_GROUPS=firma
+```
+
+- **Vor dem Umstellen:** Bestehende Konten müssen GitLab verknüpft haben (*Einstellungen → Anmelden mit GitLab*), sonst kommen sie nicht mehr hinein.
+- Die GitLab-Verknüpfung lässt sich dann nicht mehr entfernen (sie ist der einzige Weg hinein).
+- `LOGIN_METHODS=gitlab` ohne `GITLAB_CLIENT_ID`/`GITLAB_CLIENT_SECRET` stoppt den Server beim Start mit einer klaren Meldung, statt alle auszusperren. Unbekannte Namen in der Liste ebenso.
+- Kombinationen gehen auch, z. B. `LOGIN_METHODS=gitlab,passkey`.
+
 > Offene Registrierung per Passkey oder Passwort auf einer öffentlich erreichbaren Instanz heißt: **jeder** im Internet kann sich ein Konto anlegen. Für GitLab begrenzt `GITLAB_ALLOWED_GROUPS` das; ohne Gruppen darf bei `GITLAB_URL=https://gitlab.com` jeder mit einem GitLab.com-Konto rein.
 
 ---

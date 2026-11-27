@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import type { DatabaseSync } from 'node:sqlite';
 import { APP_VERSION, type AdminStatus, type Me } from '@kladde/shared';
+import { rateLimit } from './http.js';
 import { DataCipher } from './crypto.js';
 import { AvatarStore } from './AvatarStore.js';
 import { UserRecord, UserStore } from './UserStore.js';
@@ -17,7 +18,7 @@ import { AuditLog } from './security/AuditLog.js';
 import { configuredOrigins, isAllowedOrigin } from './security/origin.js';
 import { appCsp, inlineScriptHashes } from './security/csp.js';
 import { authRouter } from './auth.js';
-import { gitlabConfigFromEnv, openSignupFromEnv } from './gitlabAuth.js';
+import { gitlabConfigFromEnv, loginMethodsFromEnv, openSignupFromEnv } from './gitlabAuth.js';
 import { apiRouter, LiveUpdates } from './api.js';
 import { StorageStore, defaultQuotaBytes } from './StorageStore.js';
 import { adminRouter } from './admin/adminRouter.js';
@@ -64,6 +65,7 @@ import { JobLog } from './admin/JobLog.js';
 import { overviewBuilder } from './admin/overview.js';
 import { backupDatabase } from './db.js';
 import { PluginHost } from './plugins/PluginHost.js';
+import { appTitleFromEnv, brandIndexHtml, brandManifest } from './branding.js';
 import { installedPlugins } from './plugins/installed.js';
 import type { InstalledServerPlugin } from './plugins/types.js';
 
@@ -120,6 +122,8 @@ export interface KladdeAppContext {
   jobs: JobLog;
   /** Build-time plugins: their routes, note events, jobs (`tick()` every minute) */
   plugins: PluginHost;
+  /** Mentions, comments, plugin notifications */
+  notifications: NotificationStore;
 }
 
 /**
@@ -217,6 +221,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     plugins: opts.plugins ?? installedPlugins,
     standaloneUser,
     backup: backupDir ? () => void backupDatabase(opts.db, backupDir) : undefined,
+    notifications,
   });
   const push = opts.standalone ? undefined : new PushStore(opts.db, cipher, allowedPushHosts(env));
   const pushSubject = vapidSubject(env, opts.publicUrl);
@@ -242,6 +247,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     audit,
     publicUrl: opts.publicUrl,
     standaloneUser,
+    pluginTools: plugins.count ? (userId) => plugins!.mcpTools(userId) : undefined,
   });
 
   if (mirror) for (const u of users.listUsers()) mirror.writeAll(u.id, notes.allOf(u.id));
@@ -296,6 +302,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   // The served index.html decides which inline scripts the CSP allows (hashes, no 'unsafe-inline')
   const indexSource = opts.seaAssets?.get('/index.html')?.data.toString('utf8') ?? (opts.clientDist && fs.existsSync(path.join(opts.clientDist, 'index.html')) ? fs.readFileSync(path.join(opts.clientDist, 'index.html'), 'utf8') : '');
   const csp = appCsp(inlineScriptHashes(indexSource));
+  const appTitle = appTitleFromEnv(env);
 
   app.use((_req, res, next) => {
     // Routes with their own policy (attachments, avatars) replace it
@@ -383,6 +390,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     });
     app.use('/api/auth', standaloneAuth);
   } else {
+    const gitlabConfig = gitlabConfigFromEnv(env);
     app.use(
       '/api/auth',
       express.json({ limit: '64kb' }),
@@ -394,8 +402,10 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
         publicUrl: opts.publicUrl,
         secureCookies: opts.isProduction && (opts.publicUrl?.startsWith('https://') ?? false),
         devLogin: !opts.isProduction && env.DEV_LOGIN === '1',
-        gitlab: gitlabConfigFromEnv(env),
+        appName: appTitle ?? undefined,
+        gitlab: gitlabConfig,
         openSignup: openSignupFromEnv(env),
+        loginMethods: loginMethodsFromEnv(env, !!gitlabConfig),
         onRegistered: opts.onRegistered,
       })
     );
@@ -468,6 +478,31 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db), spaces: online ? new SpaceIndexes(notes) : undefined, activity, notifications, jobs, comments: opts.standalone ? undefined : new CommentStore(opts.db, cipher, users) }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
+  // APP_TITLE: the served index.html and manifest carry the app's name (the client reads it from the page)
+  const brandedIndex = appTitle && indexSource ? brandIndexHtml(indexSource, appTitle) : null;
+  if (appTitle && brandedIndex) {
+    const manifestSource =
+      opts.seaAssets?.get('/manifest.webmanifest')?.data.toString('utf8') ??
+      (opts.clientDist && fs.existsSync(path.join(opts.clientDist, 'manifest.webmanifest')) ? fs.readFileSync(path.join(opts.clientDist, 'manifest.webmanifest'), 'utf8') : null);
+    const brandedManifest = manifestSource ? brandManifest(manifestSource, appTitle) : null;
+    app.use((req, res, next) => {
+      if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+      if (req.path === '/' || req.path === '/index.html') {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Cache-Control', opts.standalone ? 'no-store' : 'no-cache');
+        res.status(200).send(req.method === 'HEAD' ? undefined : brandedIndex);
+        return;
+      }
+      if (brandedManifest && req.path === '/manifest.webmanifest') {
+        res.setHeader('Content-Type', 'application/manifest+json');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.status(200).send(req.method === 'HEAD' ? undefined : brandedManifest);
+        return;
+      }
+      next();
+    });
+  }
+
   if (opts.seaAssets && opts.seaAssets.size > 0) {
     const assets = opts.seaAssets;
     app.use((req, res, next) => {
@@ -490,7 +525,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       app.get(/^\/(?!api\/).*/, (_req, res) => {
         res.setHeader('Content-Type', indexHtml.mime);
         res.setHeader('Cache-Control', opts.standalone ? 'no-store' : 'no-cache');
-        res.status(200).send(indexHtml.data);
+        res.status(200).send(brandedIndex ?? indexHtml.data);
       });
     }
   } else if (opts.clientDist && fs.existsSync(opts.clientDist)) {
@@ -507,9 +542,11 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
         },
       })
     );
-    app.get(/^\/(?!api\/).*/, (_req, res) => {
+    // Generous: every page load of the app comes through here (behind a proxy without TRUST_PROXY all share one IP)
+    app.get(/^\/(?!api\/).*/, rateLimit(1200, 60_000), (_req, res) => {
       res.setHeader('Cache-Control', opts.standalone ? 'no-store' : 'no-cache');
-      res.sendFile(path.join(clientDist, 'index.html'));
+      if (brandedIndex) res.type('html').send(brandedIndex);
+      else res.sendFile(path.join(clientDist, 'index.html'));
     });
   }
 
@@ -519,5 +556,5 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
 
   const sendReminders = push ? (now?: Date) => runReminders(push, notes, pushSubject, now) : undefined;
-  return { app, users, notes, files, avatars, attachmentIndexer, confluence, remoteSync, cockpitWatch, audit, live, standaloneUser, sendReminders, backups, metrics: metricsSources, jobs, plugins };
+  return { app, users, notes, files, avatars, attachmentIndexer, confluence, remoteSync, cockpitWatch, audit, live, standaloneUser, sendReminders, backups, metrics: metricsSources, jobs, plugins, notifications };
 }

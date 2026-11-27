@@ -7,7 +7,10 @@ import { normalizeFeatures } from '@kladde/shared';
 import { KladdeHostContext, type KladdeHost } from '@kladde/plugin-api/client';
 import logbook from '../../../examples/kladde-plugin-logbook/src/client';
 import { LogbookPage } from '../../../examples/kladde-plugin-logbook/src/LogbookPage';
-import { allPlugins, isPluginEnabled, pluginCommands, pluginHref, pluginNavItems, resolvePluginPath, setInstalledPlugins } from '../src/plugins/registry';
+import { LogbookBlock, parseBlock } from '../../../examples/kladde-plugin-logbook/src/LogbookBlock';
+import { allPlugins, isPluginEnabled, pluginBlockFor, pluginCommands, pluginHref, pluginNavItems, pluginSlashBlocks, resolvePluginPath, setInstalledPlugins } from '../src/plugins/registry';
+import { notificationUrl } from '../src/views/NotificationsPanel';
+import type { NotificationItem } from '@kladde/shared';
 import type { InstalledClientPlugin } from '../src/plugins/types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -43,9 +46,72 @@ describe('plugin registry', () => {
     expect(pluginNavItems('en')).toEqual([]);
   });
 
+  it('renders the blocks of plugins that are on, only under their own names', () => {
+    const on = normalizeFeatures({ plugins: { logbook: true } });
+    setInstalledPlugins([installed()]);
+    expect(pluginBlockFor('logbook', normalizeFeatures({}))).toBeNull();
+    expect(pluginBlockFor('logbook', on)?.block.lang).toBe('logbook');
+    expect(pluginBlockFor('mermaid', on)).toBeNull();
+    // A block named after something else than the plugin is ignored
+    const thief = { ...logbook, blocks: [{ ...logbook.blocks![0], lang: 'query' }] };
+    setInstalledPlugins([installed({ plugin: thief, defaultEnabled: true })]);
+    expect(pluginBlockFor('query')).toBeNull();
+    expect(pluginSlashBlocks('de')).toEqual([]);
+    setInstalledPlugins([installed({ defaultEnabled: true })]);
+    expect(pluginSlashBlocks('en')).toEqual([expect.objectContaining({ label: 'Logbook entries', detail: 'logbook', template: '```logbook\nlimit: 5\n```' })]);
+  });
+
+  it('opens plugin notifications only inside the plugin or at a note', () => {
+    const n = (over: Partial<NotificationItem>): NotificationItem => ({ id: 'x', kind: 'plugin', at: 0, read: false, actor: null, noteId: '', path: 'kladde-plugin-logbook', text: '', plugin: 'logbook', ...over });
+    expect(notificationUrl(n({ href: '/p/logbook/entries/1' }))).toBe('/p/logbook/entries/1');
+    expect(notificationUrl(n({ href: '/n/abc' }))).toBe('/n/abc');
+    expect(notificationUrl(n({ href: 'https://evil.example' }))).toBe('/p/logbook');
+    expect(notificationUrl(n({ href: '//evil.example' }))).toBe('/p/logbook');
+  });
+
   it('leaves out a plugin whose package id differs from its own', () => {
     setInstalledPlugins([installed({ id: 'other' })]);
     expect(allPlugins()).toEqual([]);
+  });
+});
+
+describe('the example plugin block', () => {
+  it('reads its settings', () => {
+    expect(parseBlock('')).toEqual({ limit: 5, mood: null });
+    expect(parseBlock('limit: 3\nmood: bad\nsonst: was')).toEqual({ limit: 3, mood: 'bad' });
+    expect(parseBlock('limit: 900\nmood: wild')).toEqual({ limit: 50, mood: null });
+  });
+
+  it('shows the latest entries and writes a higher limit back into the note', async () => {
+    const entries = Array.from({ length: 4 }, (_, i) => ({ id: `e${i}`, text: `Eintrag ${i}`, mood: i % 2 ? 'good' : 'bad', at: Date.UTC(2026, 10, 20 + i) }));
+    const host = { lang: 'de', t: (v: string | { de: string }) => (typeof v === 'string' ? v : v.de), href: () => '/p/logbook', navigate: vi.fn(), api: vi.fn(async () => entries) } as unknown as KladdeHost;
+    const setSource = vi.fn();
+    const el = document.createElement('div');
+    document.body.append(el);
+    const root = createRoot(el);
+    await act(async () => {
+      root.render(
+        <KladdeHostContext.Provider value={host}>
+          <LogbookBlock source="limit: 1" lang="logbook" noteId="n1" setSource={setSource} />
+        </KladdeHostContext.Provider>
+      );
+    });
+    expect(el.querySelectorAll('li')).toHaveLength(1);
+    expect(el.textContent).toContain('Eintrag 0');
+    const more = [...el.querySelectorAll('button')].find((b) => b.textContent === 'Mehr zeigen')!;
+    act(() => more.click());
+    expect(setSource).toHaveBeenCalledWith('limit: 6');
+    // Read-only notes get no setSource: no button
+    await act(async () => {
+      root.render(
+        <KladdeHostContext.Provider value={host}>
+          <LogbookBlock source={'limit: 1\nmood: good'} lang="logbook" noteId="n1" />
+        </KladdeHostContext.Provider>
+      );
+    });
+    expect(el.textContent).toContain('Eintrag 1');
+    expect([...el.querySelectorAll('button')].some((b) => b.textContent === 'Mehr zeigen')).toBe(false);
+    act(() => root.unmount());
   });
 });
 

@@ -1,6 +1,7 @@
-import { Component, type ComponentType, type ReactNode } from 'react';
+import { Component, Suspense, type ComponentType, type ReactNode } from 'react';
+import { createRoot } from 'react-dom/client';
 import { extractMeta, parseFrontmatter, type FeatureSettings, type Me } from '@kladde/shared';
-import { KladdeHostContext, localize, PluginRequestError, type KladdeHost, type PluginClientNote, type PluginIconProps } from '@kladde/plugin-api/client';
+import { KladdeHostContext, localize, PluginRequestError, type KladdeHost, type PluginBlock, type PluginClientNote, type PluginIconProps } from '@kladde/plugin-api/client';
 import { api, ApiError } from '../lib/api';
 import { getLang, tl, type Lang } from '../lib/i18n';
 import type { Icon, IconProps } from '../lib/icons';
@@ -27,6 +28,11 @@ export function setInstalledPlugins(list: InstalledClientPlugin[]): void {
 /** Every plugin of this build (none in the browser-only demo, which has no server for their routes) */
 export function allPlugins(): InstalledClientPlugin[] {
   return DEMO ? [] : plugins.filter((p) => p.id === p.plugin.id);
+}
+
+/** A plugin of this build by its id */
+export function pluginById(id: string): InstalledClientPlugin | undefined {
+  return allPlugins().find((p) => p.plugin.id === id);
 }
 
 export function isPluginEnabled(entry: InstalledClientPlugin, features: FeatureSettings = vault.features()): boolean {
@@ -110,6 +116,56 @@ export function pluginCommands(lang: Lang = getLang()): { id: string; label: str
       })),
     ];
   });
+}
+
+// ------------------------------------------------------------------ editor blocks
+
+/** A block's info string must be the plugin's id or start with `<id>-`: plugins never take each other's (or Kladde's) */
+const ownLang = (id: string, lang: string) => (lang === id || lang.startsWith(`${id}-`)) && /^[a-z0-9-]+$/.test(lang);
+
+/** The block of an enabled plugin that renders ```` ```<lang> ```` */
+export function pluginBlockFor(lang: string, features?: FeatureSettings): { entry: InstalledClientPlugin; block: PluginBlock } | null {
+  if (!lang) return null;
+  for (const entry of enabledPlugins(features)) {
+    const block = entry.plugin.blocks?.find((b) => b.lang === lang && ownLang(entry.plugin.id, b.lang));
+    if (block) return { entry, block };
+  }
+  return null;
+}
+
+/** Slash menu entries for the blocks of the plugins that are on */
+export function pluginSlashBlocks(lang: Lang = getLang()): { label: string; detail: string; keywords: string; template: string }[] {
+  return enabledPlugins().flatMap((entry) =>
+    (entry.plugin.blocks ?? [])
+      .filter((b) => ownLang(entry.plugin.id, b.lang))
+      .map((b) => ({
+        label: localize(b.label, lang),
+        detail: b.lang,
+        keywords: [entry.plugin.id, localize(entry.plugin.name, lang), b.keywords].filter(Boolean).join(' ').toLowerCase(),
+        template: `\`\`\`${b.lang}\n${b.template ? b.template.replace(/\n?$/, '\n') : ''}\`\`\``,
+      }))
+  );
+}
+
+/**
+ * Mounts a plugin block into the editor's frame `el` (its own React root with the plugin's host and error
+ * boundary); returns the unmount
+ */
+export function mountPluginBlock(el: HTMLElement, lang: string, props: { source: string; noteId: string; setSource?: (next: string) => void }): () => void {
+  const found = pluginBlockFor(lang);
+  if (!found) return () => {};
+  const { entry, block } = found;
+  const Block = block.component;
+  const root = createRoot(el);
+  root.render(
+    <WithPluginHost entry={entry}>
+      <Suspense fallback={null}>
+        <Block source={props.source} lang={lang} noteId={props.noteId} setSource={props.setSource} />
+      </Suspense>
+    </WithPluginHost>
+  );
+  // Not while React renders the editor's parent
+  return () => setTimeout(() => root.unmount(), 0);
 }
 
 // ------------------------------------------------------------------ host

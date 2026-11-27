@@ -2,17 +2,18 @@
 
 [Deutsch](PLUGINS.de.md)
 
-Plugins bring your own apps into Kladde: their own navigation entries, pages, commands, settings, database tables and background jobs, while Kladde provides sign-in, design, the note format and sync. Plugins are built **into the image at build time**, never loaded at runtime. The build checks that the Kladde version and the plugin versions fit together and stops before anything is deployed when they do not.
+Plugins bring your own apps into Kladde: their own navigation entries, pages, commands, settings, blocks in notes, tools for AI assistants, notifications, database tables and background jobs, while Kladde provides sign-in, design, the note format and sync. Plugins are built **into the image at build time**, never loaded at runtime. The build checks that the Kladde version and the plugin versions fit together and stops before anything is deployed when they do not.
 
 - [How it works](#how-it-works)
 - [Writing a plugin](#writing-a-plugin)
+- [Blocks, MCP tools and notifications](#blocks-mcp-tools-and-notifications)
 - [Own tables and migrations](#own-tables-and-migrations)
 - [Version matrix: what the build checks](#version-matrix-what-the-build-checks)
 - [Developing locally](#developing-locally)
 - [Ops repository: building the image with plugins](#ops-repository-building-the-image-with-plugins)
 - [Updates](#updates)
 - [Rules for Kladde itself](#rules-for-kladde-itself)
-- [Not in v1 yet](#not-in-v1-yet)
+- [Not in the plugin API yet](#not-in-the-plugin-api-yet)
 
 ## How it works
 
@@ -64,7 +65,7 @@ kladde-plugin-time/
   "files": ["dist"],
   "scripts": { "build": "tsc", "prepack": "tsc" },
   "peerDependencies": {
-    "@kladde/plugin-api": "^1.0.0",
+    "@kladde/plugin-api": "^1.1.0",
     "react": "^18.3.0"
   },
   "dependencies": {
@@ -144,6 +145,7 @@ export default defineServerPlugin({
 | `onNoteChange(event, ctx)` | after every accepted note change (not for system notes); synchronous on the sync path: keep it short |
 | `jobs` | in the background every `everyMinutes`, never twice at the same time |
 | `exportAccount(userId, ctx)` | files in the account export under `.plugins/<id>/…` |
+| `mcpTools` | tools for AI assistants on `/mcp` ([details](#mcp-tools)) · since 1.1 |
 
 Errors: `throw new PluginError(status, text)` answers `{ error: text }` with that status; any other error becomes a 500 without details and is logged. Wrap async handlers in `handle(…)`. Errors in `onNoteChange`, jobs and the export are logged and never disturb Kladde.
 
@@ -156,6 +158,7 @@ The context `ctx`:
 | `ctx.notes.list/get/create/update/remove(userId, …)` | notes through the normal sync: rights (own notes, groups, readers), encryption, versions, live updates on all devices, activity, history. Conflicts throw `PluginError` 409 |
 | `ctx.userOf(req)`, `ctx.user(id)` | `{ id, username, displayName, isAdmin }` |
 | `ctx.enabledFor(userId)` | whether the user switched the plugin on |
+| `ctx.notify(userId, { title, text?, path?, noteId?, tag? })` | a notification in the bell and as Web Push ([details](#notifications)) · since 1.1 |
 | `ctx.env('TOKEN')` | reads `PLUGIN_<ID>_TOKEN`; other variables stay hidden |
 | `ctx.log.info/warn/error` | log lines prefixed `🧩 [<id>]` |
 
@@ -180,6 +183,7 @@ export default defineClientPlugin({
   ],
   nav: [{ label: { de: 'Zeiten', en: 'Time' }, bottomBar: true }],
   commands: [{ id: 'book', label: { de: 'Zeit buchen', en: 'Book time' }, path: '/new' }],
+  blocks: [{ lang: 'time', label: { de: 'Zeitübersicht', en: 'Time overview' }, template: 'week: current', component: TimeBlock }],
   settings: Settings,
 });
 ```
@@ -228,6 +232,76 @@ Notes, tasks (- [ ] …), [[links]] as everywhere in Kladde.
 ```
 
 Rule of thumb: what people read, link or edit offline belongs in notes; bulk data, counters, mappings to external systems and caches belong in own tables.
+
+## Blocks, MCP tools and notifications
+
+Since plugin API **1.1**. A plugin that uses them declares `"@kladde/plugin-api": "^1.1.0"`, so the build refuses a Kladde that is too old.
+
+### Blocks in notes
+
+A fenced block whose info string belongs to the plugin is drawn by the plugin's component while the cursor is outside it, much like ```` ```query ```` or ```` ```cockpit ````. Inside it the text is edited as usual.
+
+````md
+```time
+week: current
+```
+````
+
+```tsx
+import { useKladde, type PluginBlockProps } from '@kladde/plugin-api/client';
+
+export function TimeBlock({ source, noteId, setSource }: PluginBlockProps) {
+  const host = useKladde();          // the same host as on pages: api, notes, t, navigate …
+  // source: the text between the fences; setSource(next) writes it back (missing in read-only notes)
+  return <div className="card p-3">…</div>;
+}
+```
+
+- `lang` must be the plugin id or start with `<id>-` (`time`, `time-week`); anything else is ignored, so plugins never take each other's blocks or Kladde's own (`query`, `mermaid`, `cockpit` … always win).
+- `/` in the editor offers every block of the plugins that are on (`label`, `keywords`); it inserts `template` between the fences.
+- The note stays plain Markdown: exports, public links, the MCP tools and devices without the plugin (or with it switched off) show the block as code. Put what must survive into the block's text, not only into your tables.
+- `height` (pixels) is the expected height; it keeps scrolling steady while the block loads.
+- The block runs in its own React root with the plugin's error box: a crash never takes the editor down.
+
+### MCP tools
+
+`mcpTools` puts tools on Kladde's MCP endpoint (`/mcp`, the same connection AI assistants already use for notes). Assistants see them as `<id>_<name>` (dashes in the id as underscores), and only for users who switched the plugin on.
+
+```ts
+mcpTools: [
+  {
+    name: 'book_time',                       // → time_book_time
+    title: 'Book time',
+    description: 'Books minutes on a project for the user. Use it when they tell you what they worked on.',
+    inputSchema: { type: 'object', properties: { project: { type: 'string' }, minutes: { type: 'integer', minimum: 1 } }, required: ['project', 'minutes'] },
+    write: true,                             // only for connections that may write
+    async run(args, call, ctx) {             // call: { user, agent, canWrite }
+      if (typeof args.minutes !== 'number') throw new PluginError(400, 'minutes must be a number');
+      // …
+      return { booked: args.minutes };       // object → JSON (and structuredContent), string → text
+    },
+  },
+],
+```
+
+- `name`: `a–z`, `0–9`, `_`, starting with a letter, at most 40 characters; Kladde's own tool names always win.
+- `description` is what the assistant decides by: say what the tool does and when to use it (English works best).
+- Check the arguments yourself. `PluginError` reaches the assistant as a tool error with its message; any other error as "internal error" (logged).
+- Tools run with the rights of the connection's account; read and write only that user's data.
+
+### Notifications
+
+```ts
+ctx.notify(userId, {
+  title: { de: 'Build fehlgeschlagen', en: 'Build failed' },   // at most 120 characters
+  text: 'main · job test',                                     // optional, at most 500 (push shows 300)
+  path: '/builds/42',                                          // → /p/<id>/builds/42 …
+  // noteId: '…',                                              // … or a note the user may open
+  tag: 'build-42',                                             // newer pushes with the same tag replace older ones
+});
+```
+
+The notification appears in the bell and on `/notifications` with the plugin's icon and name and, where the user turned on push, on their devices (quiet hours and "show texts" apply). It is stored encrypted like Kladde's own. `notify` returns `false` and sends nothing when the user has the plugin off, does not exist, is blocked, or cannot open the given note; a click only ever leads into the plugin's pages or to a note.
 
 ## Own tables and migrations
 
@@ -455,13 +529,11 @@ For everyone working on Kladde, so that releases stay safe for plugins:
 - The release script (`npm run release`) does **not** bump the plugin API; that is a deliberate manual step.
 - CI builds the example plugin into the app on every push (`.github/workflows/ci.yml`): whoever breaks the interface sees it there first.
 
-## Not in v1 yet
+## Not in the plugin API yet
 
 Left open on purpose, to be added as minor versions of the plugin API:
 
-- blocks in the editor (like ```` ```cockpit ````) and panels in a note's inspector
-- own MCP tools for AI assistants
-- own notifications (bell, Web Push)
+- panels in a note's inspector
 - offline sync of plugin tables (today: offline through notes)
 - switching plugins on per group instead of per user
 - the standalone desktop app (builds without plugins)

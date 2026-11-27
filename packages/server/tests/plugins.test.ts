@@ -9,6 +9,7 @@ import { defineServerPlugin, type ServerPlugin } from '@kladde/plugin-api/server
 import { createKladdeApp } from '../src/app';
 import { openDatabase } from '../src/db';
 import { runCli } from '../src/cliActions';
+import { handleMessage } from '../src/mcp/protocol';
 import { migratePlugins, PluginMigrationError, pluginSchemaVersions, purgePluginData } from '../src/plugins/migrations';
 import type { InstalledServerPlugin } from '../src/plugins/types';
 import logbook from '../../../examples/kladde-plugin-logbook/src/server';
@@ -190,6 +191,60 @@ describe('the example plugin in a running Kladde', () => {
     expect(db.prepare('SELECT id FROM p_logbook_entries WHERE id = ?').get(old)).toBeUndefined();
   });
 
+  it('offers its MCP tools to users who switched it on, writing ones only with write access', async () => {
+    const tools = async (userId: string, canWrite: boolean) => {
+      const answer = (await handleMessage({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, { userId, canWrite, notes: ctx.notes, pluginTools: () => ctx.plugins.mcpTools(userId) })) as {
+        result: { tools: { name: string }[] };
+      };
+      return answer.result.tools.map((t) => t.name).filter((n) => n.startsWith('logbook_'));
+    };
+    expect(await tools(anna.id, true)).toEqual(['logbook_list_entries', 'logbook_add_entry']);
+    expect(await tools(anna.id, false)).toEqual(['logbook_list_entries']);
+    switchOn(ben.id, false);
+    expect(await tools(ben.id, true)).toEqual([]);
+    switchOn(ben.id, true);
+  });
+
+  it('runs a tool for the assistant and notifies the user about what it wrote', async () => {
+    const mcp = (name: string, args: Record<string, unknown>, canWrite = true) =>
+      handleMessage(
+        { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name, arguments: args } },
+        { userId: anna.id, canWrite, agent: 'Claude', notes: ctx.notes, pluginTools: () => ctx.plugins.mcpTools(anna.id) }
+      ) as Promise<{ result: { content: { text: string }[]; isError?: boolean; structuredContent?: unknown } }>;
+    const before = ctx.notifications.unread(anna.id);
+    const added = await mcp('logbook_add_entry', { text: 'Vom Assistenten', mood: 'okay' });
+    expect(added.result.isError).toBeUndefined();
+    expect(added.result.structuredContent).toMatchObject({ id: expect.any(String) });
+    const listed = await mcp('logbook_list_entries', { limit: 1 });
+    expect(JSON.parse(listed.result.content[0].text)).toMatchObject({ entries: [{ text: 'Vom Assistenten', mood: 'okay' }] });
+    // Wrong input comes back as a tool error with the plugin's message
+    const bad = await mcp('logbook_add_entry', { text: '' });
+    expect(bad.result).toMatchObject({ isError: true, content: [{ text: 'Der Eintrag braucht 1 bis 2000 Zeichen.' }] });
+    expect((await mcp('logbook_add_entry', { text: 'x' }, false)).result.isError).toBe(true);
+    // The notification: in the list with the plugin's headline, leading to its page
+    expect(ctx.notifications.unread(anna.id)).toBe(before + 1);
+    const [n] = ctx.notifications.list(anna.id).items;
+    expect(n).toMatchObject({ kind: 'plugin', plugin: 'logbook', title: { de: 'Claude hat ins Logbuch geschrieben', en: 'Claude wrote in the logbook' }, text: 'Vom Assistenten', href: '/p/logbook', actor: null });
+    const raw = db.prepare('SELECT payload FROM notifications WHERE id = ?').get(n.id) as { payload: Uint8Array };
+    expect(Buffer.from(raw.payload).toString('latin1')).not.toContain('Vom Assistenten');
+  });
+
+  it('sends notifications only to users who have it on, and only into the plugin or to their notes', () => {
+    const pluginCtx = (ctx.plugins as unknown as { loaded: { ctx: { notify: (u: string, n: object) => boolean } }[] }).loaded[0].ctx;
+    switchOn(ben.id, false);
+    expect(pluginCtx.notify(ben.id, { title: 'Hallo' })).toBe(false);
+    switchOn(ben.id, true);
+    expect(pluginCtx.notify(ben.id, { title: 'Hallo', path: '/entries/1' })).toBe(true);
+    expect(ctx.notifications.list(ben.id).items[0]).toMatchObject({ kind: 'plugin', href: '/p/logbook/entries/1' });
+    expect(() => pluginCtx.notify(ben.id, { title: 'Weg', path: '../../settings' })).toThrow(/invalid notification path/);
+    expect(() => pluginCtx.notify(ben.id, { title: '' })).toThrow(/needs a title/);
+    // Anna's note is none of Ben's business
+    const [annaNote] = ctx.notes.ownedNotes(anna.id).filter((x) => x.path.startsWith('Logbuch/'));
+    expect(pluginCtx.notify(ben.id, { title: 'Sieh mal', noteId: annaNote.id })).toBe(false);
+    expect(pluginCtx.notify(anna.id, { title: 'Sieh mal', noteId: annaNote.id })).toBe(true);
+    expect(ctx.notifications.list(anna.id).items[0]).toMatchObject({ noteId: annaNote.id, href: `/n/${annaNote.id}` });
+  });
+
   it('keeps the data of a removed plugin until it is purged', async () => {
     const lines = (await runCli(['plugins'], { db, users: ctx.users, notes: ctx.notes, files: ctx.files, plugins: [] })).lines.join('\n');
     expect(lines).toContain('logbook  not installed');
@@ -214,6 +269,13 @@ describe('a plugin built for another plugin API', () => {
     expect(ctx.plugins.count).toBe(0);
     expect(ctx.plugins.status()[0]).toMatchObject({ id: 'future', disabled: expect.stringContaining('needs @kladde/plugin-api ^9.0.0') });
     expect(pluginSchemaVersions(db).has('future')).toBe(false);
+  });
+
+  it('stops the start on a bad MCP tool name', () => {
+    const bad = defineServerPlugin({ id: 'badtools', mcpTools: [{ name: 'Not-Valid', title: 'x', description: 'x', inputSchema: {}, run: () => null }] });
+    expect(() =>
+      createKladdeApp({ db: openDatabase(':memory:'), dataDir: tempDir(), env: { DATA_KEY: crypto.randomBytes(32).toString('base64') }, standalone: false, isProduction: false, publicUrl: null, trustProxy: false, plugins: [entry(bad)] })
+    ).toThrow(/invalid MCP tool name/);
   });
 
   it('stops the start when its id differs from its package', () => {

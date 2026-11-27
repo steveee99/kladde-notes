@@ -177,6 +177,21 @@ SIGNUP_WITHOUT_INVITE=gitlab
 GITLAB_ALLOWED_GROUPS=company
 ```
 
+### Sign in only with GitLab
+
+`LOGIN_METHODS` decides which sign-in methods exist at all (default: all of them). With only `gitlab`, the sign-in page shows just the GitLab button: no username and password, no passkeys, no device codes. The server refuses those routes too, and in the settings the sections for passkeys and the password disappear.
+
+```env
+LOGIN_METHODS=gitlab
+SIGNUP_WITHOUT_INVITE=gitlab      # optional: colleagues join without an invitation
+GITLAB_ALLOWED_GROUPS=company
+```
+
+- **Before switching:** existing accounts must have linked GitLab (*Settings → Sign in with GitLab*), otherwise they can no longer get in.
+- The GitLab link can no longer be removed (it is the only way in).
+- `LOGIN_METHODS=gitlab` without `GITLAB_CLIENT_ID`/`GITLAB_CLIENT_SECRET` stops the server at start with a clear message, instead of locking everyone out. Unknown names in the list stop it as well.
+- Combinations work too, e.g. `LOGIN_METHODS=gitlab,passkey`.
+
 > Open registration by passkey or password on a publicly reachable instance means **anyone** on the internet can create an account. For GitLab, `GITLAB_ALLOWED_GROUPS` limits that; without groups and with `GITLAB_URL=https://gitlab.com`, anyone with a GitLab.com account can get in.
 
 ---

@@ -42,6 +42,7 @@ import { releaseFacet, ReleaseFieldWidget, releaseRenderOptions } from './releas
 import { VariableWidget, variablesFacet } from './variables';
 import { GitlabCardWidget } from './gitlabCard';
 import { CockpitBlockWidget } from './cockpit';
+import { PluginBlockWidget } from './pluginBlock';
 import { MathWidget } from './math';
 import { stripInline } from './datatable';
 
@@ -482,6 +483,12 @@ function build(state: EditorState): DecorationSet {
           }
           if (!editing && (langInfo === 'mermaid' || langInfo === 'mindmap')) {
             blockWidget(node, Decoration.replace({ widget: new DiagramWidget(langInfo, body, lang), block: true }));
+            return false;
+          }
+          // Blocks of build-time plugins, after Kladde's own languages (`<id>` or `<id>-<name>`); without the plugin they stay code
+          const pluginHeight = !editing && !foreign && langInfo ? editorHost.pluginBlock(langInfo) : null;
+          if (pluginHeight !== null) {
+            blockWidget(node, Decoration.replace({ widget: new PluginBlockWidget(langInfo, body, lang, pluginHeight), block: true }));
             return false;
           }
           // Rendered (cursor outside): the opening fence becomes a slim header, a closing fence a thin bottom edge

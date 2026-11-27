@@ -28,6 +28,7 @@ import { isAdminPath, isSettingsPath, useSettingsNavInPanel } from '../lib/setti
 import { AdminNav } from './AdminNav';
 import { NotificationsButton } from './NotificationsPanel';
 import { pluginNavItems } from '../plugins/registry';
+import { appTitle } from '../lib/appTitle';
 
 const SettingsNav = lazy(() => import('./SettingsNav').then((m) => ({ default: m.SettingsNav })));
 
@@ -245,7 +246,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
         <header className="sticky top-0 z-20 hidden box-content h-12 shrink-0 items-center gap-3 border-b border-line bg-bar pl-2 pr-3 [--pad-top:0px] safe-top nav:flex">
           <button type="button" onClick={() => navigate('/')} className="flex shrink-0 items-center gap-2 rounded-md px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-acc" title={t('nav.home')}>
             <AppLogo size={22} />
-            <span className="font-display text-[19px] leading-6">Kladde</span>
+            <span className="font-display text-[19px] leading-6">{appTitle()}</span>
           </button>
           <button
             type="button"
@@ -355,7 +356,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
             <button className="btn-icon shrink-0" onClick={() => setDrawer(true)} aria-label={t('nav.openMenu')}>
               <Menu size={22} />
             </button>
-            <span className="font-display min-w-0 truncate pl-1 text-[21px] leading-7">Kladde</span>
+            <span className="font-display min-w-0 truncate pl-1 text-[21px] leading-7">{appTitle()}</span>
             <div className="m3-status ml-auto flex shrink-0 items-center gap-0.5 pr-1">
               <button type="button" className="btn-icon shrink-0 sm:hidden" onClick={() => openSearch()} aria-label={t('common.search')} title={t('common.search')}>
                 <SearchIcon size={22} />

@@ -7,7 +7,7 @@ import {
   verifyRegistrationResponse,
   type AuthenticatorTransportFuture,
 } from '@simplewebauthn/server';
-import type { Me } from '@kladde/shared';
+import type { LoginMethod, Me } from '@kladde/shared';
 import { AccountError, UserRecord, UserStore, checkPassword, hashPassword } from './UserStore.js';
 import { AuditLog } from './security/AuditLog.js';
 import { SESSION_COOKIE, deviceName, handle, rateLimit, readCookie, requireUser, setSessionCookie } from './http.js';
@@ -32,6 +32,8 @@ export interface AuthOptions {
   publicUrl: string | null;
   secureCookies: boolean;
   devLogin: boolean;
+  /** APP_TITLE: the name passkey prompts show (default Kladde) */
+  appName?: string;
   /** The server transcribes voice notes (shown to the client in /auth/me) */
   transcription?: boolean;
   /** Online mode (`KLADDE_MODE=online`, shown to the client in /auth/me) */
@@ -42,6 +44,8 @@ export interface AuthOptions {
   gitlabFetch?: typeof fetch;
   /** Methods that create accounts without an invite (SIGNUP_WITHOUT_INVITE); GitLab reads its own config */
   openSignup?: ReadonlySet<SignupMethod>;
+  /** Sign-in methods the server offers (LOGIN_METHODS); default all */
+  loginMethods?: ReadonlySet<LoginMethod>;
   onRegistered?: (user: UserRecord, inviteNote: string) => void;
 }
 
@@ -52,6 +56,18 @@ export function authRouter(opts: AuthOptions): express.Router {
   const limit = rateLimit(40, 60_000);
   const passwordLimit = rateLimit(10, 60_000);
   const openSignup = opts.openSignup ?? new Set<SignupMethod>();
+  const methods: ReadonlySet<LoginMethod> = opts.loginMethods ?? new Set<LoginMethod>(['passkey', 'password', 'gitlab']);
+  const restricted = !methods.has('passkey') || !methods.has('password') || (!!opts.gitlab && !methods.has('gitlab'));
+  const gitlab = methods.has('gitlab') ? (opts.gitlab ?? null) : null;
+  /** Refuses routes of a sign-in method the server switched off (LOGIN_METHODS) */
+  const offered =
+    (method: LoginMethod): express.RequestHandler =>
+    (_req, res, next) => {
+      if (methods.has(method)) return next();
+      res.status(403).json({ error: 'Diese Anmeldeart ist auf diesem Server abgeschaltet.', code: 'login_method_off' });
+    };
+  const passkeysOn = offered('passkey');
+  const passwordsOn = offered('password');
   /** The checked invite code, or null when this method may sign up without one and none was given */
   const inviteFor = (method: SignupMethod, code: unknown): string | null =>
     openSignup.has(method) && (code === undefined || code === null || code === '') ? null : users.checkInvite(code);
@@ -92,7 +108,7 @@ export function authRouter(opts: AuthOptions): express.Router {
   const registrationOptions = (req: Request, user: { id: string; username: string }, exclude: { id: string; transports: string[] }[]) => {
     const { rpID } = relyingParty(req);
     return generateRegistrationOptions({
-      rpName: RP_NAME,
+      rpName: opts.appName || RP_NAME,
       rpID,
       userName: user.username,
       userID: new TextEncoder().encode(user.id),
@@ -158,6 +174,7 @@ export function authRouter(opts: AuthOptions): express.Router {
       displayName: user.displayName,
         accent: user.accent,
       externalLogins: users.externalLoginsOf(user.id),
+      ...(restricted ? { loginMethods: [...methods] } : {}),
       transcription: !!opts.transcription,
       ...(opts.online ? { online: true } : {}),
     };
@@ -167,6 +184,7 @@ export function authRouter(opts: AuthOptions): express.Router {
 
   router.post(
     '/register/options',
+    passkeysOn,
     limit,
     handle(async (req, res) => {
       const invite = inviteFor('passkey', req.body?.inviteCode);
@@ -180,6 +198,7 @@ export function authRouter(opts: AuthOptions): express.Router {
 
   router.post(
     '/register/verify',
+    passkeysOn,
     limit,
     handle(async (req, res) => {
       const flow = takeFlow(req.body?.flowId, 'register');
@@ -199,6 +218,7 @@ export function authRouter(opts: AuthOptions): express.Router {
 
   router.post(
     '/login/options',
+    passkeysOn,
     limit,
     handle(async (req, res) => {
       const { rpID, origin } = relyingParty(req);
@@ -209,6 +229,7 @@ export function authRouter(opts: AuthOptions): express.Router {
 
   router.post(
     '/login/verify',
+    passkeysOn,
     limit,
     handle(async (req, res) => {
       const flow = takeFlow(req.body?.flowId, 'login');
@@ -244,6 +265,7 @@ export function authRouter(opts: AuthOptions): express.Router {
 
   router.post(
     '/password/register',
+    passwordsOn,
     passwordLimit,
     handle(async (req, res) => {
       const invite = inviteFor('password', req.body?.inviteCode);
@@ -262,6 +284,7 @@ export function authRouter(opts: AuthOptions): express.Router {
 
   router.post(
     '/password/login',
+    passwordsOn,
     passwordLimit,
     handle(async (req, res) => {
       const name = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase().slice(0, 64) : '';
@@ -288,6 +311,7 @@ export function authRouter(opts: AuthOptions): express.Router {
 
   router.post(
     '/link/options',
+    passkeysOn,
     limit,
     handle(async (req, res) => {
       const user = users.userForDeviceLink(req.body?.code);
@@ -299,6 +323,7 @@ export function authRouter(opts: AuthOptions): express.Router {
 
   router.post(
     '/link/verify',
+    passkeysOn,
     limit,
     handle(async (req, res) => {
       const flow = takeFlow(req.body?.flowId, 'link');
@@ -326,6 +351,7 @@ export function authRouter(opts: AuthOptions): express.Router {
   router.post(
     '/password',
     authed,
+    passwordsOn,
     passwordLimit,
     handle(async (req, res) => {
       const user = req.user!;
@@ -350,10 +376,11 @@ export function authRouter(opts: AuthOptions): express.Router {
     })
   );
 
-  router.post('/device-link', authed, (req, res) => res.json(users.createDeviceLink(req.user!.id)));
+  router.post('/device-link', authed, passkeysOn, (req, res) => res.json(users.createDeviceLink(req.user!.id)));
 
   router.post(
     '/passkeys/options',
+    passkeysOn,
     authed,
     handle(async (req, res) => {
       const user = req.user!;
@@ -364,6 +391,7 @@ export function authRouter(opts: AuthOptions): express.Router {
 
   router.post(
     '/passkeys/verify',
+    passkeysOn,
     authed,
     handle(async (req, res) => {
       const flow = takeFlow(req.body?.flowId, 'add');
@@ -384,12 +412,15 @@ export function authRouter(opts: AuthOptions): express.Router {
 
   // ---------------------------------------------------------------- GitLab (OAuth)
 
-  router.get('/providers', (_req, res) => res.json(authProviders(opts.gitlab ?? null, openSignup)));
+  router.get('/providers', (_req, res) => res.json(authProviders(opts.gitlab ?? null, openSignup, methods)));
 
   router.delete(
     '/gitlab',
+    limit,
     authed,
     handle((req, res) => {
+      // With GitLab as the only way in, unlinking would lock the account out
+      if (methods.size === 1 && methods.has('gitlab')) throw new AccountError('Auf diesem Server meldest du dich nur mit GitLab an; die Verknüpfung bleibt.', 403);
       if (users.unlinkExternal(req.user!.id, GITLAB)) {
         audit.record('external_unlinked', { userId: req.user!.id, username: req.user!.username, ip: req.ip, detail: 'gitlab' });
       }
@@ -397,13 +428,13 @@ export function authRouter(opts: AuthOptions): express.Router {
     })
   );
 
-  if (opts.gitlab) {
+  if (gitlab) {
     router.use(
       '/gitlab',
       gitlabRouter({
         users,
         audit,
-        config: opts.gitlab,
+        config: gitlab,
         publicUrl: opts.publicUrl,
         secureFor,
         fetchImpl: opts.gitlabFetch,

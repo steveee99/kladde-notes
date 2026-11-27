@@ -3,7 +3,7 @@ import { EditorView } from '@codemirror/view';
 import { linkAllMentions, toDateString } from '@kladde/shared';
 import { getLang, tl, type Lang } from '../lib/i18n';
 import { attachmentMarkdown, editorHost } from './host';
-import { newCockpitBlock } from './cockpit';
+import { insertBlock, newCockpitBlock } from './cockpit';
 import { calloutsFacet, noteIdFacet } from './livePreview';
 
 /**
@@ -243,6 +243,21 @@ export function slashCompletion(insertFiles: FileInserter) {
     const matching = options.filter(
       (_o, i) => (callouts || !list[i].callout) && (!list[i].cockpit || cockpit) && (!query || `${list[i].label} ${list[i].keywords}`.toLowerCase().split(/\s+/).some((w) => w.startsWith(query)))
     );
+    // Blocks of the plugins that are on (they change with the switches, so not cached)
+    if (ctx.state.facet(EditorView.editable)) {
+      for (const b of editorHost.pluginSlashBlocks()) {
+        if (query && !`${b.label} ${b.keywords} ${b.detail}`.toLowerCase().split(/\s+/).some((w) => w.startsWith(query))) continue;
+        matching.push({
+          label: b.label,
+          detail: b.detail,
+          type: 'slash',
+          apply: (view, _c, from, to) => {
+            view.dispatch({ changes: { from: from - 1, to, insert: '' } });
+            insertBlock(view, from - 1, b.template);
+          },
+        });
+      }
+    }
     if (!matching.length) return null;
     return { from: slash + 1, options: matching, filter: false };
   };

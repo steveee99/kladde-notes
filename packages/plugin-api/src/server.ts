@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { NextFunction, Request, RequestHandler, Response, Router } from 'express';
+import type { Localized } from './index.js';
 
 export { PluginError, localize, pluginTablePrefix, type Localized, type PluginLang } from './index.js';
 
@@ -91,6 +92,11 @@ export interface PluginServerContext {
   userOf(req: Request): PluginUser;
   /** Whether the user switched the plugin on (Settings → Features) */
   enabledFor(userId: string): boolean;
+  /**
+   * Sends the user a notification (bell, `/notifications` and, where they turned it on, Web Push) — only while the
+   * user has the plugin switched on. Returns whether it was sent. Since plugin API 1.1.
+   */
+  notify(userId: string, notification: PluginNotification): boolean;
   /** `env('TOKEN')` reads `PLUGIN_<ID>_TOKEN` (id upper case, dashes as underscores); other variables stay hidden */
   env(name: string): string | undefined;
   readonly log: PluginLog;
@@ -135,6 +141,50 @@ export interface PluginNoteEvent {
   type?: string;
 }
 
+/** A notification of a plugin (`ctx.notify`) */
+export interface PluginNotification {
+  /** Headline, e.g. "Build failed"; at most 120 characters */
+  title: Localized;
+  /** One or two lines of detail (at most 500 characters; push messages show the first 300) */
+  text?: string;
+  /** Where a click leads: a path inside the plugin (`'/entries/42'` → `/p/<id>/entries/42`)… */
+  path?: string;
+  /** …or a note (its id); without either the plugin's start page opens */
+  noteId?: string;
+  /** Notifications with the same `tag` replace each other on the device (Web Push) */
+  tag?: string;
+}
+
+/** What a plugin's MCP tool gets besides its arguments */
+export interface PluginToolCall {
+  /** The account the AI connection belongs to (the plugin is switched on for it) */
+  user: PluginUser;
+  /** Name of the AI connection (e.g. "Claude"), for logs and `generated` stamps */
+  agent: string;
+  /** Whether the connection may write; tools with `write: true` are only offered when it may */
+  canWrite: boolean;
+}
+
+/**
+ * A tool for AI assistants on Kladde's MCP endpoint (`/mcp`). Assistants see it as `<id>_<name>` (dashes in the id
+ * as underscores), only for users who switched the plugin on. Throw `PluginError` for wrong input: the assistant
+ * gets its message as a tool error. Since plugin API 1.1.
+ */
+export interface PluginMcpTool {
+  /** Lower case, digits and underscores, starting with a letter (at most 40) */
+  name: string;
+  /** Short human-readable name */
+  title: string;
+  /** What the tool does and when to use it: the assistant decides by this text (English works best) */
+  description: string;
+  /** JSON Schema of the arguments (`{ type: 'object', properties: {...}, required: [...] }`) */
+  inputSchema: Record<string, unknown>;
+  /** Changes something (offered only to connections that may write) */
+  write?: boolean;
+  /** The result: an object or array (sent as JSON) or a string (sent as text) */
+  run(args: Record<string, unknown>, call: PluginToolCall, ctx: PluginServerContext): unknown;
+}
+
 export interface ServerPlugin {
   /** The same id as `kladde.id` in package.json */
   id: string;
@@ -149,6 +199,8 @@ export interface ServerPlugin {
   jobs?: PluginJob[];
   /** Files for the user's account export */
   exportAccount?(userId: string, ctx: PluginServerContext): PluginExportFile[] | Promise<PluginExportFile[]>;
+  /** Tools for AI assistants on `/mcp` (since plugin API 1.1) */
+  mcpTools?: PluginMcpTool[];
   /** Called once after the migrations, before the first request */
   start?(ctx: PluginServerContext): void;
 }

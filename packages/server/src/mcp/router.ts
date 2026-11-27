@@ -9,6 +9,7 @@ import { AuditLog } from '../security/AuditLog.js';
 import { handle, rateLimit, requireUser } from '../http.js';
 import { McpGrant, McpTokenStore, OAuthClient } from './McpTokenStore.js';
 import { handleBody } from './protocol.js';
+import type { PluginToolDef } from '../plugins/PluginHost.js';
 
 /** An authorization code must be redeemed this fast */
 const CODE_MAX_AGE_MS = 5 * 60 * 1000;
@@ -28,6 +29,8 @@ export interface McpOptions {
   publicUrl: string | null;
   /** Single local user in standalone desktop mode */
   standaloneUser?: UserRecord;
+  /** MCP tools of the build-time plugins the user switched on */
+  pluginTools?: (userId: string) => PluginToolDef[];
 }
 
 interface PendingCode {
@@ -260,12 +263,20 @@ export function mcpRouters(opts: McpOptions): { publicRouter: express.Router; ac
       else if ((err as { type?: string }).type === 'entity.too.large') res.status(413).json({ jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Request too large' } });
       else next(err);
     },
-    (req: Request, res: Response) => {
+    handle(async (req: Request, res: Response) => {
       const grant = req.mcpGrant!;
-      const answer = handleBody(req.body, { userId: grant.userId, canWrite: grant.canWrite, agent: actorId(grant.name), notes, files: opts.files, attachmentTexts: opts.attachmentTexts });
+      const answer = await handleBody(req.body, {
+        userId: grant.userId,
+        canWrite: grant.canWrite,
+        agent: actorId(grant.name),
+        notes,
+        files: opts.files,
+        attachmentTexts: opts.attachmentTexts,
+        pluginTools: opts.pluginTools ? () => opts.pluginTools!(grant.userId) : undefined,
+      });
       if (answer === null) res.status(202).end();
       else res.json(answer);
-    }
+    })
   );
   // Stateless server: no server-sent stream and no sessions to end
   publicRouter.get('/mcp', requireGrant, (_req, res) => res.status(405).setHeader('Allow', 'POST').json({ error: 'Nur POST' }));
