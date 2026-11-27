@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.26.0] – 2026-11-27
+
 - New: Two more cockpit sources for GitLab: "Repositories" lists the projects of a group (with its subgroups unless switched off; archived ones hidden, shown or only those; search by name) or, without a group, the ones you are a member of, with path, group, description, visibility, default branch, topics, stars, forks, open issues and last activity. "Groups" lists the subgroups of a group (direct ones or all levels below) or your own groups, with path, parent group, description and visibility. Both work in dashboards, in ```` ```cockpit ```` blocks (`source: gitlab.projects` / `gitlab.groups`) and with notifications about new entries.
 - New: `/cockpit` in the editor (with the development cockpit on) opens the cockpit's widget editor and puts the widget into the note as a ```` ```cockpit ```` block. A block's new settings button (top right of the widget) opens the same editor and writes the changes back; the ✎ button for the raw text moved to the widget's footer.
 - Changed: The widget editor is wider and no longer shows the JSON definition. Instead it has "Copy as JSON", "Copy as Markdown" (the ```` ```cockpit ```` block for a note) and "From JSON", which takes over a pasted widget or block.
