@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyWidget,
   blankWidget,
+  cockpitBlockMarkdown,
   defaultDashboard,
   highlightOf,
   isDashboardPath,
@@ -98,6 +99,26 @@ describe('cockpit model', () => {
     expect(widgetVariables(w).sort()).toEqual(['this.jira', 'this.repo']);
     expect(parseCockpitBlock('source: nope')).toBeNull();
     expect(parseCockpitBlock(JSON.stringify(blankWidget('jira.issues')))?.source.kind).toBe('jira.issues');
+  });
+
+  it('knows repositories and groups of GitLab', () => {
+    expect(blankWidget('gitlab.projects').source.params).toEqual({ subgroups: true, archived: 'no' });
+    expect(blankWidget('gitlab.groups').source.params).toEqual({ descendants: false });
+    const w = parseCockpitBlock('source: gitlab.groups\ngroup: {{this.team}}\ndescendants: true\nfields: [name, parent]')!;
+    expect(w.source).toEqual({ kind: 'gitlab.groups', params: { group: '{{this.team}}', descendants: true } });
+    expect(w.fields).toEqual(['name', 'parent']);
+    expect(parseCockpitBlock('source: gitlab.projects\narchived: maybe')?.source.params.archived).toBe('no');
+  });
+
+  it('writes a widget as a block that reads back the same', () => {
+    const w = { ...blankWidget('gitlab.jobs', 'en'), title: 'Red deploys', notify: true, filters: [{ field: 'name', op: 'contains' as const, value: 'deploy' }] };
+    const md = cockpitBlockMarkdown(w);
+    expect(md.startsWith('```cockpit\n{')).toBe(true);
+    expect(md.endsWith('\n```')).toBe(true);
+    expect(md).not.toContain(w.id);
+    const body = md.slice('```cockpit\n'.length, -'\n```'.length);
+    expect({ ...parseCockpitBlock(body)!, id: w.id }).toEqual(w);
+    expect(readShared(md)?.kind).toBe('widgets');
   });
 
   it('fills variables and reports missing ones', () => {

@@ -51,6 +51,7 @@ const ImportSettingsView = lazy(() => import('./views/ImportSettings').then((m) 
 const HabitsView = lazy(() => import('./views/HabitsView').then((m) => ({ default: m.HabitsView })));
 const CockpitView = lazy(() => import('./views/CockpitView').then((m) => ({ default: m.CockpitView })));
 const CockpitBlock = lazy(() => import('./views/CockpitBlock').then((m) => ({ default: m.CockpitBlock })));
+const CockpitBlockEditor = lazy(() => import('./views/CockpitBlock').then((m) => ({ default: m.CockpitBlockEditor })));
 const CalendarSettingsView = lazy(() => import('./views/CalendarSettings').then((m) => ({ default: m.CalendarSettingsView })));
 const NotificationSettingsView = lazy(() => import('./views/NotificationSettings').then((m) => ({ default: m.NotificationSettingsView })));
 const OAuthConsent = lazy(() => import('./views/OAuthConsent').then((m) => ({ default: m.OAuthConsent })));
@@ -84,15 +85,41 @@ Object.assign(editorHost, {
   openNote: (id: string) => openNoteLink(id),
   linkPreview: () => vault.features().linkPreview.enabled,
   // ```cockpit blocks: a live widget in its own React root, loaded on first use
-  mountCockpit: (el: HTMLElement, src: string, doc: string, scope: Parameters<NonNullable<typeof editorHost.mountCockpit>>[3]) => {
+  mountCockpit: (el: HTMLElement, src: string, doc: string, scope: Parameters<NonNullable<typeof editorHost.mountCockpit>>[3], onConfigure?: () => void) => {
     const root = createRoot(el);
     root.render(
       <Suspense fallback={null}>
-        <CockpitBlock src={src} doc={doc} scope={scope} />
+        <CockpitBlock src={src} doc={doc} scope={scope} onConfigure={onConfigure} />
       </Suspense>
     );
     // Not while React renders the editor's parent
     return () => setTimeout(() => root.unmount(), 0);
+  },
+  cockpitEnabled: () => vault.features().cockpit.enabled && !vault.standalone,
+  // /cockpit and a block's settings: the cockpit's widget editor in its own React root, removed when it closes
+  editCockpit: (src: string | null, doc: string, scope: Parameters<typeof editorHost.editCockpit>[2], onSave: (block: string) => void) => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    const root = createRoot(el);
+    const close = () =>
+      setTimeout(() => {
+        root.unmount();
+        el.remove();
+      }, 0);
+    root.render(
+      <Suspense fallback={null}>
+        <CockpitBlockEditor
+          src={src}
+          doc={doc}
+          scope={scope}
+          onClose={close}
+          onSave={(block) => {
+            close();
+            onSave(block);
+          }}
+        />
+      </Suspense>
+    );
   },
   // Only through the link index (title, frontmatter id, Zettel id); the vault only holds notes this reader may see
   resolveEmbed: (target: string) => {

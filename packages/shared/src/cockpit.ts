@@ -39,7 +39,7 @@ export function isDashboardPath(path: string): boolean {
 // ------------------------------------------------------------------ model
 
 export type CockpitProvider = 'gitlab' | 'jira';
-export type CockpitSourceKind = 'gitlab.mrs' | 'gitlab.jobs' | 'jira.issues';
+export type CockpitSourceKind = 'gitlab.mrs' | 'gitlab.jobs' | 'gitlab.projects' | 'gitlab.groups' | 'jira.issues';
 export type CockpitValue = string | number | boolean | null | string[];
 export type CockpitParamValue = string | number | boolean | string[];
 
@@ -180,6 +180,31 @@ const JOB_FIELDS: CockpitFieldDef[] = [
   { key: 'finished', label: L('Beendet', 'Finished'), type: 'date' },
 ];
 
+const PROJECT_FIELDS: CockpitFieldDef[] = [
+  { key: 'name', label: L('Name', 'Name'), type: 'text' },
+  { key: 'path', label: L('Pfad', 'Path'), type: 'key' },
+  { key: 'namespace', label: L('Gruppe', 'Group'), type: 'text' },
+  { key: 'description', label: L('Beschreibung', 'Description'), type: 'text' },
+  { key: 'visibility', label: L('Sichtbarkeit', 'Visibility'), type: 'state' },
+  { key: 'defaultBranch', label: L('Standard-Branch', 'Default branch'), type: 'text' },
+  { key: 'topics', label: L('Themen', 'Topics'), type: 'labels' },
+  { key: 'archived', label: L('Archiviert', 'Archived'), type: 'bool' },
+  { key: 'stars', label: L('Sterne', 'Stars'), type: 'number' },
+  { key: 'forks', label: L('Forks', 'Forks'), type: 'number' },
+  { key: 'openIssues', label: L('Offene Issues', 'Open issues'), type: 'number' },
+  { key: 'activity', label: L('Letzte Aktivität', 'Last activity'), type: 'date' },
+  { key: 'created', label: L('Erstellt', 'Created'), type: 'date' },
+];
+
+const GROUP_FIELDS: CockpitFieldDef[] = [
+  { key: 'name', label: L('Name', 'Name'), type: 'text' },
+  { key: 'path', label: L('Pfad', 'Path'), type: 'key' },
+  { key: 'parent', label: L('Übergeordnete Gruppe', 'Parent group'), type: 'text' },
+  { key: 'description', label: L('Beschreibung', 'Description'), type: 'text' },
+  { key: 'visibility', label: L('Sichtbarkeit', 'Visibility'), type: 'state' },
+  { key: 'created', label: L('Erstellt', 'Created'), type: 'date' },
+];
+
 const ISSUE_FIELDS: CockpitFieldDef[] = [
   { key: 'key', label: L('Key', 'Key'), type: 'key' },
   { key: 'title', label: L('Titel', 'Summary'), type: 'text' },
@@ -276,6 +301,45 @@ export const COCKPIT_SOURCES: Record<CockpitSourceKind, CockpitSourceDef> = {
     ],
     fields: JOB_FIELDS,
     defaultFields: ['project', 'name', 'stage', 'ref', 'finished'],
+    titleField: 'name',
+  },
+  'gitlab.projects': {
+    kind: 'gitlab.projects',
+    provider: 'gitlab',
+    label: L('GitLab · Repositories', 'GitLab · repositories'),
+    description: L('Die Repositories einer Gruppe oder deine', 'The repositories of a group, or yours'),
+    params: [
+      { key: 'group', label: L('Gruppe', 'Group'), type: 'text', placeholder: 'gruppe', hint: L('Leer: die Repositories, in denen du Mitglied bist', 'Empty: the repositories you are a member of') },
+      { key: 'subgroups', label: L('Mit Untergruppen', 'Include subgroups'), type: 'bool', default: true },
+      {
+        key: 'archived',
+        label: L('Archivierte', 'Archived'),
+        type: 'enum',
+        default: 'no',
+        options: [
+          { value: 'no', label: L('Ausblenden', 'Hide') },
+          { value: 'yes', label: L('Nur archivierte', 'Only archived') },
+          { value: 'any', label: L('Alle', 'All') },
+        ],
+      },
+      { key: 'search', label: L('Name enthält', 'Name contains'), type: 'text' },
+    ],
+    fields: PROJECT_FIELDS,
+    defaultFields: ['name', 'namespace', 'defaultBranch', 'activity'],
+    titleField: 'name',
+  },
+  'gitlab.groups': {
+    kind: 'gitlab.groups',
+    provider: 'gitlab',
+    label: L('GitLab · Gruppen', 'GitLab · groups'),
+    description: L('Die Untergruppen einer Gruppe oder deine Gruppen', 'The subgroups of a group, or your groups'),
+    params: [
+      { key: 'group', label: L('Gruppe', 'Group'), type: 'text', placeholder: 'gruppe', hint: L('Leer: die Gruppen, in denen du Mitglied bist', 'Empty: the groups you are a member of') },
+      { key: 'descendants', label: L('Alle Ebenen darunter', 'All levels below'), type: 'bool', default: false },
+      { key: 'search', label: L('Name enthält', 'Name contains'), type: 'text' },
+    ],
+    fields: GROUP_FIELDS,
+    defaultFields: ['name', 'path', 'description'],
     titleField: 'name',
   },
   'jira.issues': {
@@ -472,6 +536,11 @@ const stripId = <T extends { id: string }>(w: T): Omit<T, 'id'> => {
 /** A widget as JSON for a colleague (no id, no tokens: a widget never holds one) */
 export function shareWidget(w: CockpitWidget): string {
   return JSON.stringify({ kladde: SHARE_WIDGET, v: 1, ...stripId(w) }, null, 2);
+}
+
+/** A widget as a ```cockpit block for a note (its JSON without id and share marker; `parseCockpitBlock` reads it back) */
+export function cockpitBlockMarkdown(w: CockpitWidget): string {
+  return '```cockpit\n' + JSON.stringify(stripId(w), null, 2) + '\n```';
 }
 
 /** A whole dashboard as JSON; its variables travel with empty values so the colleague fills in their own */

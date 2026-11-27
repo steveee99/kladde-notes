@@ -43,7 +43,11 @@ export interface EditorHost {
   loadGitlabCard(url: string, refresh?: boolean): Promise<GitlabCardState>;
   runQuery(src: string): QueryResult | { error: string } | { loading: true };
   /** Development cockpit: mounts a ```cockpit block's widget into `el` (null while the feature is off); returns the unmount */
-  mountCockpit: ((el: HTMLElement, src: string, doc: string, variables: VariableScope | null) => () => void) | null;
+  mountCockpit: ((el: HTMLElement, src: string, doc: string, variables: VariableScope | null, onConfigure?: () => void) => () => void) | null;
+  /** The development cockpit is on (offers /cockpit) */
+  cockpitEnabled(): boolean;
+  /** Opens the cockpit's widget editor for a ```cockpit block (`src` null: a new one); `onSave` gets the whole block */
+  editCockpit(src: string | null, doc: string, variables: VariableScope | null, onSave: (block: string) => void): void;
   toggleTask(noteId: string, line: number): void;
   /** Opens the note a task lives in, scrolled to the task's line */
   openTask(noteId: string, line: number): void;
@@ -89,6 +93,8 @@ export const editorHost: EditorHost = {
   loadGitlabCard: () => Promise.resolve({ state: 'host_not_configured' }),
   runQuery: () => ({ error: t('editor.notAvailable') }),
   mountCockpit: null,
+  cockpitEnabled: () => false,
+  editCockpit: () => {},
   toggleTask: () => {},
   openTask: () => {},
   setFrontmatter: () => {},

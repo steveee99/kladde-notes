@@ -64,6 +64,21 @@ const upstream = http.createServer((req, res) => {
       { id: 3, path_with_namespace: 'team/no-ci' },
     ]);
   }
+  if (p === '/groups/team/projects') {
+    const all = [
+      { id: 1, name: 'API', path_with_namespace: 'team/api', namespace: { full_path: 'team' }, description: 'Billing <i>API</i>', visibility: 'internal', default_branch: 'main', topics: ['billing'], archived: false, star_count: 4, forks_count: 1, open_issues_count: 7, last_activity_at: '2026-11-26T08:00:00Z', created_at: '2024-01-01T00:00:00Z', web_url: `${base}/team/api` },
+      { id: 4, name: 'Tools', path_with_namespace: 'team/infra/tools', namespace: { full_path: 'team/infra' }, archived: false, web_url: 'https://evil.example.com/team/infra/tools' },
+      { id: 5, name: 'Old', path_with_namespace: 'team/old', archived: true },
+    ];
+    const archived = q.get('archived');
+    const rows = all.filter((r) => (archived === null ? true : String(r.archived) === archived) && (q.get('include_subgroups') === 'true' || !r.path_with_namespace.startsWith('team/infra/')));
+    return json(200, q.get('search') ? rows.filter((r) => r.name.toLowerCase().includes(q.get('search')!.toLowerCase())) : rows);
+  }
+  if (p === '/groups/team/subgroups' || p === '/groups/team/descendant_groups') {
+    const direct = [{ id: 20, name: 'Infra', full_path: 'team/infra', description: 'Platform', visibility: 'private', created_at: '2025-03-01T00:00:00Z', web_url: `${base}/groups/team/infra` }];
+    return json(200, p.endsWith('descendant_groups') ? [...direct, { id: 21, name: 'K8s', full_path: 'team/infra/k8s', web_url: `${base}/groups/team/infra/k8s` }] : direct);
+  }
+  if (p === '/groups') return q.get('min_access_level') === '10' ? json(200, [{ id: 10, name: 'Team', full_path: 'team' }]) : json(400, {});
   const jm = /^\/projects\/(\d+)\/jobs$/.exec(p);
   if (jm) return jobs[jm[1]] ? json(200, jobs[jm[1]]) : json(403, { message: '403 Forbidden' });
   return json(404, { message: '404 Not Found' });
@@ -218,6 +233,43 @@ describe('cockpit queries', () => {
     expect('rows' in named.data && named.data.rows.map((r) => r.values.name)).toEqual(['e2e']);
     const allowed = await call<CockpitResult>('POST', '/query', { widget: widget({ source: { kind: 'gitlab.jobs', params: { allowFailure: true, ref: 'main' } } }) });
     expect('rows' in allowed.data && allowed.data.rows.map((r) => r.values.name).sort()).toEqual(['deploy', 'lint']);
+  });
+
+  it('lists the repositories of a group or the own ones', async () => {
+    const { data } = await call<CockpitResult>('POST', '/query', { widget: widget({ source: { kind: 'gitlab.projects', params: { group: 'team' } } }) });
+    expect('rows' in data).toBe(true);
+    if (!('rows' in data)) return;
+    // Archived ones are hidden by default, subgroups included
+    expect(data.rows.map((r) => r.values.path)).toEqual(['team/api', 'team/infra/tools']);
+    expect(data.rows[0]).toEqual({
+      id: 'project:1',
+      url: `${base}/team/api`,
+      values: { name: 'API', path: 'team/api', namespace: 'team', description: 'Billing <i>API</i>', visibility: 'internal', defaultBranch: 'main', topics: ['billing'], archived: false, stars: 4, forks: 1, openIssues: 7, activity: Date.parse('2026-11-26T08:00:00Z'), created: Date.parse('2024-01-01T00:00:00Z') },
+    });
+    // An address on another host is dropped
+    expect(data.rows[1].url).toBeUndefined();
+
+    const direct = await call<CockpitResult>('POST', '/query', { widget: widget({ source: { kind: 'gitlab.projects', params: { group: 'team', subgroups: false, archived: 'any' } } }) });
+    expect('rows' in direct.data && direct.data.rows.map((r) => r.values.path)).toEqual(['team/api', 'team/old']);
+    const searched = await call<CockpitResult>('POST', '/query', { widget: widget({ source: { kind: 'gitlab.projects', params: { group: 'team', search: 'too' } } }) });
+    expect('rows' in searched.data && searched.data.rows.map((r) => r.values.name)).toEqual(['Tools']);
+    // Without a group: the projects the user is a member of
+    const mine = await call<CockpitResult>('POST', '/query', { widget: widget({ source: { kind: 'gitlab.projects', params: {} } }) });
+    expect('rows' in mine.data && mine.data.rows.map((r) => r.values.path)).toEqual(['team/api', 'team/web', 'team/no-ci']);
+    expect('rows' in mine.data && mine.data.rows[0].values.namespace).toBe('team');
+    expect((await call<CockpitResult>('POST', '/query', { widget: widget({ source: { kind: 'gitlab.projects', params: { group: '../x' } } }) })).data).toMatchObject({ problem: 'invalid' });
+  });
+
+  it('lists the subgroups of a group or the own groups', async () => {
+    const { data } = await call<CockpitResult>('POST', '/query', { widget: widget({ source: { kind: 'gitlab.groups', params: { group: 'team' } } }) });
+    expect('rows' in data && data.rows).toEqual([
+      { id: 'group:20', url: `${base}/groups/team/infra`, values: { name: 'Infra', path: 'team/infra', parent: 'team', description: 'Platform', visibility: 'private', created: Date.parse('2025-03-01T00:00:00Z') } },
+    ]);
+    const all = await call<CockpitResult>('POST', '/query', { widget: widget({ source: { kind: 'gitlab.groups', params: { group: 'team', descendants: true } } }) });
+    expect('rows' in all.data && all.data.rows.map((r) => `${r.values.parent} > ${r.values.name}`)).toEqual(['team > Infra', 'team/infra > K8s']);
+    const mine = await call<CockpitResult>('POST', '/query', { widget: widget({ source: { kind: 'gitlab.groups', params: {} } }) });
+    expect('rows' in mine.data && mine.data.rows.map((r) => r.values.path)).toEqual(['team']);
+    expect('rows' in mine.data && mine.data.rows[0].values.parent).toBeNull();
   });
 
   it('reads Jira issues with JQL and passes its errors on', async () => {

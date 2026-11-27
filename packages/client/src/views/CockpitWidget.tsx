@@ -17,7 +17,7 @@ import {
   type CockpitWidget,
 } from '@kladde/shared';
 import { runWidget, useResults, widgetState } from '../data/cockpit';
-import { AlertTriangle, BugReport, CloudOff, ExternalLink, Merge, RefreshCw, Ticket } from '../lib/icons';
+import { AlertTriangle, BugReport, CloudOff, ExternalLink, GitBranch, Merge, RefreshCw, Ticket, Users } from '../lib/icons';
 import { compareText, locale, tl, useLang, type Lang } from '../lib/i18n';
 
 const TONE: Record<CockpitTone, string> = {
@@ -101,7 +101,8 @@ export function FieldValue({ type, value, lang }: { type: CockpitFieldType; valu
 }
 
 const SourceIcon = ({ w, size = 16 }: { w: CockpitWidget; size?: number }) => {
-  const Icon = w.source.kind === 'gitlab.jobs' ? BugReport : w.source.kind === 'jira.issues' ? Ticket : Merge;
+  const kind = w.source.kind;
+  const Icon = kind === 'gitlab.jobs' ? BugReport : kind === 'jira.issues' ? Ticket : kind === 'gitlab.projects' ? GitBranch : kind === 'gitlab.groups' ? Users : Merge;
   return <Icon size={size} />;
 };
 
