@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.29.0] – 2026-11-27
+
 - New: Plugins can show their data in Kladde's own table (`host.ui.Table`): the look of note tables with sorting, filter and row count, read-only or editable cell by cell, with optional "+ row" and delete buttons; the plugin decides which columns can be edited and saves the changes itself. The example plugin's page shows its entries in such a table with an "Edit" switch, and a ```` ```logbook ```` block with `edit: yes` edits them right in the note.
 
 ### Plugin API
