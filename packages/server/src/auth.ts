@@ -416,6 +416,7 @@ export function authRouter(opts: AuthOptions): express.Router {
 
   router.delete(
     '/gitlab',
+    limit,
     authed,
     handle((req, res) => {
       // With GitLab as the only way in, unlinking would lock the account out

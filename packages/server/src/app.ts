@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import type { DatabaseSync } from 'node:sqlite';
 import { APP_VERSION, type AdminStatus, type Me } from '@kladde/shared';
+import { rateLimit } from './http.js';
 import { DataCipher } from './crypto.js';
 import { AvatarStore } from './AvatarStore.js';
 import { UserRecord, UserStore } from './UserStore.js';
@@ -541,7 +542,8 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
         },
       })
     );
-    app.get(/^\/(?!api\/).*/, (_req, res) => {
+    // Generous: every page load of the app comes through here (behind a proxy without TRUST_PROXY all share one IP)
+    app.get(/^\/(?!api\/).*/, rateLimit(1200, 60_000), (_req, res) => {
       res.setHeader('Cache-Control', opts.standalone ? 'no-store' : 'no-cache');
       if (brandedIndex) res.type('html').send(brandedIndex);
       else res.sendFile(path.join(clientDist, 'index.html'));
