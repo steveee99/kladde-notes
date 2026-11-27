@@ -78,16 +78,6 @@ function commands(insertFiles: FileInserter, lang: Lang): SlashCommand[] {
     },
     { label: tl(lang, 'editor.slash.openTasks'), detail: 'query', keywords: 'tasks todo query abfrage aufgaben', template: '```query\nTASKS\nWHERE done = false|\n```', block: true },
     {
-      label: tl(lang, 'editor.slash.cockpit'),
-      detail: 'cockpit',
-      keywords: 'cockpit gitlab jira widget merge request mr review ci pipeline job jobs issues dashboard',
-      cockpit: true,
-      run: (view, from, to) => {
-        view.dispatch({ changes: { from, to, insert: '' } });
-        newCockpitBlock(view, from);
-      },
-    },
-    {
       label: tl(lang, 'editor.slash.mindmap'),
       detail: 'mindmap',
       keywords: 'mindmap gedanken map baum tree',
@@ -136,6 +126,17 @@ function commands(insertFiles: FileInserter, lang: Lang): SlashCommand[] {
           const insert = `${line.text.trim() ? '\n' : ''}![[${title}]]\n`;
           view.dispatch({ changes: { from: line.to, insert }, selection: { anchor: line.to + insert.length } });
         });
+      },
+    },
+    // After the remote note: /gitlab still picks that first
+    {
+      label: tl(lang, 'editor.slash.cockpit'),
+      detail: 'cockpit',
+      keywords: 'cockpit gitlab jira widget merge request mr review ci pipeline job jobs issues dashboard',
+      cockpit: true,
+      run: (view, from, to) => {
+        view.dispatch({ changes: { from, to, insert: '' } });
+        newCockpitBlock(view, from);
       },
     },
     { label: tl(lang, 'editor.slash.today'), detail: 'YYYY-MM-DD', keywords: 'date today heute datum', template: () => `${toDateString(new Date())}|` },
