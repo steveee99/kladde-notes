@@ -10,6 +10,8 @@ export interface DataRow {
   keys: string[];
   /** Raw Markdown per cell, shown in the cell editor */
   raw?: string[];
+  /** Sort values per cell when they differ from `keys` (numbers sort as numbers) */
+  sort?: (string | number | null)[];
 }
 
 /** A cell address in the source table; `row` -1 is the header row */
@@ -24,13 +26,24 @@ export interface CellRef {
  */
 export interface TableEditing {
   setCell(cell: CellRef, value: string, focus?: CellRef): void;
-  insertColumn(at: number): void;
-  removeColumn(at: number): void;
-  addRow(focus?: CellRef): void;
-  removeRow(row: number): void;
+  /** Without it the columns are fixed: no renaming, no column menu, no "+ column" (plugin tables) */
+  insertColumn?(at: number): void;
+  removeColumn?(at: number): void;
+  /** Without it there is no "+ row", and Tab past the last cell stops there */
+  addRow?(focus?: CellRef): void;
+  /** Without it rows have no delete button */
+  removeRow?(row: number): void;
+  /** Whether a body cell opens an editor (default: all) */
+  canEdit?(cell: CellRef): boolean;
 }
 
 const cellEditors = new WeakMap<HTMLElement, (cell: CellRef) => void>();
+const disposed = new WeakSet<Element>();
+
+/** Marks a table that is about to be replaced: an open cell editor then commits nothing when it loses focus */
+export function disposeTable(wrap: Element): void {
+  disposed.add(wrap);
+}
 
 /** Opens the cell editor of a table widget built by `dataTable` (keeps focus across rebuilds) */
 export function openTableCell(wrap: Element, cell: CellRef): boolean {
@@ -78,6 +91,13 @@ function actionButton(className: string, label: string, title: string, run: () =
   return b;
 }
 
+export interface TableView {
+  /** Column index, -1 unsorted */
+  sort: number;
+  desc: boolean;
+  filter: string;
+}
+
 export function dataTable(
   headers: string[],
   rows: DataRow[],
@@ -92,15 +112,30 @@ export function dataTable(
     variables?: VariableScope | null;
     /** Text from outside the vault: [[links]] stay text */
     plain?: boolean;
+    /** The filter field (default on) */
+    filter?: boolean;
+    /** Shown in the body while there are no rows */
+    empty?: string;
+    /** Sort column and filter, read at the start and kept up to date, so a rebuilt table keeps them */
+    view?: TableView;
   } = {}
 ): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = `cm-block-widget wz-table${opts.edit ? ' wz-table-editable' : ''}`;
   const edit = opts.edit;
   const cols = headers.length;
-  let sortCol = -1;
-  let desc = false;
-  let filter = '';
+  const columnsEditable = !!(edit?.insertColumn && edit.removeColumn);
+  const cellEditable = (cell: CellRef) => !!edit && (cell.row === -1 ? columnsEditable : (edit.canEdit?.(cell) ?? true));
+  const view = opts.view;
+  let sortCol = view && view.sort < cols ? view.sort : -1;
+  let desc = view?.desc ?? false;
+  let filter = opts.filter === false ? '' : (view?.filter.toLowerCase() ?? '');
+  const remember = () => {
+    if (!view) return;
+    view.sort = sortCol;
+    view.desc = desc;
+    view.filter = input.value;
+  };
 
   const bar = document.createElement('div');
   bar.className = 'wz-table-bar';
@@ -108,6 +143,8 @@ export function dataTable(
   input.type = 'search';
   input.placeholder = t('editor.tableFilter');
   input.className = 'wz-table-filter';
+  input.setAttribute('aria-label', t('editor.tableFilter'));
+  if (view?.filter && opts.filter !== false) input.value = view.filter;
   const count = document.createElement('span');
   count.className = 'wz-table-count';
   if (opts.caption) {
@@ -116,12 +153,15 @@ export function dataTable(
     cap.textContent = opts.caption;
     bar.append(cap);
   }
-  bar.append(input);
-  if (edit) {
-    bar.append(
-      actionButton('wz-table-action', `+ ${t('editor.tableAddRow')}`, t('editor.tableAddRowTitle'), () => edit.addRow({ row: rows.length, col: 0 })),
-      actionButton('wz-table-action', `+ ${t('editor.tableAddColumn')}`, t('editor.tableAddColumnTitle'), () => edit.insertColumn(cols))
-    );
+  if (opts.filter !== false) bar.append(input);
+  else count.style.marginLeft = 'auto';
+  if (edit?.addRow) {
+    const addRow = edit.addRow;
+    bar.append(actionButton('wz-table-action', `+ ${t('editor.tableAddRow')}`, t('editor.tableAddRowTitle'), () => addRow({ row: rows.length, col: 0 })));
+  }
+  if (edit?.insertColumn && columnsEditable) {
+    const insertColumn = edit.insertColumn;
+    bar.append(actionButton('wz-table-action', `+ ${t('editor.tableAddColumn')}`, t('editor.tableAddColumnTitle'), () => insertColumn(cols)));
   }
   bar.append(count);
 
@@ -135,7 +175,7 @@ export function dataTable(
     th.innerHTML = '<span></span><i class="wz-sort"></i>';
     setInline(th.firstElementChild as HTMLElement, h, opts.variables, opts.plain);
     if (opts.align?.[i]) th.style.textAlign = opts.align[i]!;
-    if (edit) {
+    if (columnsEditable) {
       th.dataset.row = '-1';
       th.dataset.col = String(i);
       th.title = t('editor.tableHeaderHint');
@@ -152,11 +192,12 @@ export function dataTable(
         sortCol = i;
         desc = false;
       }
+      remember();
       draw();
     });
     headRow.append(th);
   });
-  if (edit) {
+  if (edit?.removeRow) {
     const corner = document.createElement('th');
     corner.className = 'wz-row-actions';
     headRow.append(corner);
@@ -170,6 +211,7 @@ export function dataTable(
 
   input.addEventListener('input', () => {
     filter = input.value.toLowerCase();
+    remember();
     draw();
   });
   wrap.addEventListener('click', (e) => {
@@ -183,16 +225,20 @@ export function dataTable(
     // Live preview: a click into a body cell edits it (links and buttons keep working)
     if (!edit || target.closest('a, button, .wz-cell-input')) return;
     const td = target.closest('td[data-row]') as HTMLElement | null;
-    if (td) startEdit({ row: Number(td.dataset.row), col: Number(td.dataset.col) });
+    if (td) {
+      const cell = { row: Number(td.dataset.row), col: Number(td.dataset.col) };
+      if (cellEditable(cell)) startEdit(cell);
+    }
   });
 
   /** Replaces a cell's content with an input; Enter/Tab/blur commit, Escape cancels */
   function startEdit(cell: CellRef) {
     if (!edit) return;
     if (cell.row >= rows.length) {
-      edit.addRow(cell);
+      edit.addRow?.(cell);
       return;
     }
+    if (!cellEditable(cell)) return;
     const el = wrap.querySelector<HTMLElement>(`[data-row="${cell.row}"][data-col="${cell.col}"]`);
     if (!el || el.querySelector('.wz-cell-input')) return;
     const original = cell.row === -1 ? headers[cell.col] : (rows[cell.row]?.raw?.[cell.col] ?? rows[cell.row]?.keys[cell.col] ?? '');
@@ -206,29 +252,35 @@ export function dataTable(
     el.classList.add('editing');
     let done = false;
     const finish = (commit: boolean, focus?: CellRef) => {
-      if (done) return;
+      if (done || disposed.has(wrap)) return;
       done = true;
       el.classList.remove('editing');
       if (commit && field.value !== original) {
         edit.setCell(cell, field.value, focus);
+        // Still here (the owner saves later, e.g. a plugin over the network): show the new text meanwhile
+        if (field.isConnected && cell.row >= 0) setInline(el, field.value, opts.variables, opts.plain);
         return;
       }
       el.replaceChildren(...saved);
       if (focus) startEdit(focus);
     };
     /** The next/previous cell in reading order; past the last cell a new row is added */
-    const step = (back: boolean): CellRef => {
+    const step = (back: boolean): CellRef | undefined => {
       let { row, col } = cell;
-      col += back ? -1 : 1;
-      if (col >= cols) {
-        col = 0;
-        row += 1;
-      } else if (col < 0) {
-        if (row === -1) return cell;
-        col = cols - 1;
-        row -= 1;
+      for (let guard = 0; guard <= (rows.length + 2) * cols; guard++) {
+        col += back ? -1 : 1;
+        if (col >= cols) {
+          col = 0;
+          row += 1;
+        } else if (col < 0) {
+          if (row <= (columnsEditable ? -1 : 0)) return undefined;
+          col = cols - 1;
+          row -= 1;
+        }
+        if (row >= rows.length) return edit.addRow ? { row, col: 0 } : undefined;
+        if (cellEditable({ row, col })) return { row, col };
       }
-      return { row, col };
+      return undefined;
     };
     field.addEventListener('keydown', (e) => {
       e.stopPropagation();
@@ -238,7 +290,7 @@ export function dataTable(
       } else if (e.key === 'Enter') {
         e.preventDefault();
         const below = cell.row + 1;
-        finish(true, below < rows.length ? { row: below, col: cell.col } : undefined);
+        finish(true, below < rows.length && cellEditable({ row: below, col: cell.col }) ? { row: below, col: cell.col } : undefined);
       } else if (e.key === 'Tab') {
         e.preventDefault();
         finish(true, step(e.shiftKey));
@@ -252,7 +304,8 @@ export function dataTable(
   cellEditors.set(wrap, startEdit);
 
   function openColumnMenu(anchor: HTMLElement, col: number) {
-    if (!edit) return;
+    if (!edit?.insertColumn || !edit.removeColumn) return;
+    const { insertColumn, removeColumn } = edit;
     document.querySelector('.wz-col-popup')?.remove();
     const popup = document.createElement('div');
     popup.className = 'wz-col-popup';
@@ -267,9 +320,9 @@ export function dataTable(
       popup.append(b);
     };
     item(t('editor.tableRenameColumn'), () => startEdit({ row: -1, col }));
-    item(t('editor.tableInsertLeft'), () => edit.insertColumn(col));
-    item(t('editor.tableInsertRight'), () => edit.insertColumn(col + 1));
-    item(t('editor.tableDeleteColumn'), () => edit.removeColumn(col), cols <= 1);
+    item(t('editor.tableInsertLeft'), () => insertColumn(col));
+    item(t('editor.tableInsertRight'), () => insertColumn(col + 1));
+    item(t('editor.tableDeleteColumn'), () => removeColumn(col), cols <= 1);
     const r = anchor.getBoundingClientRect();
     popup.style.top = `${r.bottom + 4}px`;
     popup.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - 216))}px`;
@@ -297,8 +350,13 @@ export function dataTable(
     let list = filter ? rows.filter((r) => r.keys.some((k) => k.toLowerCase().includes(filter))) : rows.slice();
     if (sortCol >= 0) {
       const loc = locale(getLang());
+      const valueOf = (r: DataRow) => (r.sort ? r.sort[sortCol] : r.keys[sortCol]) ?? '';
       list = list.sort((a, b) => {
-        const c = (a.keys[sortCol] ?? '').localeCompare(b.keys[sortCol] ?? '', loc, { numeric: true, sensitivity: 'base' });
+        const x = valueOf(a);
+        const y = valueOf(b);
+        // Numbers before text; empty cells last in both directions
+        if (x === '' || y === '') return x === y ? 0 : x === '' ? 1 : -1;
+        const c = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), loc, { numeric: true, sensitivity: 'base' });
         return desc ? -c : c;
       });
     }
@@ -312,7 +370,7 @@ export function dataTable(
         const tr = document.createElement('tr');
         r.cells.forEach((c, i) => {
           const td = document.createElement('td');
-          if (edit) {
+          if (edit && cellEditable({ row: index, col: i })) {
             td.dataset.row = String(index);
             td.dataset.col = String(i);
           }
@@ -321,15 +379,25 @@ export function dataTable(
           else td.append(c);
           tr.append(td);
         });
-        if (edit) {
+        if (edit?.removeRow) {
+          const removeRow = edit.removeRow;
           const td = document.createElement('td');
           td.className = 'wz-row-actions';
-          td.append(actionButton('wz-row-delete', '×', t('editor.tableDeleteRow'), () => edit.removeRow(index)));
+          td.append(actionButton('wz-row-delete', '×', t('editor.tableDeleteRow'), () => removeRow(index)));
           tr.append(td);
         }
         return tr;
       })
     );
+    if (!list.length && opts.empty && !filter) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.className = 'wz-table-empty';
+      td.colSpan = cols + (edit?.removeRow ? 1 : 0);
+      td.textContent = opts.empty;
+      tr.append(td);
+      tbody.append(tr);
+    }
     count.textContent = filter
       ? t('editor.tableCountFiltered', { shown: list.length, total: rows.length })
       : rows.length === 1

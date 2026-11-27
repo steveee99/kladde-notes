@@ -14,6 +14,7 @@ import { DEMO } from '../demo/demoApi';
 import { PageBody, PageHeader, Panel } from '../views/PageHeader';
 import { Switch } from '../views/Switch';
 import { installedPlugins } from './installed';
+import { PluginTable } from './PluginTable';
 import type { InstalledClientPlugin } from './types';
 
 // The plugins `npm run plugins` built into this app (docs/PLUGINS.md); tests replace them
@@ -196,7 +197,7 @@ const toNote = (n: LocalNote): PluginClientNote => {
   };
 };
 
-const ui = { PageHeader, PageBody, Panel, Switch };
+const ui: KladdeHost['ui'] = { PageHeader, PageBody, Panel, Switch, Table: PluginTable };
 
 /** What a plugin's components get from `useKladde()`; one per plugin and language */
 export function hostFor(entry: InstalledClientPlugin): KladdeHost {

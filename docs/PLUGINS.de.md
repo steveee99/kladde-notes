@@ -65,7 +65,7 @@ kladde-plugin-zeiterfassung/
   "files": ["dist"],
   "scripts": { "build": "tsc", "prepack": "tsc" },
   "peerDependencies": {
-    "@kladde/plugin-api": "^1.1.0",
+    "@kladde/plugin-api": "^1.2.0",
     "react": "^18.3.0"
   },
   "dependencies": {
@@ -211,6 +211,7 @@ export function Uebersicht() {
 ```
 
 - **Design:** Kladdes Klassen funktionieren direkt (`.btn-primary`, `.btn-tonal`, `.btn-text`, `.input`, `.card`, `.chip`, `.segmented`, Farben wie `bg-panel`, `text-muted`, `border-line`, `text-acc`, Schriftgrößen wie `text-body-m`, `text-caption`). Regeln siehe [`docs/DESIGN.md`](DESIGN.md): höchstens ein gefüllter Akzent-Button pro Seite, Linien statt Schatten, Dialoge mit `role="dialog"`. Tailwind erzeugt die Klassen, die eure gebauten Dateien verwenden.
+- **Tabellen:** `host.ui.Table` ist die Tabelle aus den Notizen, schreibgeschützt oder bearbeitbar ([Details](#tabellen)).
 - **Icons:** eine Komponente, die ein SVG in `currentColor` zeichnet. Material Symbols Rounded mit Gewicht 300 passen am besten.
 - **Notizen auf dem Gerät:** `host.notes` arbeitet offline wie die App: Änderungen werden lokal gespeichert und synchronisiert. Im Online-Modus fehlen bei manchen Notizen die Texte (`partial`); `host.notes.load(id)` lädt sie nach.
 - **Plugin-Daten aus eigenen Tabellen** kommen über `host.api` vom Server und sind damit nur online verfügbar. Was offline gebraucht wird, gehört in Notizen.
@@ -302,6 +303,42 @@ ctx.notify(userId, {
 ```
 
 Die Benachrichtigung erscheint in der Glocke und unter `/notifications` mit Icon und Namen des Plugins und, wo der Nutzer Push eingeschaltet hat, auf seinen Geräten (Ruhezeiten und „Texte zeigen“ gelten). Sie wird wie Kladdes eigene verschlüsselt gespeichert. `notify` gibt `false` zurück und schickt nichts, wenn der Nutzer das Plugin ausgeschaltet hat, nicht existiert, gesperrt ist oder die angegebene Notiz nicht öffnen darf. Ein Klick führt immer nur auf Seiten des Plugins oder zu einer Notiz.
+
+## Tabellen
+
+Ab Plugin-API **1.2** (`"@kladde/plugin-api": "^1.2.0"`). `host.ui.Table` ist die Tabelle aus den Notizen: gleiches Aussehen, Sortieren per Klick auf eine Spaltenüberschrift (Zahlen und Daten nach Wert), Filterfeld und Zeilenzahl. Sie funktioniert auf Seiten, in Einstellungen und in Blöcken. Ob sie bearbeitbar ist, entscheidet das Plugin:
+
+```tsx
+const { Table } = host.ui;
+
+<Table
+  columns={[
+    { key: 'at', label: { de: 'Datum', en: 'Date' }, type: 'date', editable: false },
+    { key: 'hours', label: { de: 'Stunden', en: 'Hours' }, type: 'number' },
+    { key: 'text', label: { de: 'Tätigkeit', en: 'Activity' } },          // Inline-Markdown, [[Links]] öffnen Notizen
+    { key: 'state', label: 'Status', format: (v) => (v === 'done' ? '✅ erledigt' : String(v ?? '')) },
+  ]}
+  rows={bookings}                       // [{ id, at, hours, text, state }]
+  rowKey="id"
+  caption={{ de: 'Diese Woche', en: 'This week' }}
+  footer={['', `${total}`, '', '']}     // optional, wird nicht sortiert oder gefiltert
+  empty={{ de: 'Noch nichts gebucht.', en: 'Nothing booked yet.' }}
+  filter                                 // Standard true
+  editable={canEdit}                     // ohne (oder ohne onCellChange) schreibgeschützt
+  onCellChange={async (id, key, value) => setBookings(await save(id, key, value))}
+  onAddRow={async () => setBookings(await addEmpty())}      // optional: „+ Zeile“
+  onRemoveRow={async (id) => setBookings(await remove(id))} // optional: Löschknopf je Zeile
+/>
+```
+
+- **Schreibgeschützt oder bearbeitbar:** Ohne `editable` (oder ohne `onCellChange`) bearbeitet niemand etwas. Mit `editable` öffnet ein Klick in eine Zelle ihren Editor; Enter, Tab und Escape funktionieren wie in Notiz-Tabellen, und Tab überspringt Spalten mit `editable: false`. Die Spalten bleiben, wie das Plugin sie festlegt; Nutzer können sie weder umbenennen noch hinzufügen oder entfernen. In einem Block folgt `editable={!!setSource}` dem, ob die Notiz bearbeitet werden darf.
+- **Speichern macht das Plugin:** `onCellChange` bekommt die Id der Zeile, den Schlüssel der Spalte und den eingetippten Text (auch bei Zahlen- und Datumsspalten; der Editor einer Datumszelle enthält `JJJJ-MM-TT`). Danach übergibt das Plugin die neuen `rows`. Wird das Promise abgelehnt, zeigt die Tabelle die Meldung und wieder den alten Wert; ändert der Callback nichts, kommt ebenfalls der alte Wert zurück.
+- **Neu zeichnen:** Die Tabelle wird nur neu gezeichnet, wenn sich ändert, was sie zeigt; neue Arrays bei jedem Rendern sind also kein Problem. Sortierung, Filter und eine Zelle, in der gerade getippt wird, bleiben erhalten (die Zeile wird über ihre Id wiedergefunden).
+- **Zellen** sind Inline-Markdown (fett, kursiv, Code, Links, `[[Notiz-Links]]`), von Kladde maskiert: kein HTML aus Plugin-Daten erreicht die Seite.
+
+Um eine Tabelle in einer Notiz oder im Text eines Blocks zu speichern, bietet `@kladde/plugin-api` `parseMarkdownTable(text)` (die erste GFM-Tabelle: `headers`, `align`, `rows`) und `formatMarkdownTable({ headers, align?, rows })` (aufgefüllte Spalten, maskierte Pipes). Beide lesen und schreiben Tabellen so wie Kladde. Ohne das Plugin zeigt so ein Block trotzdem eine lesbare Tabelle als Code.
+
+Das Beispiel-Plugin zeigt beide Modi: Seine Seite zeigt die Einträge in einer Tabelle mit Schalter „Bearbeiten“, und ein ```` ```logbook ````-Block mit `edit: yes` bearbeitet Einträge direkt in der Notiz.
 
 ## Eigene Tabellen und Migrationen
 

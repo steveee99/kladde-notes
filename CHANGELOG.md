@@ -4,6 +4,12 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Plugins can show their data in Kladde's own table (`host.ui.Table`): the look of note tables with sorting, filter and row count, read-only or editable cell by cell, with optional "+ row" and delete buttons; the plugin decides which columns can be edited and saves the changes itself. The example plugin's page shows its entries in such a table with an "Edit" switch, and a ```` ```logbook ```` block with `edit: yes` edits them right in the note.
+
+### Plugin API
+
+- 1.2.0: `ui.Table` (`PluginTableProps`, `PluginTableColumn`, `PluginTableValue`) and the Markdown helpers `parseMarkdownTable`/`formatMarkdownTable` (`MarkdownTable`). Additions only: plugins written for 1.0 and 1.1 keep working.
+
 ## [2.28.0] – 2026-11-27
 
 - New: Build-time plugins ([docs/PLUGINS.md](docs/PLUGINS.md)): own apps built into the Kladde image with their own navigation entries, pages under `/p/<id>`, command palette entries, a card with settings under Settings → Features (switched per user), routes under `/api/p/<id>`, background jobs, note events, files in the account export and their own database tables. Plugins talk to Kladde only through the new package `@kladde/plugin-api`, which has its own SemVer version (1.0.0), so Kladde releases do not break them. `kladde.plugins.json` pins the plugin packages; `npm run plugins` (also in the Docker build) installs them and stops the build when a plugin's plugin API, React or Kladde range does not fit, a pinned version is not the installed one or two plugins share an id. Plugin tables (`p_<id>_…`) are created by numbered migrations that run at start after a backup; SQLite's authorizer keeps them away from Kladde's tables, a changed released step or a downgrade stops the start, and `cli plugins purge <id>` removes the data of a plugin that was taken out. An example plugin (`examples/kladde-plugin-logbook`) and a template for an ops repository that builds the image with plugins (`docs/ops-repo-template/`) are included.

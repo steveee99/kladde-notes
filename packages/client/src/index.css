@@ -1962,6 +1962,11 @@ span.cm-checkbox {
 .wz-table tbody tr:hover {
   background: rgb(var(--surface-container-high) / 0.6);
 }
+.wz-table td.wz-table-empty {
+  max-width: none;
+  color: rgb(var(--muted));
+  text-align: center;
+}
 /* Comments (#68): passages with open threads, the one shown in the panel stronger */
 .cm-comment {
   background: rgb(var(--tertiary-container) / 0.55);

@@ -81,6 +81,24 @@ export default defineServerPlugin({
       res.status(201).json(addEntry(ctx, user.id, cleanText(req.body?.text), cleanMood(req.body?.mood)));
     });
 
+    // Edits from the table on the page and in note blocks: only the fields that came, each checked like a new entry
+    router.patch('/entries/:id', (req, res) => {
+      const userId = ctx.userOf(req).id;
+      const row = ctx.db.prepare(`SELECT id, at, payload FROM ${ctx.table('entries')} WHERE id = ? AND owner_id = ?`).get(req.params.id, userId) as unknown as Row | undefined;
+      if (!row) throw new PluginError(404, 'Eintrag nicht gefunden.');
+      const current = ctx.cipher.openJson<{ text: string; mood: Entry['mood'] }>(row.id, row.payload);
+      const body = (req.body ?? {}) as { text?: unknown; mood?: unknown };
+      const text = 'text' in body ? cleanText(body.text) : current.text;
+      let mood = current.mood;
+      if ('mood' in body) {
+        const value = typeof body.mood === 'string' ? body.mood.trim().toLowerCase() : body.mood;
+        if (value !== null && value !== '' && !MOODS.includes(value as (typeof MOODS)[number])) throw new PluginError(400, 'Stimmung: good, okay, bad oder leer.');
+        mood = cleanMood(value);
+      }
+      ctx.db.prepare(`UPDATE ${ctx.table('entries')} SET payload = ? WHERE id = ?`).run(ctx.cipher.sealJson(row.id, { text, mood }), row.id);
+      res.json({ id: row.id, at: row.at, text, mood } satisfies Entry);
+    });
+
     router.delete('/entries/:id', (req, res) => {
       const { changes } = ctx.db.prepare(`DELETE FROM ${ctx.table('entries')} WHERE id = ? AND owner_id = ?`).run(req.params.id, ctx.userOf(req).id);
       if (!changes) throw new PluginError(404, 'Eintrag nicht gefunden.');

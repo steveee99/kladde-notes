@@ -10,6 +10,7 @@ import { LogbookPage } from '../../../examples/kladde-plugin-logbook/src/Logbook
 import { LogbookBlock, parseBlock } from '../../../examples/kladde-plugin-logbook/src/LogbookBlock';
 import { allPlugins, isPluginEnabled, pluginBlockFor, pluginCommands, pluginHref, pluginNavItems, pluginSlashBlocks, resolvePluginPath, setInstalledPlugins } from '../src/plugins/registry';
 import { notificationUrl } from '../src/views/NotificationsPanel';
+import { PluginTable } from '../src/plugins/PluginTable';
 import type { NotificationItem } from '@kladde/shared';
 import type { InstalledClientPlugin } from '../src/plugins/types';
 
@@ -77,14 +78,15 @@ describe('plugin registry', () => {
 
 describe('the example plugin block', () => {
   it('reads its settings', () => {
-    expect(parseBlock('')).toEqual({ limit: 5, mood: null });
-    expect(parseBlock('limit: 3\nmood: bad\nsonst: was')).toEqual({ limit: 3, mood: 'bad' });
-    expect(parseBlock('limit: 900\nmood: wild')).toEqual({ limit: 50, mood: null });
+    expect(parseBlock('')).toEqual({ limit: 5, mood: null, edit: false });
+    expect(parseBlock('limit: 3\nmood: bad\nsonst: was')).toEqual({ limit: 3, mood: 'bad', edit: false });
+    expect(parseBlock('limit: 900\nmood: wild\nedit: ja')).toEqual({ limit: 50, mood: null, edit: true });
   });
 
   it('shows the latest entries and writes a higher limit back into the note', async () => {
     const entries = Array.from({ length: 4 }, (_, i) => ({ id: `e${i}`, text: `Eintrag ${i}`, mood: i % 2 ? 'good' : 'bad', at: Date.UTC(2026, 10, 20 + i) }));
-    const host = { lang: 'de', t: (v: string | { de: string }) => (typeof v === 'string' ? v : v.de), href: () => '/p/logbook', navigate: vi.fn(), api: vi.fn(async () => entries) } as unknown as KladdeHost;
+    const api = vi.fn(async (path: string, init?: { json?: Record<string, string> }) => (init ? { ...entries[0], ...init.json } : entries));
+    const host = { lang: 'de', t: (v: string | { de: string }) => (typeof v === 'string' ? v : v.de), href: () => '/p/logbook', navigate: vi.fn(), api, ui: { Table: PluginTable } } as unknown as KladdeHost;
     const setSource = vi.fn();
     const el = document.createElement('div');
     document.body.append(el);
@@ -96,11 +98,31 @@ describe('the example plugin block', () => {
         </KladdeHostContext.Provider>
       );
     });
-    expect(el.querySelectorAll('li')).toHaveLength(1);
+    expect(el.querySelectorAll('tbody tr')).toHaveLength(1);
     expect(el.textContent).toContain('Eintrag 0');
+    // Read-only without `edit: yes`
+    expect(el.querySelector('td[data-row]')).toBeNull();
     const more = [...el.querySelectorAll('button')].find((b) => b.textContent === 'Mehr zeigen')!;
     act(() => more.click());
     expect(setSource).toHaveBeenCalledWith('limit: 6');
+    // `edit: yes` in an editable note: the text column edits the entry on the server
+    await act(async () => {
+      root.render(
+        <KladdeHostContext.Provider value={host}>
+          <LogbookBlock source={'limit: 1\nedit: yes'} lang="logbook" noteId="n1" setSource={setSource} />
+        </KladdeHostContext.Provider>
+      );
+    });
+    expect(el.querySelector('td[data-row="0"][data-col="0"]')).toBeNull();
+    act(() => (el.querySelector('td[data-row="0"][data-col="2"]') as HTMLElement).click());
+    const field = el.querySelector<HTMLInputElement>('.wz-cell-input')!;
+    expect(field.value).toBe('Eintrag 0');
+    field.value = 'Neu';
+    await act(async () => field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    expect(api).toHaveBeenCalledWith('/entries/e0', { method: 'PATCH', json: { text: 'Neu' } });
+    expect(el.textContent).toContain('Neu');
+    act(() => (more.isConnected ? more : [...el.querySelectorAll('button')].find((b) => b.textContent === 'Mehr zeigen')!).click());
+    expect(setSource).toHaveBeenLastCalledWith('limit: 6\nedit: yes');
     // Read-only notes get no setSource: no button
     await act(async () => {
       root.render(
@@ -131,7 +153,18 @@ describe('the example plugin page', () => {
       api,
       notes: { list: () => [{ id: 'n1', path: 'Logbuch/a.md', title: 'Logbuch-Notiz', content: '', version: 1, updatedAt: 0, access: 'owner' }], get: vi.fn(), load: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
       useNotesVersion: () => 0,
-      ui: { PageHeader: ({ title }: { title: React.ReactNode }) => <h1>{title}</h1>, PageBody: Plain, Panel: ({ label, children }: { label: React.ReactNode; children: React.ReactNode }) => <section aria-label={String(label)}>{children}</section>, Switch: () => null },
+      ui: {
+        PageHeader: ({ title }: { title: React.ReactNode }) => <h1>{title}</h1>,
+        PageBody: Plain,
+        Panel: ({ label, aside, children }: { label: React.ReactNode; aside?: React.ReactNode; children: React.ReactNode }) => (
+          <section aria-label={String(label)}>
+            {aside}
+            {children}
+          </section>
+        ),
+        Switch: ({ checked, onChange }: { checked: boolean; onChange: (next: boolean) => void }) => <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)} />,
+        Table: PluginTable,
+      },
     } as unknown as KladdeHost;
     const el = document.createElement('div');
     document.body.append(el);
@@ -147,6 +180,13 @@ describe('the example plugin page', () => {
     expect(el.querySelector('h1')?.textContent).toBe('Logbuch');
     expect(el.textContent).toContain('Erster Eintrag');
     expect(el.textContent).toContain('Logbuch-Notiz');
+    // Read-only until the switch is on; then rows can be deleted
+    expect(el.querySelector('.wz-row-delete')).toBeNull();
+    act(() => el.querySelector<HTMLButtonElement>('[role="switch"]')!.click());
+    expect(el.querySelector('.wz-table-editable')).not.toBeNull();
+    await act(async () => el.querySelector<HTMLButtonElement>('.wz-row-delete')!.click());
+    expect(api).toHaveBeenCalledWith('/entries/e1', { method: 'DELETE' });
+    expect(el.textContent).toContain('Noch keine Einträge.');
     act(() => root.unmount());
   });
 });

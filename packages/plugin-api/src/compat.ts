@@ -2,7 +2,7 @@
 // No imports and only erasable TypeScript: the build script loads this file directly with Node's type stripping.
 
 /** Version of the plugin interface; bumped by hand, independent of the app version (major = breaking) */
-export const PLUGIN_API_VERSION = '1.1.0';
+export const PLUGIN_API_VERSION = '1.2.0';
 
 /** A plugin's id: lower case, digits and dashes, 3–32 characters; it names routes, tables and settings */
 export const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]{1,30}[a-z0-9]$/;

@@ -17,6 +17,7 @@ export {
   type HostVersions,
   type PluginPackageJson,
 } from './compat.js';
+export { formatMarkdownTable, parseMarkdownTable, type MarkdownTable, type MarkdownTableAlign } from './table.js';
 
 /** Languages of the interface */
 export type PluginLang = 'de' | 'en';
