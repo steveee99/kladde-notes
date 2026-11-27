@@ -1866,6 +1866,11 @@ span.cm-checkbox {
     opacity: 0.7;
   }
 }
+/* Cockpit blocks have their own buttons in the header; the source edit button sits in the footer */
+.cm-cockpit-block .wz-edit {
+  top: auto;
+  bottom: 2px;
+}
 .wz-table {
   border: 1px solid rgb(var(--outline-variant));
   border-radius: 12px;

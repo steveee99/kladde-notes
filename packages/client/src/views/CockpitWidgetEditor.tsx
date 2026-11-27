@@ -1,12 +1,14 @@
 /**
  * The widget editor of the cockpit: everything a widget is made of (source, parameters, filters, sort order, view,
  * fields, highlights, notifications), generated from the source's description in shared/cockpit.ts, with a live
- * preview and the widget's JSON, which can be copied for a colleague or edited directly.
+ * preview. The widget is copied as JSON (for a colleague or a dashboard) or as a ```cockpit block (for a note), and
+ * "From JSON" takes over a pasted widget or block.
  */
 import { createPortal } from 'react-dom';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   blankWidget,
+  cockpitBlockMarkdown,
   COCKPIT_FILTER_OPS,
   COCKPIT_SOURCE_KINDS,
   COCKPIT_SOURCES,
@@ -23,7 +25,7 @@ import {
   type CockpitTone,
   type CockpitWidget,
 } from '@kladde/shared';
-import { Copy, Plus, Trash2, X } from '../lib/icons';
+import { ClipboardPaste, Code, Copy, Plus, Trash2, X } from '../lib/icons';
 import { copyText } from '../lib/clipboard';
 import { tl, useLang, type I18nKey, type Lang } from '../lib/i18n';
 import { useModal } from '../lib/modal';
@@ -133,8 +135,8 @@ export function WidgetEditor({ widget, vars, onSave, onClose }: WidgetEditorProp
   const titleId = useId();
   useModal(panel, onClose);
   const [w, setW] = useState<CockpitWidget>(() => widget ?? blankWidget('gitlab.mrs', lang));
-  const [json, setJson] = useState(() => shareWidget(w));
-  const [jsonError, setJsonError] = useState(false);
+  /** The "From JSON" field, null while closed */
+  const [paste, setPaste] = useState<string | null>(null);
   const [preview, setPreview] = useState(w);
   const def = COCKPIT_SOURCES[w.source.kind];
 
@@ -144,11 +146,18 @@ export function WidgetEditor({ widget, vars, onSave, onClose }: WidgetEditorProp
     return () => window.clearTimeout(t);
   }, [w]);
 
-  const update = (next: CockpitWidget) => {
-    setW(next);
-    setJson(shareWidget(next));
-    setJsonError(false);
+  const update = (next: CockpitWidget) => setW(next);
+  const pasted = useMemo(() => {
+    const shared = paste?.trim() ? readShared(paste) : null;
+    return shared?.kind === 'widgets' ? shared.widgets[0] : null;
+  }, [paste]);
+  const applyPaste = () => {
+    if (!pasted) return;
+    update({ ...pasted, id: w.id });
+    setPreview({ ...pasted, id: w.id });
+    setPaste(null);
   };
+  const copy = (text: string, done: I18nKey) => void copyText(text).then((ok) => showToast(tl(lang, ok ? done : 'cockpit.copyFailed'), ok ? 'ok' : 'warn'));
   const patch = (p: Partial<CockpitWidget>) => update({ ...w, ...p });
   const setParam = (key: string, v: CockpitParamValue | undefined) => {
     const params = { ...w.source.params };
@@ -178,7 +187,7 @@ export function WidgetEditor({ widget, vars, onSave, onClose }: WidgetEditorProp
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="relative flex max-h-[min(92vh,100%)] w-full max-w-6xl flex-col overflow-hidden rounded-t-xl border border-line2 bg-panel shadow-elevation-3 outline-none anim-sheet sm:rounded-xl"
+        className="relative flex max-h-[min(92vh,100%)] w-full max-w-[88rem] flex-col overflow-hidden rounded-t-xl border border-line2 bg-panel shadow-elevation-3 outline-none anim-sheet sm:rounded-xl"
         data-cockpit-editor
       >
         <div className="flex items-center gap-2 border-b border-line px-5 py-3.5">
@@ -328,44 +337,50 @@ export function WidgetEditor({ widget, vars, onSave, onClose }: WidgetEditorProp
           </form>
 
           <div className="flex min-w-0 flex-1 flex-col gap-3 border-t border-line bg-bg px-5 py-4 lg:max-w-[48%] lg:overflow-y-auto lg:border-l lg:border-t-0">
+            {paste !== null && (
+              <div className="space-y-2 rounded-lg border border-line2 bg-panel p-3" data-cockpit-from-json>
+                <p className="text-body-s text-muted">{tl(lang, 'cockpit.fromJsonHint')}</p>
+                <textarea
+                  className={`input min-h-48 w-full resize-y py-2 font-mono text-body-s ${paste.trim() && !pasted ? 'border-red' : ''}`}
+                  spellCheck={false}
+                  value={paste}
+                  aria-label={tl(lang, 'cockpit.fromJson')}
+                  aria-invalid={!!paste.trim() && !pasted}
+                  autoFocus
+                  onChange={(e) => setPaste(e.target.value)}
+                  data-cockpit-paste-widget
+                />
+                {paste.trim() && !pasted && <p className="text-caption text-red">{tl(lang, 'cockpit.jsonInvalid')}</p>}
+                <div className="flex justify-end gap-2">
+                  <button type="button" className="btn-text" onClick={() => setPaste(null)}>
+                    {tl(lang, 'common.cancel')}
+                  </button>
+                  <button type="button" className="btn-tonal" onClick={applyPaste} disabled={!pasted} data-cockpit-apply-json>
+                    {tl(lang, 'cockpit.applyJson')}
+                  </button>
+                </div>
+              </div>
+            )}
             <span className="section-label">{tl(lang, 'cockpit.preview')}</span>
             <WidgetCard widget={preview} vars={vars} />
-            <label className="flex flex-1 flex-col">
-              <span className="mb-1 flex items-center gap-2">
-                <span className="section-label flex-1">{tl(lang, 'cockpit.json')}</span>
-                <span className="text-caption text-faint">{tl(lang, 'cockpit.noTokens')}</span>
-              </span>
-              <textarea
-                className={`input min-h-56 flex-1 resize-y py-2 font-mono text-body-s ${jsonError ? 'border-red' : ''}`}
-                spellCheck={false}
-                value={json}
-                aria-invalid={jsonError}
-                onChange={(e) => {
-                  setJson(e.target.value);
-                  const shared = readShared(e.target.value);
-                  const next = shared?.kind === 'widgets' ? shared.widgets[0] : null;
-                  setJsonError(!next);
-                  if (next) setW({ ...next, id: w.id });
-                }}
-                data-cockpit-json
-              />
-              {jsonError && <span className="mt-1 text-caption text-red">{tl(lang, 'cockpit.jsonInvalid')}</span>}
-            </label>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 border-t border-line px-5 py-3">
-          <button
-            type="button"
-            className="btn-outlined"
-            onClick={() => void copyText(shareWidget(w)).then((ok) => showToast(tl(lang, ok ? 'cockpit.copied' : 'cockpit.copyFailed'), ok ? 'ok' : 'warn'))}
-          >
+          <button type="button" className="btn-outlined" onClick={() => copy(shareWidget(w), 'cockpit.copied')} data-cockpit-copy-json>
             <Copy size={16} /> {tl(lang, 'cockpit.copyJson')}
           </button>
+          <button type="button" className="btn-outlined" onClick={() => copy(cockpitBlockMarkdown(w), 'cockpit.copiedMarkdown')} data-cockpit-copy-markdown>
+            <Code size={16} /> {tl(lang, 'cockpit.copyMarkdown')}
+          </button>
+          <button type="button" className="btn-outlined" onClick={() => setPaste((p) => (p === null ? '' : null))} aria-expanded={paste !== null} data-cockpit-from-json-toggle>
+            <ClipboardPaste size={16} /> {tl(lang, 'cockpit.fromJson')}
+          </button>
+          <span className="text-caption text-faint">{tl(lang, 'cockpit.noTokens')}</span>
           <span className="flex-1" />
           <button type="button" className="btn-text" onClick={onClose}>
             {tl(lang, 'common.cancel')}
           </button>
-          <button type="button" className="btn-primary" onClick={save} disabled={!w.title.trim() || jsonError} data-cockpit-save>
+          <button type="button" className="btn-primary" onClick={save} disabled={!w.title.trim()} data-cockpit-save>
             {tl(lang, 'common.save')}
           </button>
         </div>

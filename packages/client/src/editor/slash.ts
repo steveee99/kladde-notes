@@ -3,6 +3,7 @@ import { EditorView } from '@codemirror/view';
 import { linkAllMentions, toDateString } from '@kladde/shared';
 import { getLang, tl, type Lang } from '../lib/i18n';
 import { attachmentMarkdown, editorHost } from './host';
+import { newCockpitBlock } from './cockpit';
 import { calloutsFacet, noteIdFacet } from './livePreview';
 
 /**
@@ -25,6 +26,8 @@ interface SlashCommand {
   run?: (view: EditorView, from: number, to: number) => void;
   /** Only offered while callouts (#86) are on */
   callout?: boolean;
+  /** Only offered while the development cockpit is on */
+  cockpit?: boolean;
 }
 
 export type FileInserter = (view: EditorView, files: File[], pos: number) => void;
@@ -74,6 +77,16 @@ function commands(insertFiles: FileInserter, lang: Lang): SlashCommand[] {
       block: true,
     },
     { label: tl(lang, 'editor.slash.openTasks'), detail: 'query', keywords: 'tasks todo query abfrage aufgaben', template: '```query\nTASKS\nWHERE done = false|\n```', block: true },
+    {
+      label: tl(lang, 'editor.slash.cockpit'),
+      detail: 'cockpit',
+      keywords: 'cockpit gitlab jira widget merge request mr review ci pipeline job jobs issues dashboard',
+      cockpit: true,
+      run: (view, from, to) => {
+        view.dispatch({ changes: { from, to, insert: '' } });
+        newCockpitBlock(view, from);
+      },
+    },
     {
       label: tl(lang, 'editor.slash.mindmap'),
       detail: 'mindmap',
@@ -225,8 +238,9 @@ export function slashCompletion(insertFiles: FileInserter) {
     const { list, options } = ensureCommands();
     const query = m.text.slice(m.text.indexOf('/') + 1).toLowerCase();
     const callouts = ctx.state.facet(calloutsFacet);
+    const cockpit = editorHost.cockpitEnabled() && ctx.state.facet(EditorView.editable);
     const matching = options.filter(
-      (_o, i) => (callouts || !list[i].callout) && (!query || `${list[i].label} ${list[i].keywords}`.toLowerCase().split(/\s+/).some((w) => w.startsWith(query)))
+      (_o, i) => (callouts || !list[i].callout) && (!list[i].cockpit || cockpit) && (!query || `${list[i].label} ${list[i].keywords}`.toLowerCase().split(/\s+/).some((w) => w.startsWith(query)))
     );
     if (!matching.length) return null;
     return { from: slash + 1, options: matching, filter: false };

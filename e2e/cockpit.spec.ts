@@ -45,9 +45,15 @@ test('switching the cockpit on creates "My day", widgets travel as JSON and work
   await expect(dialog).toBeVisible();
   await page.waitForTimeout(400);
   expect(await axe(page)).toEqual([]);
+  // "From JSON" takes over a pasted widget or block
+  await dialog.locator('[data-cockpit-from-json-toggle]').click();
+  await dialog.locator('[data-cockpit-paste-widget]').fill('```cockpit\nsource: jira.issues\ntitle: From a block\n```');
+  await dialog.locator('[data-cockpit-apply-json]').click();
+  await expect(dialog.locator('[data-cockpit-title]')).toHaveValue('From a block');
+  await expect(dialog.locator('[data-cockpit-source="jira.issues"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(dialog.locator('[data-cockpit-from-json]')).toBeHidden();
   await dialog.locator('[data-cockpit-source="gitlab.jobs"]').click();
   await dialog.locator('[data-cockpit-title]').fill('Red deploys');
-  await expect(dialog.locator('[data-cockpit-json]')).toHaveValue(/"kind": "gitlab.jobs"/);
   await dialog.locator('[data-cockpit-save]').click();
   await expect(dialog).toBeHidden();
   await expect(grid.getByRole('region', { name: 'Red deploys' })).toBeVisible();
@@ -63,4 +69,24 @@ test('switching the cockpit on creates "My day", widgets travel as JSON and work
   await page.keyboard.insertText('\n```cockpit\nsource: gitlab.mrs\ntitle: MRs for the ticket\nsearch: {{this.jira|PAY-1}}\n```\n\nAfter');
   await expect(page.locator('[data-cockpit-block]').getByRole('region', { name: 'MRs for the ticket' })).toBeVisible();
   await expect(page.locator('[data-cockpit-block] [data-cockpit-problem="not_connected"]')).toBeVisible();
+
+  // /cockpit opens the widget editor and puts its widget into the note as a block; the block's settings edit it
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.insertText('\n\n');
+  await page.keyboard.type('/cockpit');
+  await page.locator('.cm-tooltip-autocomplete').getByText('Cockpit widget').click();
+  const blockEditor = page.locator('[data-cockpit-editor]');
+  await expect(blockEditor).toBeVisible();
+  await blockEditor.locator('[data-cockpit-source="jira.issues"]').click();
+  await blockEditor.locator('[data-cockpit-title]').fill('Jira in the note');
+  await blockEditor.locator('[data-cockpit-save]').click();
+  await expect(blockEditor).toBeHidden();
+  const jiraBlock = page.locator('[data-cockpit-block]').filter({ has: page.getByRole('region', { name: 'Jira in the note' }) });
+  await expect(jiraBlock).toBeVisible();
+  await jiraBlock.locator('[data-cockpit-configure]').click();
+  await expect(blockEditor.locator('[data-cockpit-title]')).toHaveValue('Jira in the note');
+  await blockEditor.locator('[data-cockpit-title]').fill('Jira renamed');
+  await blockEditor.locator('[data-cockpit-save]').click();
+  await expect(page.locator('[data-cockpit-block]').getByRole('region', { name: 'Jira renamed' })).toBeVisible();
+  await expect(page.locator('[data-cockpit-block]').getByRole('region', { name: 'Jira in the note' })).toHaveCount(0);
 });

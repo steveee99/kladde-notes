@@ -153,6 +153,87 @@ export async function gitlabMergeRequests(a: GitlabAccess, p: Params): Promise<C
   });
 }
 
+/** A path's parent (`team/backend/api` → `team/backend`), null at the top */
+const parentPath = (path: string | null): string | null => (path && path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : null);
+
+/** The repositories of a group (with its subgroups unless switched off), or the ones the user is a member of */
+export async function gitlabProjects(a: GitlabAccess, p: Params): Promise<CockpitRow[]> {
+  const origin = new URL(a.host.url).origin;
+  const group = me(param(p, 'group'), a.connection.username);
+  if (group && !isPath(group)) throw new CockpitError('invalid', 'path');
+  const q = new URLSearchParams({ order_by: 'last_activity_at', sort: 'desc', per_page: '100' });
+  if (group) q.set('include_subgroups', p.subgroups === false ? 'false' : 'true');
+  else q.set('membership', 'true');
+  const archived = param(p, 'archived') || 'no';
+  if (archived === 'no') q.set('archived', 'false');
+  else if (archived === 'yes') q.set('archived', 'true');
+  const search = me(param(p, 'search'), a.connection.username);
+  if (search) q.set('search', search.slice(0, 200));
+  const data = await gitlabGet(a, `${group ? `/groups/${enc(group)}/projects` : '/projects'}?${q.toString().replace(/\+/g, '%20')}`, 4 * 1024 * 1024);
+  if (!Array.isArray(data)) throw new CockpitError('unreachable');
+  return data.slice(0, 100).flatMap((raw): CockpitRow[] => {
+    const pr = obj(raw);
+    const id = num(pr?.id);
+    if (!pr || id === null) return [];
+    const path = text(pr.path_with_namespace, 250);
+    return [
+      {
+        id: `project:${id}`,
+        url: pageUrl(pr.web_url, origin),
+        values: {
+          name: text(pr.name, 200),
+          path,
+          namespace: text(obj(pr.namespace)?.full_path, 250) ?? parentPath(path),
+          description: text(pr.description),
+          visibility: text(pr.visibility, 20),
+          defaultBranch: text(pr.default_branch, 200),
+          topics: strings(pr.topics ?? pr.tag_list),
+          archived: pr.archived === true,
+          stars: num(pr.star_count),
+          forks: num(pr.forks_count),
+          openIssues: num(pr.open_issues_count),
+          activity: time(pr.last_activity_at),
+          created: time(pr.created_at),
+        },
+      },
+    ];
+  });
+}
+
+/** The subgroups of a group (direct ones or all levels), or the groups the user is a member of */
+export async function gitlabGroups(a: GitlabAccess, p: Params): Promise<CockpitRow[]> {
+  const origin = new URL(a.host.url).origin;
+  const group = me(param(p, 'group'), a.connection.username);
+  if (group && !isPath(group)) throw new CockpitError('invalid', 'path');
+  const q = new URLSearchParams({ order_by: 'name', sort: 'asc', per_page: '100' });
+  if (!group) q.set('min_access_level', '10');
+  const search = me(param(p, 'search'), a.connection.username);
+  if (search) q.set('search', search.slice(0, 200));
+  const base = group ? `/groups/${enc(group)}/${p.descendants === true ? 'descendant_groups' : 'subgroups'}` : '/groups';
+  const data = await gitlabGet(a, `${base}?${q.toString().replace(/\+/g, '%20')}`);
+  if (!Array.isArray(data)) throw new CockpitError('unreachable');
+  return data.slice(0, 100).flatMap((raw): CockpitRow[] => {
+    const g = obj(raw);
+    const id = num(g?.id);
+    if (!g || id === null) return [];
+    const path = text(g.full_path, 250);
+    return [
+      {
+        id: `group:${id}`,
+        url: pageUrl(g.web_url, origin),
+        values: {
+          name: text(g.name, 200),
+          path,
+          parent: parentPath(path),
+          description: text(g.description),
+          visibility: text(g.visibility, 20),
+          created: time(g.created_at),
+        },
+      },
+    ];
+  });
+}
+
 /** Runs `fn` over `items` with at most `n` at a time */
 async function pool<T, R>(items: T[], n: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = new Array(items.length);
