@@ -1,0 +1,6 @@
+{
+  "plugins": {
+    "@team/kladde-plugin-zeiterfassung": "1.4.0",
+    "@team/kladde-plugin-inventar": "file:plugins/team-kladde-plugin-inventar-0.9.2.tgz"
+  }
+}

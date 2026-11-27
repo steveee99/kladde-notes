@@ -27,6 +27,7 @@ import { setFocusMode, useFocusMode } from '../lib/focus';
 import { isAdminPath, isSettingsPath, useSettingsNavInPanel } from '../lib/settingsRoutes';
 import { AdminNav } from './AdminNav';
 import { NotificationsButton } from './NotificationsPanel';
+import { pluginNavItems } from '../plugins/registry';
 
 const SettingsNav = lazy(() => import('./SettingsNav').then((m) => ({ default: m.SettingsNav })));
 
@@ -204,6 +205,8 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
   const ownNotes = listed.filter((n) => n.access === 'owner').length;
   const sidebarWidth = useSidebarWidth();
   const features = vault.features();
+  // Destinations of build-time plugins that are on
+  const pluginNav = pluginNavItems();
   // Notifications (#69, #68): only with an account on a server; group invitations arrive without mentions and comments too
   const showNotifications = !vault.standalone && !DEMO;
   const dailyNote = features.daily.enabled ? vault.findDailyNote() : undefined;
@@ -295,6 +298,9 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
             {features.calendarView.enabled && <NavItem to="/calendar" Icon={CalendarMonth} label={t('nav.calendar')} />}
             {features.habits.enabled && <NavItem to="/habits" Icon={Flame} label={t('habits.title')} />}
             {features.cockpit.enabled && <NavItem to="/cockpit" Icon={Speed} label={t('cockpit.title')} />}
+            {pluginNav.map((n) => (
+              <NavItem key={n.key} to={n.to} Icon={n.Icon} label={n.label} />
+            ))}
             <NavItem to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} badgeLabel={t('nav.badgeInbox', { n: inboxCount })} />
             <RailDivider />
             <NavItem to="/graph" Icon={Network} label={t('nav.graphShort')} />
@@ -378,6 +384,11 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
             <NavItem bar to="/tasks" Icon={ListChecks} label={t('nav.tasks')} badge={taskBadge} badgeLabel={t('nav.badgeTasks', { n: urgentTasks })} />
             {ticketsAnywhere() && <NavItem bar className="hidden tablet:flex" to="/projects" Icon={Kanban} label={t('nav.projects')} />}
             {features.cockpit.enabled && <NavItem bar className="hidden tablet:flex" to="/cockpit" Icon={Speed} label={t('cockpit.title')} />}
+            {pluginNav
+              .filter((n) => n.bottomBar)
+              .map((n) => (
+                <NavItem key={n.key} bar className="hidden tablet:flex" to={n.to} Icon={n.Icon} label={n.label} />
+              ))}
             <NavItem bar to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} badgeLabel={t('nav.badgeInbox', { n: inboxCount })} />
             <NavItem bar to="/notes" Icon={FileText} label={t('nav.notes')} />
             <Destination bar className="hidden tablet:flex" active={false} onClick={() => openSearch()} Icon={SearchIcon} label={t('common.search')} title={t('common.search')} />

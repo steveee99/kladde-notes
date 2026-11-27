@@ -62,6 +62,10 @@ import { accountExportRouter } from './export/router.js';
 import { Metrics, metricsHandler, metricsTokenFromEnv, type MetricsSources } from './metrics.js';
 import { JobLog } from './admin/JobLog.js';
 import { overviewBuilder } from './admin/overview.js';
+import { backupDatabase } from './db.js';
+import { PluginHost } from './plugins/PluginHost.js';
+import { installedPlugins } from './plugins/installed.js';
+import type { InstalledServerPlugin } from './plugins/types.js';
 
 export interface KladdeAppOptions {
   db: DatabaseSync;
@@ -85,6 +89,8 @@ export interface KladdeAppOptions {
   onRestart?: () => void;
   /** Path of the database file, for its size in the metrics (#92) */
   dbPath?: string;
+  /** Build-time plugins (docs/PLUGINS.md); default: the ones `npm run plugins` built into this image */
+  plugins?: InstalledServerPlugin[];
 }
 
 export interface KladdeAppContext {
@@ -112,6 +118,8 @@ export interface KladdeAppContext {
   metrics: MetricsSources;
   /** Recent jobs for the admin dashboard */
   jobs: JobLog;
+  /** Build-time plugins: their routes, note events, jobs (`tick()` every minute) */
+  plugins: PluginHost;
 }
 
 /**
@@ -140,6 +148,8 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   let remoteSync: RemoteSync | undefined;
   // Notifying cockpit widgets; created with the fetcher below
   let cockpitWatch: CockpitWatch | undefined;
+  // Build-time plugins; created once the stores exist, note changes reach them from then on
+  let plugins: PluginHost | undefined;
   // Activity of groups and shared notes (#70)
   const activity = new ActivityStore(opts.db, cipher);
   // Mentions and comments (#69, #68): kept per user, a live event to open apps, Web Push to the devices
@@ -158,6 +168,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     confluence?.onNoteChange(event);
     remoteSync?.onNoteChange(event);
     cockpitWatch?.onNoteChange(event);
+    plugins?.onNoteChange(event);
   });
   // Git sync was removed: its working copies (plain Markdown of the notes) must not stay on disk
   fs.rmSync(path.join(opts.dataDir, 'git'), { recursive: true, force: true });
@@ -195,6 +206,18 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
   const avatars = new AvatarStore(opts.db, cipher, opts.dataDir);
   const standaloneUser = opts.standalone ? ensureStandaloneUser(users) : undefined;
+  // Plugins migrate their own tables here (a backup first when a step is pending), before the first request
+  const backupDir = opts.backup?.dir;
+  plugins = new PluginHost({
+    db: opts.db,
+    cipher,
+    notes,
+    users,
+    env,
+    plugins: opts.plugins ?? installedPlugins,
+    standaloneUser,
+    backup: backupDir ? () => void backupDatabase(opts.db, backupDir) : undefined,
+  });
   const push = opts.standalone ? undefined : new PushStore(opts.db, cipher, allowedPushHosts(env));
   const pushSubject = vapidSubject(env, opts.publicUrl);
   if (push) {
@@ -404,7 +427,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   );
   app.use('/api/mcp', mcp.accountRouter);
   // Account export as ZIP (#93): built in the background, the settings poll until it is ready
-  const accountExports = new AccountExportService({ notes, files, dataDir: opts.dataDir });
+  const accountExports = new AccountExportService({ notes, files, dataDir: opts.dataDir, pluginFiles: plugins.count ? (userId) => plugins!.exportFiles(userId) : undefined });
   app.use('/api/account-export', accountExportRouter({ users, exports: accountExports, audit, standaloneUser }));
   app.use('/api/confluence', confluenceRouter({ users, sync: confluence, audit, allowPrivate: confluenceAllowPrivate, standaloneUser }));
   // Remote notes: Markdown from GitLab/GitHub, read live with the access configured for everyone
@@ -440,6 +463,8 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       })
     );
   }
+  // Build-time plugins: `/api/plugins` and their routes under `/api/p/<id>`
+  plugins.mount(app);
   app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db), spaces: online ? new SpaceIndexes(notes) : undefined, activity, notifications, jobs, comments: opts.standalone ? undefined : new CommentStore(opts.db, cipher, users) }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
@@ -494,5 +519,5 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
 
   const sendReminders = push ? (now?: Date) => runReminders(push, notes, pushSubject, now) : undefined;
-  return { app, users, notes, files, avatars, attachmentIndexer, confluence, remoteSync, cockpitWatch, audit, live, standaloneUser, sendReminders, backups, metrics: metricsSources, jobs };
+  return { app, users, notes, files, avatars, attachmentIndexer, confluence, remoteSync, cockpitWatch, audit, live, standaloneUser, sendReminders, backups, metrics: metricsSources, jobs, plugins };
 }

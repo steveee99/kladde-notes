@@ -125,10 +125,13 @@ function relativeFrom(noteFolder: string, target: string): string {
 /** Spaces and brackets would end a Markdown link target: encode them */
 const linkTarget = (p: string) => p.split('/').map((s) => encodeURIComponent(s).replace(/%2E/gi, '.')).join('/');
 
+/** Files of build-time plugins for one account: `path` is `<plugin id>/<file name>` */
+export type PluginExportFiles = (userId: string) => Promise<{ path: string; content: string | Uint8Array }[]>;
+
 /** Contents of one account, written into a ZIP stream */
 export async function writeAccountZip(
   zip: ZipStream,
-  deps: { notes: NoteStore; files: FileStore },
+  deps: { notes: NoteStore; files: FileStore; pluginFiles?: PluginExportFiles },
   user: { id: string; username: string },
   opts: { history: boolean; now?: Date; yieldEvery?: number }
 ): Promise<{ notes: number; files: number }> {
@@ -187,6 +190,10 @@ export async function writeAccountZip(
   }
   for (const t of templates) await zip.add(`.templates/${safeFileSegment(t.label)}.md`, t.content);
 
+  // Data of build-time plugins in hidden `.plugins/<id>/` (the import skips hidden folders)
+  const pluginFiles = deps.pluginFiles ? await deps.pluginFiles(user.id) : [];
+  for (const f of pluginFiles) await zip.add(`.plugins/${f.path}`, Buffer.from(f.content), now);
+
   const shares = deps.notes.shareOverview(user.id);
   const account = {
     format: 'kladde-account-export',
@@ -204,6 +211,7 @@ export async function writeAccountZip(
     notes: own.map((n) => ({ id: n.id, path: n.path, createdAt: new Date(n.createdAt).toISOString(), updatedAt: new Date(n.updatedAt).toISOString() })),
     templates: templates.map((t) => ({ id: t.id, name: t.label, folder: t.folder, content: t.content })),
     settings,
+    ...(pluginFiles.length ? { plugins: [...new Set(pluginFiles.map((f) => f.path.split('/')[0]))] } : {}),
     groups: deps.notes.groupsOf(user.id).map((g) => ({ name: g.name, role: g.role })),
     shares: {
       notes: shares.notes.map(({ path: p, username, canWrite }) => ({ path: p, with: username, canWrite })),
@@ -221,7 +229,7 @@ export class AccountExportService {
   private readonly dir: string;
 
   constructor(
-    private readonly deps: { notes: NoteStore; files: FileStore; dataDir: string; onReady?: (userId: string, status: AccountExportStatus) => void }
+    private readonly deps: { notes: NoteStore; files: FileStore; dataDir: string; pluginFiles?: PluginExportFiles; onReady?: (userId: string, status: AccountExportStatus) => void }
   ) {
     this.dir = path.join(deps.dataDir, 'account-exports');
     // Leftovers of an earlier process cannot be decrypted any more (the keys were only in memory)

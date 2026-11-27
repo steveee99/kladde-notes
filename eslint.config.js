@@ -27,6 +27,24 @@ export default tseslint.config(
     },
   },
   {
+    // Plugins (docs/PLUGINS.md) talk to Kladde only through @kladde/plugin-api: Kladde's own packages may change in any release
+    files: ['examples/**/*.{ts,tsx}'],
+    ignores: ['examples/**/tests/**'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['@kladde/shared', '@kladde/shared/*', '@kladde/server', '@kladde/server/*', '@kladde/client', '@kladde/client/*'], message: 'Plugins use only @kladde/plugin-api.' },
+            { group: ['**/packages/**'], message: 'Plugins use only @kladde/plugin-api.' },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['**/tests/**'],
     rules: { '@typescript-eslint/no-explicit-any': 'off' },
   },

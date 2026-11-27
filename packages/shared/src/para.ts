@@ -160,6 +160,11 @@ export interface FeatureSettings {
   comments: {
     enabled: boolean;
   };
+  /**
+   * Build-time plugins (docs/PLUGINS.md) switched on (true) or off (false) by id; a plugin that is missing here
+   * follows its package's `kladde.defaultEnabled`. Ids of plugins that are no longer installed are kept.
+   */
+  plugins: Record<string, boolean>;
 }
 
 /** Configurable folder mapping per role; `null` disables matching for that role */
@@ -227,6 +232,16 @@ function hasFolderPrefix(folders: string[], target: string): boolean {
 function periodicSettings(raw: unknown, folder: string, format: string): DailySettings {
   const obj = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
   return { enabled: obj.enabled === true, folder: cleanDailyFolder(obj.folder, folder), format: cleanDailyFormat(obj.format, format) };
+}
+
+/** On/off per plugin id; anything else is dropped */
+function pluginFlags(raw: unknown): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [id, on] of Object.entries(raw as Record<string, unknown>).slice(0, 200)) {
+    if (/^[a-z][a-z0-9-]{1,30}[a-z0-9]$/.test(id) && typeof on === 'boolean') out[id] = on;
+  }
+  return out;
 }
 
 /**
@@ -325,6 +340,7 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
     activity: { enabled: optOutFlag(obj.activity) },
     mentions: { enabled: optOutFlag(obj.mentions) },
     comments: { enabled: optOutFlag(obj.comments) },
+    plugins: pluginFlags(obj.plugins),
   };
 }
 

@@ -7,3 +7,5 @@ data
 .git
 .env
 .claude
+# Prebuilt plugin folders in plugins/ keep their dist/ (docs/PLUGINS.md)
+!plugins/**/dist

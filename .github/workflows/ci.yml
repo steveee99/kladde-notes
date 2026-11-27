@@ -28,6 +28,12 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm run test
+      # Build-time plugins (docs/PLUGINS.md): the example plugin must still fit the plugin API and build into the app
+      - name: Build with the example plugin
+        run: |
+          npm run plugins -- --file examples/kladde.plugins.json --skip-install
+          npm run build --workspace=packages/server
+          npm run build --workspace=packages/client
 
   # Browser tests of the core flows (Playwright, Chromium) at phone, tablet and desktop sizes
   e2e:

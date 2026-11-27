@@ -37,6 +37,7 @@ import { TasksView } from './views/TasksView';
 import { isAdminPath, settingsSectionOf } from './lib/settingsRoutes';
 import { ProjectsView } from './views/ProjectsView';
 import { projectKeys, ticketById } from './data/tickets';
+import { setPluginUser } from './plugins/registry';
 
 // Pages that are opened now and then load on first use, so the app starts with a smaller bundle (#64).
 // The service worker caches them with everything else, so they work offline too.
@@ -60,6 +61,8 @@ const TrashView = lazy(() => import('./views/Trash').then((m) => ({ default: m.T
 const ShortcutsSettingsView = lazy(() => import('./views/ShortcutsSettings').then((m) => ({ default: m.ShortcutsSettingsView })));
 const ClipRoute = lazy(() => import('./views/ClipRoute').then((m) => ({ default: m.ClipRoute })));
 const ConfluenceSettingsView = lazy(() => import('./views/ConfluenceSettings').then((m) => ({ default: m.ConfluenceSettingsView })));
+// Pages of build-time plugins (`/p/<id>/…`, docs/PLUGINS.md)
+const PluginRoute = lazy(() => import('./plugins/PluginRoute').then((m) => ({ default: m.PluginRoute })));
 
 const ME_KEY = 'kladde_me';
 
@@ -269,6 +272,7 @@ export function App() {
       </Suspense>
     );
 
+  setPluginUser(me);
   let page: React.ReactNode;
   const note = match(path, '/n/:id');
   const dailyDate = match(path, '/daily/:date');
@@ -285,6 +289,7 @@ export function App() {
   else if (path === '/calendar') page = <CalendarView />;
   else if (path === '/habits') page = <HabitsView />;
   else if (path === '/cockpit' || path.startsWith('/cockpit/')) page = <CockpitView id={match(path, '/cockpit/:id')?.id} />;
+  else if (path.startsWith('/p/')) page = <PluginRoute path={path} />;
   else if (path === '/notifications' && !me.standalone) page = <NotificationsView />;
   else if (path === '/activity' && !me.standalone) {
     const q = new URLSearchParams(location.search);

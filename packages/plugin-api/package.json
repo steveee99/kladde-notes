@@ -1,0 +1,56 @@
+{
+  "name": "@kladde/plugin-api",
+  "version": "1.0.0",
+  "description": "The only interface between Kladde and its build-time plugins (own SemVer, independent of the app version)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepack": "tsc",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "peerDependencies": {
+    "@types/express": "*",
+    "@types/node": "*",
+    "react": "^18.3.0"
+  },
+  "peerDependenciesMeta": {
+    "@types/express": {
+      "optional": true
+    },
+    "@types/node": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^24.19.4",
+    "@types/react": "^18.3.18",
+    "typescript": "^5.8.2",
+    "vitest": "^4.1.12"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "license": "MIT"
+}

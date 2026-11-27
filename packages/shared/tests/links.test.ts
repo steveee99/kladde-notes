@@ -184,6 +184,7 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       activity: { enabled: true },
       mentions: { enabled: true },
       comments: { enabled: true },
+      plugins: {},
     });
 
     const upgraded = normalizeFeatures(undefined, ['0 Inbox', '1 Projekte', 'Zettelkasten', '3 Ressourcen/Rezepte']);
@@ -218,6 +219,7 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       activity: { enabled: true },
       mentions: { enabled: true },
       comments: { enabled: true },
+      plugins: {},
     });
 
     const explicitDisabled = normalizeFeatures(

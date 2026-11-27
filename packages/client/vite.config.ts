@@ -50,6 +50,8 @@ export default defineConfig(({ mode }) => ({
   base: mode === 'demo' ? (process.env.DEMO_BASE ?? '/kladde-notes/') : '/',
   // Excalidraw's build reads this (see its Vite integration notes)
   define: { 'process.env.IS_PREACT': JSON.stringify('false') },
+  // Build-time plugins (docs/PLUGINS.md) share one React and one plugin API with the app, wherever they are installed
+  resolve: { dedupe: ['react', 'react-dom', '@kladde/plugin-api'] },
   plugins: [
     react(),
     excalidrawFonts(),
