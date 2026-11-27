@@ -4,7 +4,7 @@
  * connections. Dashboards are hidden notes (data/cockpit.ts); widgets and whole dashboards travel as JSON.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { defaultDashboard, normalizeDashboard, readShared, shareDashboard, shareWidget, newWidgetId, type CockpitDashboard, type CockpitWidget } from '@kladde/shared';
+import { COCKPIT_MAX_COLUMNS, defaultDashboard, normalizeDashboard, readShared, shareDashboard, shareWidget, newWidgetId, type CockpitDashboard, type CockpitWidget } from '@kladde/shared';
 import {
   createDashboard,
   deleteDashboard,
@@ -40,6 +40,29 @@ type Dialog =
   | { kind: 'vars'; focus?: string }
   | { kind: 'connections' }
   | { kind: 'new' };
+
+/*
+ * The grid: one column on phones, at most two on tablets, three on small desktops and the dashboard's own number from
+ * `xl` on. Classes are written out so Tailwind finds them.
+ */
+const MD_COLS = ['', 'md:grid-cols-1', 'md:grid-cols-2'];
+const LG_COLS = ['', 'lg:grid-cols-1', 'lg:grid-cols-2', 'lg:grid-cols-3'];
+const XL_COLS = ['', 'xl:grid-cols-1', 'xl:grid-cols-2', 'xl:grid-cols-3', 'xl:grid-cols-4', 'xl:grid-cols-5', 'xl:grid-cols-6'];
+const MD_SPAN = ['', 'md:col-span-1', 'md:col-span-2'];
+const LG_SPAN = ['', 'lg:col-span-1', 'lg:col-span-2', 'lg:col-span-3'];
+const XL_SPAN = ['', 'xl:col-span-1', 'xl:col-span-2', 'xl:col-span-3', 'xl:col-span-4', 'xl:col-span-5', 'xl:col-span-6'];
+
+function gridClass(columns: number): string {
+  const n = Math.max(1, Math.min(COCKPIT_MAX_COLUMNS, columns));
+  return `${MD_COLS[Math.min(n, 2)]} ${LG_COLS[Math.min(n, 3)]} ${XL_COLS[n]}`;
+}
+
+/** A widget's span at each width: its own, at most the columns there */
+function spanClass(width: number, columns: number): string {
+  const n = Math.max(1, Math.min(COCKPIT_MAX_COLUMNS, columns));
+  const w = Math.max(1, Math.min(n, width));
+  return `${MD_SPAN[Math.min(w, 2)]} ${LG_SPAN[Math.min(w, 3)]} ${XL_SPAN[w]}`;
+}
 
 function WidgetTile({ widget, dashboard, index, canEdit, onEdit, onChange, onConnect, onSetVar }: {
   widget: CockpitWidget;
@@ -77,7 +100,7 @@ function WidgetTile({ widget, dashboard, index, canEdit, onEdit, onChange, onCon
       widget={widget}
       vars={dashboard.vars}
       refreshMinutes={dashboard.refreshMinutes}
-      className={widget.width === 2 ? 'lg:col-span-2' : ''}
+      className={spanClass(widget.width, dashboard.columns)}
       onConnect={onConnect}
       onSetVar={onSetVar}
       actions={
@@ -172,17 +195,18 @@ function VarsSheet({ dashboard, focus, onClose, onSave }: { dashboard: CockpitDa
   );
 }
 
-function RenameSheet({ dashboard, onClose, onSave }: { dashboard: CockpitDashboard; onClose: () => void; onSave: (title: string, refreshMinutes: number) => void }) {
+function RenameSheet({ dashboard, onClose, onSave }: { dashboard: CockpitDashboard; onClose: () => void; onSave: (title: string, refreshMinutes: number, columns: number) => void }) {
   const lang = useLang();
   const [title, setTitle] = useState(dashboard.title);
   const [refresh, setRefresh] = useState(String(dashboard.refreshMinutes));
+  const [columns, setColumns] = useState(dashboard.columns);
   return (
     <Sheet title={tl(lang, 'cockpit.dashboardSettings')} onClose={onClose}>
       <form
         className="space-y-3 pb-1"
         onSubmit={(e) => {
           e.preventDefault();
-          if (title.trim()) onSave(title.trim(), Number(refresh));
+          if (title.trim()) onSave(title.trim(), Number(refresh), columns);
         }}
       >
         <label className="block">
@@ -198,6 +222,19 @@ function RenameSheet({ dashboard, onClose, onSave }: { dashboard: CockpitDashboa
             options={[0, 2, 5, 15, 30, 60].map((m) => ({ value: String(m), label: m ? tl(lang, 'cockpit.minutes', { n: m }) : tl(lang, 'cockpit.manual') }))}
           />
         </label>
+        <div>
+          <span className="mb-1 block text-label-m text-muted" id="cockpit-columns">
+            {tl(lang, 'cockpit.columns')}
+          </span>
+          <div className="segmented" role="group" aria-labelledby="cockpit-columns">
+            {Array.from({ length: COCKPIT_MAX_COLUMNS }, (_, i) => i + 1).map((n) => (
+              <button key={n} type="button" aria-pressed={columns === n} onClick={() => setColumns(n)} data-cockpit-columns={n}>
+                {n}
+              </button>
+            ))}
+          </div>
+          <span className="mt-1 block text-caption text-faint">{tl(lang, 'cockpit.columnsHint')}</span>
+        </div>
         <div className="flex justify-end gap-2">
           <button type="button" className="btn-text" onClick={onClose}>
             {tl(lang, 'common.cancel')}
@@ -396,7 +433,7 @@ export function CockpitView({ id }: { id?: string }) {
         )}
         {d && d.widgets.length === 0 && <p className="card p-6 text-body-m text-muted">{tl(lang, 'cockpit.noWidgets')}</p>}
         {d && current && (
-          <div className="grid gap-4 lg:grid-cols-2" data-cockpit-grid>
+          <div className={`grid gap-4 ${gridClass(d.columns)}`} data-cockpit-grid={d.columns}>
             {d.widgets.map((w, i) => (
               <WidgetTile
                 key={`${current.noteId}-${w.id}`}
@@ -418,6 +455,7 @@ export function CockpitView({ id }: { id?: string }) {
         <WidgetEditor
           widget={dialog.widget}
           vars={d.vars}
+          columns={d.columns}
           onClose={() => setDialog(null)}
           onSave={(w) => {
             const exists = d.widgets.some((x) => x.id === w.id);
@@ -442,8 +480,8 @@ export function CockpitView({ id }: { id?: string }) {
         <RenameSheet
           dashboard={d}
           onClose={() => setDialog(null)}
-          onSave={(title, refreshMinutes) => {
-            save({ ...d, title, refreshMinutes });
+          onSave={(title, refreshMinutes, columns) => {
+            save({ ...d, title, refreshMinutes, columns });
             setDialog(null);
           }}
         />

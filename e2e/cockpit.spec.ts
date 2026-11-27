@@ -58,6 +58,30 @@ test('switching the cockpit on creates "My day", widgets travel as JSON and work
   await expect(dialog).toBeHidden();
   await expect(grid.getByRole('region', { name: 'Red deploys' })).toBeVisible();
 
+  // A release comparison as a status tile: missing commits counted, 0 green, more red
+  await page.locator('[data-cockpit-add]').click();
+  await dialog.locator('[data-cockpit-source="gitlab.compare"]').click();
+  await dialog.getByRole('textbox', { name: 'Repository' }).fill('team/repo-a');
+  await dialog.getByRole('textbox', { name: 'Source (branch or tag)' }).fill('10.100');
+  await dialog.getByRole('textbox', { name: 'Target (branch or tag)' }).fill('10.101');
+  await dialog.locator('[data-cockpit-title]').fill('Repo A 10.100 → 10.101');
+  await dialog.getByRole('button', { name: 'Count', exact: true }).click();
+  await dialog.locator('[data-cockpit-traffic-light]').click();
+  await expect(dialog.locator('[data-cockpit-state-rule]')).toHaveCount(2);
+  await page.waitForTimeout(400);
+  expect(await axe(page)).toEqual([]);
+  await dialog.locator('[data-cockpit-save]').click();
+  await expect(grid.getByRole('region', { name: 'Repo A 10.100 → 10.101' })).toBeVisible();
+  await expect.poll(async () => (await serverNotes(page.request)).some((n) => n.path.startsWith('_dashboard-') && n.content.includes('"kind": "gitlab.compare"') && n.content.includes('"tone": "green"'))).toBe(true);
+
+  // The grid takes more columns
+  await page.getByRole('button', { name: 'Dashboard actions' }).click();
+  await page.getByRole('menuitem', { name: 'Edit dashboard' }).click();
+  await page.locator('[data-cockpit-columns="4"]').click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(grid).toHaveAttribute('data-cockpit-grid', '4');
+  await expect.poll(async () => (await serverNotes(page.request)).some((n) => n.path.startsWith('_dashboard-') && n.content.includes('"columns": 4'))).toBe(true);
+
   // Dashboards stay out of the note list and the search
   await page.goto('/notes');
   await expect(page.getByText(/_dashboard-/)).toHaveCount(0);

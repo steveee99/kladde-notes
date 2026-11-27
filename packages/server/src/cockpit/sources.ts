@@ -234,6 +234,92 @@ export async function gitlabGroups(a: GitlabAccess, p: Params): Promise<CockpitR
   });
 }
 
+/** Branch and tag names as Git allows them (no `..`, no leading dash, no `.lock` at the end) */
+const isRef = (s: string) => /^[A-Za-z0-9_][A-Za-z0-9_./+-]{0,199}$/.test(s) && !s.includes('..') && !s.includes('//') && !s.endsWith('.lock') && !s.endsWith('/');
+const PICKED = /\(cherry picked from commit ([0-9a-f]{7,40})\)/gi;
+/** Titles compared without case, spacing and a trailing "(#123)" or "[skip ci]" */
+const sameTitle = (t: string) => t.toLowerCase().replace(/\s*(\(#\d+\)|\[[^\]]*\])\s*$/g, '').replace(/\s+/g, ' ').trim();
+const COMMIT_PAGES = 10;
+
+interface Commit {
+  sha: string;
+  title: string;
+  message: string;
+  json: Json;
+}
+
+/** The commits of a revision range `a..b` (in b, not in a), newest first; `full` false when it has more than fits */
+async function commitRange(a: GitlabAccess, project: string, from: string, to: string): Promise<{ commits: Commit[]; full: boolean }> {
+  const commits: Commit[] = [];
+  // The fetcher refuses ".." in a request; in the query the range's dots are encoded
+  const range = `${enc(from)}..${enc(to)}`.replace(/\./g, '%2E');
+  for (let page = 1; page <= COMMIT_PAGES; page++) {
+    const data = await gitlabGet(a, `/projects/${enc(project)}/repository/commits?ref_name=${range}&per_page=100&page=${page}`, 4 * 1024 * 1024);
+    if (!Array.isArray(data)) throw new CockpitError('unreachable');
+    for (const raw of data) {
+      const c = obj(raw);
+      const sha = typeof c?.id === 'string' && /^[0-9a-f]{40,64}$/.test(c.id) ? c.id : null;
+      if (!c || !sha) continue;
+      commits.push({ sha, title: text(c.title) ?? '', message: typeof c.message === 'string' ? c.message.slice(0, 20_000) : '', json: c });
+    }
+    if (data.length < 100) return { commits, full: true };
+  }
+  return { commits, full: false };
+}
+
+/**
+ * Commits of `from` that `to` lacks (`to..from`). With `cherryPicks: match` (the default) a commit counts as
+ * contained when the target has a commit that names it in "(cherry picked from commit …)", that was picked from the
+ * same commit, or that has the same title; merge commits only count with `merges`.
+ */
+export async function gitlabCompare(a: GitlabAccess, p: Params): Promise<{ rows: CockpitRow[]; partial: boolean }> {
+  const origin = new URL(a.host.url).origin;
+  const project = me(param(p, 'project'), a.connection.username);
+  const from = param(p, 'from');
+  const to = param(p, 'to');
+  if (!project || !from || !to) throw new CockpitError('invalid', 'compare');
+  if (!isPath(project) || !isRef(from) || !isRef(to)) throw new CockpitError('invalid', 'path');
+  const missing = await commitRange(a, project, to, from);
+  let partial = !missing.full;
+  let candidates = missing.commits;
+  if (p.merges !== true) candidates = candidates.filter((c) => !(Array.isArray(c.json.parent_ids) && c.json.parent_ids.length > 1));
+  if (param(p, 'cherryPicks') !== 'strict' && candidates.length) {
+    const target = await commitRange(a, project, from, to);
+    if (!target.full) partial = true;
+    const shas = new Set<string>();
+    const titles = new Set<string>();
+    for (const c of target.commits) {
+      shas.add(c.sha);
+      if (sameTitle(c.title)) titles.add(sameTitle(c.title));
+      for (const m of c.message.matchAll(PICKED)) shas.add(m[1].toLowerCase());
+    }
+    const known = (sha: string) => shas.has(sha) || [...shas].some((s) => s.length < 40 && sha.startsWith(s));
+    candidates = candidates.filter((c) => {
+      if (known(c.sha) || (sameTitle(c.title) && titles.has(sameTitle(c.title)))) return false;
+      // Both sides picked the same commit
+      for (const m of c.message.matchAll(PICKED)) if (known(m[1].toLowerCase())) return false;
+      return true;
+    });
+  }
+  const rows = candidates.map((c): CockpitRow => {
+    const short = text(c.json.short_id, 20) ?? c.sha.slice(0, 8);
+    return {
+      id: `commit:${project}:${c.sha}`,
+      url: pageUrl(c.json.web_url, origin),
+      values: {
+        sha: short,
+        title: c.title,
+        author: text(c.json.author_name, 100),
+        project,
+        jira: JIRA_KEY.exec(c.title)?.[1] ?? null,
+        merge: Array.isArray(c.json.parent_ids) && c.json.parent_ids.length > 1,
+        created: time(c.json.created_at),
+      },
+    };
+  });
+  return { rows, partial };
+}
+
 /** Runs `fn` over `items` with at most `n` at a time */
 async function pool<T, R>(items: T[], n: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = new Array(items.length);

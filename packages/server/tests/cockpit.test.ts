@@ -79,6 +79,17 @@ const upstream = http.createServer((req, res) => {
     return json(200, p.endsWith('descendant_groups') ? [...direct, { id: 21, name: 'K8s', full_path: 'team/infra/k8s', web_url: `${base}/groups/team/infra/k8s` }] : direct);
   }
   if (p === '/groups') return q.get('min_access_level') === '10' ? json(200, [{ id: 10, name: 'Team', full_path: 'team' }]) : json(400, {});
+  if (p === '/projects/team%2Fapi/repository/commits') {
+    // Release 10.100 has a fix, a picked fix, a fix under the same title, a merge commit and one only it has
+    const sha = (n: number) => String(n).repeat(40).slice(0, 40);
+    const c = (n: number, title: string, extra: Record<string, unknown> = {}) => ({ id: sha(n), short_id: sha(n).slice(0, 8), title, message: `${title}\n`, author_name: 'Ben', created_at: '2026-11-25T10:00:00Z', parent_ids: [sha(9)], web_url: `${base}/team/api/-/commit/${sha(n)}`, ...extra });
+    const range = q.get('ref_name');
+    if (range === '10.101..10.100')
+      return json(200, [c(1, 'PAY-1 Fix rounding'), c(2, 'Fix login'), c(3, 'Same title fix'), c(4, "Merge branch 'x' into '10.100'", { parent_ids: [sha(1), sha(2)] }), c(5, 'Picked here', { message: `Picked here\n\n(cherry picked from commit ${sha(7)})\n` })]);
+    if (range === '10.100..10.101') return json(200, [c(6, 'Fix login (again)', { message: `Fix login\n\n(cherry picked from commit ${sha(2)})\n` }), c(8, 'Same title fix'), c(7, 'Original of the pick')]);
+    if (range === '10.101..10.101') return json(200, []);
+    return json(404, { message: '404 Commit Not Found' });
+  }
   const jm = /^\/projects\/(\d+)\/jobs$/.exec(p);
   if (jm) return jobs[jm[1]] ? json(200, jobs[jm[1]]) : json(403, { message: '403 Forbidden' });
   return json(404, { message: '404 Not Found' });
@@ -258,6 +269,26 @@ describe('cockpit queries', () => {
     expect('rows' in mine.data && mine.data.rows.map((r) => r.values.path)).toEqual(['team/api', 'team/web', 'team/no-ci']);
     expect('rows' in mine.data && mine.data.rows[0].values.namespace).toBe('team');
     expect((await call<CockpitResult>('POST', '/query', { widget: widget({ source: { kind: 'gitlab.projects', params: { group: '../x' } } }) })).data).toMatchObject({ problem: 'invalid' });
+  });
+
+  it('finds the commits a release branch lacks, counting cherry-picks as contained', async () => {
+    const compare = (params: Record<string, unknown>) => call<CockpitResult>('POST', '/query', { widget: widget({ source: { kind: 'gitlab.compare', params: { project: 'team/api', from: '10.100', to: '10.101', ...params } } as CockpitWidget['source'] }) });
+    const { data } = await compare({});
+    expect('rows' in data).toBe(true);
+    if (!('rows' in data)) return;
+    expect(data.rows).toEqual([
+      { id: `commit:team/api:${'1'.repeat(40)}`, url: `${base}/team/api/-/commit/${'1'.repeat(40)}`, values: { sha: '11111111', title: 'PAY-1 Fix rounding', author: 'Ben', project: 'team/api', jira: 'PAY-1', merge: false, created: Date.parse('2026-11-25T10:00:00Z') } },
+    ]);
+    // The range's dots reach GitLab encoded
+    expect(seen.some((s) => s.includes('ref_name=10%2E101%2E%2E10%2E100'))).toBe(true);
+    const strict = await compare({ cherryPicks: 'strict', merges: true });
+    expect('rows' in strict.data && strict.data.rows.map((r) => r.values.title)).toEqual(['PAY-1 Fix rounding', 'Fix login', 'Same title fix', "Merge branch 'x' into '10.100'", 'Picked here']);
+    const same = await compare({ from: '10.101' });
+    expect('rows' in same.data && same.data.total).toBe(0);
+    expect((await compare({ to: '' })).data).toMatchObject({ problem: 'invalid' });
+    expect((await compare({ to: '10..101' })).data).toMatchObject({ problem: 'invalid' });
+    expect((await compare({ to: '-x' })).data).toMatchObject({ problem: 'invalid' });
+    expect((await compare({ to: 'nope' })).data).toMatchObject({ problem: 'not_found' });
   });
 
   it('lists the subgroups of a group or the own groups', async () => {

@@ -12,6 +12,9 @@ import {
   COCKPIT_FILTER_OPS,
   COCKPIT_SOURCE_KINDS,
   COCKPIT_SOURCES,
+  COCKPIT_STATE_ICONS,
+  COCKPIT_STATE_OPS,
+  COCKPIT_STATE_TONES,
   COCKPIT_TONES,
   COCKPIT_VIEWS,
   normalizeWidget,
@@ -22,6 +25,10 @@ import {
   type CockpitParamDef,
   type CockpitParamValue,
   type CockpitSourceKind,
+  type CockpitState,
+  type CockpitStateIcon,
+  type CockpitStateOp,
+  type CockpitStateTone,
   type CockpitTone,
   type CockpitWidget,
 } from '@kladde/shared';
@@ -49,7 +56,30 @@ const OP_KEYS: Record<CockpitFilterOp, I18nKey> = {
 };
 const VIEW_KEYS: Record<CockpitWidget['view'], I18nKey> = { list: 'cockpit.view.list', table: 'cockpit.view.table', count: 'cockpit.view.count', board: 'cockpit.view.board' };
 const TONE_KEYS: Record<CockpitTone, I18nKey> = { amber: 'cockpit.tone.amber', red: 'cockpit.tone.red', green: 'cockpit.tone.green', accent: 'cockpit.tone.accent', violet: 'cockpit.tone.violet' };
+const STATE_TONE_KEYS: Record<CockpitStateTone, I18nKey> = { ...TONE_KEYS, neutral: 'cockpit.tone.neutral' };
+const STATE_ICON_KEYS: Record<CockpitStateIcon, I18nKey> = { check: 'cockpit.icon.check', warning: 'cockpit.icon.warning', error: 'cockpit.icon.error', clock: 'cockpit.icon.clock', info: 'cockpit.icon.info', none: 'cockpit.icon.none' };
+const STATE_SIGNS: Record<CockpitStateOp, string> = { eq: '=', ne: '≠', gt: '>', ge: '≥', lt: '<', le: '≤' };
+/** "0 is green, more is red": the usual pair for a count that should stay at zero */
+const TRAFFIC_LIGHT = (lang: Lang): CockpitState[] => [
+  { op: 'eq', value: 0, label: tl(lang, 'cockpit.state.okLabel'), icon: 'check', tone: 'green' },
+  { op: 'gt', value: 0, label: tl(lang, 'cockpit.state.badLabel'), icon: 'warning', tone: 'red' },
+];
 const noValue = (op: CockpitFilterOp) => op === 'empty' || op === 'not_empty';
+
+function StateRow({ state, onChange, onRemove, lang }: { state: CockpitState; onChange: (s: CockpitState) => void; onRemove: () => void; lang: Lang }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" data-cockpit-state-rule>
+      <Dropdown aria-label={tl(lang, 'cockpit.state.when')} className="w-20" value={state.op} options={COCKPIT_STATE_OPS.map((op) => ({ value: op, label: STATE_SIGNS[op] }))} onChange={(op) => onChange({ ...state, op: op as CockpitStateOp })} />
+      <input className="input w-20" type="number" aria-label={tl(lang, 'cockpit.value')} value={state.value} onChange={(e) => onChange({ ...state, value: Number(e.target.value) || 0 })} />
+      <input className="input min-w-0 flex-1 basis-32" aria-label={tl(lang, 'cockpit.state.label')} placeholder={tl(lang, 'cockpit.state.labelHint')} maxLength={80} value={state.label} onChange={(e) => onChange({ ...state, label: e.target.value })} />
+      <Dropdown aria-label={tl(lang, 'cockpit.state.icon')} className="w-32" value={state.icon} options={COCKPIT_STATE_ICONS.map((i) => ({ value: i, label: tl(lang, STATE_ICON_KEYS[i]) }))} onChange={(icon) => onChange({ ...state, icon: icon as CockpitStateIcon })} />
+      <Dropdown aria-label={tl(lang, 'cockpit.tone')} className="w-28" value={state.tone} options={COCKPIT_STATE_TONES.map((t) => ({ value: t, label: tl(lang, STATE_TONE_KEYS[t]) }))} onChange={(tone) => onChange({ ...state, tone: tone as CockpitStateTone })} />
+      <button type="button" className="btn-icon h-8 w-8" onClick={onRemove} title={tl(lang, 'common.delete')} aria-label={tl(lang, 'common.delete')}>
+        <Trash2 size={15} />
+      </button>
+    </div>
+  );
+}
 
 function ParamField({ def, value, onChange, lang }: { def: CockpitParamDef; value: CockpitParamValue | undefined; onChange: (v: CockpitParamValue | undefined) => void; lang: Lang }) {
   const id = useId();
@@ -125,11 +155,13 @@ export interface WidgetEditorProps {
   /** null: a new widget */
   widget: CockpitWidget | null;
   vars: Record<string, string>;
+  /** Columns of the dashboard's grid (the widget's width picks from them); none in a note */
+  columns?: number;
   onSave: (w: CockpitWidget) => void;
   onClose: () => void;
 }
 
-export function WidgetEditor({ widget, vars, onSave, onClose }: WidgetEditorProps) {
+export function WidgetEditor({ widget, vars, columns, onSave, onClose }: WidgetEditorProps) {
   const lang = useLang();
   const panel = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -168,7 +200,7 @@ export function WidgetEditor({ widget, vars, onSave, onClose }: WidgetEditorProp
   const changeKind = (kind: CockpitSourceKind) => {
     const fresh = blankWidget(kind, lang);
     const oldDefault = COCKPIT_SOURCES[w.source.kind].label[lang];
-    update({ ...fresh, id: w.id, title: w.title && w.title !== oldDefault ? w.title : fresh.title, notify: w.notify, width: w.width, limit: w.limit });
+    update({ ...fresh, id: w.id, title: w.title && w.title !== oldDefault ? w.title : fresh.title, notify: w.notify, width: w.width, limit: w.limit, view: w.view === 'count' ? 'count' : fresh.view, states: w.states });
   };
   const fieldOptions = useMemo(() => def.fields.map((f) => ({ value: f.key, label: f.label[lang] })), [def, lang]);
 
@@ -302,11 +334,37 @@ export function WidgetEditor({ widget, vars, onSave, onClose }: WidgetEditorProp
                   <input className="input" type="number" min={1} max={100} value={w.limit} onChange={(e) => patch({ limit: Math.max(1, Math.min(100, Number(e.target.value) || 1)) })} />
                 </label>
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-body-m text-body">{tl(lang, 'cockpit.wide')}</span>
-                <Switch label={tl(lang, 'cockpit.wide')} checked={w.width === 2} onChange={(on) => patch({ width: on ? 2 : 1 })} />
-              </div>
+              {columns !== undefined && columns > 1 && (
+                <label className="block">
+                  <span className="mb-1 block text-label-m text-muted">{tl(lang, 'cockpit.width')}</span>
+                  <Dropdown
+                    aria-label={tl(lang, 'cockpit.width')}
+                    value={String(Math.min(w.width, columns))}
+                    options={Array.from({ length: columns }, (_, i) => ({ value: String(i + 1), label: i + 1 === columns ? tl(lang, 'cockpit.wide') : tl(lang, 'cockpit.columnsN', { n: i + 1 }) }))}
+                    onChange={(v) => patch({ width: Number(v) })}
+                  />
+                </label>
+              )}
             </Section>
+
+            {w.view === 'count' && (
+              <Section title={tl(lang, 'cockpit.states')}>
+                <p className="text-caption text-faint">{tl(lang, 'cockpit.statesHint')}</p>
+                {w.states.map((st, i) => (
+                  <StateRow key={i} state={st} lang={lang} onChange={(next) => patch({ states: w.states.map((x, j) => (j === i ? next : x)) })} onRemove={() => patch({ states: w.states.filter((_, j) => j !== i) })} />
+                ))}
+                <div className="flex flex-wrap gap-1">
+                  <button type="button" className="btn-text" onClick={() => patch({ states: [...w.states, { op: 'eq', value: 0, label: '', icon: 'check', tone: 'green' }] })} data-cockpit-add-state>
+                    <Plus size={16} /> {tl(lang, 'cockpit.addState')}
+                  </button>
+                  {w.states.length === 0 && (
+                    <button type="button" className="btn-text" onClick={() => patch({ states: TRAFFIC_LIGHT(lang) })} data-cockpit-traffic-light>
+                      {tl(lang, 'cockpit.trafficLight')}
+                    </button>
+                  )}
+                </div>
+              </Section>
+            )}
 
             <Section title={tl(lang, 'cockpit.highlight')}>
               {w.highlight.map((h, i) => (
