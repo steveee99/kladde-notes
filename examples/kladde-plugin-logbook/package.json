@@ -26,7 +26,7 @@
     "build": "tsc"
   },
   "peerDependencies": {
-    "@kladde/plugin-api": "^1.1.0",
+    "@kladde/plugin-api": "^1.2.0",
     "react": "^18.3.0"
   },
   "devDependencies": {

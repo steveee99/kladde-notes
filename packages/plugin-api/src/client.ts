@@ -1,4 +1,4 @@
-import { createContext, useContext, type ComponentType, type ReactNode } from 'react';
+import { createContext, useContext, type ComponentType, type ReactElement, type ReactNode } from 'react';
 import { localize, type Localized, type PluginLang } from './index.js';
 
 export { localize, type Localized, type PluginLang } from './index.js';
@@ -143,12 +143,62 @@ export class PluginRequestError extends Error {
   }
 }
 
+/** A cell value of `ui.Table`; other values are shown as text */
+export type PluginTableValue = string | number | null | undefined;
+
+/** A column of `ui.Table` */
+export interface PluginTableColumn<Row> {
+  /** Property of the row the column shows */
+  key: string;
+  label: Localized;
+  align?: 'left' | 'center' | 'right';
+  /**
+   * `text` (default): inline Markdown like in note tables (bold, code, links, [[note links]]), escaped by the host.
+   * `number`: formatted for the interface's language, sorted by value. `date`: milliseconds or an ISO date, shown as
+   * a date and sorted by time; its cell editor holds `YYYY-MM-DD`.
+   */
+  type?: 'text' | 'number' | 'date';
+  /** Cells of this column can be edited while the table is editable (default true) */
+  editable?: boolean;
+  /** Own display text of a cell (inline Markdown, escaped); filtering uses it too */
+  format?(value: unknown, row: Row): string;
+}
+
+/**
+ * The table of notes (sorting by a header click, filter field, row count), for plugin pages, settings and blocks.
+ * It is read-only unless `editable` is set together with `onCellChange`: then a click into a cell edits it (Enter,
+ * Tab and Escape as in note tables), `onAddRow` adds the "+ row" button and `onRemoveRow` a delete button per row.
+ * The columns stay as the plugin defines them. The plugin saves the change and passes the new `rows`; until then
+ * the cell shows the typed text. A rejected promise shows its message and the old value again. Since plugin API 1.2.
+ */
+export interface PluginTableProps<Row> {
+  columns: PluginTableColumn<Row>[];
+  rows: Row[];
+  /** Property with a unique id per row, or a function returning it */
+  rowKey: string | ((row: Row) => string);
+  caption?: Localized;
+  /** The filter field (default true) */
+  filter?: boolean;
+  /** A summary row below the body, one text per column; it is not sorted or filtered */
+  footer?: string[];
+  /** Shown while there are no rows */
+  empty?: Localized;
+  editable?: boolean;
+  /** `value` is the text the user typed (also for number and date columns) */
+  onCellChange?(rowId: string, key: string, value: string, row: Row): void | Promise<void>;
+  /** Adds a row; the host opens the first editable cell of the row that appears at the end */
+  onAddRow?(): void | Promise<void>;
+  onRemoveRow?(rowId: string, row: Row): void | Promise<void>;
+}
+
 /** Components of the Werkbank design for plugin pages (classes like `.btn-primary`, `.card`, `.input` work too) */
 export interface PluginUi {
   PageHeader: ComponentType<{ title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; children?: ReactNode; display?: boolean }>;
   PageBody: ComponentType<{ children: ReactNode; className?: string }>;
   Panel: ComponentType<{ label: ReactNode; aside?: ReactNode; children: ReactNode; className?: string }>;
   Switch: ComponentType<{ id?: string; checked: boolean; disabled?: boolean; label: string; onChange: (next: boolean) => void }>;
+  /** The table of notes (since plugin API 1.2) */
+  Table<Row extends object>(props: PluginTableProps<Row>): ReactElement | null;
 }
 
 /** What the host gives the plugin's components (`useKladde()`) */

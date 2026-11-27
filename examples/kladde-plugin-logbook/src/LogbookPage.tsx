@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { PluginRequestError, useKladde, type PluginPageProps } from '@kladde/plugin-api/client';
+import { entryColumns, MOOD_LABEL, saveCell } from './entries.js';
 import type { Entry } from './server.js';
 
-const MOOD_LABEL = { good: { de: 'Gut', en: 'Good' }, okay: { de: 'Geht so', en: 'Okay' }, bad: { de: 'Schlecht', en: 'Bad' } } as const;
-
-/** The logbook: write an entry, see the latest ones, turn one into a note */
+/** The logbook: write an entry, see the latest ones in a table (editable on request), turn one into a note */
 export function LogbookPage({ path }: PluginPageProps) {
   const host = useKladde();
-  const { PageHeader, PageBody, Panel } = host.ui;
+  const { PageHeader, PageBody, Panel, Switch, Table } = host.ui;
+  const [editing, setEditing] = useState(false);
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [text, setText] = useState('');
   const [mood, setMood] = useState<Entry['mood']>(null);
@@ -22,13 +22,14 @@ export function LogbookPage({ path }: PluginPageProps) {
     if (path === '/new') input.current?.focus();
   }, [host, path]);
 
-  const add = async () => {
+  const add = async (asNote = false) => {
     setError('');
     try {
       const entry = await host.api<Entry>('/entries', { method: 'POST', json: { text, mood } });
       setEntries((list) => [entry, ...(list ?? [])]);
       setText('');
       setMood(null);
+      if (asNote) await toNote(entry.id);
     } catch (err) {
       setError(err instanceof PluginRequestError ? err.message : String(err));
     }
@@ -38,6 +39,12 @@ export function LogbookPage({ path }: PluginPageProps) {
     const { noteId } = await host.api<{ noteId: string }>(`/entries/${id}/note`, { method: 'POST', json: {} });
     host.toast(host.t({ de: 'Als Notiz gespeichert', en: 'Saved as a note' }));
     host.openNote(noteId);
+  };
+
+  // Errors thrown here reach the table, which shows the message and the old value again
+  const change = async (id: string, key: string, value: string) => {
+    const entry = await saveCell(host, id, key, value);
+    setEntries((list) => (list ?? []).map((e) => (e.id === id ? entry : e)));
   };
 
   const remove = async (id: string) => {
@@ -67,37 +74,39 @@ export function LogbookPage({ path }: PluginPageProps) {
                 {error}
               </p>
             )}
-            <button type="button" className="btn-primary self-end" disabled={!text.trim()} onClick={() => void add()}>
-              {host.t({ de: 'Speichern', en: 'Save' })}
-            </button>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" className="btn-outlined" disabled={!text.trim()} onClick={() => void add(true)}>
+                {host.t({ de: 'Als Notiz speichern', en: 'Save as a note' })}
+              </button>
+              <button type="button" className="btn-primary" disabled={!text.trim()} onClick={() => void add()}>
+                {host.t({ de: 'Speichern', en: 'Save' })}
+              </button>
+            </div>
           </div>
         </Panel>
 
-        <Panel className="mt-6" label={host.t({ de: 'Einträge', en: 'Entries' })}>
+        <Panel
+          className="mt-6"
+          label={host.t({ de: 'Einträge', en: 'Entries' })}
+          aside={
+            <label htmlFor="logbook-edit" className="flex items-center gap-2 text-caption text-muted">
+              {host.t({ de: 'Bearbeiten', en: 'Edit' })}
+              <Switch id="logbook-edit" checked={editing} label={host.t({ de: 'Bearbeiten', en: 'Edit' })} onChange={setEditing} />
+            </label>
+          }
+        >
           {entries === null ? (
             <p className="p-4 text-body-m text-muted">…</p>
-          ) : entries.length === 0 ? (
-            <p className="p-4 text-body-m text-muted">{host.t({ de: 'Noch keine Einträge.', en: 'No entries yet.' })}</p>
           ) : (
-            <ul className="divide-y divide-line">
-              {entries.map((e) => (
-                <li key={e.id} className="flex flex-wrap items-start gap-3 p-4" data-entry={e.id}>
-                  <div className="min-w-0 flex-1">
-                    <p className="whitespace-pre-wrap text-body-m text-body">{e.text}</p>
-                    <p className="mt-1 font-mono text-caption text-muted">
-                      {new Date(e.at).toLocaleString(host.lang)}
-                      {e.mood ? ` · ${host.t(MOOD_LABEL[e.mood])}` : ''}
-                    </p>
-                  </div>
-                  <button type="button" className="btn-text" onClick={() => void toNote(e.id)}>
-                    {host.t({ de: 'Als Notiz', en: 'As a note' })}
-                  </button>
-                  <button type="button" className="btn-text text-red" onClick={() => void remove(e.id)}>
-                    {host.t({ de: 'Löschen', en: 'Delete' })}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <Table
+              columns={entryColumns(host)}
+              rows={entries}
+              rowKey="id"
+              empty={{ de: 'Noch keine Einträge.', en: 'No entries yet.' }}
+              editable={editing}
+              onCellChange={change}
+              onRemoveRow={(id) => remove(id)}
+            />
           )}
         </Panel>
 

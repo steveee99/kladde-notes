@@ -158,6 +158,18 @@ describe('the example plugin in a running Kladde', () => {
     expect((await call('DELETE', `/api/p/logbook/entries/${e.id}`, undefined, benCookie)).status).toBe(404);
   });
 
+  it('edits single fields of an entry from the table, checked like a new one', async () => {
+    const created = (await (await call('POST', '/api/p/logbook/entries', { text: 'Zum Ändern', mood: 'okay' })).json()) as { id: string; at: number };
+    const changed = await call('PATCH', `/api/p/logbook/entries/${created.id}`, { mood: 'Bad' });
+    expect(await changed.json()).toEqual({ id: created.id, at: created.at, text: 'Zum Ändern', mood: 'bad' });
+    expect(await (await call('PATCH', `/api/p/logbook/entries/${created.id}`, { mood: '' })).json()).toMatchObject({ mood: null });
+    expect((await call('PATCH', `/api/p/logbook/entries/${created.id}`, { mood: 'wütend' })).status).toBe(400);
+    expect((await call('PATCH', `/api/p/logbook/entries/${created.id}`, { text: ' ' })).status).toBe(400);
+    expect((await call('PATCH', `/api/p/logbook/entries/${created.id}`, { text: 'Fremd' }, benCookie)).status).toBe(404);
+    expect(await (await call('PATCH', `/api/p/logbook/entries/${created.id}`, { text: 'Geändert' })).json()).toMatchObject({ text: 'Geändert', mood: null });
+    expect((await call('DELETE', `/api/p/logbook/entries/${created.id}`)).status).toBe(204);
+  });
+
   it('maps PluginError to its status and unknown routes to 404', async () => {
     const bad = await call('POST', '/api/p/logbook/entries', { text: '   ' });
     expect(bad.status).toBe(400);

@@ -65,7 +65,7 @@ kladde-plugin-time/
   "files": ["dist"],
   "scripts": { "build": "tsc", "prepack": "tsc" },
   "peerDependencies": {
-    "@kladde/plugin-api": "^1.1.0",
+    "@kladde/plugin-api": "^1.2.0",
     "react": "^18.3.0"
   },
   "dependencies": {
@@ -211,6 +211,7 @@ export function Overview() {
 ```
 
 - **Design:** Kladde's classes work as they are (`.btn-primary`, `.btn-tonal`, `.btn-text`, `.input`, `.card`, `.chip`, `.segmented`, colors like `bg-panel`, `text-muted`, `border-line`, `text-acc`, type like `text-body-m`, `text-caption`). Rules: [`docs/DESIGN.md`](DESIGN.md) (at most one filled accent button per page, lines instead of shadows, dialogs with `role="dialog"`). Tailwind generates the classes your built files use.
+- **Tables:** `host.ui.Table` is the table of notes, read-only or editable ([details](#tables)).
 - **Icons:** a component that draws an SVG in `currentColor`; Material Symbols Rounded, weight 300, fit best.
 - **Notes on the device:** `host.notes` works offline like the app: changes are saved locally and synced. In online mode some notes come without text (`partial`); `host.notes.load(id)` fetches it.
 - **Data of your own tables** comes from the server through `host.api` and is therefore online only. What has to work offline belongs in notes.
@@ -302,6 +303,42 @@ ctx.notify(userId, {
 ```
 
 The notification appears in the bell and on `/notifications` with the plugin's icon and name and, where the user turned on push, on their devices (quiet hours and "show texts" apply). It is stored encrypted like Kladde's own. `notify` returns `false` and sends nothing when the user has the plugin off, does not exist, is blocked, or cannot open the given note; a click only ever leads into the plugin's pages or to a note.
+
+## Tables
+
+Since plugin API **1.2** (`"@kladde/plugin-api": "^1.2.0"`). `host.ui.Table` is the table of notes: the same look, sorting by a click on a header (numbers and dates by value), the filter field and the row count. It works on pages, in settings and in blocks. Whether it can be edited is up to the plugin:
+
+```tsx
+const { Table } = host.ui;
+
+<Table
+  columns={[
+    { key: 'at', label: { de: 'Datum', en: 'Date' }, type: 'date', editable: false },
+    { key: 'hours', label: { de: 'Stunden', en: 'Hours' }, type: 'number' },
+    { key: 'text', label: { de: 'Tätigkeit', en: 'Activity' } },          // inline Markdown, [[links]] open notes
+    { key: 'state', label: 'Status', format: (v) => (v === 'done' ? '✅ done' : String(v ?? '')) },
+  ]}
+  rows={bookings}                       // [{ id, at, hours, text, state }]
+  rowKey="id"
+  caption={{ de: 'Diese Woche', en: 'This week' }}
+  footer={['', `${total}`, '', '']}     // optional, not sorted or filtered
+  empty={{ de: 'Noch nichts gebucht.', en: 'Nothing booked yet.' }}
+  filter                                 // default true
+  editable={canEdit}                     // read-only without it (or without onCellChange)
+  onCellChange={async (id, key, value) => setBookings(await save(id, key, value))}
+  onAddRow={async () => setBookings(await addEmpty())}      // optional: "+ row"
+  onRemoveRow={async (id) => setBookings(await remove(id))} // optional: delete button per row
+/>
+```
+
+- **Read-only or editable:** without `editable` (or without `onCellChange`) nobody edits. With it a click into a cell opens its editor; Enter, Tab and Escape work as in note tables, and Tab skips columns with `editable: false`. The columns stay as the plugin defines them; users cannot rename, add or remove them. In a block, `editable={!!setSource}` follows whether the note can be edited.
+- **Saving is the plugin's job:** `onCellChange` gets the row's id, the column's key and the typed text (also for number and date columns; a date's editor holds `YYYY-MM-DD`). Pass the new `rows` afterwards. A promise that rejects shows its message and the old value again; a callback that changes nothing also brings the old value back.
+- **Rebuilding:** the table is redrawn only when what it shows changes, so new arrays on every render are fine. Sorting, the filter and a cell someone is typing in survive it (the row is found again by its id).
+- **Cells** are inline Markdown (bold, italics, code, links, `[[note links]]`), escaped by Kladde: no HTML from plugin data reaches the page.
+
+To keep a table in a note or in the text of a block, `@kladde/plugin-api` has `parseMarkdownTable(text)` (the first GFM table: `headers`, `align`, `rows`) and `formatMarkdownTable({ headers, align?, rows })` (padded columns, pipes escaped), which read and write tables the way Kladde does. Without the plugin such a block still shows a readable table as code.
+
+The example plugin shows both modes: its page shows the entries in a table with an "Edit" switch, and a ```` ```logbook ```` block with `edit: yes` edits entries right in the note.
 
 ## Own tables and migrations
 

@@ -24,6 +24,6 @@ export default defineClientPlugin({
   nav: [{ label: { de: 'Logbuch', en: 'Logbook' }, bottomBar: true }],
   commands: [{ id: 'new', label: { de: 'Neuer Logbuch-Eintrag', en: 'New logbook entry' }, keywords: 'journal tagebuch', path: '/new' }],
   // ```logbook in a note shows the latest entries; /logbook in the editor inserts one
-  blocks: [{ lang: 'logbook', label: { de: 'Logbuch-Einträge', en: 'Logbook entries' }, keywords: 'journal tagebuch', template: 'limit: 5', height: 140, component: LogbookBlock }],
+  blocks: [{ lang: 'logbook', label: { de: 'Logbuch-Einträge', en: 'Logbook entries' }, keywords: 'journal tagebuch', template: 'limit: 5', height: 220, component: LogbookBlock }],
   settings: LogbookSettings,
 });
