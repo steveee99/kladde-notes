@@ -263,7 +263,12 @@ export interface AuthProviders {
   };
   /** New accounts without an invite (SIGNUP_WITHOUT_INVITE) per sign-in method; otherwise an invite is needed */
   signup: { passkey: boolean; password: boolean };
+  /** Sign-in methods this server offers (LOGIN_METHODS); missing from older servers: all of them */
+  methods?: { passkey: boolean; password: boolean; gitlab: boolean };
 }
+
+/** A way to sign in */
+export type LoginMethod = 'passkey' | 'password' | 'gitlab';
 
 export interface Me {
   id: string;
@@ -276,6 +281,8 @@ export interface Me {
   isAdmin: boolean;
   /** Sign-ins through other services linked to the account (e.g. GitLab) */
   externalLogins?: { provider: string; username: string; createdAt: number }[];
+  /** Only set when the server restricts sign-in (LOGIN_METHODS): the methods it offers */
+  loginMethods?: LoginMethod[];
   /** URL of the user's profile picture, if uploaded */
   avatarUrl?: string | null;
   /** Optional name shown instead of the username (set in the account settings, or taken from GitLab) */
@@ -812,8 +819,11 @@ export interface ActivityNews {
 
 // ---------------------------------------------------------------- notifications (#69, #68)
 
-/** `cockpit`: new rows in a notifying cockpit widget (`noteId` is the dashboard, `path` the widget's title) */
-export type NotificationKind = 'mention' | 'comment' | 'reply' | 'group_added' | 'cockpit';
+/**
+ * `cockpit`: new rows in a notifying cockpit widget (`noteId` is the dashboard, `path` the widget's title);
+ * `plugin`: sent by a build-time plugin (`plugin`, `title`, `href`; `noteId` empty unless it points to a note)
+ */
+export type NotificationKind = 'mention' | 'comment' | 'reply' | 'group_added' | 'cockpit' | 'plugin';
 
 /**
  * Something that happened for the user: a mention in a note, a comment on their note, a reply in a thread, or
@@ -838,6 +848,10 @@ export interface NotificationItem {
   threadId?: string;
   /** The group of `group_added` */
   groupId?: string;
+  /** `plugin`: the plugin's id, its headline (German, optionally English) and the app path a click opens */
+  plugin?: string;
+  title?: string | { de: string; en?: string };
+  href?: string;
 }
 
 export interface NotificationList {

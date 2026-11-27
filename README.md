@@ -160,6 +160,8 @@ Without access to the server you can import a local folder (e.g. an Obsidian vau
 | `PUBLIC_URL` | Public address; sets the passkey domain and builds invitation links |
 | `TRUST_PROXY` | `1` behind a reverse proxy |
 | `DATA_KEY` | Encryption key (`openssl rand -base64 32`). Empty = key file `data/secret.key` in the volume |
+| `APP_TITLE` | Name the app shows instead of "Kladde" (browser tab, installed app, sign-in page, top bar, passkey prompts), at most 40 characters |
+| `LOGIN_METHODS` | Sign-in methods the server offers: comma-separated `passkey`, `password`, `gitlab` (default all). `gitlab` alone = only "Sign in with GitLab", no username/password and no passkeys ([details](docs/GITLAB.md#sign-in-only-with-gitlab)) |
 | `SIGNUP_WITHOUT_INVITE` | Sign-in methods that create new accounts **without an invitation**: comma-separated `gitlab`, `passkey`, `password` or `all`. Empty = every new account needs an invitation. For passkey/password the sign-in page then shows "Create new account" |
 | `GITLAB_URL` | GitLab instance for "Sign in with GitLab" (default `https://gitlab.com`) |
 | `GITLAB_INTERNAL_URL` | Optional: address the container uses to reach GitLab if it differs from `GITLAB_URL` (e.g. `http://192.168.1.20`) |
@@ -202,7 +204,7 @@ Without access to the server you can import a local folder (e.g. an Obsidian vau
 
 3. `docker compose up -d`. The sign-in page now shows "Sign in with GitLab".
 
-Existing accounts link GitLab under *Settings → Sign in with GitLab*; after that the GitLab button is enough. New people register through their invitation link with "Register with GitLab" (username = GitLab name), or without an invitation if `SIGNUP_WITHOUT_INVITE` contains `gitlab`. Blocked accounts stay blocked; a link can only be removed while a passkey or password remains.
+Existing accounts link GitLab under *Settings → Sign in with GitLab*; after that the GitLab button is enough. New people register through their invitation link with "Register with GitLab" (username = GitLab name), or without an invitation if `SIGNUP_WITHOUT_INVITE` contains `gitlab`. Blocked accounts stay blocked; a link can only be removed while a passkey or password remains. With `LOGIN_METHODS=gitlab` the sign-in page offers only GitLab.
 
 **AI assistants (MCP):** an MCP server (Streamable HTTP) runs at `PUBLIC_URL/mcp`. Clients such as claude.ai, Claude Desktop or Claude Code sign in via OAuth 2.1 (dynamic registration, PKCE, consent with the normal Kladde login) or with an access token from Settings → Features → AI assistants → Settings (`Authorization: Bearer kld_…`). Every connection only sees the notes of its own account. The reverse proxy must forward `/mcp`, `/oauth/…` and `/.well-known/oauth-…` to the app (the default if everything goes to Kladde); `PUBLIC_URL` should be set so that the OAuth addresses are correct.
 

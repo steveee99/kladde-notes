@@ -49,6 +49,36 @@ export interface PluginCommand {
   run?(host: KladdeHost): void;
 }
 
+export interface PluginBlockProps {
+  /** The text between the fences */
+  source: string;
+  /** The block's info string (`lang` of its `PluginBlock`) */
+  lang: string;
+  /** The note the block is in */
+  noteId: string;
+  /** Replaces the text between the fences; missing while the note is read-only */
+  setSource?(next: string): void;
+}
+
+/**
+ * A fenced block a plugin renders in the editor: ```` ```<lang> ```` … ```` ``` ```` shows the component instead of
+ * the code while the cursor is outside it (inside, the text is edited as usual). Notes keep plain Markdown: exports,
+ * public links and devices without the plugin show the block as code. Since plugin API 1.1.
+ */
+export interface PluginBlock {
+  /** Info string: the plugin id itself or `<id>-<name>` (`logbook`, `logbook-chart`), so plugins never collide */
+  lang: string;
+  /** Its entry in the slash menu (`/`) */
+  label: Localized;
+  /** Extra words the slash menu matches */
+  keywords?: string;
+  /** Text between the fences of a block inserted from the slash menu */
+  template?: string;
+  component: ComponentType<PluginBlockProps>;
+  /** Expected height in pixels (scrolling stays steady while it loads); default 160 */
+  height?: number;
+}
+
 export interface ClientPlugin {
   /** The same id as `kladde.id` in package.json */
   id: string;
@@ -63,6 +93,8 @@ export interface ClientPlugin {
   pages: PluginPage[];
   nav?: PluginNavItem[];
   commands?: PluginCommand[];
+  /** Fenced blocks it renders in the editor (since plugin API 1.1) */
+  blocks?: PluginBlock[];
   /** Contents of the settings tab of its card while it is on */
   settings?: ComponentType;
 }

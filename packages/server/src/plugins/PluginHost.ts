@@ -2,13 +2,14 @@ import crypto from 'crypto';
 import express from 'express';
 import type { DatabaseSync } from 'node:sqlite';
 import { APP_VERSION, FEATURES_SETTING, normalizeFeatures, parseFrontmatter, SYSTEM_PREFIX, type SyncedNote } from '@kladde/shared';
-import { PLUGIN_API_VERSION, PLUGIN_ID_PATTERN, PluginError, pluginTablePrefix, satisfies } from '@kladde/plugin-api';
-import type { PluginNote, PluginNoteFilter, PluginNotes, PluginServerContext, PluginUser } from '@kladde/plugin-api/server';
+import { localize, PLUGIN_API_VERSION, PLUGIN_ID_PATTERN, PluginError, pluginTablePrefix, satisfies } from '@kladde/plugin-api';
+import type { PluginMcpTool, PluginNote, PluginNoteFilter, PluginNotes, PluginNotification, PluginServerContext, PluginUser } from '@kladde/plugin-api/server';
 import type { DataCipher } from '../crypto.js';
 import { transaction } from '../db.js';
 import type { NoteChangeEvent, NoteStore } from '../NoteStore.js';
 import type { UserRecord, UserStore } from '../UserStore.js';
 import { requireUser } from '../http.js';
+import type { NotificationStore } from '../NotificationStore.js';
 import { migratePlugins, pendingPluginMigrations, pluginSchemaVersions } from './migrations.js';
 import type { InstalledServerPlugin } from './types.js';
 
@@ -22,7 +23,24 @@ export interface PluginHostOptions {
   standaloneUser?: UserRecord;
   /** Taken once before the first pending plugin migration of an existing database */
   backup?: () => void;
+  /** Where `ctx.notify` delivers (none in standalone mode) */
+  notifications?: NotificationStore;
 }
+
+/** A plugin's MCP tool as the MCP endpoint offers it: its full name and a call that may return a promise */
+export interface PluginToolDef {
+  name: string;
+  title: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  write: boolean;
+  run(args: Record<string, unknown>, call: { userId: string; agent: string; canWrite: boolean }): unknown;
+}
+
+const TOOL_NAME = /^[a-z][a-z0-9_]{0,39}$/;
+/** What a plugin may send: short headlines and texts, paths inside the plugin */
+const TITLE_MAX = 120;
+const TEXT_MAX = 500;
 
 /** One plugin as the admin area and `/api/plugins` show it */
 export interface PluginStatus {
@@ -68,6 +86,12 @@ export class PluginHost {
       if (installed.id !== id) throw new Error(`Plugin ${installed.name}: kladde.id "${installed.id}" in package.json differs from the plugin's id "${id}"`);
       if (seen.has(id)) throw new Error(`Two plugins use the id "${id}"`);
       seen.add(id);
+      const toolNames = new Set<string>();
+      for (const tool of installed.plugin.mcpTools ?? []) {
+        if (!TOOL_NAME.test(tool.name)) throw new Error(`Plugin ${installed.name}: invalid MCP tool name "${tool.name}" (a–z, 0–9 and _, starting with a letter)`);
+        if (toolNames.has(tool.name)) throw new Error(`Plugin ${installed.name}: two MCP tools are called "${tool.name}"`);
+        toolNames.add(tool.name);
+      }
       // The build checks this already; an image put together by hand still must not run a plugin against the wrong API
       if (!satisfies(PLUGIN_API_VERSION, installed.api)) {
         const why = `needs @kladde/plugin-api ${installed.api}, Kladde ${APP_VERSION} provides ${PLUGIN_API_VERSION}`;
@@ -205,6 +229,65 @@ export class PluginHost {
     await Promise.all(runs);
   }
 
+  /**
+   * MCP tools of the plugins the user switched on, named `<id>_<name>` (dashes as underscores). Errors other than
+   * `PluginError` are logged and reach the assistant only as "internal error".
+   */
+  mcpTools(userId: string): PluginToolDef[] {
+    const out: PluginToolDef[] = [];
+    for (const l of this.loaded) {
+      const tools = l.installed.plugin.mcpTools;
+      if (!tools?.length || !this.enabledFor(userId, l.installed.plugin.id)) continue;
+      const prefix = l.installed.plugin.id.replace(/-/g, '_');
+      for (const tool of tools) out.push(this.toolDef(l, prefix, tool));
+    }
+    return out;
+  }
+
+  private toolDef(l: Loaded, prefix: string, tool: PluginMcpTool): PluginToolDef {
+    return {
+      name: `${prefix}_${tool.name}`,
+      title: tool.title,
+      description: tool.description,
+      inputSchema: tool.inputSchema && typeof tool.inputSchema === 'object' ? tool.inputSchema : { type: 'object', properties: {} },
+      write: !!tool.write,
+      run: async (args, call) => {
+        const user = l.ctx.user(call.userId);
+        if (!user) throw new PluginError(401, 'Unknown account');
+        try {
+          return await tool.run(args, { user, agent: call.agent, canWrite: call.canWrite }, l.ctx);
+        } catch (err) {
+          if (err instanceof PluginError || (err as { name?: string })?.name === 'PluginError') throw err;
+          l.ctx.log.error(`MCP tool ${tool.name} failed`, err);
+          throw new Error('plugin tool failed', { cause: err });
+        }
+      },
+    };
+  }
+
+  /** `ctx.notify`: only for existing people who switched the plugin on; a note only when they may open it */
+  private notify(installed: InstalledServerPlugin, userId: string, n: PluginNotification): boolean {
+    const store = this.opts.notifications;
+    const id = installed.plugin.id;
+    const user = this.opts.users.getUser(userId);
+    if (!store || !user || user.bannedAt || !this.enabledFor(userId, id)) return false;
+    const title = typeof n.title === 'string' ? n.title.slice(0, TITLE_MAX) : n.title && typeof n.title.de === 'string' ? { de: n.title.de.slice(0, TITLE_MAX), ...(n.title.en ? { en: String(n.title.en).slice(0, TITLE_MAX) } : {}) } : '';
+    if (!localize(title, 'de').trim()) throw new Error(`Plugin ${id}: a notification needs a title`);
+    let noteId = '';
+    if (n.noteId) {
+      const note = this.opts.notes.fetchNotes(userId, [n.noteId])[0];
+      if (!note || note.deleted || note.path.startsWith(SYSTEM_PREFIX)) return false;
+      noteId = note.id;
+    }
+    // Only paths inside the plugin: a notification cannot lead somewhere else in the app (or off it)
+    const sub = typeof n.path === 'string' ? n.path.replace(/^\/+/, '') : '';
+    if (sub && (!/^[\w\-./~%?=&]*$/.test(sub) || sub.split(/[/?]/).some((part) => part === '..'))) throw new Error(`Plugin ${id}: invalid notification path "${n.path}"`);
+    const href = noteId && !sub ? `/n/${noteId}` : `/p/${id}${sub ? `/${sub}` : ''}`;
+    const tag = typeof n.tag === 'string' && n.tag ? `${id}-${n.tag}`.replace(/[^\w-]/g, '').slice(0, 40) : id;
+    store.add({ userId, kind: 'plugin', noteId, actorId: null, path: installed.name, text: (n.text ?? '').slice(0, TEXT_MAX), plugin: id, title, href, tag });
+    return true;
+  }
+
   /** The plugins' files for a user's account export */
   async exportFiles(userId: string): Promise<{ path: string; content: string | Uint8Array }[]> {
     const out: { path: string; content: string | Uint8Array }[] = [];
@@ -255,6 +338,7 @@ export class PluginHost {
         return userOf(req.user);
       },
       enabledFor: (userId) => this.enabledFor(userId, id),
+      notify: (userId, n) => this.notify(installed, userId, n),
       env: (name) => env[`${envPrefix}${name}`],
       log: {
         info: (message) => console.log(`${tag} ${message}`),

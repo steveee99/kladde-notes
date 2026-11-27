@@ -1866,8 +1866,9 @@ span.cm-checkbox {
     opacity: 0.7;
   }
 }
-/* Cockpit blocks have their own buttons in the header; the source edit button sits in the footer */
-.cm-cockpit-block .wz-edit {
+/* Cockpit and plugin blocks have their own buttons in the header; the source edit button sits in the footer */
+.cm-cockpit-block .wz-edit,
+.cm-plugin-block .wz-edit {
   top: auto;
   bottom: 2px;
 }

@@ -48,6 +48,12 @@ export interface EditorHost {
   cockpitEnabled(): boolean;
   /** Opens the cockpit's widget editor for a ```cockpit block (`src` null: a new one); `onSave` gets the whole block */
   editCockpit(src: string | null, doc: string, variables: VariableScope | null, onSave: (block: string) => void): void;
+  /** Build-time plugins: the expected height of the block an enabled plugin renders for ```<lang>, null when none does */
+  pluginBlock(lang: string): number | null;
+  /** Mounts that plugin's block into `el`; returns the unmount */
+  mountPluginBlock(el: HTMLElement, lang: string, props: { source: string; noteId: string; setSource?: (next: string) => void }): () => void;
+  /** Slash menu entries for the blocks of enabled plugins (`template`: the whole fenced block) */
+  pluginSlashBlocks(): { label: string; detail: string; keywords: string; template: string }[];
   toggleTask(noteId: string, line: number): void;
   /** Opens the note a task lives in, scrolled to the task's line */
   openTask(noteId: string, line: number): void;
@@ -95,6 +101,9 @@ export const editorHost: EditorHost = {
   mountCockpit: null,
   cockpitEnabled: () => false,
   editCockpit: () => {},
+  pluginBlock: () => null,
+  mountPluginBlock: () => () => {},
+  pluginSlashBlocks: () => [],
   toggleTask: () => {},
   openTask: () => {},
   setFrontmatter: () => {},

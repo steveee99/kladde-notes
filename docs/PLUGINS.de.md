@@ -2,17 +2,18 @@
 
 [English](PLUGINS.md)
 
-Plugins bringen eigene Apps in Kladde: eigene Menüpunkte, Seiten, Befehle, Einstellungen, eigene Datenbanktabellen und Hintergrundjobs. Anmeldung, Design, Notizformat und Sync liefert Kladde. Plugins werden **beim Build** in das Image eingebaut, nicht zur Laufzeit nachgeladen. Ein Build prüft, ob Kladde-Version und Plugin-Versionen zusammenpassen, und bricht sonst ab, bevor etwas ausgerollt wird.
+Plugins bringen eigene Apps in Kladde: eigene Menüpunkte, Seiten, Befehle, Einstellungen, Blöcke in Notizen, Werkzeuge für KI-Assistenten, Benachrichtigungen, eigene Datenbanktabellen und Hintergrundjobs. Anmeldung, Design, Notizformat und Sync liefert Kladde. Plugins werden **beim Build** in das Image eingebaut, nicht zur Laufzeit nachgeladen. Ein Build prüft, ob Kladde-Version und Plugin-Versionen zusammenpassen, und bricht sonst ab, bevor etwas ausgerollt wird.
 
 - [So funktioniert es](#so-funktioniert-es)
 - [Ein Plugin schreiben](#ein-plugin-schreiben)
+- [Blöcke, MCP-Werkzeuge und Benachrichtigungen](#blöcke-mcp-werkzeuge-und-benachrichtigungen)
 - [Eigene Tabellen und Migrationen](#eigene-tabellen-und-migrationen)
 - [Versionsmatrix: was der Build prüft](#versionsmatrix-was-der-build-prüft)
 - [Lokal entwickeln](#lokal-entwickeln)
 - [Ops-Repo: Image mit Plugins bauen](#ops-repo-image-mit-plugins-bauen)
 - [Ablauf bei Updates](#ablauf-bei-updates)
 - [Regeln für Kladde selbst](#regeln-für-kladde-selbst)
-- [Was v1 noch nicht kann](#was-v1-noch-nicht-kann)
+- [Was die Plugin-API noch nicht kann](#was-die-plugin-api-noch-nicht-kann)
 
 ## So funktioniert es
 
@@ -64,7 +65,7 @@ kladde-plugin-zeiterfassung/
   "files": ["dist"],
   "scripts": { "build": "tsc", "prepack": "tsc" },
   "peerDependencies": {
-    "@kladde/plugin-api": "^1.0.0",
+    "@kladde/plugin-api": "^1.1.0",
     "react": "^18.3.0"
   },
   "dependencies": {
@@ -144,6 +145,7 @@ export default defineServerPlugin({
 | `onNoteChange(event, ctx)` | nach jeder angenommenen Notizänderung (nicht für Systemnotizen). Läuft synchron im Sync-Pfad, also kurz halten. |
 | `jobs` | im Hintergrund alle `everyMinutes` Minuten, nie doppelt gleichzeitig |
 | `exportAccount(userId, ctx)` | Dateien im Account-Export unter `.plugins/<id>/…` |
+| `mcpTools` | Werkzeuge für KI-Assistenten auf `/mcp` ([Details](#mcp-werkzeuge)) · ab 1.1 |
 
 Fehler: `throw new PluginError(status, text)` ergibt `{ error: text }` mit diesem Status. Jeder andere Fehler wird zu 500 ohne Details und landet im Log. Asynchrone Handler wickelt ihr in `handle(…)` ein. Fehler in `onNoteChange`, Jobs und Export werden geloggt und stören Kladde nie.
 
@@ -156,6 +158,7 @@ Der Kontext `ctx`:
 | `ctx.notes.list/get/create/update/remove(userId, …)` | Notizen über den normalen Sync: Rechteprüfung (eigene Notizen, Gruppen, Leser), Verschlüsselung, Versionen, Live-Update auf allen Geräten, Aktivität, Verlauf. Konflikte ergeben `PluginError` 409. |
 | `ctx.userOf(req)`, `ctx.user(id)` | `{ id, username, displayName, isAdmin }` |
 | `ctx.enabledFor(userId)` | ob der Nutzer das Plugin eingeschaltet hat |
+| `ctx.notify(userId, { title, text?, path?, noteId?, tag? })` | eine Benachrichtigung in der Glocke und als Web Push ([Details](#benachrichtigungen)) · ab 1.1 |
 | `ctx.env('TOKEN')` | liest `PLUGIN_<ID>_TOKEN`, andere Variablen sieht das Plugin nicht |
 | `ctx.log.info/warn/error` | Log mit Präfix `🧩 [<id>]` |
 
@@ -180,6 +183,7 @@ export default defineClientPlugin({
   ],
   nav: [{ label: { de: 'Zeiten', en: 'Time' }, bottomBar: true }],
   commands: [{ id: 'buchen', label: { de: 'Zeit buchen', en: 'Book time' }, path: '/neu' }],
+  blocks: [{ lang: 'zeit', label: { de: 'Zeitübersicht', en: 'Time overview' }, template: 'woche: aktuell', component: ZeitBlock }],
   settings: Einstellungen,
 });
 ```
@@ -228,6 +232,76 @@ Notizen, Aufgaben (- [ ] …), [[Links]] wie überall in Kladde.
 ```
 
 Faustregel: Was Menschen lesen, verlinken oder offline bearbeiten sollen, gehört in Notizen. Massendaten, Zähler, Zuordnungen zu externen Systemen und Caches gehören in eigene Tabellen.
+
+## Blöcke, MCP-Werkzeuge und Benachrichtigungen
+
+Ab Plugin-API **1.1**. Ein Plugin, das sie nutzt, verlangt `"@kladde/plugin-api": "^1.1.0"`; dann lehnt der Build ein zu altes Kladde ab.
+
+### Blöcke in Notizen
+
+Einen Codeblock, dessen Info-String dem Plugin gehört, zeichnet die Komponente des Plugins, solange der Cursor außerhalb steht – wie ```` ```query ```` oder ```` ```cockpit ````. Im Block selbst wird der Text normal bearbeitet.
+
+````md
+```zeit
+woche: aktuell
+```
+````
+
+```tsx
+import { useKladde, type PluginBlockProps } from '@kladde/plugin-api/client';
+
+export function ZeitBlock({ source, noteId, setSource }: PluginBlockProps) {
+  const host = useKladde();          // derselbe Host wie auf Seiten: api, notes, t, navigate …
+  // source: der Text zwischen den Zäunen; setSource(neu) schreibt ihn zurück (fehlt in schreibgeschützten Notizen)
+  return <div className="card p-3">…</div>;
+}
+```
+
+- `lang` muss die Plugin-ID sein oder mit `<id>-` beginnen (`zeit`, `zeit-woche`); alles andere wird ignoriert. So nehmen Plugins sich gegenseitig keine Blöcke weg, und Kladdes eigene (`query`, `mermaid`, `cockpit` …) gewinnen immer.
+- `/` im Editor bietet die Blöcke aller eingeschalteten Plugins an (`label`, `keywords`) und fügt `template` zwischen die Zäune ein.
+- Die Notiz bleibt reines Markdown: Exporte, öffentliche Links, die MCP-Werkzeuge und Geräte ohne das Plugin (oder mit ausgeschaltetem Plugin) zeigen den Block als Code. Was erhalten bleiben muss, gehört in den Text des Blocks, nicht nur in eure Tabellen.
+- `height` (Pixel) ist die erwartete Höhe; sie hält das Scrollen ruhig, während der Block lädt.
+- Jeder Block läuft in einer eigenen React-Wurzel mit dem Fehlerkasten des Plugins: Ein Absturz reißt den Editor nicht mit.
+
+### MCP-Werkzeuge
+
+`mcpTools` stellt Werkzeuge auf Kladdes MCP-Endpunkt (`/mcp`, dieselbe Verbindung, über die KI-Assistenten schon Notizen lesen). Assistenten sehen sie als `<id>_<name>` (Bindestriche der ID als Unterstriche), und nur bei Nutzern, die das Plugin eingeschaltet haben.
+
+```ts
+mcpTools: [
+  {
+    name: 'book_time',                       // → zeit_book_time
+    title: 'Book time',
+    description: 'Books minutes on a project for the user. Use it when they tell you what they worked on.',
+    inputSchema: { type: 'object', properties: { project: { type: 'string' }, minutes: { type: 'integer', minimum: 1 } }, required: ['project', 'minutes'] },
+    write: true,                             // nur für Verbindungen mit Schreibrecht
+    async run(args, call, ctx) {             // call: { user, agent, canWrite }
+      if (typeof args.minutes !== 'number') throw new PluginError(400, 'minutes must be a number');
+      // …
+      return { booked: args.minutes };       // Objekt → JSON (und structuredContent), String → Text
+    },
+  },
+],
+```
+
+- `name`: `a–z`, `0–9`, `_`, beginnt mit einem Buchstaben, höchstens 40 Zeichen; Kladdes eigene Werkzeugnamen haben Vorrang.
+- Nach der `description` entscheidet der Assistent: beschreibt, was das Werkzeug tut und wann es passt (Englisch funktioniert am besten).
+- Argumente selbst prüfen. `PluginError` kommt beim Assistenten als Werkzeugfehler mit eurer Meldung an, jeder andere Fehler als „interner Fehler“ (und landet im Log).
+- Werkzeuge laufen mit den Rechten des Kontos der Verbindung; nur dessen Daten lesen und schreiben.
+
+### Benachrichtigungen
+
+```ts
+ctx.notify(userId, {
+  title: { de: 'Build fehlgeschlagen', en: 'Build failed' },   // höchstens 120 Zeichen
+  text: 'main · job test',                                     // optional, höchstens 500 (Push zeigt 300)
+  path: '/builds/42',                                          // → /p/<id>/builds/42 …
+  // noteId: '…',                                              // … oder eine Notiz, die der Nutzer öffnen darf
+  tag: 'build-42',                                             // neuere Pushes mit gleichem Tag ersetzen ältere
+});
+```
+
+Die Benachrichtigung erscheint in der Glocke und unter `/notifications` mit Icon und Namen des Plugins und, wo der Nutzer Push eingeschaltet hat, auf seinen Geräten (Ruhezeiten und „Texte zeigen“ gelten). Sie wird wie Kladdes eigene verschlüsselt gespeichert. `notify` gibt `false` zurück und schickt nichts, wenn der Nutzer das Plugin ausgeschaltet hat, nicht existiert, gesperrt ist oder die angegebene Notiz nicht öffnen darf. Ein Klick führt immer nur auf Seiten des Plugins oder zu einer Notiz.
 
 ## Eigene Tabellen und Migrationen
 
@@ -455,13 +529,11 @@ Für alle, die an Kladde arbeiten. So bleiben Releases für Plugins sicher:
 - Das Release-Skript (`npm run release`) erhöht die Plugin-API **nicht**, das geschieht bewusst von Hand.
 - Die CI baut das Beispiel-Plugin bei jedem Push in die App (`.github/workflows/ci.yml`). Wer die Schnittstelle bricht, sieht es dort zuerst.
 
-## Was v1 noch nicht kann
+## Was die Plugin-API noch nicht kann
 
 Bewusst offen gelassen und später ergänzbar (als Minor-Versionen der Plugin-API):
 
-- Blöcke im Editor (wie ```` ```cockpit ````) und Panels im Inspector einer Notiz
-- eigene MCP-Werkzeuge für KI-Assistenten
-- eigene Benachrichtigungen (Glocke, Web Push)
+- Panels im Inspector einer Notiz
 - Offline-Sync von Plugin-Tabellen (heute: offline über Notizen)
 - Einschalten pro Gruppe statt pro Nutzer
 - die Standalone-Desktop-App (baut ohne Plugins)

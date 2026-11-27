@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import crypto from 'crypto';
-import type { AuthProviders } from '@kladde/shared';
+import type { AuthProviders, LoginMethod } from '@kladde/shared';
 import { AccountError, UserRecord, UserStore } from './UserStore.js';
 import { AuditLog } from './security/AuditLog.js';
 import { SESSION_COOKIE, rateLimit, readCookie } from './http.js';
@@ -52,6 +52,33 @@ export function openSignupFromEnv(env: NodeJS.ProcessEnv): Set<SignupMethod> {
   return open;
 }
 
+const LOGIN_METHODS: LoginMethod[] = ['passkey', 'password', 'gitlab'];
+
+/**
+ * LOGIN_METHODS: comma-separated sign-in methods the server offers (passkey, password, gitlab; default all).
+ * `LOGIN_METHODS=gitlab` leaves only "Sign in with GitLab": no passkeys, no username and password, no device codes.
+ * GitLab counts only when it is configured; a list that leaves no method is a configuration error (the server
+ * does not start rather than locking everyone out).
+ */
+export function loginMethodsFromEnv(env: NodeJS.ProcessEnv, gitlabConfigured: boolean): Set<LoginMethod> {
+  const raw = (env.LOGIN_METHODS ?? '').trim().toLowerCase();
+  const methods = new Set<LoginMethod>();
+  if (!raw || raw === 'all') LOGIN_METHODS.forEach((m) => methods.add(m));
+  else
+    for (const part of raw.split(',')) {
+      const name = part.trim();
+      if (!name) continue;
+      if ((LOGIN_METHODS as string[]).includes(name)) methods.add(name as LoginMethod);
+      else throw new Error(`LOGIN_METHODS: unbekannte Anmeldeart „${name}“ (erlaubt: passkey, password, gitlab, all).`);
+    }
+  if (!gitlabConfigured) {
+    if (raw && methods.has('gitlab') && methods.size === 1) throw new Error('LOGIN_METHODS=gitlab braucht die GitLab-Anmeldung (GITLAB_CLIENT_ID und GITLAB_CLIENT_SECRET).');
+    methods.delete('gitlab');
+  }
+  if (!methods.size) throw new Error('LOGIN_METHODS lässt keine Anmeldeart übrig.');
+  return methods;
+}
+
 /** Reads GITLAB_* variables; null when GitLab sign-in is not configured */
 export function gitlabConfigFromEnv(env: NodeJS.ProcessEnv): GitLabConfig | null {
   const clientId = env.GITLAB_CLIENT_ID?.trim();
@@ -82,10 +109,16 @@ export function gitlabConfigFromEnv(env: NodeJS.ProcessEnv): GitLabConfig | null
   };
 }
 
-export function authProviders(config: GitLabConfig | null, openSignup: ReadonlySet<SignupMethod> = new Set()): AuthProviders {
+export function authProviders(
+  config: GitLabConfig | null,
+  openSignup: ReadonlySet<SignupMethod> = new Set(),
+  methods: ReadonlySet<LoginMethod> = new Set(LOGIN_METHODS)
+): AuthProviders {
+  const gitlab = !!config && methods.has('gitlab');
   return {
-    gitlab: { enabled: !!config, label: config?.label ?? 'GitLab', signup: !!config?.allowSignup },
-    signup: { passkey: openSignup.has('passkey'), password: openSignup.has('password') },
+    gitlab: { enabled: gitlab, label: config?.label ?? 'GitLab', signup: gitlab && !!config?.allowSignup },
+    signup: { passkey: methods.has('passkey') && openSignup.has('passkey'), password: methods.has('password') && openSignup.has('password') },
+    methods: { passkey: methods.has('passkey'), password: methods.has('password'), gitlab },
   };
 }
 

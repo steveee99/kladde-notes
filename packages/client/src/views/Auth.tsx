@@ -5,6 +5,7 @@ import { PASSWORD_MIN_LENGTH, type AuthProviders, type Me } from '@kladde/shared
 import { api } from '../lib/api';
 import { Lang, setLang, t, tl, useLang } from '../lib/i18n';
 import { appUrl, navigate } from '../lib/router';
+import { appTitle } from '../lib/appTitle';
 
 function errorText(err: unknown): string {
   const e = err as Error;
@@ -178,19 +179,35 @@ export function Login({ onDone }: { onDone: (me: Me) => void }) {
         <UserPlus size={16} /> {tl(lang, 'auth.registerLink')}
       </button>
     ) : null;
-  if (!passkeysAvailable()) {
+  // LOGIN_METHODS: the server may offer only some ways in (e.g. only GitLab)
+  const methods = providers?.methods ?? { passkey: true, password: true, gitlab: true };
+  if (providers && !methods.passkey && !methods.password) {
     return (
-      <Frame title="Kladde" subtitle={tl(lang, 'auth.subtitle')}>
-        <PasswordLogin busy={busy} run={run} primary />
+      <Frame title={appTitle()} subtitle={tl(lang, 'auth.subtitle')}>
+        {providers.gitlab.enabled && <GitLabButton label={tl(lang, 'auth.gitlabLogin', { name: providers.gitlab.label })} primary />}
+        {register}
+        {import.meta.env.DEV && (
+          <button className="btn-outlined mt-4 w-full border-dashed" onClick={() => run(() => api<Me>('/auth/dev-login', { method: 'POST', json: {} }))}>
+            <Sparkles size={16} /> {tl(lang, 'auth.devLogin')}
+          </button>
+        )}
+        {error && <p className="mt-4 text-sm text-error anim-fade-in">{error}</p>}
+      </Frame>
+    );
+  }
+  if (!passkeysAvailable() || !methods.passkey) {
+    return (
+      <Frame title={appTitle()} subtitle={tl(lang, 'auth.subtitle')}>
+        {methods.password && <PasswordLogin busy={busy} run={run} primary />}
         {gitlab}
         {register}
-        <p className="mt-3 text-xs text-on-surface-variant">{tl(lang, 'auth.noPasskeyHint')}</p>
+        {methods.passkey && <p className="mt-3 text-xs text-on-surface-variant">{tl(lang, 'auth.noPasskeyHint')}</p>}
         {error && <p className="mt-4 text-sm text-error anim-fade-in">{error}</p>}
       </Frame>
     );
   }
   return (
-    <Frame title="Kladde" subtitle={tl(lang, 'auth.subtitle')}>
+    <Frame title={appTitle()} subtitle={tl(lang, 'auth.subtitle')}>
       <button
         className="btn-primary w-full py-3"
         disabled={busy}
@@ -204,7 +221,7 @@ export function Login({ onDone }: { onDone: (me: Me) => void }) {
       >
         <KeyRound size={18} /> {tl(lang, 'auth.passkeyLogin')}
       </button>
-      {withPassword ? (
+      {!methods.password ? null : withPassword ? (
         <div className="mt-3 anim-fade-up">
           <PasswordLogin busy={busy} run={run} primary={false} />
         </div>
@@ -255,8 +272,9 @@ export function Invite({ code, onDone }: { code?: string; onDone: (me: Me) => vo
   const [choice, setChoice] = useState<'passkey' | 'password' | null>(null);
   if (!code && !providers) return <div className="flex h-full items-center justify-center text-on-surface-variant">…</div>;
   // With an invite every method works; without one only those the server opened
-  const canPasskey = passkeysAvailable() && (!!code || !!providers?.signup.passkey);
-  const canPassword = !!code || !!providers?.signup.password;
+  const methods = providers?.methods ?? { passkey: true, password: true, gitlab: true };
+  const canPasskey = methods.passkey && passkeysAvailable() && (!!code || !!providers?.signup.passkey);
+  const canPassword = methods.password && (!!code || !!providers?.signup.password);
   const canGitlab = !!providers?.gitlab.enabled && (!!code || providers.gitlab.signup);
   const mode = choice === 'password' && canPassword ? 'password' : choice === 'passkey' && canPasskey ? 'passkey' : canPasskey ? 'passkey' : canPassword ? 'password' : null;
   const title = tl(lang, code ? 'auth.inviteTitle' : 'auth.registerTitle');

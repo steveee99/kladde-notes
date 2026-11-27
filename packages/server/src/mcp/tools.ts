@@ -84,6 +84,7 @@ import { MAX_NOTE_BYTES, NoteStore } from '../NoteStore.js';
 import type { FileStore } from '../FileStore.js';
 import type { AttachmentTextStore } from '../attachments/AttachmentTextStore.js';
 import { attachmentPages, searchAttachments } from '../attachments/search.js';
+import type { PluginToolDef } from '../plugins/PluginHost.js';
 
 /** Who calls a tool: tools see the notes this user owns and those of their groups (#58), never other shares */
 export interface ToolContext {
@@ -97,6 +98,8 @@ export interface ToolContext {
   today?: Date;
   /** Actor id of the connection (its name), stamped into `generated.by` in the AI memory (#94) */
   agent?: string;
+  /** Tools of the build-time plugins the user switched on (their `run` may return a promise) */
+  pluginTools?: () => PluginToolDef[];
 }
 
 /** Search deps for attachments, when both the files and their texts are available */

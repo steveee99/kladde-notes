@@ -22,9 +22,24 @@ function entriesOf(ctx: PluginServerContext, userId: string, limit = 200): Entry
   return rows.map((r) => ({ id: r.id, at: r.at, ...ctx.cipher.openJson<{ text: string; mood: Entry['mood'] }>(r.id, r.payload) }));
 }
 
+const cleanText = (value: unknown): string => {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text || text.length > 2000) throw new PluginError(400, 'Der Eintrag braucht 1 bis 2000 Zeichen.');
+  return text;
+};
+
+const cleanMood = (value: unknown): Entry['mood'] => (MOODS.includes(value as (typeof MOODS)[number]) ? (value as Entry['mood']) : null);
+
+function addEntry(ctx: PluginServerContext, userId: string, text: string, mood: Entry['mood']): Entry {
+  const entry: Entry = { id: crypto.randomUUID(), text, mood, at: Date.now() };
+  ctx.db.prepare(`INSERT INTO ${ctx.table('entries')} (id, owner_id, at, payload) VALUES (?, ?, ?, ?)`).run(entry.id, userId, entry.at, ctx.cipher.sealJson(entry.id, { text, mood }));
+  return entry;
+}
+
 /**
  * Server part of the example plugin: own tables (migrations), encrypted rows, routes under /api/p/logbook,
- * a note per entry on request, a counter fed by note changes, a cleanup job and the account export.
+ * a note per entry on request, a counter fed by note changes, a cleanup job, the account export, two MCP tools
+ * for AI assistants and a notification when an assistant wrote an entry.
  */
 export default defineServerPlugin({
   id: 'logbook',
@@ -63,14 +78,7 @@ export default defineServerPlugin({
 
     router.post('/entries', (req, res) => {
       const user = ctx.userOf(req);
-      const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
-      if (!text || text.length > 2000) throw new PluginError(400, 'Der Eintrag braucht 1 bis 2000 Zeichen.');
-      const mood = MOODS.includes(req.body?.mood) ? (req.body.mood as Entry['mood']) : null;
-      const entry: Entry = { id: crypto.randomUUID(), text, mood, at: Date.now() };
-      ctx.db
-        .prepare(`INSERT INTO ${ctx.table('entries')} (id, owner_id, at, payload) VALUES (?, ?, ?, ?)`)
-        .run(entry.id, user.id, entry.at, ctx.cipher.sealJson(entry.id, { text, mood }));
-      res.status(201).json(entry);
+      res.status(201).json(addEntry(ctx, user.id, cleanText(req.body?.text), cleanMood(req.body?.mood)));
     });
 
     router.delete('/entries/:id', (req, res) => {
@@ -119,6 +127,37 @@ export default defineServerPlugin({
         const cutoff = Date.now() - keepDays(ctx) * 86_400_000;
         const { changes } = ctx.db.prepare(`DELETE FROM ${ctx.table('entries')} WHERE at < ?`).run(cutoff);
         if (changes) ctx.log.info(`${changes} old entries removed`);
+      },
+    },
+  ],
+
+  // Assistants see these as logbook_list_entries and logbook_add_entry (only while the user has the logbook on)
+  mcpTools: [
+    {
+      name: 'list_entries',
+      title: 'List logbook entries',
+      description: "Lists the user's logbook entries (short notes with a mood), newest first.",
+      inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 100, description: 'How many (default 20)' } } },
+      run(args, call, ctx) {
+        const limit = typeof args.limit === 'number' ? Math.max(1, Math.min(100, Math.floor(args.limit))) : 20;
+        return { entries: entriesOf(ctx, call.user.id, limit).map((e) => ({ ...e, at: new Date(e.at).toISOString() })) };
+      },
+    },
+    {
+      name: 'add_entry',
+      title: 'Add a logbook entry',
+      description: "Adds a short entry to the user's logbook. The user gets a notification about it.",
+      inputSchema: {
+        type: 'object',
+        properties: { text: { type: 'string', description: 'The entry, at most 2000 characters' }, mood: { type: 'string', enum: [...MOODS] } },
+        required: ['text'],
+      },
+      write: true,
+      run(args, call, ctx) {
+        const entry = addEntry(ctx, call.user.id, cleanText(args.text), cleanMood(args.mood));
+        // The user did not write it: tell them (bell, Web Push where they turned it on)
+        ctx.notify(call.user.id, { title: { de: `${call.agent} hat ins Logbuch geschrieben`, en: `${call.agent} wrote in the logbook` }, text: entry.text, tag: 'assistant' });
+        return { id: entry.id, at: new Date(entry.at).toISOString() };
       },
     },
   ],

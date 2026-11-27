@@ -7,6 +7,8 @@ import { useModal } from '../lib/modal';
 import { subscribeDevice, useDevicePush } from '../lib/pushDevice';
 import { navigate } from '../lib/router';
 import { Avatar } from './Avatar';
+import { localize } from '@kladde/plugin-api/client';
+import { pluginById } from '../plugins/registry';
 import { NavBadge } from './NavBadge';
 
 /*
@@ -16,6 +18,8 @@ import { NavBadge } from './NavBadge';
  */
 
 export function notificationUrl(n: NotificationItem): string {
+  // Plugins lead only into their own pages or to a note (the server builds `href` that way)
+  if (n.kind === 'plugin') return n.href && /^\/(p|n)\/[\w-]/.test(n.href) ? n.href : n.plugin ? `/p/${n.plugin}` : '/';
   if (n.kind === 'cockpit') return `/cockpit/${encodeURIComponent(n.noteId)}`;
   if (n.groupId) return `/groups/${encodeURIComponent(n.groupId)}`;
   return `/n/${n.noteId}${n.threadId ? `?thread=${encodeURIComponent(n.threadId)}` : n.line !== undefined ? `?line=${n.line + 1}` : ''}`;
@@ -27,14 +31,20 @@ const HEADLINES: Record<NotificationItem['kind'], I18nKey> = {
   reply: 'notices.reply',
   group_added: 'notices.groupAdded',
   cockpit: 'notices.cockpit',
+  plugin: 'notices.comment',
 };
 
 function headline(n: NotificationItem, lang: Lang): string {
+  if (n.kind === 'plugin') return n.title ? localize(n.title, lang) : n.path;
   return tl(lang, HEADLINES[n.kind] ?? 'notices.comment', { actor: n.actor ?? tl(lang, 'activity.someone') });
 }
 
 /** What follows the headline: the note's name or the group's */
-function subject(n: NotificationItem): string {
+function subject(n: NotificationItem, lang: Lang): string {
+  if (n.kind === 'plugin') {
+    const entry = n.plugin ? pluginById(n.plugin) : undefined;
+    return entry ? localize(entry.plugin.name, lang) : n.path;
+  }
   return n.kind === 'group_added' || n.kind === 'cockpit' ? n.path : splitPath(n.path).name;
 }
 
@@ -45,8 +55,19 @@ function detail(n: NotificationItem, lang: Lang): string {
 }
 
 function KindIcon({ kind }: { kind: NotificationItem['kind'] }) {
-  const Icon = kind === 'mention' ? AtSign : kind === 'group_added' ? UserPlus : kind === 'cockpit' ? Speed : MessageSquare;
+  const Icon = kind === 'mention' ? AtSign : kind === 'group_added' ? UserPlus : kind === 'cockpit' ? Speed : kind === 'plugin' ? NotificationsActive : MessageSquare;
   return <Icon size={10} />;
+}
+
+/** A plugin's icon where people have their avatar */
+function PluginBadge({ id }: { id?: string }) {
+  const entry = id ? pluginById(id) : undefined;
+  const Icon = entry?.plugin.icon;
+  return (
+    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-raised text-soft" aria-hidden>
+      {Icon ? <Icon size={14} /> : <NotificationsActive size={14} />}
+    </span>
+  );
 }
 
 /** One notification: opens it on click, a check marks it read without opening it */
@@ -68,14 +89,14 @@ function NotificationRow({ n, compact, onOpen }: { n: NotificationItem; compact?
         }}
       >
         <span className="relative mt-0.5 shrink-0">
-          <Avatar name={n.actor ?? '?'} avatarUrl={n.actorAvatar} size="sm" />
+          {n.kind === 'plugin' ? <PluginBadge id={n.plugin} /> : <Avatar name={n.actor ?? '?'} avatarUrl={n.actorAvatar} size="sm" />}
           <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-acc text-on-acc">
             <KindIcon kind={n.kind} />
           </span>
         </span>
         <span className="min-w-0 flex-1 pr-7">
           <span className="block text-body-m">
-            <span className={n.read ? 'text-soft' : 'font-medium text-strong'}>{headline(n, lang)}</span> <span className="text-muted">· {subject(n)}</span>
+            <span className={n.read ? 'text-soft' : 'font-medium text-strong'}>{headline(n, lang)}</span> <span className="text-muted">· {subject(n, lang)}</span>
           </span>
           {text && <span className={`mt-0.5 block break-words text-body-s text-muted ${compact ? 'line-clamp-1' : 'line-clamp-2'}`}>{text}</span>}
           <time className="mt-0.5 block font-mono text-caption text-faint" dateTime={new Date(n.at).toISOString()}>
