@@ -812,7 +812,8 @@ export interface ActivityNews {
 
 // ---------------------------------------------------------------- notifications (#69, #68)
 
-export type NotificationKind = 'mention' | 'comment' | 'reply' | 'group_added';
+/** `cockpit`: new rows in a notifying cockpit widget (`noteId` is the dashboard, `path` the widget's title) */
+export type NotificationKind = 'mention' | 'comment' | 'reply' | 'group_added' | 'cockpit';
 
 /**
  * Something that happened for the user: a mention in a note, a comment on their note, a reply in a thread, or

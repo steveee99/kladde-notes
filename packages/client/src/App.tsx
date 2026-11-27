@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { createRoot } from 'react-dom/client';
 import { AccountExportView } from './views/AccountExport';
 import { applyAccentOf } from './lib/accent';
 import { openNoteLink } from './lib/panes';
@@ -48,6 +49,8 @@ const NoteTypesView = lazy(() => import('./views/NoteTypesView').then((m) => ({ 
 const TemplatesView = lazy(() => import('./views/Templates').then((m) => ({ default: m.TemplatesView })));
 const ImportSettingsView = lazy(() => import('./views/ImportSettings').then((m) => ({ default: m.ImportSettingsView })));
 const HabitsView = lazy(() => import('./views/HabitsView').then((m) => ({ default: m.HabitsView })));
+const CockpitView = lazy(() => import('./views/CockpitView').then((m) => ({ default: m.CockpitView })));
+const CockpitBlock = lazy(() => import('./views/CockpitBlock').then((m) => ({ default: m.CockpitBlock })));
 const CalendarSettingsView = lazy(() => import('./views/CalendarSettings').then((m) => ({ default: m.CalendarSettingsView })));
 const NotificationSettingsView = lazy(() => import('./views/NotificationSettings').then((m) => ({ default: m.NotificationSettingsView })));
 const OAuthConsent = lazy(() => import('./views/OAuthConsent').then((m) => ({ default: m.OAuthConsent })));
@@ -80,6 +83,17 @@ Object.assign(editorHost, {
   wikiExists: (title: string) => !!vault.findByTitle(title),
   openNote: (id: string) => openNoteLink(id),
   linkPreview: () => vault.features().linkPreview.enabled,
+  // ```cockpit blocks: a live widget in its own React root, loaded on first use
+  mountCockpit: (el: HTMLElement, src: string, doc: string, scope: Parameters<NonNullable<typeof editorHost.mountCockpit>>[3]) => {
+    const root = createRoot(el);
+    root.render(
+      <Suspense fallback={null}>
+        <CockpitBlock src={src} doc={doc} scope={scope} />
+      </Suspense>
+    );
+    // Not while React renders the editor's parent
+    return () => setTimeout(() => root.unmount(), 0);
+  },
   // Only through the link index (title, frontmatter id, Zettel id); the vault only holds notes this reader may see
   resolveEmbed: (target: string) => {
     const links = vault.links();
@@ -243,6 +257,7 @@ export function App() {
   else if (monthDate) page = <PeriodicEmptyView key={`m${monthDate.date}`} kind="month" date={monthDate.date} />;
   else if (path === '/calendar') page = <CalendarView />;
   else if (path === '/habits') page = <HabitsView />;
+  else if (path === '/cockpit' || path.startsWith('/cockpit/')) page = <CockpitView id={match(path, '/cockpit/:id')?.id} />;
   else if (path === '/notifications' && !me.standalone) page = <NotificationsView />;
   else if (path === '/activity' && !me.standalone) {
     const q = new URLSearchParams(location.search);

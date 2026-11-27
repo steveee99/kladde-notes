@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { splitPath, type NotificationItem } from '@kladde/shared';
-import { AtSign, Bell, Check, CheckCheck, MessageSquare, NotificationsActive, UserPlus } from '../lib/icons';
+import { AtSign, Bell, Check, CheckCheck, MessageSquare, NotificationsActive, Speed, UserPlus } from '../lib/icons';
 import { useVault, vault } from '../data/vault';
 import { locale, tl, useLang, type I18nKey, type Lang } from '../lib/i18n';
 import { useModal } from '../lib/modal';
@@ -16,6 +16,7 @@ import { NavBadge } from './NavBadge';
  */
 
 export function notificationUrl(n: NotificationItem): string {
+  if (n.kind === 'cockpit') return `/cockpit/${encodeURIComponent(n.noteId)}`;
   if (n.groupId) return `/groups/${encodeURIComponent(n.groupId)}`;
   return `/n/${n.noteId}${n.threadId ? `?thread=${encodeURIComponent(n.threadId)}` : n.line !== undefined ? `?line=${n.line + 1}` : ''}`;
 }
@@ -25,6 +26,7 @@ const HEADLINES: Record<NotificationItem['kind'], I18nKey> = {
   comment: 'notices.comment',
   reply: 'notices.reply',
   group_added: 'notices.groupAdded',
+  cockpit: 'notices.cockpit',
 };
 
 function headline(n: NotificationItem, lang: Lang): string {
@@ -33,7 +35,7 @@ function headline(n: NotificationItem, lang: Lang): string {
 
 /** What follows the headline: the note's name or the group's */
 function subject(n: NotificationItem): string {
-  return n.kind === 'group_added' ? n.path : splitPath(n.path).name;
+  return n.kind === 'group_added' || n.kind === 'cockpit' ? n.path : splitPath(n.path).name;
 }
 
 /** The passage, the comment or, for a group, the role */
@@ -43,7 +45,7 @@ function detail(n: NotificationItem, lang: Lang): string {
 }
 
 function KindIcon({ kind }: { kind: NotificationItem['kind'] }) {
-  const Icon = kind === 'mention' ? AtSign : kind === 'group_added' ? UserPlus : MessageSquare;
+  const Icon = kind === 'mention' ? AtSign : kind === 'group_added' ? UserPlus : kind === 'cockpit' ? Speed : MessageSquare;
   return <Icon size={10} />;
 }
 

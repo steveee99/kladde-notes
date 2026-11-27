@@ -136,6 +136,10 @@ export interface FeatureSettings {
   minigame: {
     enabled: boolean;
   };
+  /** Development cockpit (opt-in): dashboards of live GitLab/Jira widgets with the user's own tokens, widget blocks in notes */
+  cockpit: {
+    enabled: boolean;
+  };
   /** Callouts (#86): `> [!type] Title` quotes shown as colored boxes with an icon, `-`/`+` collapsible; otherwise plain quotes */
   callouts: {
     enabled: boolean;
@@ -315,6 +319,7 @@ export function normalizeFeatures(raw: unknown, existingFolders: string[] = []):
     linkPreview: { enabled: optInFlag(obj.linkPreview) },
     habits: { enabled: optInFlag(obj.habits) },
     minigame: { enabled: optInFlag(obj.minigame) },
+    cockpit: { enabled: optInFlag(obj.cockpit) },
     callouts: { enabled: optOutFlag(obj.callouts) },
     calendarView: { enabled: optOutFlag(obj.calendarView) },
     activity: { enabled: optOutFlag(obj.activity) },

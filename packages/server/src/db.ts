@@ -580,6 +580,28 @@ export const MIGRATIONS: Migration[] = [
       db.exec('ALTER TABLE users ADD COLUMN display_name TEXT');
     },
   },
+  {
+    version: 30,
+    description: 'Development cockpit: personal GitLab/Jira connections and the dashboards whose widgets notify',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE cockpit_connections (
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          provider TEXT NOT NULL,
+          updated_at INTEGER NOT NULL,
+          data BLOB NOT NULL,
+          PRIMARY KEY (user_id, provider)
+        );
+        CREATE TABLE cockpit_watches (
+          note_id TEXT PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          next_at INTEGER NOT NULL,
+          payload BLOB NOT NULL
+        );
+        CREATE INDEX cockpit_watches_due ON cockpit_watches(next_at);
+      `);
+    },
+  },
 ];
 
 /** The schema version this build migrates to */

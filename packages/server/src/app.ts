@@ -50,6 +50,11 @@ import { remoteRouter } from './remote/router.js';
 import { GitlabCards } from './remote/GitlabCards.js';
 import { RemoteSnapshotStore, RemoteSync, remoteSyncHours } from './remote/RemoteSync.js';
 import { confluenceRouter } from './confluence/router.js';
+import { CockpitStore } from './cockpit/CockpitStore.js';
+import { CockpitService, cockpitHosts } from './cockpit/CockpitService.js';
+import { CockpitWatch } from './cockpit/CockpitWatch.js';
+import { cockpitRouter } from './cockpit/router.js';
+import { featuresOf } from './mcp/tools.js';
 import { BackupService } from './backup/BackupService.js';
 import { ServerSettings } from './ServerSettings.js';
 import { AccountExportService } from './export/AccountExport.js';
@@ -71,6 +76,8 @@ export interface KladdeAppOptions {
   seaAssets?: Map<string, EmbeddedAsset> | null;
   /** Requests to Confluence (#48); tests answer them without a network */
   confluenceTransport?: HttpTransport;
+  /** Requests to Jira (development cockpit); tests answer them without a network */
+  jiraTransport?: HttpTransport;
   onRegistered?: (user: UserRecord, inviteNote: string) => void;
   /** Backups in the admin area (#65): where they go and how many daily ones `BACKUP_KEEP` keeps; missing = no backups */
   backup?: { dir: string; defaultKeep: number };
@@ -92,6 +99,8 @@ export interface KladdeAppContext {
   confluence: ConfluenceSync;
   /** Synced remote notes: `tick()` reads the ones that are due */
   remoteSync: RemoteSync;
+  /** Notifying widgets of the development cockpit, read every few minutes */
+  cockpitWatch: CockpitWatch;
   audit: AuditLog;
   live: LiveUpdates;
   standaloneUser?: UserRecord;
@@ -129,6 +138,8 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   let confluence: ConfluenceSync | undefined;
   // Synced remote notes; created with the fetcher below
   let remoteSync: RemoteSync | undefined;
+  // Notifying cockpit widgets; created with the fetcher below
+  let cockpitWatch: CockpitWatch | undefined;
   // Activity of groups and shared notes (#70)
   const activity = new ActivityStore(opts.db, cipher);
   // Mentions and comments (#69, #68): kept per user, a live event to open apps, Web Push to the devices
@@ -136,7 +147,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   const notifications = new NotificationStore(opts.db, cipher, users, (userId, d) => {
     live.send([userId], 'notification', {});
     // The note (or group) gives the push its tag, so a newer one replaces it on the device
-    const noteId = /^\/(?:n|groups)\/([^?]+)/.exec(d.url)?.[1] ?? '';
+    const noteId = /^\/(?:n|groups|cockpit)\/([^?]+)/.exec(d.url)?.[1] ?? '';
     deliverPush?.(userId, d, noteId);
   });
   const notes = new NoteStore(opts.db, cipher, (event) => {
@@ -146,6 +157,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     mirror?.apply(event);
     confluence?.onNoteChange(event);
     remoteSync?.onNoteChange(event);
+    cockpitWatch?.onNoteChange(event);
   });
   // Git sync was removed: its working copies (plain Markdown of the notes) must not stay on disk
   fs.rmSync(path.join(opts.dataDir, 'git'), { recursive: true, force: true });
@@ -191,7 +203,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       for (const sub of push.all()) {
         if (sub.userId !== userId) continue;
         if (inQuietHours(localClock(new Date(), sub.settings.timeZone).minutes, sub.settings)) continue;
-        const payload = notificationPush(sub.settings.showText ? d : { ...d, name: '' }, sub.settings.lang, noteId);
+        const payload = notificationPush(sub.settings.showText ? d : { ...d, name: '', text: '' }, sub.settings.lang, noteId);
         void sendPush(sub.target, payload, push.vapidKeys(), pushSubject, { urgency: 'normal', topic: payload.tag.replace(/[^\w-]/g, '').slice(0, 32) })
           .then((outcome) => outcome === 'gone' && push.drop(sub.id))
           .catch(() => {});
@@ -400,6 +412,15 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   const remoteFetcher = new RemoteFetcher(remoteInstances);
   // Synced ones (`sync: true`) are read every REMOTE_SYNC_HOURS and kept as an encrypted copy (search, offline)
   remoteSync = new RemoteSync(new RemoteSnapshotStore(opts.db, cipher), notes, remoteFetcher, remoteSyncHours(env) * 3_600_000);
+  // Development cockpit: GitLab/Jira widgets with each user's own tokens; GitLab only on the configured instances
+  const cockpit = new CockpitService(new CockpitStore(opts.db, cipher), {
+    gitlabHosts: cockpitHosts(() => remoteInstances.gitlabHosts(), env, gitlabConfigFromEnv(env)),
+    fetcher: remoteFetcher,
+    jiraTransport: opts.jiraTransport ?? httpsTransport({ allowPrivate: ['1', 'true'].includes(env.JIRA_ALLOW_PRIVATE?.trim().toLowerCase() ?? '') }),
+    jiraAllowPrivate: ['1', 'true'].includes(env.JIRA_ALLOW_PRIVATE?.trim().toLowerCase() ?? ''),
+  });
+  cockpitWatch = new CockpitWatch({ service: cockpit, notifications, isPerson: (id) => !!users.getUser(id), features: (id) => featuresOf(notes, id) });
+  app.use('/api/cockpit', cockpitRouter({ users, service: cockpit, audit, standaloneUser }));
   app.use('/api/remote-notes', remoteRouter({ users, notes, instances: remoteInstances, fetcher: remoteFetcher, sync: remoteSync, cards: new GitlabCards(remoteInstances, remoteFetcher), standaloneUser }));
   if (!opts.standalone) {
     app.use(
@@ -473,5 +494,5 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
 
   const sendReminders = push ? (now?: Date) => runReminders(push, notes, pushSubject, now) : undefined;
-  return { app, users, notes, files, avatars, attachmentIndexer, confluence, remoteSync, audit, live, standaloneUser, sendReminders, backups, metrics: metricsSources, jobs };
+  return { app, users, notes, files, avatars, attachmentIndexer, confluence, remoteSync, cockpitWatch, audit, live, standaloneUser, sendReminders, backups, metrics: metricsSources, jobs };
 }

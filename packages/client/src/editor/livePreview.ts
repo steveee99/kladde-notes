@@ -41,6 +41,7 @@ import { CODE_COLLAPSE_FALLBACK, getCodeBlockPrefs, getLigatures } from '../lib/
 import { releaseFacet, ReleaseFieldWidget, releaseRenderOptions } from './releases';
 import { VariableWidget, variablesFacet } from './variables';
 import { GitlabCardWidget } from './gitlabCard';
+import { CockpitBlockWidget } from './cockpit';
 import { MathWidget } from './math';
 import { stripInline } from './datatable';
 
@@ -473,6 +474,10 @@ function build(state: EditorState): DecorationSet {
             const widget =
               langInfo === 'query' ? new QueryWidget(body, stamp, state.readOnly, lang) : langInfo === 'carousel' ? new CarouselWidget(body, lang) : new GalleryWidget(body, lang);
             blockWidget(node, Decoration.replace({ widget, block: true }));
+            return false;
+          }
+          if (!editing && !foreign && langInfo === 'cockpit') {
+            blockWidget(node, Decoration.replace({ widget: new CockpitBlockWidget(body, lang), block: true }));
             return false;
           }
           if (!editing && (langInfo === 'mermaid' || langInfo === 'mindmap')) {

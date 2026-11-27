@@ -24,6 +24,8 @@ export type AuditEvent =
   | 'shortcut_token_created'
   | 'shortcut_token_revoked'
   | 'confluence_connected'
+  | 'cockpit_connected'
+  | 'cockpit_disconnected'
   | 'confluence_disconnected'
   | 'backup_restore_requested'
   | 'backup_restored'

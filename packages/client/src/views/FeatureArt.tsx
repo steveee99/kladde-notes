@@ -28,6 +28,7 @@ export type FeatureArtId =
   | 'linkPreview'
   | 'habits'
   | 'minigame'
+  | 'cockpit'
   | 'callouts'
   | 'memory'
   | 'mcp'
@@ -396,6 +397,28 @@ const ART: Record<FeatureArtId, ReactNode> = {
               fillOpacity={(row * 3 + i) % 4 === 3 ? 1 : 0.85}
             />
           ))}
+        </g>
+      ))}
+    </>
+  ),
+  cockpit: (
+    <>
+      <Card x={12} y={10} w={66} h={32} />
+      <Card x={82} y={10} w={66} h={32} />
+      <Card x={12} y={46} w={136} h={34} />
+      <Bar x={18} y={16} w={30} className="fill-on-surface" o={0.6} />
+      <text x={18} y={36} className="fill-primary" fontSize={13} fontFamily="JetBrains Mono, monospace">
+        3
+      </text>
+      <Bar x={88} y={16} w={36} className="fill-on-surface" o={0.6} />
+      <text x={88} y={36} className="fill-warn" fontSize={13} fontFamily="JetBrains Mono, monospace">
+        4
+      </text>
+      {[0, 1, 2].map((row) => (
+        <g key={row}>
+          <rect x={18} y={52 + row * 9} width={2.5} height={6} rx={1} className={['fill-error', 'fill-warn', 'fill-ok'][row]} />
+          <Bar x={24} y={53 + row * 9} w={[60, 44, 52][row]} className="fill-on-surface" o={0.5} />
+          <Bar x={118} y={53 + row * 9} w={22} o={0.35} />
         </g>
       ))}
     </>
