@@ -415,7 +415,7 @@ export interface AdminStatus {
 }
 
 /** A job the server ran: a device's sync (only those that sent changes) or a background job */
-export type AdminJobKind = 'sync' | 'backup' | 'trash';
+export type AdminJobKind = 'sync' | 'backup' | 'trash' | 'event';
 
 export interface AdminJob {
   kind: AdminJobKind;
@@ -608,6 +608,52 @@ export interface TicketHook {
   url: string;
   /** The last delivery: when, what happened and whether it worked */
   last: { at: number; ok: boolean; summary: string } | null;
+}
+
+/** What happened to a delivery of a central webhook */
+export type EventDeliveryStatus = 'accepted' | 'failed' | 'ignored' | 'filtered' | 'duplicate' | 'invalid';
+
+/** One delivery of a central webhook as the settings list it (never the payload) */
+export interface EventDelivery {
+  /** The provider's delivery id */
+  id: string;
+  at: number;
+  /** The provider's event name (`Push Hook`, `pull_request`) */
+  kind: string;
+  /** Kladde's event (`git.push`), null when it did not know the event */
+  type: string | null;
+  action: string;
+  /** Repository path from the payload */
+  project: string;
+  status: EventDeliveryStatus;
+  /** Short reason or result (which subscribers failed) */
+  detail: string;
+}
+
+/**
+ * A central webhook (#149, `POST /api/events/hooks/<id>`): one per GitLab/GitHub project or group, owned by an
+ * account or a group; its events reach the ticket automations and every plugin that subscribes (docs/EVENTS.md)
+ */
+export interface EventSource {
+  id: string;
+  provider: TicketHookProvider;
+  name: string;
+  /** Full address to enter at GitLab/GitHub */
+  url: string;
+  /** Only events of these repository paths (a group path takes everything below); empty: all */
+  projects: string[];
+  owner: { kind: 'user' | 'group'; id: string; name: string };
+  /** User name of who created it; Kladde's own reactions run as this person */
+  createdBy: string;
+  createdAt: number;
+  /** The latest deliveries, newest first */
+  deliveries: EventDelivery[];
+}
+
+export interface EventSourceCreated {
+  source: EventSource;
+  /** Shown once: GitLab's secret token, GitHub's webhook secret */
+  secret: string;
 }
 
 /** A calendar feed (`/api/calendar/<token>.ics`) with the user's own tasks that have a due date */

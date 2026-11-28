@@ -17,6 +17,32 @@ export {
   type HostVersions,
   type PluginPackageJson,
 } from './compat.js';
+export {
+  GIT_EVENT_TYPES,
+  isGitEventType,
+  type GitActor,
+  type GitCommentEvent,
+  type GitCommit,
+  type GitDeploymentEvent,
+  type GitDeploymentStatus,
+  type GitEvent,
+  type GitEventCore,
+  type GitEventOf,
+  type GitEventOwner,
+  type GitEventType,
+  type GitIssueEvent,
+  type GitJobEvent,
+  type GitMergeRequest,
+  type GitMergeRequestEvent,
+  type GitPipelineEvent,
+  type GitPipelineStatus,
+  type GitProject,
+  type GitProvider,
+  type GitPushEvent,
+  type GitReleaseEvent,
+  type GitTagEvent,
+  type GitWikiEvent,
+} from './events.js';
 export { formatMarkdownTable, parseMarkdownTable, type MarkdownTable, type MarkdownTableAlign } from './table.js';
 
 /** Languages of the interface */

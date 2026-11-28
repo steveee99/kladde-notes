@@ -19,6 +19,7 @@ import {
   Smartphone,
   Sync,
   Trash2,
+  Webhook,
 } from '../lib/icons';
 import { useConfluenceConnected } from '../lib/confluence';
 import { tl, useLang, type I18nKey } from '../lib/i18n';
@@ -78,6 +79,7 @@ function useGroups(me: Me): Group[] {
         ...(features.mcp.enabled ? [{ path: '/settings/mcp', Icon: Bot, label: 'settings.mcpTitle', desc: 'settings.mcpDesc' } as Entry] : []),
         ...(server && features.notifications.enabled ? [{ path: '/settings/notifications', Icon: Bell, label: 'settings.notifyTitle', desc: 'settings.notifyDesc' } as Entry] : []),
         ...(server && features.calendar.enabled ? [{ path: '/settings/calendar', Icon: CalendarDays, label: 'settings.calendarTitle', desc: 'settings.calendarDesc' } as Entry] : []),
+        ...(server ? [{ path: '/settings/webhooks', Icon: Webhook, label: 'webhooks.title', desc: 'webhooks.navDesc' } as Entry] : []),
         ...(server && features.shortcuts.enabled ? [{ path: '/settings/shortcuts', Icon: Smartphone, label: 'settings.shortcutsTitle', desc: 'settings.shortcutsDesc' } as Entry] : []),
         ...(connected && !DEMO ? [{ path: '/settings/confluence', Icon: Cloud, label: 'settings.confluenceTitle', desc: 'settings.confluenceDesc' } as Entry] : []),
       ],

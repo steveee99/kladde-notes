@@ -53,6 +53,7 @@ const HabitsView = lazy(() => import('./views/HabitsView').then((m) => ({ defaul
 const CockpitView = lazy(() => import('./views/CockpitView').then((m) => ({ default: m.CockpitView })));
 const CockpitBlock = lazy(() => import('./views/CockpitBlock').then((m) => ({ default: m.CockpitBlock })));
 const CockpitBlockEditor = lazy(() => import('./views/CockpitBlock').then((m) => ({ default: m.CockpitBlockEditor })));
+const WebhookSettingsView = lazy(() => import('./views/WebhookSettings').then((m) => ({ default: m.WebhookSettingsView })));
 const CalendarSettingsView = lazy(() => import('./views/CalendarSettings').then((m) => ({ default: m.CalendarSettingsView })));
 const NotificationSettingsView = lazy(() => import('./views/NotificationSettings').then((m) => ({ default: m.NotificationSettingsView })));
 const OAuthConsent = lazy(() => import('./views/OAuthConsent').then((m) => ({ default: m.OAuthConsent })));
@@ -329,6 +330,7 @@ export function App() {
   else if (path === '/settings/confluence') page = <ConfluenceSettingsView />;
   else if (path === '/settings/import' && !me.standalone) page = <ImportSettingsView />;
   else if (path === '/settings/calendar' && !me.standalone) page = <CalendarSettingsView />;
+  else if (path === '/settings/webhooks' && !me.standalone) page = <WebhookSettingsView />;
   else if (path === '/settings/shortcuts' && !me.standalone) page = <ShortcutsSettingsView />;
   else if (path === '/settings/notifications' && !me.standalone) page = <NotificationSettingsView />;
   else if (path === '/files' || path === '/settings/files') page = <FilesView />;

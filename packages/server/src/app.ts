@@ -31,6 +31,10 @@ import { CalendarFeedStore } from './calendar/CalendarFeedStore.js';
 import { calendarRouters } from './calendar/router.js';
 import { ticketHookRouters } from './hooks/router.js';
 import { TicketHookStore } from './hooks/TicketHookStore.js';
+import { EventBus } from './events/EventBus.js';
+import { EventSourceStore } from './events/EventSourceStore.js';
+import { eventRouters } from './events/router.js';
+import { ticketSubscriber } from './events/tickets.js';
 import { PushStore } from './push/PushStore.js';
 import { pushRouter } from './push/router.js';
 import { inQuietHours, localClock, runReminders, vapidSubject } from './push/reminders.js';
@@ -120,6 +124,8 @@ export interface KladdeAppContext {
   metrics: MetricsSources;
   /** Recent jobs for the admin dashboard */
   jobs: JobLog;
+  /** Event bus of the central webhooks (#149) */
+  events: EventBus;
   /** Build-time plugins: their routes, note events, jobs (`tick()` every minute) */
   plugins: PluginHost;
   /** Mentions, comments, plugin notifications */
@@ -210,6 +216,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
   const avatars = new AvatarStore(opts.db, cipher, opts.dataDir);
   const standaloneUser = opts.standalone ? ensureStandaloneUser(users) : undefined;
+  const groupStore = new GroupStore(opts.db);
   // Plugins migrate their own tables here (a backup first when a step is pending), before the first request
   const backupDir = opts.backup?.dir;
   plugins = new PluginHost({
@@ -222,6 +229,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     standaloneUser,
     backup: backupDir ? () => void backupDatabase(opts.db, backupDir) : undefined,
     notifications,
+    groupMembers: (groupId) => groupStore.memberIds(groupId),
   });
   const push = opts.standalone ? undefined : new PushStore(opts.db, cipher, allowedPushHosts(env));
   const pushSubject = vapidSubject(env, opts.publicUrl);
@@ -281,6 +289,13 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
 
   // The admin dashboard: counts, the machine, who is online and the recent jobs
   const jobs = new JobLog();
+  // Event bus (#149): central webhooks publish git events; ticket automations and plugins subscribe
+  const events = new EventBus((subscriber, message, err) => {
+    console.error(`Event ${message.event.type} at ${subscriber} failed:`, err);
+    jobs.add({ kind: 'event', at: Date.now(), durationMs: 0, ok: false, error: `${subscriber}: ${message.event.type}` });
+  });
+  events.subscribe(ticketSubscriber(notes, users));
+  plugins.subscribe(events);
   const overview = overviewBuilder({
     db: opts.db,
     dbPath: metricsSources.dbPath,
@@ -428,6 +443,10 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     // Ticket workflows: GitLab/GitHub deliver merge request events through the hook's secret address (no cookies)
     app.use('/api/hooks', ticketHooks.receiver);
     app.use('/api/ticket-hooks', ticketHooks.accountRouter);
+    // Central webhooks: one per GitLab/GitHub project or group, its events go onto the bus
+    const eventHooks = eventRouters({ users, notes, groups: groupStore, sources: new EventSourceStore(opts.db, cipher), bus: events, audit, publicUrl: opts.publicUrl });
+    app.use('/api/events/hooks', eventHooks.receiver);
+    app.use('/api/event-sources', eventHooks.accountRouter);
     // Web Push reminders (the standalone desktop app has no service worker)
     app.use('/api/push', pushRouter({ users, notes, store: push!, subject: pushSubject }));
   }
@@ -475,7 +494,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   }
   // Build-time plugins: `/api/plugins` and their routes under `/api/p/<id>`
   plugins.mount(app);
-  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db), spaces: online ? new SpaceIndexes(notes) : undefined, activity, notifications, jobs, comments: opts.standalone ? undefined : new CommentStore(opts.db, cipher, users) }));
+  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : groupStore, spaces: online ? new SpaceIndexes(notes) : undefined, activity, notifications, jobs, comments: opts.standalone ? undefined : new CommentStore(opts.db, cipher, users) }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
   // APP_TITLE: the served index.html and manifest carry the app's name (the client reads it from the page)
@@ -556,5 +575,5 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
 
   const sendReminders = push ? (now?: Date) => runReminders(push, notes, pushSubject, now) : undefined;
-  return { app, users, notes, files, avatars, attachmentIndexer, confluence, remoteSync, cockpitWatch, audit, live, standaloneUser, sendReminders, backups, metrics: metricsSources, jobs, plugins, notifications };
+  return { app, users, notes, files, avatars, attachmentIndexer, confluence, remoteSync, cockpitWatch, audit, live, standaloneUser, sendReminders, backups, metrics: metricsSources, jobs, events, plugins, notifications };
 }

@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import express from 'express';
 import type { DatabaseSync } from 'node:sqlite';
 import { APP_VERSION, FEATURES_SETTING, normalizeFeatures, parseFrontmatter, SYSTEM_PREFIX, type SyncedNote } from '@kladde/shared';
-import { localize, PLUGIN_API_VERSION, PLUGIN_ID_PATTERN, PluginError, pluginTablePrefix, satisfies } from '@kladde/plugin-api';
+import { isGitEventType, localize, PLUGIN_API_VERSION, PLUGIN_ID_PATTERN, PluginError, pluginTablePrefix, satisfies, type GitEvent, type GitEventType } from '@kladde/plugin-api';
 import type { PluginMcpTool, PluginNote, PluginNoteFilter, PluginNotes, PluginNotification, PluginServerContext, PluginUser } from '@kladde/plugin-api/server';
 import type { DataCipher } from '../crypto.js';
 import { transaction } from '../db.js';
@@ -10,6 +10,7 @@ import type { NoteChangeEvent, NoteStore } from '../NoteStore.js';
 import type { UserRecord, UserStore } from '../UserStore.js';
 import { requireUser } from '../http.js';
 import type { NotificationStore } from '../NotificationStore.js';
+import type { EventBus } from '../events/EventBus.js';
 import { migratePlugins, pendingPluginMigrations, pluginSchemaVersions } from './migrations.js';
 import type { InstalledServerPlugin } from './types.js';
 
@@ -25,6 +26,8 @@ export interface PluginHostOptions {
   backup?: () => void;
   /** Where `ctx.notify` delivers (none in standalone mode) */
   notifications?: NotificationStore;
+  /** Member ids of a group, for git events of group webhooks */
+  groupMembers?: (groupId: string) => string[];
 }
 
 /** A plugin's MCP tool as the MCP endpoint offers it: its full name and a call that may return a promise */
@@ -91,6 +94,9 @@ export class PluginHost {
         if (!TOOL_NAME.test(tool.name)) throw new Error(`Plugin ${installed.name}: invalid MCP tool name "${tool.name}" (a–z, 0–9 and _, starting with a letter)`);
         if (toolNames.has(tool.name)) throw new Error(`Plugin ${installed.name}: two MCP tools are called "${tool.name}"`);
         toolNames.add(tool.name);
+      }
+      for (const type of [...Object.keys(installed.plugin.events ?? {}), ...(installed.plugin.rawPayload ?? [])]) {
+        if (!isGitEventType(type)) throw new Error(`Plugin ${installed.name}: unknown event type "${type}" (docs/EVENTS.md)`);
       }
       // The build checks this already; an image put together by hand still must not run a plugin against the wrong API
       if (!satisfies(PLUGIN_API_VERSION, installed.api)) {
@@ -206,6 +212,41 @@ export class PluginHost {
       } catch (err) {
         l.ctx.log.error('onNoteChange failed', err);
       }
+    }
+  }
+
+  /**
+   * Subscribes every plugin with `events` to the bus (one subscriber per plugin, so a slow or failing plugin never
+   * holds up another). A plugin gets an event only for the owner's accounts that switched it on, each plugin its
+   * own copy, `raw` only for the types it lists in `rawPayload`.
+   */
+  subscribe(bus: EventBus): void {
+    for (const l of this.loaded) {
+      const { plugin } = l.installed;
+      const handlers = plugin.events;
+      const types = Object.keys(handlers ?? {}).filter(isGitEventType);
+      if (!handlers || !types.length) continue;
+      const raw = new Set<GitEventType>(plugin.rawPayload ?? []);
+      bus.subscribe({
+        name: `plugin:${plugin.id}`,
+        types,
+        handle: async ({ event, owner, rawPayload }) => {
+          const candidates = owner.kind === 'user' ? [owner.id] : (this.opts.groupMembers?.(owner.id) ?? []);
+          const people = candidates.filter((id) => {
+            const u = this.opts.users.getUser(id);
+            return !!u && !u.bannedAt && this.enabledFor(id, plugin.id);
+          });
+          if (!people.length) return 'für niemanden eingeschaltet';
+          const copy = structuredClone({ ...event, owner, users: people, ...(raw.has(event.type) && rawPayload !== undefined ? { raw: rawPayload } : {}) }) as GitEvent;
+          const handler = handlers[event.type] as ((e: GitEvent, ctx: PluginServerContext) => void | Promise<void>) | undefined;
+          try {
+            await handler?.(copy, l.ctx);
+          } catch (err) {
+            l.ctx.log.error(`event ${event.type} failed`, err);
+            throw err;
+          }
+        },
+      });
     }
   }
 

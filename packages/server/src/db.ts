@@ -618,6 +618,31 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 32,
+    description: 'Central webhooks of GitLab/GitHub for the event bus, and the delivery ids they already took',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE event_sources (
+          id TEXT PRIMARY KEY,
+          owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          provider TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          last_at INTEGER,
+          payload BLOB NOT NULL
+        );
+        CREATE INDEX event_sources_owner ON event_sources(owner_id);
+        CREATE TABLE event_deliveries (
+          source_id TEXT NOT NULL REFERENCES event_sources(id) ON DELETE CASCADE,
+          delivery TEXT NOT NULL,
+          at INTEGER NOT NULL,
+          PRIMARY KEY (source_id, delivery)
+        );
+        CREATE INDEX event_deliveries_at ON event_deliveries(at);
+      `);
+    },
+  },
 ];
 
 /** The schema version this build migrates to */

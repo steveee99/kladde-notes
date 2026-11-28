@@ -39,7 +39,7 @@ function addEntry(ctx: PluginServerContext, userId: string, text: string, mood: 
 /**
  * Server part of the example plugin: own tables (migrations), encrypted rows, routes under /api/p/logbook,
  * a note per entry on request, a counter fed by note changes, a cleanup job, the account export, two MCP tools
- * for AI assistants and a notification when an assistant wrote an entry.
+ * for AI assistants, a notification when an assistant wrote an entry and an entry for every merged merge request.
  */
 export default defineServerPlugin({
   id: 'logbook',
@@ -66,6 +66,18 @@ export default defineServerPlugin({
         CREATE TABLE p_logbook_stats (
           owner_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
           notes_changed INTEGER NOT NULL DEFAULT 0
+        );
+      `,
+    },
+    {
+      version: 3,
+      description: 'Git events already written as entries',
+      sql: `
+        CREATE TABLE p_logbook_events (
+          owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          event_id TEXT NOT NULL,
+          at INTEGER NOT NULL,
+          PRIMARY KEY (owner_id, event_id)
         );
       `,
     },
@@ -144,6 +156,7 @@ export default defineServerPlugin({
       run(ctx) {
         const cutoff = Date.now() - keepDays(ctx) * 86_400_000;
         const { changes } = ctx.db.prepare(`DELETE FROM ${ctx.table('entries')} WHERE at < ?`).run(cutoff);
+        ctx.db.prepare(`DELETE FROM ${ctx.table('events')} WHERE at < ?`).run(Date.now() - 30 * 86_400_000);
         if (changes) ctx.log.info(`${changes} old entries removed`);
       },
     },
@@ -179,6 +192,25 @@ export default defineServerPlugin({
       },
     },
   ],
+
+  // Git events of Kladde's central webhooks (docs/EVENTS.md): a merged merge request becomes an entry for everyone
+  // the event is for (the webhook's owner, or the group's members, who switched the logbook on)
+  events: {
+    'git.merge_request'(event, ctx) {
+      if (event.action !== 'merged') return;
+      const mr = event.mergeRequest;
+      const text = `Gemergt in ${event.project.path}: !${mr.number} ${mr.title}`.slice(0, 2000);
+      for (const userId of event.users) {
+        // Idempotent by the delivery id: a repeated delivery adds no second entry
+        const seen = ctx.db.prepare(`SELECT 1 FROM ${ctx.table('events')} WHERE owner_id = ? AND event_id = ?`).get(userId, event.id);
+        if (seen) continue;
+        ctx.transaction(() => {
+          ctx.db.prepare(`INSERT INTO ${ctx.table('events')} (owner_id, event_id, at) VALUES (?, ?, ?)`).run(userId, event.id, Date.now());
+          addEntry(ctx, userId, text, 'good');
+        });
+      }
+    },
+  },
 
   exportAccount(userId, ctx) {
     return [{ name: 'entries.json', content: `${JSON.stringify(entriesOf(ctx, userId, 100_000), null, 2)}\n` }];
