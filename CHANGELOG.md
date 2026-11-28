@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.30.0] – 2026-11-28
+
 - New: Plugin tables can show badges (colored labels in the state colors), monospaced columns, clickable rows with a selected row and a first column that stays in view while a wide table scrolls sideways. The example plugin shows the mood as a badge and opens an entry with a click on its row.
 - New: Plugins can add tabs to the inspector next to a note, for the note types they choose (e.g. `plugin:time:project`), with an optional count next to the icon. The example plugin shows a "Logbook" tab next to logbook notes with the mood and the other logbook notes.
 - New: Central webhooks for GitLab and GitHub ([docs/EVENTS.md](docs/EVENTS.md)) under Settings → Webhooks: one webhook per project or group (or repository) for an account or, created by its owners, a group, optionally limited to project paths. Kladde checks the secret, drops repeated deliveries, turns merge requests, pushes, tags, pipelines, jobs, comments, issues, releases, deployments and wiki pages into git events and hands them to the ticket automations and to plugins; the settings show the latest deliveries of every webhook with their outcome. The project settings' own webhooks keep working.
