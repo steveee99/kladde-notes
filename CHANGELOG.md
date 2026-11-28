@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- Fixed: On the iPhone the model menu in the "Start a run" dialog (and the stage menu of a run whose stage is gone) did not open. Both now use the app's own menu instead of the system picker.
+
 ## [2.32.1] – 2026-11-28
 
 - Fixed: On iPhone and iPad, tapping a field with small text (the process pages, the script editor and most other fields) zoomed the app in, and with pinch zoom switched off there was no way back out. The app now keeps iOS from zooming in on focus; pinching still follows the "Pinch to zoom" setting.

@@ -60,6 +60,7 @@ import { isReadOnly, useReadOnly } from '../lib/readOnly';
 import { showToast } from '../lib/toast';
 import { PageBody, PageHeader } from './PageHeader';
 import { Sheet } from './Dialogs';
+import { Dropdown } from './Dropdown';
 import { MenuButton, type MenuAction } from './ContextMenu';
 import { CockpitConnectionsView } from './CockpitConnections';
 import { problemText } from './CockpitWidget';
@@ -494,14 +495,7 @@ function StageCard({ run, node, model, models, canEdit, onRun, nested }: {
         <p className="mt-1 text-body-m text-muted">{T(lang, 'stageGoneHint')}</p>
         {canEdit && (
           <div className="mt-3 flex flex-wrap gap-2">
-            <select className="input !h-9 w-auto" value={target} onChange={(e) => setTarget(e.target.value)} aria-label={T(lang, 'stage')}>
-              <option value="">{T(lang, 'pickStage')}</option>
-              {model.stages.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.title}
-                </option>
-              ))}
-            </select>
+            <Dropdown className="w-auto" value={target} onChange={setTarget} placeholder={T(lang, 'pickStage')} options={model.stages.map((s) => ({ value: s.id, label: s.title }))} aria-label={T(lang, 'stage')} />
             <button type="button" className="btn-primary" disabled={!target} onClick={() => (target ? onRun(moveToStage(run, models, target, by())) : undefined)}>
               {T(lang, 'continueHere')}
             </button>
@@ -1378,16 +1372,11 @@ function StartRunSheet({ models, initial, onClose }: { models: ModelRef[]; initi
         }}
         data-process-start
       >
-        <label className="block">
+        {/* The app's own menu, not a native <select>: on the iPhone the picker of the field the sheet focuses first did not open */}
+        <div>
           <span className="text-label-m text-muted">{T(lang, 'model')}</span>
-          <select className="input mt-1 w-full" value={modelId} onChange={(e) => setModelId(e.target.value)}>
-            {models.map((m) => (
-              <option key={m.noteId} value={m.noteId}>
-                {m.model.title}
-              </option>
-            ))}
-          </select>
-        </label>
+          <Dropdown className="mt-1 w-full" value={modelId} onChange={setModelId} options={models.map((m) => ({ value: m.noteId, label: m.model.title }))} aria-label={T(lang, 'model')} />
+        </div>
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_9rem]">
           <label className="block min-w-0">
             <span className="text-label-m text-muted">{T(lang, 'runTitle')}</span>

@@ -157,6 +157,15 @@ test('on a phone a run starts without the Enter key: the typed repository counts
   await expect(page.locator('[data-model-card="wasserfall"]')).toHaveCount(1);
   await page.locator('[data-model-card="fehlerbehebung"]').getByRole('button', { name: 'Start a run' }).locator('visible=true').click();
   const start = page.locator('[data-process-start]');
+  // The model is picked from the app's own menu (the iPhone's native picker did not open in the sheet)
+  const modelField = start.getByRole('combobox', { name: 'Model' });
+  await modelField.click();
+  const modelOptions = page.getByRole('listbox');
+  await expect(modelOptions.getByRole('option')).toHaveCount(2);
+  await modelOptions.getByRole('option').filter({ hasNotText: await modelField.innerText() }).click();
+  await expect(modelOptions).toHaveCount(0);
+  await modelField.click();
+  await page.getByRole('listbox').getByRole('option').filter({ hasNotText: await modelField.innerText() }).click();
   await start.locator('[data-process-title]').fill(`Phone ${uid()}`);
   await expect(start.locator('[data-process-start-missing]')).toHaveText('Add at least one repository · Target branch missing');
   // Typed, not confirmed with Enter
