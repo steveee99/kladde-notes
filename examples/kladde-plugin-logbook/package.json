@@ -32,9 +32,9 @@
   "devDependencies": {
     "@kladde/plugin-api": "*",
     "@types/express": "^5.0.0",
-    "@types/node": "^24.19.4",
-    "@types/react": "^18.3.18",
-    "react": "^18.3.1",
-    "typescript": "^5.8.2"
+    "@types/node": "^26.6.9",
+    "@types/react": "^19.3.1",
+    "react": "^19.3.1",
+    "typescript": "^7.0.2"
   }
 }

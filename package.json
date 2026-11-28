@@ -41,15 +41,15 @@
     "@axe-core/playwright": "^4.14.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.65.1",
-    "@vitest/coverage-v8": "^4.1.12",
-    "concurrently": "^9.1.2",
+    "@vitest/coverage-v8": "^5.1.1",
+    "concurrently": "^10.0.7",
     "deepmerge": "file:vendor/deepmerge",
     "esbuild": "^0.28.2",
     "eslint": "^10.15.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.14.0",
     "postject": "^1.0.0-alpha.6",
-    "typescript": "^5.8.2",
+    "typescript": "^7.0.2",
     "typescript-eslint": "^8.72.2"
   },
   "overrides": {
