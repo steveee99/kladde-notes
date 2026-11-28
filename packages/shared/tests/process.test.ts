@@ -66,6 +66,12 @@ describe('branches', () => {
     expect(suggestBranch({ branchPrefix: 'x', branchPattern: '{{prefix}}//{{ticket}}..lock' }, { ticket: 'A-1', title: '' })).toBe('x/A-1');
   });
 
+  it('stays fast on long runs of separators', () => {
+    const t = Date.now();
+    expect(suggestBranch({ branchPrefix: 'x', branchPattern: `${'/-'.repeat(50000)}{{slug}}${'-/'.repeat(50000)}` }, { ticket: '', title: `${'-'.repeat(50000)}a` })).toBe('a');
+    expect(Date.now() - t).toBeLessThan(500);
+  });
+
   it('builds the GitLab links with the branch and the ref', () => {
     expect(newBranchUrl('https://git.example.com/', 'team/api', 'feature/A-1', 'release/2.31')).toBe('https://git.example.com/team/api/-/branches/new?branch_name=feature%2FA-1&ref=release%2F2.31');
   });

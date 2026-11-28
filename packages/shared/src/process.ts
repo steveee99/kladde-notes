@@ -158,17 +158,23 @@ const varName = (v: unknown): string => (typeof v === 'string' && VAR.test(v) ? 
 const pick = <T extends string>(v: unknown, list: readonly T[], fallback: T): T => (list.includes(v as T) ? (v as T) : fallback);
 const intOf = (v: unknown, fallback: number): number => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < 1e6 ? v : fallback);
 
+/** `s` without the characters of `chars` at both ends (a loop: no regex that backtracks on long runs) */
+function trimChars(s: string, chars: string): string {
+  let a = 0;
+  let b = s.length;
+  while (a < b && chars.includes(s[a])) a++;
+  while (b > a && chars.includes(s[b - 1])) b--;
+  return s.slice(a, b);
+}
+
 export function processKey(text: string): string {
-  return (
-    text
-      .toLowerCase()
-      .normalize('NFKD')
-      .replace(/[̀-ͯ]/g, '')
-      .replace(/ß/g, 'ss')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 40) || 'prozess'
-  );
+  const dashed = text
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, '-');
+  return trimChars(trimChars(dashed, '-').slice(0, 40), '-') || 'prozess';
 }
 
 function normalizeCondition(raw: unknown): ProcessCondition | null {
@@ -466,19 +472,21 @@ export function serializeRun(r: ProcessRun): string {
 
 /** A name git accepts as a branch: allowed characters only, no `..`, no leading or trailing `/` or `.` */
 export function cleanBranch(name: string): string {
-  return name
+  const collapsed = name
     .replace(/[^A-Za-z0-9._/-]+/g, '-')
     .replace(/\.{2,}/g, '.')
     .replace(/\/{2,}/g, '/')
-    .replace(/-{2,}/g, '-')
-    .replace(/^[/.-]+|[/.-]+$/g, '')
-    .replace(/\.lock$/i, '')
-    .slice(0, 120);
+    .replace(/-{2,}/g, '-');
+  const trimmed = trimChars(collapsed, '/.-');
+  return trimChars((trimmed.toLowerCase().endsWith('.lock') ? trimmed.slice(0, -5) : trimmed).slice(0, 120), '/.-');
 }
 
 export function branchSlug(title: string, max = 40): string {
   const s = processKey(title);
-  return s.length > max ? s.slice(0, max).replace(/-[^-]*$/, '') || s.slice(0, max) : s;
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  const at = cut.lastIndexOf('-');
+  return at > 0 ? cut.slice(0, at) : cut;
 }
 
 /** The branch name the model suggests for a run */
@@ -488,17 +496,28 @@ export function suggestBranch(model: Pick<ProcessModel, 'branchPrefix' | 'branch
     .replace(/\{\{\s*ticket\s*\}\}/g, run.ticket.trim())
     .replace(/\{\{\s*slug\s*\}\}/g, branchSlug(run.title));
   // An empty part leaves "feature/-titel" or "feature/ABC-1-": tidy the joints
-  return cleanBranch(name.replace(/\/-+/g, '/').replace(/-+\//g, '/'));
+  return cleanBranch(
+    cleanBranch(name)
+      .split('/')
+      .map((part) => trimChars(part, '-'))
+      .join('/')
+  );
 }
+
+const trimEnd = (url: string): string => {
+  let b = url.length;
+  while (b > 0 && url[b - 1] === '/') b--;
+  return url.slice(0, b);
+};
 
 /** Where GitLab makes a branch from `ref`, prefilled */
 export function newBranchUrl(gitlabUrl: string, repo: string, branch: string, ref: string): string {
-  return `${gitlabUrl.replace(/\/+$/, '')}/${repo.split('/').map(encodeURIComponent).join('/')}/-/branches/new?branch_name=${encodeURIComponent(branch)}&ref=${encodeURIComponent(ref)}`;
+  return `${trimEnd(gitlabUrl)}/${repo.split('/').map(encodeURIComponent).join('/')}/-/branches/new?branch_name=${encodeURIComponent(branch)}&ref=${encodeURIComponent(ref)}`;
 }
 
 /** Where GitLab opens a merge request from `branch` into `target`, prefilled */
 export function newMergeRequestUrl(gitlabUrl: string, repo: string, branch: string, target: string): string {
-  return `${gitlabUrl.replace(/\/+$/, '')}/${repo.split('/').map(encodeURIComponent).join('/')}/-/merge_requests/new?merge_request%5Bsource_branch%5D=${encodeURIComponent(branch)}&merge_request%5Btarget_branch%5D=${encodeURIComponent(target)}`;
+  return `${trimEnd(gitlabUrl)}/${repo.split('/').map(encodeURIComponent).join('/')}/-/merge_requests/new?merge_request%5Bsource_branch%5D=${encodeURIComponent(branch)}&merge_request%5Btarget_branch%5D=${encodeURIComponent(target)}`;
 }
 
 // ------------------------------------------------------------------ variables
