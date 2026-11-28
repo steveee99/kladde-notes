@@ -27,7 +27,7 @@
  */
 import { parseFrontmatter } from './markdown.js';
 import { isCockpitSourceKind, normalizeWidget, type CockpitFilter, type CockpitParamValue, type CockpitSourceKind } from './cockpit.js';
-import { cleanNotePath, PROCESS_ACTION_KINDS, runScript, scriptProblems, scriptText, type ProcessAction } from './processScript.js';
+import { assignedNames, cleanNotePath, PROCESS_ACTION_KINDS, runScript, scriptProblems, scriptText, type ProcessAction } from './processScript.js';
 
 // ------------------------------------------------------------------ notes
 
@@ -772,6 +772,31 @@ export function conditionText(c: ProcessCondition, lang: 'de' | 'en' = 'de'): st
   if (c.op === 'set') return `${c.var} ${lang === 'de' ? 'gesetzt' : 'set'}`;
   if (c.op === 'unset') return `${c.var} ${lang === 'de' ? 'leer' : 'empty'}`;
   return `${c.var} ${c.op === 'eq' ? '=' : '≠'} ${c.value}`;
+}
+
+/** The run's own fields, readable everywhere */
+export const RUN_FIELDS = ['title', 'ticket', 'target', 'branch', 'repos'];
+
+/**
+ * The variables a model knows, for the script editor: the run's fields, links, decisions, loop counters and items,
+ * outputs of sub-workflows and the names its scripts assign (sorted, without the run's fields)
+ */
+export function modelVariables(m: ProcessModel): string[] {
+  const out = new Set<string>();
+  for (const st of m.stages) {
+    for (const s of st.steps) if (s.kind === 'link' && s.var) out.add(s.var);
+    if (st.kind === 'choice' && st.var) out.add(st.var);
+    if (st.kind === 'loop' && st.var) {
+      out.add(st.var);
+      if (st.over) out.add(`${st.var}_item`);
+    }
+    if (st.kind === 'loop' && st.over) out.add(st.over);
+    for (const v of Object.values(st.outputs)) out.add(v);
+    for (const n of [...assignedNames(st.onEnter), ...assignedNames(st.onExit)]) out.add(n);
+    if (st.when) out.add(st.when.var);
+  }
+  for (const f of RUN_FIELDS) out.delete(f);
+  return [...out].sort();
 }
 
 // ------------------------------------------------------------------ walking

@@ -5,6 +5,7 @@ All user-visible changes to Kladde.
 ## [Unreleased]
 
 - New: Process stages can run scripts ([docs/PROCESS_SCRIPTS.md](docs/PROCESS_SCRIPTS.md), with a V-Model example): `onEnter` runs when a run enters a stage, `onExit` when it leaves it. One statement per line with `notify(to, text)` (notifies `owner`, `me`, `all` or `@names`, only people who can see the run), `note(path, template?)` (creates a note in the run's space, optionally from a template, and leaves an existing one alone), `set`/`inc`/`clear` and assignments like `round = round + 1`, `done(step)`/`undone(step)`, `log(text)` and `if <condition>: …`. Strings fill `{{run.x}}`. Notifications and notes are carried out once by the server after the run is saved, from the app and from assistants alike; the run page lists the actions with their outcome, and notifications open the run.
+- New: A script editor for process stages: on a model's page "Add script" (or "Edit") below a stage opens it, with highlighting, suggestions for functions, run variables, step ids, templates and people, and problems marked while typing. It is shown only while a script is being written.
 - New: Loop stages (`"kind": "loop"`) repeat the stages from `body` until a condition holds (`until`), `max` rounds passed or every item of a list (`over`) had its round; the round counter and the current item are run variables, the steps of a round are open again in the next one. The graph, the way and the history show loops and rounds.
 
 ## [2.31.0] – 2026-11-28

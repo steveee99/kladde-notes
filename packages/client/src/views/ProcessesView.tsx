@@ -13,7 +13,10 @@ import {
   closeRun,
   conditionText,
   fillQuery,
+  assignedNames,
   loopBody,
+  modelVariables,
+  parseScript,
   SCRIPT_FUNCTIONS,
   fillRunVars,
   markSeen,
@@ -45,6 +48,7 @@ import {
   type ProcessStep,
 } from '@kladde/shared';
 import { api } from '../lib/api';
+import { ScriptEditor } from './ScriptEditor';
 import { useVault, vault } from '../data/vault';
 import { refreshConnections, useConnections, useResults, widgetState } from '../data/cockpit';
 import { createModel, createRun, deleteProcessNote, ensureExampleProcesses, loadProcesses, modelsOfSpace, queryWidget, runWidget, saveModel, saveRun, useProcesses, type ModelRef, type RunRef } from '../data/processes';
@@ -1041,7 +1045,118 @@ function GraphLegend() {
 }
 
 /** A stage's definition in words: what it holds, when it applies, where it leads */
-function StageDetails({ model, stageId }: { model: ProcessModel; stageId: string }) {
+type ScriptSlot = 'onEnter' | 'onExit';
+
+/**
+ * The scripts of a stage on the model page: shown as code, edited in the script editor only after "Add script" or
+ * "Edit"; saving writes the model (its version goes up like for any other change)
+ */
+function StageScripts({ refModel, stage }: { refModel: ModelRef; stage: ProcessStage }) {
+  const lang = useLang();
+  const [slot, setSlot] = useState<ScriptSlot | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setSlot(null), [stage.id]);
+  const slots: ScriptSlot[] = stage.kind === 'end' ? ['onEnter'] : ['onEnter', 'onExit'];
+  const empty = slots.filter((k) => !stage[k].trim());
+  const open = (k: ScriptSlot, add: boolean) => {
+    setSlot(k);
+    setAdding(add);
+    setDraft(stage[k]);
+  };
+  const save = async (text: string) => {
+    if (!slot) return;
+    setBusy(true);
+    try {
+      const m: ProcessModel = JSON.parse(JSON.stringify(refModel.model));
+      const st = m.stages.find((x) => x.id === stage.id);
+      if (!st) return;
+      st[slot] = text.trim();
+      const saved = await saveModel(refModel.noteId, m);
+      showToast(saved.version > refModel.model.version ? T(lang, 'savedVersion', { v: saved.version }) : T(lang, 'savedSame'));
+      setSlot(null);
+    } catch (err) {
+      showToast((err as Error).message, 'danger');
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (slot) {
+    const errors = parseScript(draft).errors;
+    const others = refModel.model.stages.filter((x) => x.id !== stage.id).flatMap((x) => x.steps);
+    const hints = {
+      variables: [...new Set([...modelVariables(refModel.model), ...assignedNames(draft)])].sort(),
+      steps: [...stage.steps, ...others].map((x) => ({ id: x.id, label: x.label })),
+      templates: vault.templates().map((tp) => tp.label),
+      people: [...new Set([vault.actorName, ...vault.peopleOf(refModel.noteId).map((p) => p.username)].filter(Boolean))],
+      lang,
+    };
+    const choices = adding ? empty : [slot];
+    return (
+      <div className="space-y-2 rounded-lg border border-line bg-panel p-3" data-script-editing={slot}>
+        <div className="flex flex-wrap items-center gap-2">
+          <ScrollText size={15} className="text-muted" />
+          {choices.length > 1 ? (
+            <div className="segmented" role="radiogroup" aria-label={T(lang, 'scriptWhen')}>
+              {choices.map((k) => (
+                <button key={k} type="button" role="radio" aria-checked={slot === k} className={slot === k ? 'bg-acc-bg text-acc-hi' : ''} onClick={() => setSlot(k)}>
+                  {T(lang, k)}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span className="text-label-m text-text">{T(lang, slot)}</span>
+          )}
+          <span className="ml-auto text-body-s text-faint">{T(lang, 'scriptKeys')}</span>
+        </div>
+        <ScriptEditor key={`${stage.id}/${adding ? 'new' : slot}`} value={draft} onChange={setDraft} hints={hints} label={T(lang, 'scriptEditorLabel', { stage: stage.title, when: T(lang, slot) })} placeholderText={T(lang, 'scriptPlaceholder')} />
+        <p className={`text-body-s ${errors.length ? 'text-red' : 'text-muted'}`} role={errors.length ? 'alert' : undefined} data-script-errors={errors.length}>
+          {errors.length ? errors.map((e) => T(lang, 'scriptLineError', { line: e.line, message: e.message })).join(' · ') : T(lang, 'scriptOk')}
+        </p>
+        <div className="flex flex-wrap justify-end gap-2">
+          {!adding && stage[slot] && (
+            <button type="button" className="btn-text mr-auto text-red" disabled={busy} onClick={() => void save('')} data-script-remove>
+              <Trash2 size={15} /> {T(lang, 'removeScript')}
+            </button>
+          )}
+          <button type="button" className="btn-text" disabled={busy} onClick={() => setSlot(null)}>
+            {T(lang, 'cancel')}
+          </button>
+          <button type="button" className="btn-primary" disabled={busy || errors.length > 0 || !draft.trim()} onClick={() => void save(draft)} data-script-save>
+            {T(lang, 'save')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <>
+      {slots.map((k) =>
+        stage[k] ? (
+          <div key={k}>
+            <div className="mb-1 flex items-center gap-2">
+              <p className="text-body-s text-muted">{T(lang, k)}</p>
+              <button type="button" className="btn-text ml-auto !h-7 !px-2" onClick={() => open(k, false)} data-script-edit={k}>
+                <Pencil size={13} /> {T(lang, 'editScript')}
+              </button>
+            </div>
+            <pre className="overflow-x-auto rounded-md border border-line bg-bg px-2.5 py-2 font-mono text-[11.5px] leading-5 text-soft" data-stage-script={k}>
+              {stage[k]}
+            </pre>
+          </div>
+        ) : null
+      )}
+      {empty.length > 0 && (
+        <button type="button" className="btn-outlined !h-8" onClick={() => open(empty[0], true)} data-script-add>
+          <Plus size={15} /> {T(lang, 'addScript')}
+        </button>
+      )}
+    </>
+  );
+}
+
+function StageDetails({ model, stageId, edit }: { model: ProcessModel; stageId: string; edit?: ModelRef }) {
   const lang = useLang();
   const st = stageOf(model, stageId);
   if (!st) return null;
@@ -1090,8 +1205,9 @@ function StageDetails({ model, stageId }: { model: ProcessModel; stageId: string
           {st.over && <li>{T(lang, 'loopOver', { var: `run.${st.over}`, item: `run.${st.var}_item` })}</li>}
         </ul>
       )}
+      {edit && <StageScripts refModel={edit} stage={st} />}
       {(['onEnter', 'onExit'] as const).map((k) =>
-        st[k] ? (
+        !edit && st[k] ? (
           <div key={k}>
             <p className="mb-1 text-body-s text-muted">{T(lang, k)}</p>
             <pre className="overflow-x-auto rounded-md border border-line bg-bg px-2.5 py-2 font-mono text-[11.5px] leading-5 text-soft" data-stage-script={k}>
@@ -1837,7 +1953,7 @@ function ModelPage({ refModel, runs }: { refModel: ModelRef; runs: RunRef[] }) {
         <ProcessGraph model={m} selected={sel} onSelect={setSel} />
         <GraphLegend />
         <div className="grid gap-5 nav:grid-cols-2">
-          <StageDetails model={m} stageId={sel} />
+          <StageDetails model={m} stageId={sel} edit={canEdit ? refModel : undefined} />
           <div className="min-w-0 space-y-4">
             <section>
               <h3 className="mb-2 font-display text-[17px] text-strong">{T(lang, 'versions')}</h3>

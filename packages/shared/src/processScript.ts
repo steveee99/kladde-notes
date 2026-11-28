@@ -473,6 +473,17 @@ export function cleanNotePath(raw: string): string {
   return path.toLowerCase().endsWith('.md') ? path.slice(0, -3) : path;
 }
 
+/** Variable names a script assigns (`name = …`, `set("name", …)`, `inc`, `clear`), for the editor's completion */
+export function assignedNames(source: string): string[] {
+  const out = new Set<string>();
+  for (const line of source.split(/\r?\n/)) {
+    const m = /^\s*(?:if\b[^:]*:\s*)?(?:run\.)?([A-Za-z][A-Za-z0-9_]{0,39})\s*=(?!=)/.exec(line);
+    if (m && m[1] !== 'if') out.add(m[1]);
+    for (const c of line.matchAll(/\b(?:set|inc|clear)\(\s*["'](?:run\.)?([A-Za-z][A-Za-z0-9_]{0,39})["']/g)) out.add(c[1]);
+  }
+  return [...out];
+}
+
 /** The script text from a model's JSON: a string or a list of lines */
 export function scriptText(raw: unknown): string {
   if (typeof raw === 'string') return raw.slice(0, SCRIPT_LIMITS.length);

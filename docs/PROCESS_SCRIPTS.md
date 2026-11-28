@@ -12,7 +12,22 @@ This page explains both and ends with a complete example: the V-Model.
 
 ## Scripts
 
-A script is a string with one statement per line, or a list of lines:
+### The script editor
+
+On a model's page, select a stage in the graph and press **Add script** below its details (or **Edit** next to an
+existing one). The script editor opens only then, and it closes again after saving:
+
+- the slot to write: **On enter** or **On exit** (an end stage has only On enter),
+- highlighting of functions, strings, `{{run.x}}`, variables, keywords, numbers and comments,
+- suggestions while typing (**Ctrl+Space** asks for them): functions with their parameters, run variables (also
+  after `{{run.`), step ids in `done()`/`undone()`, variables in `set()`/`inc()`/`clear()`, template names as the
+  second argument of `note()`, and `owner`, `me`, `all` and people after `@` in `notify()`,
+- problems underlined in red while typing, with the message below the editor; a script with problems cannot be
+  saved,
+- **Ctrl+/** comments a line in or out, **Remove script** deletes it.
+
+Saving writes the model like any other change, so its version goes up. In the JSON editor a script is a string with
+one statement per line, or a list of lines:
 
 ```json
 "onEnter": [
