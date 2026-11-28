@@ -856,7 +856,8 @@ const GH = 52;
 function layout(m: ProcessModel): { nodes: Map<string, GraphNode>; width: number; height: number } {
   const level = new Map<string, number>([[m.start, 0]]);
   const queue = [m.start];
-  const forward = (st: ProcessStage) => [...st.options.map((o) => o.to), ...st.next.filter((t) => !t.back).map((t) => t.to)];
+  // A loop's round comes right after the loop (next to its way out), so its stages sit next to it, not at the end
+  const forward = (st: ProcessStage) => [...(st.kind === 'loop' && st.body ? [st.body] : []), ...st.options.map((o) => o.to), ...st.next.filter((t) => !t.back).map((t) => t.to)];
   while (queue.length) {
     const id = queue.shift()!;
     const st = stageOf(m, id);
@@ -1347,12 +1348,16 @@ function StartRunSheet({ models, initial, onClose }: { models: ModelRef[]; initi
     if (clean && /^[A-Za-z0-9_.][A-Za-z0-9_./-]*$/.test(clean) && !repos.includes(clean)) setRepos([...repos, clean]);
     setRepoText('');
   };
+  // A repository still in the field counts as added (phone keyboards do not always send Enter)
+  const pendingRepo = repoText.trim().replace(/^\/+|\/+$/g, '');
+  const pendingOk = !!pendingRepo && /^[A-Za-z0-9_.][A-Za-z0-9_./-]*$/.test(pendingRepo);
+  const allRepos = pendingOk && !repos.includes(pendingRepo) ? [...repos, pendingRepo] : repos;
   const submit = async () => {
     if (!ref) return;
     setBusy(true);
     try {
       const all = modelsOfSpace(ref.group);
-      const run = startRun(ref.model, all, { title: title || ref.model.title, ticket, target, repos, branch: shownBranch }, by());
+      const run = startRun(ref.model, all, { title: title || ref.model.title, ticket, target, repos: allRepos, branch: shownBranch }, by());
       const id = await createRun(run, ref.group);
       onClose();
       navigate(`/processes/run/${encodeURIComponent(id)}`);
@@ -1361,7 +1366,8 @@ function StartRunSheet({ models, initial, onClose }: { models: ModelRef[]; initi
       setBusy(false);
     }
   };
-  const ready = !!ref && !!target.trim() && repos.length > 0;
+  const missing = [...(allRepos.length ? [] : [T(lang, 'missingRepos')]), ...(target.trim() ? [] : [T(lang, 'missingTarget')])];
+  const ready = !!ref && missing.length === 0;
   return (
     <Sheet title={T(lang, 'startTitle')} onClose={onClose}>
       <form
@@ -1403,20 +1409,28 @@ function StartRunSheet({ models, initial, onClose }: { models: ModelRef[]; initi
               ))}
             </div>
           )}
-          <input
-            className="input mt-1.5 w-full font-mono text-[12px]"
-            value={repoText}
-            onChange={(e) => setRepoText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && repoText.trim()) {
-                e.preventDefault();
-                addRepo(repoText);
-              }
-            }}
-            placeholder={T(lang, 'repoPlaceholder')}
-            aria-label={T(lang, 'reposLabel')}
-            data-process-repo-input
-          />
+          <div className="mt-1.5 flex gap-1.5">
+            <input
+              className="input min-w-0 flex-1 font-mono text-[12px]"
+              value={repoText}
+              onChange={(e) => setRepoText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && repoText.trim()) {
+                  e.preventDefault();
+                  addRepo(repoText);
+                }
+              }}
+              placeholder={T(lang, 'repoPlaceholder')}
+              aria-label={T(lang, 'reposLabel')}
+              enterKeyHint="done"
+              autoCapitalize="off"
+              autoCorrect="off"
+              data-process-repo-input
+            />
+            <button type="button" className="btn-tonal shrink-0" disabled={!pendingOk} onClick={() => addRepo(repoText)} data-process-repo-add>
+              <Plus size={15} /> {T(lang, 'addRepo')}
+            </button>
+          </div>
           {connected && projectRows.length > 0 && (
             <ul className="mt-1 max-h-40 divide-y divide-line overflow-y-auto rounded-md border border-line">
               {projectRows
@@ -1465,7 +1479,12 @@ function StartRunSheet({ models, initial, onClose }: { models: ModelRef[]; initi
           </div>
           <span className="mt-1 block text-body-s text-faint">{T(lang, 'branchHint', { pattern: ref?.model.branchPattern ?? '' })}</span>
         </label>
-        <div className="flex justify-end gap-2 pt-1">
+        <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+          {missing.length > 0 && (
+            <span className="mr-auto text-body-s text-muted" data-process-start-missing>
+              {missing.join(' · ')}
+            </span>
+          )}
           <button type="button" className="btn-text" onClick={onClose}>
             {T(lang, 'cancel')}
           </button>

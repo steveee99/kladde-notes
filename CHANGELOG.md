@@ -4,6 +4,11 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- Fixed: On iPhone and iPad, tapping a field with small text (the process pages, the script editor and most other fields) zoomed the app in, and with pinch zoom switched off there was no way back out. The app now keeps iOS from zooming in on focus; pinching still follows the "Pinch to zoom" setting.
+- Fixed: A process run could not be started on a phone when the repository was typed but not confirmed with Enter. A typed repository now counts, an "Add" button takes it, and the start dialog names what is still missing.
+- Fixed: Opening the processes on a new device (or after clearing the browser data) before the first sync created the two example models a second time.
+- Fixed: In the process graph the stages of a loop's round were drawn at the far right; they now follow their loop.
+
 ## [2.32.0] – 2026-11-28
 
 - New: Process stages can run scripts ([docs/PROCESS_SCRIPTS.md](docs/PROCESS_SCRIPTS.md), with a V-Model example): `onEnter` runs when a run enters a stage, `onExit` when it leaves it. One statement per line with `notify(to, text)` (notifies `owner`, `me`, `all` or `@names`, only people who can see the run), `note(path, template?)` (creates a note in the run's space, optionally from a template, and leaves an existing one alone), `set`/`inc`/`clear` and assignments like `round = round + 1`, `done(step)`/`undone(step)`, `log(text)` and `if <condition>: …`. Strings fill `{{run.x}}`. Notifications and notes are carried out once by the server after the run is saved, from the app and from assistants alike; the run page lists the actions with their outcome, and notifications open the run.

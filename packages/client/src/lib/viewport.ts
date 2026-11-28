@@ -3,6 +3,30 @@ import { useEffect, useState } from 'react';
 /** True when the primary input mechanism is a touch screen / coarse pointer */
 export const isCoarsePointer = () => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
 
+/** iOS and iPadOS (WebKit on touch devices; every browser there is WebKit) */
+export const isIOS = (): boolean => typeof CSS !== 'undefined' && CSS.supports('-webkit-touch-callout', 'none');
+
+/** The viewport with `maximum-scale=1` added (or kept), the rest as it was */
+export function noFocusZoomContent(content: string): string {
+  const parts = content
+    .split(',')
+    .map((p) => p.trim())
+    .filter((p) => p && !/^maximum-scale\s*=/i.test(p));
+  return [...parts, 'maximum-scale=1'].join(', ');
+}
+
+/**
+ * iOS zooms the page in when a field with text smaller than 16px gets the focus (most of the app's fields: 12–15px)
+ * and, with pinch zoom switched off (lib/prefs.ts), nobody can zoom back out. `maximum-scale=1` stops only that
+ * automatic zoom on iOS: since iOS 10 Safari ignores it for pinching, which stays with the app's own setting.
+ * Other platforms keep the viewport as it is, because there it would block pinching too.
+ */
+export function stopFocusZoom(): void {
+  if (typeof document === 'undefined' || !isIOS()) return;
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+  if (meta) meta.content = noFocusZoomContent(meta.content);
+}
+
 /**
  * Tracks the visual viewport. When an on-screen keyboard appears on mobile devices,
  * this provides the visible area offset and height so modals and sheets stay visible.
