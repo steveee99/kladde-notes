@@ -1,26 +1,15 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
-import { EMPTY_VARIABLE_SCOPE, PublicNote as PublicNoteData, type VariableScope, excalidrawSceneOf, extractMeta, fillReleasePlaceholders, fixedVariableScope, isPresentationNote, parseNoteType, propertiesAt, remoteNoteOf, resolveVariables } from '@kladde/shared';
+import { PublicNote as PublicNoteData, extractMeta, fillReleasePlaceholders } from '@kladde/shared';
 import { api } from '../lib/api';
 import { locale, tl, useLang } from '../lib/i18n';
-import { Editor } from '../editor/Editor';
 import type { EmbedResolver } from '../editor/embedContext';
 import { Avatar } from './Avatar';
-import { NoteTypePanel } from './NoteTypePanel';
 import { ExportMenu } from './ExportMenu';
 import { releaseRenderOptions } from '../editor/releases';
-import { RemoteDoc, Slideshow } from '../lib/icons';
+import { Slideshow } from '../lib/icons';
+import { guestNoteKind, PublicNoteContent, publicScope } from './PublicNoteContent';
 
-const ExcalidrawPanel = lazy(() => import('./ExcalidrawPanel'));
 const Presentation = lazy(() => import('./Presentation'));
-
-/** Only the values the note uses come with a public link; the others show as unknown */
-const publicScopes = new WeakMap<object, VariableScope>();
-function scopeOf(values: Record<string, string> | undefined): VariableScope {
-  if (!values) return EMPTY_VARIABLE_SCOPE;
-  let scope = publicScopes.get(values);
-  if (!scope) publicScopes.set(values, (scope = fixedVariableScope(values)));
-  return scope;
-}
 
 /** Read-only view of a note shared by link (no account needed) */
 export function PublicNote({ token }: { token: string }) {
@@ -36,26 +25,16 @@ export function PublicNote({ token }: { token: string }) {
     const byTarget = new Map((note?.embeds ?? []).map((e) => [e.target, e]));
     return (target) => {
       const e = byTarget.get(target.trim().replace(/\.md$/i, '').toLowerCase());
-      return e ? { id: e.token, title: e.title, content: e.content, canWrite: false, href: `/s/${e.token}`, variables: scopeOf(e.variables) } : null;
+      return e ? { id: e.token, title: e.title, content: e.content, canWrite: false, href: `/s/${e.token}`, variables: publicScope(e.variables) } : null;
     };
   }, [note]);
   if (error) return <div className="p-8 text-center text-on-surface-variant">{error}</div>;
   if (!note) return <div className="p-8 text-center text-on-surface-variant">{tl(lang, 'common.loading')}</div>;
   const title = extractMeta(note.path, note.content).title;
-  // Drawing notes show their canvas (view only) instead of the scene JSON
-  const drawing = excalidrawSceneOf(note.content);
-  // Notes the owner set up as a presentation (frontmatter `presentation`, #87) can be presented from the link
-  const slides = drawing === null && isPresentationNote(note.content);
-  // A remote note: guests never see the document, it is read with the server's own access
-  const remote = !!remoteNoteOf(note.content);
-  const variables = scopeOf(note.variables);
+  const { drawing, slides, remote } = guestNoteKind(note.content);
+  const variables = publicScope(note.variables);
   const exported = note.versioning ? fillReleasePlaceholders(note.content, note.releases ?? [], releaseRenderOptions(lang)) : note.content;
   const releases = note.versioning ? (note.releases ?? []) : null;
-  // A custom note type shows the note's properties as its owner modelled them
-  const noteType = note.noteType ? parseNoteType(note.noteType) : null;
-  const typePanel = (where: 'top' | 'right' | 'bottom') =>
-    noteType && <NoteTypePanel type={noteType} where={where} content={note.content} noteId={null} canEdit={false} fill={(text) => resolveVariables(text, variables)} />;
-  const sideType = !!noteType && propertiesAt(noteType, 'right').length > 0;
   return (
     // No transform animation around a drawing: it would trap Excalidraw's fixed layers and full screen in this box
     <div className={`content-container px-4 py-8 sm:px-8 ${drawing !== null ? 'anim-fade-in' : 'anim-fade-up'}`}>
@@ -72,26 +51,7 @@ export function PublicNote({ token }: { token: string }) {
         {!remote && <ExportMenu title={title} slides={slides} content={exported} variables={variables} />}
       </div>
       <h1 className="font-display mb-4 break-words text-[34px] leading-tight">{title}</h1>
-      {remote ? (
-        <p data-remote-public className="flex items-center justify-center gap-2 rounded-lg border border-line bg-panel px-4 py-8 text-center text-body-m text-muted">
-          <RemoteDoc size={18} className="shrink-0" /> {tl(lang, 'remote.public')}
-        </p>
-      ) : drawing !== null ? (
-        <Suspense fallback={<div className="p-8 text-center text-on-surface-variant">{tl(lang, 'common.loading')}</div>}>
-          <ExcalidrawPanel scene={drawing} readOnly lang={lang} />
-        </Suspense>
-      ) : (
-        <>
-          {typePanel('top')}
-          <div className={sideType ? 'ticket-layout' : 'contents'}>
-            <div className={sideType ? 'ticket-grid' : 'contents'}>
-              {sideType && <div className="ticket-side">{typePanel('right')}</div>}
-              <Editor docKey={token} value={note.content} readOnly resolveEmbed={resolveEmbed} releases={releases} variables={variables} slideBreaks={slides ? tl(lang, 'present.slideBreak') : ''} hideProperties={!!noteType && !noteType.showFrontmatter} />
-            </div>
-          </div>
-          {typePanel('bottom')}
-        </>
-      )}
+      <PublicNoteContent docKey={token} note={note} variables={variables} resolveEmbed={resolveEmbed} />
       {presenting && (
         <Suspense fallback={null}>
           <Presentation docKey={token} title={title} content={note.content} resolveEmbed={resolveEmbed} releases={releases} variables={variables} onClose={() => setPresenting(false)} />

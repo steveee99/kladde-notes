@@ -13,6 +13,7 @@ import { FileStore } from './FileStore.js';
 import { ExportMirror } from './ExportMirror.js';
 import { ActivityStore } from './ActivityStore.js';
 import { CommentStore } from './CommentStore.js';
+import { SiteStore } from './sites/SiteStore.js';
 import { NotificationStore, notificationPush, type Delivery } from './NotificationStore.js';
 import { AuditLog } from './security/AuditLog.js';
 import { configuredOrigins, isAllowedOrigin } from './security/origin.js';
@@ -494,7 +495,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   }
   // Build-time plugins: `/api/plugins` and their routes under `/api/p/<id>`
   plugins.mount(app);
-  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : groupStore, spaces: online ? new SpaceIndexes(notes) : undefined, activity, notifications, jobs, comments: opts.standalone ? undefined : new CommentStore(opts.db, cipher, users) }));
+  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : groupStore, spaces: online ? new SpaceIndexes(notes) : undefined, activity, notifications, jobs, comments: opts.standalone ? undefined : new CommentStore(opts.db, cipher, users), sites: opts.standalone ? undefined : new SiteStore(opts.db, cipher, notes) }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
 
   // APP_TITLE: the served index.html and manifest carry the app's name (the client reads it from the page)

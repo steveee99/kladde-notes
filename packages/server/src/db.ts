@@ -643,6 +643,22 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 33,
+    description: 'Folder websites: an own folder published read-only under a slug (looked up by its keyed hash, folder and slug encrypted)',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE public_sites (
+          id TEXT PRIMARY KEY,
+          owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          slug_mac TEXT NOT NULL UNIQUE,
+          payload BLOB NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX public_sites_owner ON public_sites(owner_id);
+      `);
+    },
+  },
 ];
 
 /** The schema version this build migrates to */

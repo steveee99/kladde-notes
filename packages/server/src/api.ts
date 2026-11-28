@@ -22,6 +22,7 @@ import { clipPage } from './WebClip.js';
 import type { Transcriber } from './transcribe.js';
 import type { AttachmentTextStore } from './attachments/AttachmentTextStore.js';
 import { searchAttachments } from './attachments/search.js';
+import { SiteError, type SiteStore } from './sites/SiteStore.js';
 
 /** Open event streams per user: a ping makes every device pull right away */
 export class LiveUpdates {
@@ -89,6 +90,8 @@ export interface ApiRouterOptions {
   comments?: CommentStore;
   /** Online mode: the server's indexes per space (search, backlinks) */
   spaces?: SpaceIndexes;
+  /** Folder websites under /site/<slug>; not in standalone mode */
+  sites?: SiteStore;
 }
 
 /**
@@ -120,6 +123,17 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       if (!note) res.status(404).json({ error: 'Dieser Link ist ungültig oder wurde zurückgezogen.' });
       else res.json(note);
     });
+
+    // Folder websites: everything a guest needs for the site in one (compressed) answer
+    if (opts.sites) {
+      const sites = opts.sites;
+      router.get('/sites/:slug', rateLimit(120, 60_000), (req, res) => {
+        const site = sites.site(String(req.params.slug ?? ''));
+        if (!site) return void res.status(404).json({ error: 'Diese Website gibt es nicht (mehr).' });
+        res.setHeader('Cache-Control', 'no-cache');
+        sendJson(req, res, site);
+      });
+    }
   }
 
   // Files are addressed by a random id (also used from public notes), so no session is needed to read them
@@ -529,6 +543,7 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       const to = folderOf(req.body?.to);
       if (!from || !to) return void badFolder(res);
       live.notify(notes.renameFolderShares(req.user!.id, from, to));
+      opts.sites?.renameFolder(req.user!.id, from, to);
       res.json({ ok: true });
     });
 
@@ -536,8 +551,36 @@ export function apiRouter(users: UserStore, notes: NoteStore, files: FileStore, 
       const folder = folderOf(req.body?.folder);
       if (!folder) return void badFolder(res);
       live.notify(notes.dropFolderShares(req.user!.id, folder));
+      opts.sites?.dropFolder(req.user!.id, folder);
       res.json({ ok: true });
     });
+
+    if (opts.sites) {
+      const sites = opts.sites;
+      router.get('/folders/site', (req, res) => {
+        const folder = folderOf(req.query.folder);
+        if (!folder) return void badFolder(res);
+        res.json({ site: sites.ofFolder(req.user!.id, folder) });
+      });
+
+      // { folder, enabled } publishes (random address) or takes down; { folder, slug } sets an own address
+      router.put('/folders/site', (req, res) => {
+        const folder = folderOf(req.body?.folder);
+        if (!folder) return void badFolder(res);
+        const userId = req.user!.id;
+        try {
+          if (typeof req.body?.slug === 'string') res.json({ site: sites.setSlug(userId, folder, req.body.slug) });
+          else if (req.body?.enabled) res.json({ site: sites.enable(userId, folder) });
+          else {
+            sites.disable(userId, folder);
+            res.json({ site: null });
+          }
+        } catch (err) {
+          if (err instanceof SiteError) res.status(err.status).json({ error: err.message });
+          else badFolder(res);
+        }
+      });
+    }
 
     router.put('/notes/:id/public', (req, res) => {
       try {

@@ -2,10 +2,11 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { copyText } from '../lib/clipboard';
 import { useModal } from '../lib/modal';
 import { createPortal } from 'react-dom';
-import { Copy, Folder, Globe, Trash2, UserPlus, X } from '../lib/icons';
-import type { FolderPermissions, FolderShares, NoteShare, NoteShares } from '@kladde/shared';
+import { Copy, ExternalLink, Folder, Globe, Trash2, UserPlus, X } from '../lib/icons';
+import { isValidSiteSlug, normalizeSiteSlug, type FolderPermissions, type FolderShares, type FolderSite, type NoteShare, type NoteShares } from '@kladde/shared';
 import { vault } from '../data/vault';
 import { api } from '../lib/api';
+import { appUrl } from '../lib/router';
 import { folderDisplayName, folderLeafDisplayName, getLang, Lang, tl, useLang } from '../lib/i18n';
 import { useVisualViewport } from '../lib/viewport';
 import { Avatar } from './Avatar';
@@ -216,6 +217,7 @@ export function ShareDialog({ target, onClose }: { target: ShareTarget; onClose:
             )}
           </div>
         )}
+        {!isNote && <FolderWebsite folder={target.folder} />}
         {error && <p className="mt-3 text-sm text-error">{error}</p>}
       </div>
     </div>,
@@ -235,5 +237,98 @@ function ViaFolder({ share }: { share: NoteShare }) {
         <span className="shrink-0">{describePermissions(permissionsOf(share), lang)}</span>
       </span>
     </li>
+  );
+}
+
+/** Folder websites: the folder read-only under /site/<slug>, with a random or an own address */
+function FolderWebsite({ folder }: { folder: string }) {
+  const lang = useLang();
+  const [site, setSite] = useState<FolderSite | null | undefined>(undefined);
+  const [slug, setSlug] = useState('');
+  const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
+  const slugId = useId();
+  const hintId = useId();
+
+  const call = async (p: Promise<{ site: FolderSite | null }>) => {
+    setError('');
+    try {
+      const next = (await p).site;
+      setSite(next);
+      setSlug(next?.slug ?? '');
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+  useEffect(() => void call(api(`/folders/site?folder=${encodeURIComponent(folder)}`)), [folder]);
+  const put = (json: object) => call(api('/folders/site', { method: 'PUT', json: { folder, ...json } }));
+  const link = site ? `${location.origin}${appUrl(`/site/${site.slug}`)}` : null;
+  const wanted = normalizeSiteSlug(slug);
+  const changed = !!site && wanted !== site.slug;
+
+  return (
+    <div className="mt-5 rounded-lg border border-line p-3.5" data-folder-site>
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <Globe size={16} className="text-acc" />
+        <span className="flex-1">{tl(lang, 'share.siteLabel')}</span>
+        <Switch checked={!!site} disabled={site === undefined} label={tl(lang, 'share.siteLabel')} onChange={(on) => void put({ enabled: on })} />
+      </div>
+      <p className="mt-1.5 text-caption text-muted">{tl(lang, 'share.siteHint')}</p>
+      {site && link && (
+        <div className="mt-3 space-y-2 anim-fade-in">
+          <form
+            className="flex items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (changed && isValidSiteSlug(wanted)) void put({ slug: wanted });
+            }}
+          >
+            <label htmlFor={slugId} className="sr-only">
+              {tl(lang, 'share.siteAddress')}
+            </label>
+            <div className="input flex h-9 min-w-0 flex-1 items-center gap-0 px-0 focus-within:border-acc">
+              <span className="shrink-0 select-none pl-3 font-mono text-caption text-faint">/site/</span>
+              <input
+                id={slugId}
+                aria-describedby={hintId}
+                className="h-full min-w-0 flex-1 bg-transparent pr-3 font-mono text-caption text-text outline-none"
+                value={slug}
+                spellCheck={false}
+                autoCapitalize="off"
+                onChange={(e) => setSlug(e.target.value)}
+                onBlur={() => setSlug((v) => normalizeSiteSlug(v) || site.slug)}
+              />
+            </div>
+            <button className="btn-tonal h-9 shrink-0 px-3" disabled={!changed || !isValidSiteSlug(wanted)}>
+              {tl(lang, 'share.siteApply')}
+            </button>
+          </form>
+          <p id={hintId} className="text-caption text-faint">
+            {tl(lang, 'share.siteSlugHint')}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-md bg-raised px-3 py-2 text-left text-xs text-muted"
+              title={tl(lang, 'share.siteCopy')}
+              onClick={() => {
+                void copyText(link).then((ok) => {
+                  if (!ok) return;
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                });
+              }}
+            >
+              <span className="flex-1 truncate">{link}</span>
+              {copied ? tl(lang, 'common.copiedCheck') : <Copy size={14} />}
+            </button>
+            <a className="btn-icon shrink-0" href={link} target="_blank" rel="noopener noreferrer" title={tl(lang, 'share.siteOpen')} aria-label={tl(lang, 'share.siteOpen')}>
+              <ExternalLink size={16} />
+            </a>
+          </div>
+        </div>
+      )}
+      {error && <p className="mt-2 text-sm text-error">{error}</p>}
+    </div>
   );
 }

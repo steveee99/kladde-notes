@@ -39,6 +39,7 @@ const API_GROUPS = new Set([
   'remote-notes',
   'share',
   'public',
+  'sites',
 ]);
 
 export function routeGroup(path: string): string {
