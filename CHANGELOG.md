@@ -4,6 +4,8 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+## [2.32.1] – 2026-11-28
+
 - Fixed: On iPhone and iPad, tapping a field with small text (the process pages, the script editor and most other fields) zoomed the app in, and with pinch zoom switched off there was no way back out. The app now keeps iOS from zooming in on focus; pinching still follows the "Pinch to zoom" setting.
 - Fixed: A process run could not be started on a phone when the repository was typed but not confirmed with Enter. A typed repository now counts, an "Add" button takes it, and the start dialog names what is still missing.
 - Fixed: Opening the processes on a new device (or after clearing the browser data) before the first sync created the two example models a second time.
