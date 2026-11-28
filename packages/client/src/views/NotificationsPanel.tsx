@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { splitPath, type NotificationItem } from '@kladde/shared';
-import { AtSign, Bell, Check, CheckCheck, MessageSquare, NotificationsActive, Speed, UserPlus } from '../lib/icons';
+import { AtSign, Bell, Check, CheckCheck, MessageSquare, NotificationsActive, Route, Speed, UserPlus } from '../lib/icons';
 import { useVault, vault } from '../data/vault';
 import { locale, tl, useLang, type I18nKey, type Lang } from '../lib/i18n';
 import { useModal } from '../lib/modal';
@@ -21,6 +21,7 @@ export function notificationUrl(n: NotificationItem): string {
   // Plugins lead only into their own pages or to a note (the server builds `href` that way)
   if (n.kind === 'plugin') return n.href && /^\/(p|n)\/[\w-]/.test(n.href) ? n.href : n.plugin ? `/p/${n.plugin}` : '/';
   if (n.kind === 'cockpit') return `/cockpit/${encodeURIComponent(n.noteId)}`;
+  if (n.kind === 'process') return `/processes/run/${encodeURIComponent(n.noteId)}`;
   if (n.groupId) return `/groups/${encodeURIComponent(n.groupId)}`;
   return `/n/${n.noteId}${n.threadId ? `?thread=${encodeURIComponent(n.threadId)}` : n.line !== undefined ? `?line=${n.line + 1}` : ''}`;
 }
@@ -31,6 +32,7 @@ const HEADLINES: Record<NotificationItem['kind'], I18nKey> = {
   reply: 'notices.reply',
   group_added: 'notices.groupAdded',
   cockpit: 'notices.cockpit',
+  process: 'notices.process',
   plugin: 'notices.comment',
 };
 
@@ -45,7 +47,7 @@ function subject(n: NotificationItem, lang: Lang): string {
     const entry = n.plugin ? pluginById(n.plugin) : undefined;
     return entry ? localize(entry.plugin.name, lang) : n.path;
   }
-  return n.kind === 'group_added' || n.kind === 'cockpit' ? n.path : splitPath(n.path).name;
+  return n.kind === 'group_added' || n.kind === 'cockpit' || n.kind === 'process' ? n.path : splitPath(n.path).name;
 }
 
 /** The passage, the comment or, for a group, the role */
@@ -55,7 +57,7 @@ function detail(n: NotificationItem, lang: Lang): string {
 }
 
 function KindIcon({ kind }: { kind: NotificationItem['kind'] }) {
-  const Icon = kind === 'mention' ? AtSign : kind === 'group_added' ? UserPlus : kind === 'cockpit' ? Speed : kind === 'plugin' ? NotificationsActive : MessageSquare;
+  const Icon = kind === 'mention' ? AtSign : kind === 'group_added' ? UserPlus : kind === 'cockpit' ? Speed : kind === 'process' ? Route : kind === 'plugin' ? NotificationsActive : MessageSquare;
   return <Icon size={10} />;
 }
 

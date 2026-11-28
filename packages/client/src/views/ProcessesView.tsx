@@ -13,6 +13,11 @@ import {
   closeRun,
   conditionText,
   fillQuery,
+  assignedNames,
+  loopBody,
+  modelVariables,
+  parseScript,
+  SCRIPT_FUNCTIONS,
   fillRunVars,
   markSeen,
   modelFor,
@@ -35,16 +40,19 @@ import {
   type CockpitResult,
   type CockpitRow,
   type CockpitWidget,
+  type ProcessAction,
   type ProcessModel,
   type ProcessRun,
   type ProcessRunNode,
   type ProcessStage,
   type ProcessStep,
 } from '@kladde/shared';
+import { api } from '../lib/api';
+import { ScriptEditor } from './ScriptEditor';
 import { useVault, vault } from '../data/vault';
 import { refreshConnections, useConnections, useResults, widgetState } from '../data/cockpit';
 import { createModel, createRun, deleteProcessNote, ensureExampleProcesses, loadProcesses, modelsOfSpace, queryWidget, runWidget, saveModel, saveRun, useProcesses, type ModelRef, type RunRef } from '../data/processes';
-import { ArrowLeft, ArrowRight, Check, Copy, ExternalLink, GitBranch, KeyRound, Merge, Pencil, Plus, RefreshCw, Route, Trash2, Undo2 } from '../lib/icons';
+import { ArrowLeft, ArrowRight, Bell, Check, Copy, ExternalLink, FilePlus2, GitBranch, KeyRound, Merge, Pencil, Plus, RefreshCw, Repeat, Route, ScrollText, Trash2, Undo2 } from '../lib/icons';
 import { copyText } from '../lib/clipboard';
 import { locale, tl, useLang, type I18nKey, type Lang } from '../lib/i18n';
 import { navigate } from '../lib/router';
@@ -346,7 +354,11 @@ function wayEntries(run: ProcessRun, models: Map<string, ProcessModel>, lang: La
               ? `↩ ${T(lang, 'wentBack')}`
               : h.forced
                 ? T(lang, 'forced')
-                : undefined;
+                : h.round
+                  ? `↻ ${T(lang, 'round', { n: h.round })}`
+                  : h.rounds !== undefined
+                    ? T(lang, 'loopDone', { n: h.rounds })
+                    : undefined;
       out.push({ key: `${prefix}h${i}`, kind: h.skipped ? 'skip' : 'done', stage: st, title: st?.title ?? h.stage, note, sub });
     });
     if (node.state === 'running') {
@@ -358,7 +370,7 @@ function wayEntries(run: ProcessRun, models: Map<string, ProcessModel>, lang: La
         else {
           const ps = stageOf(m, p.id);
           const cond = ps?.when ? conditionText(ps.when, lang) : '';
-          out.push({ key: `${prefix}p${i}`, kind: p.skipped ? 'skip' : 'future', stage: ps, title: ps?.title ?? p.id, note: p.skipped ? T(lang, 'skippedBecause', { cond }) : p.maybe ? T(lang, 'onlyIf', { cond }) : undefined, sub });
+          out.push({ key: `${prefix}p${i}`, kind: p.skipped ? 'skip' : 'future', stage: ps, title: ps?.title ?? p.id, note: p.skipped ? T(lang, 'skippedBecause', { cond }) : p.maybe ? T(lang, 'onlyIf', { cond }) : p.loop ? `↻ ${T(lang, 'nextRound')}` : undefined, sub });
         }
       });
     }
@@ -375,7 +387,7 @@ function Stepper({ run, models }: { run: ProcessRun; models: Map<string, Process
     <nav aria-label={T(lang, 'way')} className="-mx-1 overflow-x-auto pb-1" data-process-way>
       <ol className="flex min-w-max items-start px-1">
         {entries.map((e, i) => {
-          const shape = e.stage?.kind === 'choice' ? 'rounded-[4px] rotate-45 scale-[.82]' : 'rounded-full';
+          const shape = e.stage?.kind === 'choice' ? 'rounded-[4px] rotate-45 scale-[.82]' : e.stage?.kind === 'loop' ? 'rounded-[6px]' : 'rounded-full';
           const dot = {
             done: 'border-acc-line bg-acc-bg text-acc-hi',
             cur: 'border-acc bg-acc text-on-acc',
@@ -424,7 +436,7 @@ function HistoryList({ run, models }: { run: ProcessRun; models: Map<string, Pro
       if (h.skipped) continue;
       const st = stageOf(m, h.stage);
       const pick = h.pick ? (st?.options.find((o) => o.value === h.pick)?.label ?? h.pick) : '';
-      const note = [pick && `→ ${pick}`, h.subEnd && T(lang, 'subEnded', { end: h.subEnd }), h.back && `↩ ${T(lang, 'wentBack')}`, h.forced && T(lang, 'forced')].filter(Boolean).join(' · ');
+      const note = [pick && `→ ${pick}`, h.subEnd && T(lang, 'subEnded', { end: h.subEnd }), h.back && `↩ ${T(lang, 'wentBack')}`, h.forced && T(lang, 'forced'), h.round && `↻ ${T(lang, 'round', { n: h.round })}`, h.rounds !== undefined && T(lang, 'loopDone', { n: h.rounds })].filter(Boolean).join(' · ');
       rows.push({ at: h.at, by: h.by, title: st?.title ?? h.stage, note, sub });
       if (h.subEnd && node.children[child]) collect(node.children[child++], modelFor(node.children[child - 1], models)?.title ?? '');
     }
@@ -623,6 +635,14 @@ function StageCard({ run, node, model, models, canEdit, onRun, nested }: {
           {st.description && <p className="mt-1 max-w-[64ch] text-body-m text-muted">{st.description}</p>}
         </div>
         {st.when && <Chip tone="amber">{T(lang, 'appliesBecause', { cond: conditionText(st.when, lang) })}</Chip>}
+        {st.onExit && (
+          <span title={st.onExit}>
+            <Chip>
+              <ScrollText size={12} className="mr-1 inline" />
+              {T(lang, 'onExit')}
+            </Chip>
+          </span>
+        )}
       </div>
       {st.kind === 'steps' && (
         <ul>
@@ -879,16 +899,18 @@ function ProcessGraph({ model, node, vars, selected, onSelect }: { model: Proces
     if (node.state === 'running') path.push(node.stage);
     for (let i = 0; i < path.length - 1; i++) taken.add(`${path[i]}>${path[i + 1]}`);
   }
-  const edges: { a: string; b: string; label: string; back: boolean }[] = [];
+  const edges: { a: string; b: string; label: string; back: boolean; round?: boolean }[] = [];
+  const bodies = new Map(model.stages.filter((st) => st.kind === 'loop').map((st) => [st.id, loopBody(model, st)]));
   for (const st of model.stages) {
+    if (st.kind === 'loop' && st.body) edges.push({ a: st.id, b: st.body, label: T(lang, 'legend.loop'), back: false });
     const seen = new Set<string>();
     for (const o of st.options) {
       if (seen.has(o.to)) continue;
       seen.add(o.to);
       const same = st.options.filter((x) => x.to === o.to);
-      edges.push({ a: st.id, b: o.to, label: same.length > 1 ? T(lang, 'values', { n: same.length }) : o.label, back: false });
+      edges.push({ a: st.id, b: o.to, label: same.length > 1 ? T(lang, 'values', { n: same.length }) : o.label, back: false, round: bodies.get(o.to)?.has(st.id) });
     }
-    for (const t of st.next) edges.push({ a: st.id, b: t.to, label: t.back ? t.label : t.end ? t.end : '', back: t.back });
+    for (const t of st.next) edges.push({ a: st.id, b: t.to, label: t.back ? t.label : t.end ? t.end : '', back: t.back, round: bodies.get(t.to)?.has(st.id) });
   }
   return (
     <div className="overflow-x-auto rounded-lg border border-line bg-panel">
@@ -898,6 +920,7 @@ function ProcessGraph({ model, node, vars, selected, onSelect }: { model: Proces
             ['pa', 'rgb(var(--edge))'],
             ['pb', 'rgb(var(--amber))'],
             ['pt', 'rgb(var(--acc))'],
+            ['pr', 'rgb(var(--violet))'],
           ].map(([id, fill]) => (
             <marker key={id} id={id} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0L10 5L0 10z" fill={fill} />
@@ -912,7 +935,7 @@ function ProcessGraph({ model, node, vars, selected, onSelect }: { model: Proces
           let d: string;
           let lx: number;
           let ly: number;
-          if (e.back || b.x <= a.x) {
+          if (e.back || e.round || b.x <= a.x) {
             const x1 = a.x + GW / 2;
             const x2 = b.x + GW / 2;
             const y = Math.max(a.y, b.y) + GH;
@@ -930,10 +953,10 @@ function ProcessGraph({ model, node, vars, selected, onSelect }: { model: Proces
             lx = mx;
             ly = y1 === y2 ? y1 - 7 : (y1 + y2) / 2 - 5;
           }
-          const stroke = e.back ? 'stroke-amber' : t ? 'stroke-acc' : 'stroke-edge';
+          const stroke = e.back ? 'stroke-amber' : e.round ? 'stroke-violet' : t ? 'stroke-acc' : 'stroke-edge';
           return (
             <g key={i}>
-              <path d={d} fill="none" strokeWidth={t ? 1.8 : 1.4} className={stroke} strokeDasharray={e.back ? '4 4' : undefined} markerEnd={`url(#${e.back ? 'pb' : t ? 'pt' : 'pa'})`} />
+              <path d={d} fill="none" strokeWidth={t ? 1.8 : 1.4} className={stroke} strokeDasharray={e.back || e.round ? '4 4' : undefined} markerEnd={`url(#${e.back ? 'pb' : e.round ? 'pr' : t ? 'pt' : 'pa'})`} />
               {e.label && (
                 <text x={lx} y={ly} textAnchor="middle" className={`font-mono text-[10.5px] ${e.back ? 'fill-amber' : 'fill-muted'}`}>
                   {e.label.length > 24 ? `${e.label.slice(0, 23)}…` : e.label}
@@ -946,7 +969,7 @@ function ProcessGraph({ model, node, vars, selected, onSelect }: { model: Proces
           const p = nodes.get(st.id)!;
           const cur = node?.state === 'running' && node.stage === st.id;
           const isDone = done.has(st.id) && !cur;
-          const sub = st.kind === 'choice' ? T(lang, 'graph.choice', { n: st.options.length }) : st.kind === 'end' ? T(lang, 'graph.end') : st.kind === 'sub' ? T(lang, 'graph.sub', { name: st.process }) : T(lang, st.steps.length === 1 ? 'graph.oneStep' : 'graph.steps', { n: st.steps.length });
+          const sub = st.kind === 'choice' ? T(lang, 'graph.choice', { n: st.options.length }) : st.kind === 'end' ? T(lang, 'graph.end') : st.kind === 'sub' ? T(lang, 'graph.sub', { name: st.process }) : st.kind === 'loop' ? T(lang, 'graph.loop', { n: st.max }) : T(lang, st.steps.length === 1 ? 'graph.oneStep' : 'graph.steps', { n: st.steps.length });
           const rx = st.kind === 'choice' ? 16 : st.kind === 'end' ? 26 : 6;
           const fill = isDone ? 'fill-acc-bg' : st.kind === 'end' ? 'fill-raised' : 'fill-bg';
           const stroke = selected === st.id ? 'stroke-amber' : cur ? 'stroke-acc' : isDone ? 'stroke-acc-line' : 'stroke-line2';
@@ -962,11 +985,18 @@ function ProcessGraph({ model, node, vars, selected, onSelect }: { model: Proces
               data-graph-stage={st.id}
             >
               {st.kind === 'sub' && <rect x={p.x - 4} y={p.y - 4} width={GW + 8} height={GH + 8} rx={9} fill="none" className="stroke-violet/60" strokeWidth={1.2} />}
+              {st.kind === 'loop' && <rect x={p.x - 4} y={p.y - 4} width={GW + 8} height={GH + 8} rx={10} fill="none" className="stroke-violet/60" strokeWidth={1.2} strokeDasharray="4 3" />}
+              {(st.onEnter || st.onExit) && (
+                <text x={p.x + GW - 10} y={p.y + 16} textAnchor="end" className="fill-muted font-mono text-[10px]">
+                  {'</>'}
+                  <title>{T(lang, 'script')}</title>
+                </text>
+              )}
               <rect x={p.x} y={p.y} width={GW} height={GH} rx={rx} className={`${fill} ${stroke}`} strokeWidth={selected === st.id || cur ? 2 : 1.2} strokeDasharray={st.when ? '5 4' : undefined} />
               <text x={p.x + 12} y={p.y + 21} className="fill-text text-[12.5px] font-medium">
                 {st.title.length > 19 ? `${st.title.slice(0, 18)}…` : st.title}
               </text>
-              <text x={p.x + 12} y={p.y + 38} className={`font-mono text-[10.5px] ${st.kind === 'sub' ? 'fill-violet' : 'fill-muted'}`}>
+              <text x={p.x + 12} y={p.y + 38} className={`font-mono text-[10.5px] ${st.kind === 'sub' || st.kind === 'loop' ? 'fill-violet' : 'fill-muted'}`}>
                 {sub}
               </text>
               {st.when && (
@@ -1006,12 +1036,127 @@ function GraphLegend() {
         <i className="inline-block h-3 w-4 rounded-[3px] border border-line2 outline outline-1 outline-offset-2 outline-violet/60" />
         {T(lang, 'legend.sub')}
       </span>
+      <span className="flex items-center gap-1.5">
+        <i className="inline-block w-5 border-t-[1.5px] border-dashed border-violet" />
+        {T(lang, 'legend.loop')}
+      </span>
     </div>
   );
 }
 
 /** A stage's definition in words: what it holds, when it applies, where it leads */
-function StageDetails({ model, stageId }: { model: ProcessModel; stageId: string }) {
+type ScriptSlot = 'onEnter' | 'onExit';
+
+/**
+ * The scripts of a stage on the model page: shown as code, edited in the script editor only after "Add script" or
+ * "Edit"; saving writes the model (its version goes up like for any other change)
+ */
+function StageScripts({ refModel, stage }: { refModel: ModelRef; stage: ProcessStage }) {
+  const lang = useLang();
+  const [slot, setSlot] = useState<ScriptSlot | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setSlot(null), [stage.id]);
+  const slots: ScriptSlot[] = stage.kind === 'end' ? ['onEnter'] : ['onEnter', 'onExit'];
+  const empty = slots.filter((k) => !stage[k].trim());
+  const open = (k: ScriptSlot, add: boolean) => {
+    setSlot(k);
+    setAdding(add);
+    setDraft(stage[k]);
+  };
+  const save = async (text: string) => {
+    if (!slot) return;
+    setBusy(true);
+    try {
+      const m: ProcessModel = JSON.parse(JSON.stringify(refModel.model));
+      const st = m.stages.find((x) => x.id === stage.id);
+      if (!st) return;
+      st[slot] = text.trim();
+      const saved = await saveModel(refModel.noteId, m);
+      showToast(saved.version > refModel.model.version ? T(lang, 'savedVersion', { v: saved.version }) : T(lang, 'savedSame'));
+      setSlot(null);
+    } catch (err) {
+      showToast((err as Error).message, 'danger');
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (slot) {
+    const errors = parseScript(draft).errors;
+    const others = refModel.model.stages.filter((x) => x.id !== stage.id).flatMap((x) => x.steps);
+    const hints = {
+      variables: [...new Set([...modelVariables(refModel.model), ...assignedNames(draft)])].sort(),
+      steps: [...stage.steps, ...others].map((x) => ({ id: x.id, label: x.label })),
+      templates: vault.templates().map((tp) => tp.label),
+      people: [...new Set([vault.actorName, ...vault.peopleOf(refModel.noteId).map((p) => p.username)].filter(Boolean))],
+      lang,
+    };
+    const choices = adding ? empty : [slot];
+    return (
+      <div className="space-y-2 rounded-lg border border-line bg-panel p-3" data-script-editing={slot}>
+        <div className="flex flex-wrap items-center gap-2">
+          <ScrollText size={15} className="text-muted" />
+          {choices.length > 1 ? (
+            <div className="segmented" role="radiogroup" aria-label={T(lang, 'scriptWhen')}>
+              {choices.map((k) => (
+                <button key={k} type="button" role="radio" aria-checked={slot === k} className={slot === k ? 'bg-acc-bg text-acc-hi' : ''} onClick={() => setSlot(k)}>
+                  {T(lang, k)}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span className="text-label-m text-text">{T(lang, slot)}</span>
+          )}
+          <span className="ml-auto text-body-s text-faint">{T(lang, 'scriptKeys')}</span>
+        </div>
+        <ScriptEditor key={`${stage.id}/${adding ? 'new' : slot}`} value={draft} onChange={setDraft} hints={hints} label={T(lang, 'scriptEditorLabel', { stage: stage.title, when: T(lang, slot) })} placeholderText={T(lang, 'scriptPlaceholder')} />
+        <p className={`text-body-s ${errors.length ? 'text-red' : 'text-muted'}`} role={errors.length ? 'alert' : undefined} data-script-errors={errors.length}>
+          {errors.length ? errors.map((e) => T(lang, 'scriptLineError', { line: e.line, message: e.message })).join(' · ') : T(lang, 'scriptOk')}
+        </p>
+        <div className="flex flex-wrap justify-end gap-2">
+          {!adding && stage[slot] && (
+            <button type="button" className="btn-text mr-auto text-red" disabled={busy} onClick={() => void save('')} data-script-remove>
+              <Trash2 size={15} /> {T(lang, 'removeScript')}
+            </button>
+          )}
+          <button type="button" className="btn-text" disabled={busy} onClick={() => setSlot(null)}>
+            {T(lang, 'cancel')}
+          </button>
+          <button type="button" className="btn-primary" disabled={busy || errors.length > 0 || !draft.trim()} onClick={() => void save(draft)} data-script-save>
+            {T(lang, 'save')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <>
+      {slots.map((k) =>
+        stage[k] ? (
+          <div key={k}>
+            <div className="mb-1 flex items-center gap-2">
+              <p className="text-body-s text-muted">{T(lang, k)}</p>
+              <button type="button" className="btn-text ml-auto !h-7 !px-2" onClick={() => open(k, false)} data-script-edit={k}>
+                <Pencil size={13} /> {T(lang, 'editScript')}
+              </button>
+            </div>
+            <pre className="overflow-x-auto rounded-md border border-line bg-bg px-2.5 py-2 font-mono text-[11.5px] leading-5 text-soft" data-stage-script={k}>
+              {stage[k]}
+            </pre>
+          </div>
+        ) : null
+      )}
+      {empty.length > 0 && (
+        <button type="button" className="btn-outlined !h-8" onClick={() => open(empty[0], true)} data-script-add>
+          <Plus size={15} /> {T(lang, 'addScript')}
+        </button>
+      )}
+    </>
+  );
+}
+
+function StageDetails({ model, stageId, edit }: { model: ProcessModel; stageId: string; edit?: ModelRef }) {
   const lang = useLang();
   const st = stageOf(model, stageId);
   if (!st) return null;
@@ -1050,6 +1195,27 @@ function StageDetails({ model, stageId }: { model: ProcessModel; stageId: string
         </ul>
       )}
       {st.kind === 'sub' && <p className="text-body-m text-violet">{T(lang, 'subCalls', { name: st.process })}</p>}
+      {st.kind === 'loop' && (
+        <ul className="space-y-1 text-body-m text-violet">
+          <li>
+            <Repeat size={14} className="mr-1 inline" />
+            {T(lang, 'loopInfo', { body: title(st.body), var: `run.${st.var}`, max: st.max })}
+          </li>
+          {st.until && <li>{T(lang, 'loopUntil', { cond: conditionText(st.until, lang) })}</li>}
+          {st.over && <li>{T(lang, 'loopOver', { var: `run.${st.over}`, item: `run.${st.var}_item` })}</li>}
+        </ul>
+      )}
+      {edit && <StageScripts refModel={edit} stage={st} />}
+      {(['onEnter', 'onExit'] as const).map((k) =>
+        !edit && st[k] ? (
+          <div key={k}>
+            <p className="mb-1 text-body-s text-muted">{T(lang, k)}</p>
+            <pre className="overflow-x-auto rounded-md border border-line bg-bg px-2.5 py-2 font-mono text-[11.5px] leading-5 text-soft" data-stage-script={k}>
+              {st[k]}
+            </pre>
+          </div>
+        ) : null
+      )}
       {st.next.length > 0 && (
         <p className="text-body-s text-muted">
           {T(lang, 'leadsTo')} {st.next.map((t) => `${t.back ? '↩ ' : ''}${title(t.to)}${t.end ? ` (${t.end})` : ''}`).join(', ')}
@@ -1346,6 +1512,25 @@ function ModelEditorSheet({ ref_, onClose }: { ref_: ModelRef; onClose: () => vo
   return (
     <Sheet title={T(lang, 'editModel')} onClose={onClose}>
       <p className="mb-2 text-body-s text-muted">{T(lang, 'editHint')}</p>
+      <details className="mb-2 rounded-md border border-line bg-bg px-3 py-2 text-body-s text-muted" data-process-script-help>
+        <summary className="cursor-pointer text-label-m text-text">
+          {T(lang, 'script')} · {T(lang, 'legend.loop')}
+        </summary>
+        <p className="mt-2">{T(lang, 'scriptHelp')}</p>
+        <ul className="mt-1 space-y-0.5">
+          {SCRIPT_FUNCTIONS.map((f) => (
+            <li key={f.name}>
+              <Mono className="text-soft">
+                {f.name}
+                {f.args}
+              </Mono>{' '}
+              – {lang === 'de' ? f.de : f.en}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-1.5">{T(lang, 'scriptHelpMore')}</p>
+        <p className="mt-1.5">{T(lang, 'loopHelp')}</p>
+      </details>
       <textarea className="input h-[55vh] w-full resize-y font-mono text-[11.5px] leading-5" value={text} onChange={(e) => (setText(e.target.value), setError(''), setProblems([]))} spellCheck={false} aria-label={T(lang, 'editModel')} data-process-json />
       {error && <p className="mt-2 text-body-s text-red">{error}</p>}
       {problems.length > 0 && (
@@ -1570,6 +1755,7 @@ function RunPage({ refRun }: { refRun: RunRef }) {
                 )}
                 {run.state === 'running' && !model && <p className="card p-4 text-body-m text-red">{T(lang, 'modelMissing', { key: node.model })}</p>}
                 {run.state === 'done' && <Summary run={run} models={models} />}
+                <ActionList run={run} noteId={refRun.noteId} models={models} />
                 <HistoryList run={run} models={models} />
               </div>
               <aside className="grid min-w-0 content-start gap-6 sm:grid-cols-2 xl:grid-cols-1" aria-label={T(lang, 'details')}>
@@ -1613,6 +1799,83 @@ function RunPage({ refRun }: { refRun: RunRef }) {
       </PageBody>
       {conn && <ConnectionsSheet onClose={() => setConn(false)} />}
     </>
+  );
+}
+
+interface ActionOutcome {
+  id: string;
+  status: 'done' | 'skipped' | 'failed';
+  detail: string;
+  noteId?: string;
+}
+
+/** What the stage scripts asked for, newest first, with what the server made of it */
+function ActionList({ run, noteId, models }: { run: ProcessRun; noteId: string; models: Map<string, ProcessModel> }) {
+  const lang = useLang();
+  const [outcomes, setOutcomes] = useState<Map<string, ActionOutcome>>(new Map());
+  const ids = run.actions.map((a) => a.id).join(',');
+  useEffect(() => {
+    if (!run.actions.some((a) => a.kind !== 'log')) return;
+    let stop = false;
+    const load = () =>
+      api<{ outcomes: ActionOutcome[] }>(`/process-actions/${encodeURIComponent(noteId)}`)
+        .then((r) => !stop && setOutcomes(new Map(r.outcomes.map((o) => [o.id, o]))))
+        .catch(() => undefined);
+    void load();
+    // The server carries new actions out right after the save reached it
+    const again = setTimeout(load, 2500);
+    return () => {
+      stop = true;
+      clearTimeout(again);
+    };
+  }, [noteId, ids]);
+  if (!run.actions.length) return null;
+  const stageTitle = (a: ProcessAction) => {
+    for (const n of [run, ...(run.child ? [run.child] : []), ...run.children]) {
+      const st = modelFor(n, models)?.stages.find((s) => s.id === a.stage);
+      if (st) return st.title;
+    }
+    return a.stage;
+  };
+  const what = (a: ProcessAction) =>
+    a.kind === 'notify' ? T(lang, 'act.notify', { to: a.to ?? '' }) : a.kind === 'note' ? (a.template ? T(lang, 'act.noteFrom', { path: a.path ?? '', template: a.template }) : T(lang, 'act.note', { path: a.path ?? '' })) : T(lang, a.error ? 'act.error' : 'act.log');
+  return (
+    <section aria-labelledby="proc-actions" className="pt-2" data-process-actions>
+      <h3 id="proc-actions" className="mb-1 font-display text-[17px] text-strong">
+        {T(lang, 'actions')}
+      </h3>
+      <p className="mb-2 text-body-s text-muted">{T(lang, 'actionsHint')}</p>
+      <ul className="divide-y divide-line border-y border-line text-body-m">
+        {[...run.actions].reverse().map((a) => {
+          const o = outcomes.get(a.id);
+          const Icon = a.kind === 'notify' ? Bell : a.kind === 'note' ? FilePlus2 : ScrollText;
+          const state = a.kind === 'log' ? null : (o?.status ?? 'pending');
+          const tone = state === 'done' ? 'ok' : state === 'failed' ? 'red' : state === 'skipped' ? 'muted' : 'amber';
+          return (
+            <li key={a.id} className="grid grid-cols-[7rem_minmax(0,1fr)_auto] items-baseline gap-3 py-1.5 phone:grid-cols-[minmax(0,1fr)_auto]" data-process-action={a.kind} data-state={state ?? 'log'}>
+              <Mono className="text-muted phone:col-span-2">{when(a.at, lang)}</Mono>
+              <span className="min-w-0">
+                <Icon size={14} className={`mr-1.5 inline ${a.error ? 'text-red' : 'text-muted'}`} />
+                <span className={a.error ? 'text-red' : ''}>{what(a)}</span>
+                <span className="ml-1.5 text-body-s text-faint">
+                  · {stageTitle(a)} ({T(lang, a.on === 'enter' ? 'onEnter' : 'onExit')})
+                </span>
+                {a.text && <span className="block break-words text-body-s text-muted">{a.text}</span>}
+                {o?.detail && o.status !== 'done' && <span className="block text-body-s text-faint">{o.detail}</span>}
+              </span>
+              <span className="flex items-center gap-1.5">
+                {o?.noteId && (
+                  <button type="button" className="btn-text !h-7 !px-2" onClick={() => navigate(`/n/${encodeURIComponent(o.noteId!)}`)}>
+                    {T(lang, 'act.open')}
+                  </button>
+                )}
+                {state && <Chip tone={tone}>{T(lang, `act.${state}` as Key)}</Chip>}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
@@ -1690,7 +1953,7 @@ function ModelPage({ refModel, runs }: { refModel: ModelRef; runs: RunRef[] }) {
         <ProcessGraph model={m} selected={sel} onSelect={setSel} />
         <GraphLegend />
         <div className="grid gap-5 nav:grid-cols-2">
-          <StageDetails model={m} stageId={sel} />
+          <StageDetails model={m} stageId={sel} edit={canEdit ? refModel : undefined} />
           <div className="min-w-0 space-y-4">
             <section>
               <h3 className="mb-2 font-display text-[17px] text-strong">{T(lang, 'versions')}</h3>

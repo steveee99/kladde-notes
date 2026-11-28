@@ -59,6 +59,8 @@ import { confluenceRouter } from './confluence/router.js';
 import { CockpitStore } from './cockpit/CockpitStore.js';
 import { CockpitService, cockpitHosts } from './cockpit/CockpitService.js';
 import { CockpitWatch } from './cockpit/CockpitWatch.js';
+import { ProcessActions } from './process/ProcessActions.js';
+import { processActionsRouter } from './process/router.js';
 import { cockpitRouter } from './cockpit/router.js';
 import { featuresOf } from './mcp/tools.js';
 import { BackupService } from './backup/BackupService.js';
@@ -114,6 +116,8 @@ export interface KladdeAppContext {
   remoteSync: RemoteSync;
   /** Notifying widgets of the development cockpit, read every few minutes */
   cockpitWatch: CockpitWatch;
+  /** Carries out the notifications and notes of process stage scripts */
+  processActions: ProcessActions;
   audit: AuditLog;
   live: LiveUpdates;
   standaloneUser?: UserRecord;
@@ -159,6 +163,8 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   let remoteSync: RemoteSync | undefined;
   // Notifying cockpit widgets; created with the fetcher below
   let cockpitWatch: CockpitWatch | undefined;
+  // Notifications and notes of process stage scripts; created once the notifications exist
+  let processActions: ProcessActions | undefined;
   // Build-time plugins; created once the stores exist, note changes reach them from then on
   let plugins: PluginHost | undefined;
   // Activity of groups and shared notes (#70)
@@ -168,7 +174,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   const notifications = new NotificationStore(opts.db, cipher, users, (userId, d) => {
     live.send([userId], 'notification', {});
     // The note (or group) gives the push its tag, so a newer one replaces it on the device
-    const noteId = /^\/(?:n|groups|cockpit)\/([^?]+)/.exec(d.url)?.[1] ?? '';
+    const noteId = /^\/(?:n|groups|cockpit|processes\/run)\/([^?]+)/.exec(d.url)?.[1] ?? '';
     deliverPush?.(userId, d, noteId);
   });
   const notes = new NoteStore(opts.db, cipher, (event) => {
@@ -179,8 +185,10 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     confluence?.onNoteChange(event);
     remoteSync?.onNoteChange(event);
     cockpitWatch?.onNoteChange(event);
+    processActions?.onNoteChange(event);
     plugins?.onNoteChange(event);
   });
+  processActions = new ProcessActions({ db: opts.db, cipher, notes, users, notifications });
   // Git sync was removed: its working copies (plain Markdown of the notes) must not stay on disk
   fs.rmSync(path.join(opts.dataDir, 'git'), { recursive: true, force: true });
   const files = new FileStore(opts.db, cipher, opts.dataDir);
@@ -474,6 +482,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
   cockpitWatch = new CockpitWatch({ service: cockpit, notifications, isPerson: (id) => !!users.getUser(id), features: (id) => featuresOf(notes, id) });
   app.use('/api/cockpit', cockpitRouter({ users, service: cockpit, audit, standaloneUser }));
+  app.use('/api/process-actions', processActionsRouter({ users, notes, actions: processActions, standaloneUser }));
   app.use('/api/remote-notes', remoteRouter({ users, notes, instances: remoteInstances, fetcher: remoteFetcher, sync: remoteSync, cards: new GitlabCards(remoteInstances, remoteFetcher), standaloneUser }));
   if (!opts.standalone) {
     app.use(
@@ -576,5 +585,5 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
 
   const sendReminders = push ? (now?: Date) => runReminders(push, notes, pushSubject, now) : undefined;
-  return { app, users, notes, files, avatars, attachmentIndexer, confluence, remoteSync, cockpitWatch, audit, live, standaloneUser, sendReminders, backups, metrics: metricsSources, jobs, events, plugins, notifications };
+  return { app, users, notes, files, avatars, attachmentIndexer, confluence, remoteSync, cockpitWatch, processActions, audit, live, standaloneUser, sendReminders, backups, metrics: metricsSources, jobs, events, plugins, notifications };
 }

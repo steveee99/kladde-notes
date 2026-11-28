@@ -659,6 +659,22 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 34,
+    description: 'Process actions: which notifications and notes of stage scripts were carried out (the outcome encrypted)',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE process_actions (
+          note_id TEXT NOT NULL,
+          action_id TEXT NOT NULL,
+          at INTEGER NOT NULL,
+          payload BLOB NOT NULL,
+          PRIMARY KEY (note_id, action_id)
+        );
+        CREATE INDEX process_actions_at ON process_actions(at);
+      `);
+    },
+  },
 ];
 
 /** The schema version this build migrates to */
