@@ -582,6 +582,69 @@ export const MIGRATIONS: Migration[] = [
   },
   {
     version: 30,
+    description: 'Development cockpit: personal GitLab/Jira connections and the dashboards whose widgets notify',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE cockpit_connections (
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          provider TEXT NOT NULL,
+          updated_at INTEGER NOT NULL,
+          data BLOB NOT NULL,
+          PRIMARY KEY (user_id, provider)
+        );
+        CREATE TABLE cockpit_watches (
+          note_id TEXT PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          next_at INTEGER NOT NULL,
+          payload BLOB NOT NULL
+        );
+        CREATE INDEX cockpit_watches_due ON cockpit_watches(next_at);
+      `);
+    },
+  },
+  {
+    version: 31,
+    description: 'Plugins: the schema steps each build-time plugin has applied, with a checksum per step',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE plugin_migrations (
+          plugin_id TEXT NOT NULL,
+          version INTEGER NOT NULL,
+          description TEXT NOT NULL,
+          checksum TEXT NOT NULL,
+          applied_at INTEGER NOT NULL,
+          PRIMARY KEY (plugin_id, version)
+        );
+      `);
+    },
+  },
+  {
+    version: 32,
+    description: 'Central webhooks of GitLab/GitHub for the event bus, and the delivery ids they already took',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE event_sources (
+          id TEXT PRIMARY KEY,
+          owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          provider TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          last_at INTEGER,
+          payload BLOB NOT NULL
+        );
+        CREATE INDEX event_sources_owner ON event_sources(owner_id);
+        CREATE TABLE event_deliveries (
+          source_id TEXT NOT NULL REFERENCES event_sources(id) ON DELETE CASCADE,
+          delivery TEXT NOT NULL,
+          at INTEGER NOT NULL,
+          PRIMARY KEY (source_id, delivery)
+        );
+        CREATE INDEX event_deliveries_at ON event_deliveries(at);
+      `);
+    },
+  },
+  {
+    version: 33,
     description: 'Folder websites: an own folder published read-only under a slug (looked up by its keyed hash, folder and slug encrypted)',
     up: (db) => {
       db.exec(`

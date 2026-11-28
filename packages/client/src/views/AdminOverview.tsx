@@ -1,6 +1,6 @@
 import { useEffect, useState, type ComponentType, type ReactNode } from 'react';
 import type { AdminJob, AdminOverview } from '@kladde/shared';
-import { Backup, CheckCircle2, Database, FileText, HardDrive, Images, Memory, Person, Speed, Sync, Trash2, Users, AlertTriangle, Monitor, RefreshCw } from '../lib/icons';
+import { Backup, CheckCircle2, Database, FileText, HardDrive, Images, Memory, Person, Speed, Sync, Trash2, Users, AlertTriangle, Monitor, RefreshCw, Webhook } from '../lib/icons';
 import { api } from '../lib/api';
 import { locale, tl, useLang, type I18nKey, type Lang } from '../lib/i18n';
 import { Avatar } from './Avatar';
@@ -50,8 +50,8 @@ function Meter({ ratio, label }: { ratio: number | null; label: string }) {
   );
 }
 
-const JOB_LABELS: Record<AdminJob['kind'], I18nKey> = { sync: 'admin.job.sync', backup: 'admin.job.backup', trash: 'admin.job.trash' };
-const JOB_ICONS: Record<AdminJob['kind'], IconType> = { sync: Sync, backup: Backup, trash: Trash2 };
+const JOB_LABELS: Record<AdminJob['kind'], I18nKey> = { sync: 'admin.job.sync', backup: 'admin.job.backup', trash: 'admin.job.trash', event: 'admin.job.event' };
+const JOB_ICONS: Record<AdminJob['kind'], IconType> = { sync: Sync, backup: Backup, trash: Trash2, event: Webhook };
 
 function jobDetail(j: AdminJob, lang: Lang): string {
   if (!j.ok) return j.error ?? tl(lang, 'admin.job.failed');

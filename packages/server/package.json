@@ -1,6 +1,6 @@
 {
   "name": "@kladde/server",
-  "version": "2.24.0",
+  "version": "2.29.0",
   "type": "module",
   "main": "./dist/index.js",
   "scripts": {
@@ -12,6 +12,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@kladde/plugin-api": "*",
     "@kladde/shared": "*",
     "@simplewebauthn/server": "^13.1.1",
     "@tesseract.js-data/deu": "^1.0.0",

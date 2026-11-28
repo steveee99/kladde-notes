@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import type { DatabaseSync } from 'node:sqlite';
 import { APP_VERSION, type AdminStatus, type Me } from '@kladde/shared';
+import { rateLimit } from './http.js';
 import { DataCipher } from './crypto.js';
 import { AvatarStore } from './AvatarStore.js';
 import { UserRecord, UserStore } from './UserStore.js';
@@ -18,7 +19,7 @@ import { AuditLog } from './security/AuditLog.js';
 import { configuredOrigins, isAllowedOrigin } from './security/origin.js';
 import { appCsp, inlineScriptHashes } from './security/csp.js';
 import { authRouter } from './auth.js';
-import { gitlabConfigFromEnv, openSignupFromEnv } from './gitlabAuth.js';
+import { gitlabConfigFromEnv, loginMethodsFromEnv, openSignupFromEnv } from './gitlabAuth.js';
 import { apiRouter, LiveUpdates } from './api.js';
 import { StorageStore, defaultQuotaBytes } from './StorageStore.js';
 import { adminRouter } from './admin/adminRouter.js';
@@ -31,6 +32,10 @@ import { CalendarFeedStore } from './calendar/CalendarFeedStore.js';
 import { calendarRouters } from './calendar/router.js';
 import { ticketHookRouters } from './hooks/router.js';
 import { TicketHookStore } from './hooks/TicketHookStore.js';
+import { EventBus } from './events/EventBus.js';
+import { EventSourceStore } from './events/EventSourceStore.js';
+import { eventRouters } from './events/router.js';
+import { ticketSubscriber } from './events/tickets.js';
 import { PushStore } from './push/PushStore.js';
 import { pushRouter } from './push/router.js';
 import { inQuietHours, localClock, runReminders, vapidSubject } from './push/reminders.js';
@@ -51,6 +56,11 @@ import { remoteRouter } from './remote/router.js';
 import { GitlabCards } from './remote/GitlabCards.js';
 import { RemoteSnapshotStore, RemoteSync, remoteSyncHours } from './remote/RemoteSync.js';
 import { confluenceRouter } from './confluence/router.js';
+import { CockpitStore } from './cockpit/CockpitStore.js';
+import { CockpitService, cockpitHosts } from './cockpit/CockpitService.js';
+import { CockpitWatch } from './cockpit/CockpitWatch.js';
+import { cockpitRouter } from './cockpit/router.js';
+import { featuresOf } from './mcp/tools.js';
 import { BackupService } from './backup/BackupService.js';
 import { ServerSettings } from './ServerSettings.js';
 import { AccountExportService } from './export/AccountExport.js';
@@ -58,6 +68,11 @@ import { accountExportRouter } from './export/router.js';
 import { Metrics, metricsHandler, metricsTokenFromEnv, type MetricsSources } from './metrics.js';
 import { JobLog } from './admin/JobLog.js';
 import { overviewBuilder } from './admin/overview.js';
+import { backupDatabase } from './db.js';
+import { PluginHost } from './plugins/PluginHost.js';
+import { appTitleFromEnv, brandIndexHtml, brandManifest } from './branding.js';
+import { installedPlugins } from './plugins/installed.js';
+import type { InstalledServerPlugin } from './plugins/types.js';
 
 export interface KladdeAppOptions {
   db: DatabaseSync;
@@ -72,6 +87,8 @@ export interface KladdeAppOptions {
   seaAssets?: Map<string, EmbeddedAsset> | null;
   /** Requests to Confluence (#48); tests answer them without a network */
   confluenceTransport?: HttpTransport;
+  /** Requests to Jira (development cockpit); tests answer them without a network */
+  jiraTransport?: HttpTransport;
   onRegistered?: (user: UserRecord, inviteNote: string) => void;
   /** Backups in the admin area (#65): where they go and how many daily ones `BACKUP_KEEP` keeps; missing = no backups */
   backup?: { dir: string; defaultKeep: number };
@@ -79,6 +96,8 @@ export interface KladdeAppOptions {
   onRestart?: () => void;
   /** Path of the database file, for its size in the metrics (#92) */
   dbPath?: string;
+  /** Build-time plugins (docs/PLUGINS.md); default: the ones `npm run plugins` built into this image */
+  plugins?: InstalledServerPlugin[];
 }
 
 export interface KladdeAppContext {
@@ -93,6 +112,8 @@ export interface KladdeAppContext {
   confluence: ConfluenceSync;
   /** Synced remote notes: `tick()` reads the ones that are due */
   remoteSync: RemoteSync;
+  /** Notifying widgets of the development cockpit, read every few minutes */
+  cockpitWatch: CockpitWatch;
   audit: AuditLog;
   live: LiveUpdates;
   standaloneUser?: UserRecord;
@@ -104,6 +125,12 @@ export interface KladdeAppContext {
   metrics: MetricsSources;
   /** Recent jobs for the admin dashboard */
   jobs: JobLog;
+  /** Event bus of the central webhooks (#149) */
+  events: EventBus;
+  /** Build-time plugins: their routes, note events, jobs (`tick()` every minute) */
+  plugins: PluginHost;
+  /** Mentions, comments, plugin notifications */
+  notifications: NotificationStore;
 }
 
 /**
@@ -130,6 +157,10 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   let confluence: ConfluenceSync | undefined;
   // Synced remote notes; created with the fetcher below
   let remoteSync: RemoteSync | undefined;
+  // Notifying cockpit widgets; created with the fetcher below
+  let cockpitWatch: CockpitWatch | undefined;
+  // Build-time plugins; created once the stores exist, note changes reach them from then on
+  let plugins: PluginHost | undefined;
   // Activity of groups and shared notes (#70)
   const activity = new ActivityStore(opts.db, cipher);
   // Mentions and comments (#69, #68): kept per user, a live event to open apps, Web Push to the devices
@@ -137,7 +168,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   const notifications = new NotificationStore(opts.db, cipher, users, (userId, d) => {
     live.send([userId], 'notification', {});
     // The note (or group) gives the push its tag, so a newer one replaces it on the device
-    const noteId = /^\/(?:n|groups)\/([^?]+)/.exec(d.url)?.[1] ?? '';
+    const noteId = /^\/(?:n|groups|cockpit)\/([^?]+)/.exec(d.url)?.[1] ?? '';
     deliverPush?.(userId, d, noteId);
   });
   const notes = new NoteStore(opts.db, cipher, (event) => {
@@ -147,6 +178,8 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     mirror?.apply(event);
     confluence?.onNoteChange(event);
     remoteSync?.onNoteChange(event);
+    cockpitWatch?.onNoteChange(event);
+    plugins?.onNoteChange(event);
   });
   // Git sync was removed: its working copies (plain Markdown of the notes) must not stay on disk
   fs.rmSync(path.join(opts.dataDir, 'git'), { recursive: true, force: true });
@@ -184,6 +217,21 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
   const avatars = new AvatarStore(opts.db, cipher, opts.dataDir);
   const standaloneUser = opts.standalone ? ensureStandaloneUser(users) : undefined;
+  const groupStore = new GroupStore(opts.db);
+  // Plugins migrate their own tables here (a backup first when a step is pending), before the first request
+  const backupDir = opts.backup?.dir;
+  plugins = new PluginHost({
+    db: opts.db,
+    cipher,
+    notes,
+    users,
+    env,
+    plugins: opts.plugins ?? installedPlugins,
+    standaloneUser,
+    backup: backupDir ? () => void backupDatabase(opts.db, backupDir) : undefined,
+    notifications,
+    groupMembers: (groupId) => groupStore.memberIds(groupId),
+  });
   const push = opts.standalone ? undefined : new PushStore(opts.db, cipher, allowedPushHosts(env));
   const pushSubject = vapidSubject(env, opts.publicUrl);
   if (push) {
@@ -192,7 +240,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       for (const sub of push.all()) {
         if (sub.userId !== userId) continue;
         if (inQuietHours(localClock(new Date(), sub.settings.timeZone).minutes, sub.settings)) continue;
-        const payload = notificationPush(sub.settings.showText ? d : { ...d, name: '' }, sub.settings.lang, noteId);
+        const payload = notificationPush(sub.settings.showText ? d : { ...d, name: '', text: '' }, sub.settings.lang, noteId);
         void sendPush(sub.target, payload, push.vapidKeys(), pushSubject, { urgency: 'normal', topic: payload.tag.replace(/[^\w-]/g, '').slice(0, 32) })
           .then((outcome) => outcome === 'gone' && push.drop(sub.id))
           .catch(() => {});
@@ -208,6 +256,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     audit,
     publicUrl: opts.publicUrl,
     standaloneUser,
+    pluginTools: plugins.count ? (userId) => plugins!.mcpTools(userId) : undefined,
   });
 
   if (mirror) for (const u of users.listUsers()) mirror.writeAll(u.id, notes.allOf(u.id));
@@ -241,6 +290,13 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
 
   // The admin dashboard: counts, the machine, who is online and the recent jobs
   const jobs = new JobLog();
+  // Event bus (#149): central webhooks publish git events; ticket automations and plugins subscribe
+  const events = new EventBus((subscriber, message, err) => {
+    console.error(`Event ${message.event.type} at ${subscriber} failed:`, err);
+    jobs.add({ kind: 'event', at: Date.now(), durationMs: 0, ok: false, error: `${subscriber}: ${message.event.type}` });
+  });
+  events.subscribe(ticketSubscriber(notes, users));
+  plugins.subscribe(events);
   const overview = overviewBuilder({
     db: opts.db,
     dbPath: metricsSources.dbPath,
@@ -262,6 +318,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   // The served index.html decides which inline scripts the CSP allows (hashes, no 'unsafe-inline')
   const indexSource = opts.seaAssets?.get('/index.html')?.data.toString('utf8') ?? (opts.clientDist && fs.existsSync(path.join(opts.clientDist, 'index.html')) ? fs.readFileSync(path.join(opts.clientDist, 'index.html'), 'utf8') : '');
   const csp = appCsp(inlineScriptHashes(indexSource));
+  const appTitle = appTitleFromEnv(env);
 
   app.use((_req, res, next) => {
     // Routes with their own policy (attachments, avatars) replace it
@@ -349,6 +406,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     });
     app.use('/api/auth', standaloneAuth);
   } else {
+    const gitlabConfig = gitlabConfigFromEnv(env);
     app.use(
       '/api/auth',
       express.json({ limit: '64kb' }),
@@ -360,8 +418,10 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
         publicUrl: opts.publicUrl,
         secureCookies: opts.isProduction && (opts.publicUrl?.startsWith('https://') ?? false),
         devLogin: !opts.isProduction && env.DEV_LOGIN === '1',
-        gitlab: gitlabConfigFromEnv(env),
+        appName: appTitle ?? undefined,
+        gitlab: gitlabConfig,
         openSignup: openSignupFromEnv(env),
+        loginMethods: loginMethodsFromEnv(env, !!gitlabConfig),
         onRegistered: opts.onRegistered,
       })
     );
@@ -384,6 +444,10 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
     // Ticket workflows: GitLab/GitHub deliver merge request events through the hook's secret address (no cookies)
     app.use('/api/hooks', ticketHooks.receiver);
     app.use('/api/ticket-hooks', ticketHooks.accountRouter);
+    // Central webhooks: one per GitLab/GitHub project or group, its events go onto the bus
+    const eventHooks = eventRouters({ users, notes, groups: groupStore, sources: new EventSourceStore(opts.db, cipher), bus: events, audit, publicUrl: opts.publicUrl });
+    app.use('/api/events/hooks', eventHooks.receiver);
+    app.use('/api/event-sources', eventHooks.accountRouter);
     // Web Push reminders (the standalone desktop app has no service worker)
     app.use('/api/push', pushRouter({ users, notes, store: push!, subject: pushSubject }));
   }
@@ -393,7 +457,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   );
   app.use('/api/mcp', mcp.accountRouter);
   // Account export as ZIP (#93): built in the background, the settings poll until it is ready
-  const accountExports = new AccountExportService({ notes, files, dataDir: opts.dataDir });
+  const accountExports = new AccountExportService({ notes, files, dataDir: opts.dataDir, pluginFiles: plugins.count ? (userId) => plugins!.exportFiles(userId) : undefined });
   app.use('/api/account-export', accountExportRouter({ users, exports: accountExports, audit, standaloneUser }));
   app.use('/api/confluence', confluenceRouter({ users, sync: confluence, audit, allowPrivate: confluenceAllowPrivate, standaloneUser }));
   // Remote notes: Markdown from GitLab/GitHub, read live with the access configured for everyone
@@ -401,6 +465,15 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   const remoteFetcher = new RemoteFetcher(remoteInstances);
   // Synced ones (`sync: true`) are read every REMOTE_SYNC_HOURS and kept as an encrypted copy (search, offline)
   remoteSync = new RemoteSync(new RemoteSnapshotStore(opts.db, cipher), notes, remoteFetcher, remoteSyncHours(env) * 3_600_000);
+  // Development cockpit: GitLab/Jira widgets with each user's own tokens; GitLab only on the configured instances
+  const cockpit = new CockpitService(new CockpitStore(opts.db, cipher), {
+    gitlabHosts: cockpitHosts(() => remoteInstances.gitlabHosts(), env, gitlabConfigFromEnv(env)),
+    fetcher: remoteFetcher,
+    jiraTransport: opts.jiraTransport ?? httpsTransport({ allowPrivate: ['1', 'true'].includes(env.JIRA_ALLOW_PRIVATE?.trim().toLowerCase() ?? '') }),
+    jiraAllowPrivate: ['1', 'true'].includes(env.JIRA_ALLOW_PRIVATE?.trim().toLowerCase() ?? ''),
+  });
+  cockpitWatch = new CockpitWatch({ service: cockpit, notifications, isPerson: (id) => !!users.getUser(id), features: (id) => featuresOf(notes, id) });
+  app.use('/api/cockpit', cockpitRouter({ users, service: cockpit, audit, standaloneUser }));
   app.use('/api/remote-notes', remoteRouter({ users, notes, instances: remoteInstances, fetcher: remoteFetcher, sync: remoteSync, cards: new GitlabCards(remoteInstances, remoteFetcher), standaloneUser }));
   if (!opts.standalone) {
     app.use(
@@ -420,8 +493,35 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       })
     );
   }
-  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : new GroupStore(opts.db), spaces: online ? new SpaceIndexes(notes) : undefined, activity, notifications, jobs, comments: opts.standalone ? undefined : new CommentStore(opts.db, cipher, users), sites: opts.standalone ? undefined : new SiteStore(opts.db, cipher, notes) }));
+  // Build-time plugins: `/api/plugins` and their routes under `/api/p/<id>`
+  plugins.mount(app);
+  app.use('/api', apiRouter(users, notes, files, live, { standaloneUser, avatars, storage, meFor, trashDays: trashRetentionDays(env), transcriber, attachmentSearch, groups: opts.standalone ? undefined : groupStore, spaces: online ? new SpaceIndexes(notes) : undefined, activity, notifications, jobs, comments: opts.standalone ? undefined : new CommentStore(opts.db, cipher, users), sites: opts.standalone ? undefined : new SiteStore(opts.db, cipher, notes) }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Nicht gefunden' }));
+
+  // APP_TITLE: the served index.html and manifest carry the app's name (the client reads it from the page)
+  const brandedIndex = appTitle && indexSource ? brandIndexHtml(indexSource, appTitle) : null;
+  if (appTitle && brandedIndex) {
+    const manifestSource =
+      opts.seaAssets?.get('/manifest.webmanifest')?.data.toString('utf8') ??
+      (opts.clientDist && fs.existsSync(path.join(opts.clientDist, 'manifest.webmanifest')) ? fs.readFileSync(path.join(opts.clientDist, 'manifest.webmanifest'), 'utf8') : null);
+    const brandedManifest = manifestSource ? brandManifest(manifestSource, appTitle) : null;
+    app.use((req, res, next) => {
+      if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+      if (req.path === '/' || req.path === '/index.html') {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Cache-Control', opts.standalone ? 'no-store' : 'no-cache');
+        res.status(200).send(req.method === 'HEAD' ? undefined : brandedIndex);
+        return;
+      }
+      if (brandedManifest && req.path === '/manifest.webmanifest') {
+        res.setHeader('Content-Type', 'application/manifest+json');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.status(200).send(req.method === 'HEAD' ? undefined : brandedManifest);
+        return;
+      }
+      next();
+    });
+  }
 
   if (opts.seaAssets && opts.seaAssets.size > 0) {
     const assets = opts.seaAssets;
@@ -445,7 +545,7 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
       app.get(/^\/(?!api\/).*/, (_req, res) => {
         res.setHeader('Content-Type', indexHtml.mime);
         res.setHeader('Cache-Control', opts.standalone ? 'no-store' : 'no-cache');
-        res.status(200).send(indexHtml.data);
+        res.status(200).send(brandedIndex ?? indexHtml.data);
       });
     }
   } else if (opts.clientDist && fs.existsSync(opts.clientDist)) {
@@ -462,9 +562,11 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
         },
       })
     );
-    app.get(/^\/(?!api\/).*/, (_req, res) => {
+    // Generous: every page load of the app comes through here (behind a proxy without TRUST_PROXY all share one IP)
+    app.get(/^\/(?!api\/).*/, rateLimit(1200, 60_000), (_req, res) => {
       res.setHeader('Cache-Control', opts.standalone ? 'no-store' : 'no-cache');
-      res.sendFile(path.join(clientDist, 'index.html'));
+      if (brandedIndex) res.type('html').send(brandedIndex);
+      else res.sendFile(path.join(clientDist, 'index.html'));
     });
   }
 
@@ -474,5 +576,5 @@ export function createKladdeApp(opts: KladdeAppOptions): KladdeAppContext {
   });
 
   const sendReminders = push ? (now?: Date) => runReminders(push, notes, pushSubject, now) : undefined;
-  return { app, users, notes, files, avatars, attachmentIndexer, confluence, remoteSync, audit, live, standaloneUser, sendReminders, backups, metrics: metricsSources, jobs };
+  return { app, users, notes, files, avatars, attachmentIndexer, confluence, remoteSync, cockpitWatch, audit, live, standaloneUser, sendReminders, backups, metrics: metricsSources, jobs, events, plugins, notifications };
 }

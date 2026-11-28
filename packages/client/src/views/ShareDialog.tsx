@@ -240,7 +240,7 @@ function ViaFolder({ share }: { share: NoteShare }) {
   );
 }
 
-/** Folder websites: the folder read-only under /p/<slug>, with a random or an own address */
+/** Folder websites: the folder read-only under /site/<slug>, with a random or an own address */
 function FolderWebsite({ folder }: { folder: string }) {
   const lang = useLang();
   const [site, setSite] = useState<FolderSite | null | undefined>(undefined);
@@ -262,7 +262,7 @@ function FolderWebsite({ folder }: { folder: string }) {
   };
   useEffect(() => void call(api(`/folders/site?folder=${encodeURIComponent(folder)}`)), [folder]);
   const put = (json: object) => call(api('/folders/site', { method: 'PUT', json: { folder, ...json } }));
-  const link = site ? `${location.origin}${appUrl(`/p/${site.slug}`)}` : null;
+  const link = site ? `${location.origin}${appUrl(`/site/${site.slug}`)}` : null;
   const wanted = normalizeSiteSlug(slug);
   const changed = !!site && wanted !== site.slug;
 
@@ -287,7 +287,7 @@ function FolderWebsite({ folder }: { folder: string }) {
               {tl(lang, 'share.siteAddress')}
             </label>
             <div className="input flex h-9 min-w-0 flex-1 items-center gap-0 px-0 focus-within:border-acc">
-              <span className="shrink-0 select-none pl-3 font-mono text-caption text-faint">/p/</span>
+              <span className="shrink-0 select-none pl-3 font-mono text-caption text-faint">/site/</span>
               <input
                 id={slugId}
                 aria-describedby={hintId}

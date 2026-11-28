@@ -32,6 +32,7 @@ import {
   type TicketKind,
 } from '@kladde/shared';
 import { vault } from '../data/vault';
+import { navigate } from '../lib/router';
 import { createTicketHook, listTicketHooks, removeTicketHook, saveProject, ticketsOf, type ProjectInfo } from '../data/tickets';
 import { copyText } from '../lib/clipboard';
 import { useModal } from '../lib/modal';
@@ -981,6 +982,21 @@ function GitSection({ project, draft, onAutomations }: { project: ProjectInfo; d
   return (
     <div className="space-y-6">
       <SectionHead title={t('workflow.secGit')}>{t('workflow.gitHint', { key: cleanProjectKey(draft.key) ?? draft.key })}</SectionHead>
+
+      {!standalone && (
+        <p className="max-w-3xl text-body-s text-muted">
+          <a
+            href="/settings/webhooks"
+            className="text-acc underline-offset-2 hover:underline"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('/settings/webhooks');
+            }}
+          >
+            {t('workflow.centralHint')}
+          </a>
+        </p>
+      )}
 
       {!gitRules.length && (
         <div className="flex max-w-3xl items-start gap-2 rounded-lg border border-line px-3.5 py-2.5 text-body-s text-muted">

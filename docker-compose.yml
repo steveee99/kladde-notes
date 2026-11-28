@@ -21,6 +21,11 @@ services:
       # Key for the encryption at rest (base64, 32 bytes: `openssl rand -base64 32`).
       # Empty = a key file is generated in the data volume (protects backups and copies of the database only)
       - DATA_KEY=${DATA_KEY:-}
+      # Name the app shows instead of "Kladde" (tab, installed app, sign-in page, top bar); empty = Kladde
+      - APP_TITLE=${APP_TITLE:-}
+      # Sign-in methods offered: comma-separated passkey, password, gitlab; empty = all.
+      # "gitlab" = only "Sign in with GitLab" (no username/password, no passkeys); needs GITLAB_CLIENT_ID/SECRET
+      - LOGIN_METHODS=${LOGIN_METHODS:-}
       # Sign-in methods that create accounts WITHOUT an invite: comma-separated gitlab, passkey, password or all.
       # Empty = every new account needs an invite. E.g. "gitlab" (with GITLAB_ALLOWED_GROUPS) = GitLab users sign up freely
       - SIGNUP_WITHOUT_INVITE=${SIGNUP_WITHOUT_INVITE:-}

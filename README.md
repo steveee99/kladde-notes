@@ -67,6 +67,7 @@ The app and its UI are available in **English and German**; the guides in `docs/
 | **Variables** | Folders and groups define variables that subfolders inherit and can override; `{{var:name}}` in notes, templates, links and exports always shows the current value ([guide](docs/VARIABLES.md)) |
 | **Note types** | Model your own types: properties, where they show and whether the frontmatter is visible; notes and templates use them with `type: custom:<name>` ([guide](docs/NOTE_TYPES.md)) |
 | **GitLab/GitHub notes** | A note shows a Markdown document from GitLab or GitHub, always loaded live and read-only; the address may contain variables. The access token is set on the container or in the administration and applies to everyone ([guide](docs/REMOTE_NOTES.md)) |
+| **Plugins** | Build your own apps into Kladde at build time: own navigation entries, pages, commands, settings, encrypted database tables with migrations and background jobs, on Kladde's sign-in, design, notes and sync. A version matrix check stops the build when a plugin does not fit the Kladde version ([guide](docs/PLUGINS.md), example in `examples/kladde-plugin-logbook`, ops repository template in `docs/ops-repo-template/`) |
 | **Templates** | Your own templates under Settings → Templates (`{{title}}`, `{{date}}`, `{{zid}}`), with a default target folder and encrypted sync |
 | **Media** | Images and PDFs by paste, drag and drop or button; image grid with ```` ```gallery ```` and carousel with ```` ```carousel ````; embedded PDF viewer and PDF notes; **voice notes** (record in Quick Capture or with `/audio`, optional transcription); attachments also work offline; code blocks with syntax highlighting and copy button |
 | **Offline & sync** | IndexedDB per account, sync via cursor + versions; concurrent changes (another device, another person, offline edits synced later) are merged with a three-way merge, line by line and word by word within a paragraph; only if both change the same words, the local text is kept as a "(Conflict …)" copy; live updates via Server-Sent Events |
@@ -159,6 +160,8 @@ Without access to the server you can import a local folder (e.g. an Obsidian vau
 | `PUBLIC_URL` | Public address; sets the passkey domain and builds invitation links |
 | `TRUST_PROXY` | `1` behind a reverse proxy |
 | `DATA_KEY` | Encryption key (`openssl rand -base64 32`). Empty = key file `data/secret.key` in the volume |
+| `APP_TITLE` | Name the app shows instead of "Kladde" (browser tab, installed app, sign-in page, top bar, passkey prompts), at most 40 characters |
+| `LOGIN_METHODS` | Sign-in methods the server offers: comma-separated `passkey`, `password`, `gitlab` (default all). `gitlab` alone = only "Sign in with GitLab", no username/password and no passkeys ([details](docs/GITLAB.md#sign-in-only-with-gitlab)) |
 | `SIGNUP_WITHOUT_INVITE` | Sign-in methods that create new accounts **without an invitation**: comma-separated `gitlab`, `passkey`, `password` or `all`. Empty = every new account needs an invitation. For passkey/password the sign-in page then shows "Create new account" |
 | `GITLAB_URL` | GitLab instance for "Sign in with GitLab" (default `https://gitlab.com`) |
 | `GITLAB_INTERNAL_URL` | Optional: address the container uses to reach GitLab if it differs from `GITLAB_URL` (e.g. `http://192.168.1.20`) |
@@ -177,6 +180,8 @@ Without access to the server you can import a local folder (e.g. an Obsidian vau
 | `TRANSCRIBE_URL` | Optional speech-to-text for voice notes: an OpenAI-compatible transcription endpoint you run yourself, e.g. a local Whisper (`http://whisper:8000/v1/audio/transcriptions`). Unset = no transcription; recordings never go to a third-party service by default. `TRANSCRIBE_MODEL` (default `whisper-1`) and `TRANSCRIBE_API_KEY` are optional |
 | `OCR` | `true` turns on text recognition (OCR) for images and scanned PDF pages, so the full-text search finds their text too (Tesseract as WebAssembly, runs on the server, nothing leaves it; costs CPU, default off). The text of normal PDFs is always indexed. `OCR_LANGS` picks the languages: `deu`, `eng` or `deu+eng` (default) |
 | `CONFLUENCE_ALLOW_PRIVATE` | `true` lets users connect a Confluence on a private address (e.g. an on-premise Data Center in the intranet). By default the Confluence sync only reaches public https addresses, with the same protections as the web clipper |
+| `COCKPIT_GITLAB_URL` | A GitLab the development cockpit may read with each user's personal token, without a shared token (`COCKPIT_GITLAB_INTERNAL_URL` for the address the server uses). The GitLab instances of remote notes and the GitLab of the sign-in are offered too |
+| `JIRA_ALLOW_PRIVATE` | `true` lets users connect a Jira Data Center on a private address (intranet) to the development cockpit. By default only public https addresses are reached |
 | `VAPID_SUBJECT` | Contact for Web Push services (`mailto:…` or `https://…`), sent with every reminder. Default: `PUBLIC_URL` if it is https |
 | `PUSH_ALLOWED_HOSTS` | Extra push service hosts (comma-separated) besides Google, Mozilla, Apple and Microsoft; other endpoints are refused |
 | `METRICS_TOKEN` | Optional Prometheus metrics on `/metrics` (requests and latencies, sync pushes/pulls, open live connections, push messages, attachment indexing and transcriptions, database and attachment size, last backup; no user or note data). Off unless set; Prometheus sends it as `Authorization: Bearer <token>` (at least 16 characters, e.g. `openssl rand -hex 24`) |
@@ -199,7 +204,7 @@ Without access to the server you can import a local folder (e.g. an Obsidian vau
 
 3. `docker compose up -d`. The sign-in page now shows "Sign in with GitLab".
 
-Existing accounts link GitLab under *Settings → Sign in with GitLab*; after that the GitLab button is enough. New people register through their invitation link with "Register with GitLab" (username = GitLab name), or without an invitation if `SIGNUP_WITHOUT_INVITE` contains `gitlab`. Blocked accounts stay blocked; a link can only be removed while a passkey or password remains.
+Existing accounts link GitLab under *Settings → Sign in with GitLab*; after that the GitLab button is enough. New people register through their invitation link with "Register with GitLab" (username = GitLab name), or without an invitation if `SIGNUP_WITHOUT_INVITE` contains `gitlab`. Blocked accounts stay blocked; a link can only be removed while a passkey or password remains. With `LOGIN_METHODS=gitlab` the sign-in page offers only GitLab.
 
 **AI assistants (MCP):** an MCP server (Streamable HTTP) runs at `PUBLIC_URL/mcp`. Clients such as claude.ai, Claude Desktop or Claude Code sign in via OAuth 2.1 (dynamic registration, PKCE, consent with the normal Kladde login) or with an access token from Settings → Features → AI assistants → Settings (`Authorization: Bearer kld_…`). Every connection only sees the notes of its own account. The reverse proxy must forward `/mcp`, `/oauth/…` and `/.well-known/oauth-…` to the app (the default if everything goes to Kladde); `PUBLIC_URL` should be set so that the OAuth addresses are correct.
 
@@ -222,8 +227,11 @@ kladde/
 ├── packages/
 │   ├── shared/   # types, Markdown metadata, task parser (due date/recurrence), query language
 │   ├── server/   # Express + node:sqlite: passkeys (SimpleWebAuthn), GitLab OAuth, sync, sharing, files
-│   └── client/   # React 18 + Vite + Tailwind + CodeMirror 6, IndexedDB sync, PWA
-├── scripts/      # release.mjs, build-desktop.mjs, docker-entrypoint.sh
+│   ├── client/   # React 18 + Vite + Tailwind + CodeMirror 6, IndexedDB sync, PWA
+│   └── plugin-api/  # the only interface for build-time plugins (own SemVer version)
+├── examples/     # kladde-plugin-logbook: example plugin; kladde.plugins.json to build it in
+├── plugins/      # local plugin packages for builds (not in git)
+├── scripts/      # release.mjs, build-desktop.mjs, plugins.mjs, docker-entrypoint.sh
 ├── Dockerfile
 └── docker-compose.yml
 ```

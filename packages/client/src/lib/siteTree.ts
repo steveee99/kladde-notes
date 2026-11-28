@@ -47,7 +47,7 @@ export function ancestorsOf(path: string): string[] {
   return parts.map((_, i) => parts.slice(0, i + 1).join('/'));
 }
 
-/** The note an address names: the part after `/p/<slug>/`, its path without `.md` (case does not matter) */
+/** The note an address names: the part after `/site/<slug>/`, its path without `.md` (case does not matter) */
 export function findSiteNote<T extends Pick<PublicSiteNote, 'path'>>(notes: readonly T[], rest: string): T | undefined {
   const wanted = rest.replace(/^\/+|\/+$/g, '').toLowerCase();
   if (!wanted) return undefined;

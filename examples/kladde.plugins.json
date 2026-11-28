@@ -1,0 +1,5 @@
+{
+  "plugins": {
+    "kladde-plugin-logbook": "file:kladde-plugin-logbook"
+  }
+}

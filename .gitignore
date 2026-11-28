@@ -15,3 +15,8 @@ packages/server/data/
 e2e/.auth/
 test-results/
 playwright-report/
+# Build-time plugins (docs/PLUGINS.md): the local plugin list and the server bundles `npm run plugins` writes
+/kladde.plugins.json
+packages/server/plugins/
+/plugins/*
+!/plugins/README.md

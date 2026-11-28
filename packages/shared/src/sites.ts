@@ -1,7 +1,7 @@
 import type { PublicNote } from './types.js';
 
 /**
- * Folder websites: an own folder published read-only under `/p/<slug>`, with its notes, the folder tree, the graph and
+ * Folder websites: an own folder published read-only under `/site/<slug>`, with its notes, the folder tree, the graph and
  * the backlinks between them. The slug is random (like a public link) unless the owner picks one.
  */
 
@@ -43,7 +43,7 @@ export interface PublicSiteNote extends Pick<PublicNote, 'path' | 'content' | 'u
   id: string;
 }
 
-/** What guests get for `/p/<slug>` */
+/** What guests get for `/site/<slug>` */
 export interface PublicSite {
   /** The folder's name (its path above stays private) */
   title: string;
@@ -56,8 +56,8 @@ export interface PublicSite {
   truncated?: boolean;
 }
 
-/** The part of the address after `/p/<slug>/` for a note: its path without `.md` */
+/** The part of the address after `/site/<slug>/` for a note: its path without `.md` */
 export function siteNoteHref(slug: string, path: string): string {
   const parts = path.replace(/\.md$/i, '').split('/').map(encodeURIComponent);
-  return `/p/${encodeURIComponent(slug)}/${parts.join('/')}`;
+  return `/site/${encodeURIComponent(slug)}/${parts.join('/')}`;
 }

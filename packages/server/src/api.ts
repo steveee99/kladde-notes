@@ -90,7 +90,7 @@ export interface ApiRouterOptions {
   comments?: CommentStore;
   /** Online mode: the server's indexes per space (search, backlinks) */
   spaces?: SpaceIndexes;
-  /** Folder websites under /p/<slug>; not in standalone mode */
+  /** Folder websites under /site/<slug>; not in standalone mode */
   sites?: SiteStore;
 }
 

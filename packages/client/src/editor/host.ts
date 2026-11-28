@@ -1,4 +1,4 @@
-import type { GitlabCardResponse, QueryResult, RemoteHost } from '@kladde/shared';
+import type { GitlabCardResponse, QueryResult, RemoteHost, VariableScope } from '@kladde/shared';
 import type { EmbedNote } from './embedContext';
 import { t } from '../lib/i18n';
 
@@ -42,6 +42,18 @@ export interface EditorHost {
   /** The preview card of a GitLab address (shared/gitlabCard.ts) */
   loadGitlabCard(url: string, refresh?: boolean): Promise<GitlabCardState>;
   runQuery(src: string): QueryResult | { error: string } | { loading: true };
+  /** Development cockpit: mounts a ```cockpit block's widget into `el` (null while the feature is off); returns the unmount */
+  mountCockpit: ((el: HTMLElement, src: string, doc: string, variables: VariableScope | null, onConfigure?: () => void) => () => void) | null;
+  /** The development cockpit is on (offers /cockpit) */
+  cockpitEnabled(): boolean;
+  /** Opens the cockpit's widget editor for a ```cockpit block (`src` null: a new one); `onSave` gets the whole block */
+  editCockpit(src: string | null, doc: string, variables: VariableScope | null, onSave: (block: string) => void): void;
+  /** Build-time plugins: the expected height of the block an enabled plugin renders for ```<lang>, null when none does */
+  pluginBlock(lang: string): number | null;
+  /** Mounts that plugin's block into `el`; returns the unmount */
+  mountPluginBlock(el: HTMLElement, lang: string, props: { source: string; noteId: string; setSource?: (next: string) => void }): () => void;
+  /** Slash menu entries for the blocks of enabled plugins (`template`: the whole fenced block) */
+  pluginSlashBlocks(): { label: string; detail: string; keywords: string; template: string }[];
   toggleTask(noteId: string, line: number): void;
   /** Opens the note a task lives in, scrolled to the task's line */
   openTask(noteId: string, line: number): void;
@@ -86,6 +98,12 @@ export const editorHost: EditorHost = {
   onRemoteHosts: () => () => {},
   loadGitlabCard: () => Promise.resolve({ state: 'host_not_configured' }),
   runQuery: () => ({ error: t('editor.notAvailable') }),
+  mountCockpit: null,
+  cockpitEnabled: () => false,
+  editCockpit: () => {},
+  pluginBlock: () => null,
+  mountPluginBlock: () => () => {},
+  pluginSlashBlocks: () => [],
   toggleTask: () => {},
   openTask: () => {},
   setFrontmatter: () => {},

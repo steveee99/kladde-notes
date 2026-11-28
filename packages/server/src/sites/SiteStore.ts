@@ -48,7 +48,7 @@ function randomSlug(): string {
 const inside = (path: string, folder: string) => path === folder || path.startsWith(`${folder}/`);
 
 /**
- * Folder websites: an own folder published read-only under `/p/<slug>`. Folder and slug are encrypted; the slug is
+ * Folder websites: an own folder published read-only under `/site/<slug>`. Folder and slug are encrypted; the slug is
  * found by its keyed hash, so the database alone does not tell which addresses exist.
  */
 export class SiteStore {
@@ -148,7 +148,7 @@ export class SiteStore {
     for (const s of this.sitesOf(ownerId)) if (inside(s.folder, clean)) this.disable(ownerId, s.folder);
   }
 
-  /** What guests see under `/p/<slug>`; null when no folder is published under it */
+  /** What guests see under `/site/<slug>`; null when no folder is published under it */
   site(slug: string): PublicSite | null {
     if (!isValidSiteSlug(slug)) return null;
     const row = this.db.prepare('SELECT * FROM public_sites WHERE slug_mac = ?').get(this.mac(slug)) as SiteRow | undefined;

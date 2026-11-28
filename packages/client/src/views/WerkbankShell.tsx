@@ -1,6 +1,6 @@
 import { createContext, lazy, Suspense, useContext, useEffect, useRef, useState } from 'react';
 import { useModal } from '../lib/modal';
-import { CalendarCheck, CalendarDays, CalendarMonth, FileText, Flame, Home, Inbox as InboxIcon, Kanban, ListChecks, Menu, Network, PanelLeftClose, PanelLeftOpen, Pencil, Search as SearchIcon, Share2, Tags, Users, X } from '../lib/icons';
+import { CalendarCheck, CalendarDays, CalendarMonth, FileText, Flame, Home, Speed, Inbox as InboxIcon, Kanban, ListChecks, Menu, Network, PanelLeftClose, PanelLeftOpen, Pencil, Search as SearchIcon, Share2, Tags, Users, X } from '../lib/icons';
 import { openSearch, SearchDialogHost } from './SearchDialog';
 import { isHiddenPath, APP_VERSION, INBOX_FOLDER, Me, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
@@ -27,6 +27,8 @@ import { setFocusMode, useFocusMode } from '../lib/focus';
 import { isAdminPath, isSettingsPath, useSettingsNavInPanel } from '../lib/settingsRoutes';
 import { AdminNav } from './AdminNav';
 import { NotificationsButton } from './NotificationsPanel';
+import { pluginNavItems } from '../plugins/registry';
+import { appTitle } from '../lib/appTitle';
 
 const SettingsNav = lazy(() => import('./SettingsNav').then((m) => ({ default: m.SettingsNav })));
 
@@ -204,6 +206,8 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
   const ownNotes = listed.filter((n) => n.access === 'owner').length;
   const sidebarWidth = useSidebarWidth();
   const features = vault.features();
+  // Destinations of build-time plugins that are on
+  const pluginNav = pluginNavItems();
   // Notifications (#69, #68): only with an account on a server; group invitations arrive without mentions and comments too
   const showNotifications = !vault.standalone && !DEMO;
   const dailyNote = features.daily.enabled ? vault.findDailyNote() : undefined;
@@ -242,7 +246,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
         <header className="sticky top-0 z-20 hidden box-content h-12 shrink-0 items-center gap-3 border-b border-line bg-bar pl-2 pr-3 [--pad-top:0px] safe-top nav:flex">
           <button type="button" onClick={() => navigate('/')} className="flex shrink-0 items-center gap-2 rounded-md px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-acc" title={t('nav.home')}>
             <AppLogo size={22} />
-            <span className="font-display text-[19px] leading-6">Kladde</span>
+            <span className="font-display text-[19px] leading-6">{appTitle()}</span>
           </button>
           <button
             type="button"
@@ -294,6 +298,10 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
             {ticketsAnywhere() && <NavItem to="/projects" Icon={Kanban} label={t('nav.projects')} />}
             {features.calendarView.enabled && <NavItem to="/calendar" Icon={CalendarMonth} label={t('nav.calendar')} />}
             {features.habits.enabled && <NavItem to="/habits" Icon={Flame} label={t('habits.title')} />}
+            {features.cockpit.enabled && <NavItem to="/cockpit" Icon={Speed} label={t('cockpit.title')} />}
+            {pluginNav.map((n) => (
+              <NavItem key={n.key} to={n.to} Icon={n.Icon} label={n.label} />
+            ))}
             <NavItem to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} badgeLabel={t('nav.badgeInbox', { n: inboxCount })} />
             <RailDivider />
             <NavItem to="/graph" Icon={Network} label={t('nav.graphShort')} />
@@ -348,7 +356,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
             <button className="btn-icon shrink-0" onClick={() => setDrawer(true)} aria-label={t('nav.openMenu')}>
               <Menu size={22} />
             </button>
-            <span className="font-display min-w-0 truncate pl-1 text-[21px] leading-7">Kladde</span>
+            <span className="font-display min-w-0 truncate pl-1 text-[21px] leading-7">{appTitle()}</span>
             <div className="m3-status ml-auto flex shrink-0 items-center gap-0.5 pr-1">
               <button type="button" className="btn-icon shrink-0 sm:hidden" onClick={() => openSearch()} aria-label={t('common.search')} title={t('common.search')}>
                 <SearchIcon size={22} />
@@ -376,6 +384,12 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
             )}
             <NavItem bar to="/tasks" Icon={ListChecks} label={t('nav.tasks')} badge={taskBadge} badgeLabel={t('nav.badgeTasks', { n: urgentTasks })} />
             {ticketsAnywhere() && <NavItem bar className="hidden tablet:flex" to="/projects" Icon={Kanban} label={t('nav.projects')} />}
+            {features.cockpit.enabled && <NavItem bar className="hidden tablet:flex" to="/cockpit" Icon={Speed} label={t('cockpit.title')} />}
+            {pluginNav
+              .filter((n) => n.bottomBar)
+              .map((n) => (
+                <NavItem key={n.key} bar className="hidden tablet:flex" to={n.to} Icon={n.Icon} label={n.label} />
+              ))}
             <NavItem bar to="/inbox" Icon={InboxIcon} label={t('nav.inbox')} badge={inboxBadge} badgeLabel={t('nav.badgeInbox', { n: inboxCount })} />
             <NavItem bar to="/notes" Icon={FileText} label={t('nav.notes')} />
             <Destination bar className="hidden tablet:flex" active={false} onClick={() => openSearch()} Icon={SearchIcon} label={t('common.search')} title={t('common.search')} />

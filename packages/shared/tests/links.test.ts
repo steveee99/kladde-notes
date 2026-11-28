@@ -178,11 +178,13 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       linkPreview: { enabled: false },
       habits: { enabled: false },
       minigame: { enabled: false },
+      cockpit: { enabled: false },
       callouts: { enabled: true },
       calendarView: { enabled: true },
       activity: { enabled: true },
       mentions: { enabled: true },
       comments: { enabled: true },
+      plugins: {},
     });
 
     const upgraded = normalizeFeatures(undefined, ['0 Inbox', '1 Projekte', 'Zettelkasten', '3 Ressourcen/Rezepte']);
@@ -211,11 +213,13 @@ describe('frontmatter, PARA, templates, daily notes', () => {
       linkPreview: { enabled: false },
       habits: { enabled: false },
       minigame: { enabled: false },
+      cockpit: { enabled: false },
       callouts: { enabled: true },
       calendarView: { enabled: true },
       activity: { enabled: true },
       mentions: { enabled: true },
       comments: { enabled: true },
+      plugins: {},
     });
 
     const explicitDisabled = normalizeFeatures(

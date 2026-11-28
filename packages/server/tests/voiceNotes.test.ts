@@ -110,10 +110,10 @@ describe('voice notes', () => {
     const saved = await uploadAudio();
     const now = Date.now();
     ctx.notes.push(annaId, [{ id: 'voice-0001', baseVersion: 0, path: '0 Inbox/Sprachnotiz.md', content: `Vom Spaziergang\n\n![Sprachnotiz.webm](/api/files/${saved.id})\n`, deleted: false, createdAt: now, updatedAt: now }]);
-    const answer = handleMessage(
+    const answer = (await handleMessage(
       { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'read_voice_note', arguments: { id: 'voice-0001' } } },
       { userId: annaId, canWrite: false, notes: ctx.notes, files: ctx.files }
-    ) as { result: { content: { type: string; data?: string; mimeType?: string; text?: string }[] } };
+    )) as { result: { content: { type: string; data?: string; mimeType?: string; text?: string }[] } };
     const [info, audio] = answer.result.content;
     expect(JSON.parse(info.text!)).toMatchObject({ note_id: 'voice-0001', line: 2, mime: 'audio/webm' });
     expect(audio).toEqual({ type: 'audio', data: AUDIO.toString('base64'), mimeType: 'audio/webm' });

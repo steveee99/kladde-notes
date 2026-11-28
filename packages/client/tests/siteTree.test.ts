@@ -31,11 +31,11 @@ describe('site tree', () => {
 describe('site addresses', () => {
   it('round-trips a note path through its address', () => {
     const href = siteNoteHref('team-docs', 'Anleitungen/Tiefer/Backup.md');
-    expect(href).toBe('/p/team-docs/Anleitungen/Tiefer/Backup');
+    expect(href).toBe('/site/team-docs/Anleitungen/Tiefer/Backup');
     expect(findSiteNote(notes, 'anleitungen/tiefer/backup')?.id).toBe('c');
     expect(findSiteNote(notes, 'Gibt/Es/Nicht')).toBeUndefined();
     expect(findSiteNote(notes, '')).toBeUndefined();
-    expect(siteNoteHref('x-y', 'Fragen & Antworten.md')).toBe('/p/x-y/Fragen%20%26%20Antworten');
+    expect(siteNoteHref('x-y', 'Fragen & Antworten.md')).toBe('/site/x-y/Fragen%20%26%20Antworten');
   });
 
   it('starts on a top-level note named like a start page or like the folder', () => {

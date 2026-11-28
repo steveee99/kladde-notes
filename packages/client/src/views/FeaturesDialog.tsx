@@ -31,6 +31,7 @@ import {
   Link2,
   Flame,
   Gamepad,
+  Speed,
   Callout,
   Smartphone,
   Star,
@@ -64,6 +65,8 @@ import { Dropdown } from './Dropdown';
 import { FeatureArt, type FeatureArtId } from './FeatureArt';
 import { Switch } from './Switch';
 import type { ConfluenceOverview } from '@kladde/shared';
+import { localize } from '@kladde/plugin-api/client';
+import { allPlugins, appIcon, isPluginEnabled, setPluginEnabled, WithPluginHost } from '../plugins/registry';
 
 // The settings of the features that live on the server are their former settings pages, loaded on first use
 const McpSettingsView = lazy(() => import('./McpSettings').then((m) => ({ default: m.McpSettingsView })));
@@ -71,10 +74,14 @@ const NotificationSettingsView = lazy(() => import('./NotificationSettings').the
 const CalendarSettingsView = lazy(() => import('./CalendarSettings').then((m) => ({ default: m.CalendarSettingsView })));
 const ShortcutsSettingsView = lazy(() => import('./ShortcutsSettings').then((m) => ({ default: m.ShortcutsSettingsView })));
 const ConfluenceSettingsView = lazy(() => import('./ConfluenceSettings').then((m) => ({ default: m.ConfluenceSettingsView })));
+const CockpitConnectionsView = lazy(() => import('./CockpitConnections').then((m) => ({ default: m.CockpitConnectionsView })));
+
+/** A feature, or a build-time plugin (`plugin:<id>`) */
+type FeatureId = FeatureArtId | `plugin:${string}`;
 
 /** One feature in the dialog */
 interface Feature {
-  id: FeatureArtId;
+  id: FeatureId;
   Icon: typeof Star;
   title: string;
   /** One line for the card */
@@ -338,6 +345,25 @@ function useFeatures(lang: Lang): Feature[] {
       details: L('features.habitsDesc'),
       ...flag('habits'),
     },
+    server &&
+      !DEMO && {
+        id: 'cockpit',
+        Icon: Speed,
+        title: L('features.cockpitTitle'),
+        summary: L('features.sum.cockpit'),
+        details: L('features.cockpitDesc'),
+        active: features.cockpit.enabled,
+        setActive: async (on: boolean) => {
+          await save((f) => ({ ...f, cockpit: { enabled: on } }));
+          // The first dashboard with the widgets most people need; later switches keep what is there
+          if (on) await import('../data/cockpit').then((m) => m.ensureDefaultDashboard(lang));
+        },
+        settings: () => (
+          <Suspense fallback={null}>
+            <CockpitConnectionsView />
+          </Suspense>
+        ),
+      },
     {
       id: 'minigame',
       Icon: Gamepad,
@@ -445,6 +471,29 @@ function useFeatures(lang: Lang): Feature[] {
         offConfirm: L('confluence.removeConfirm'),
         settings: () => <ConfluenceSettingsView embedded />,
       },
+    // Build-time plugins (docs/PLUGINS.md): switched like features, their settings in their own host
+    ...allPlugins().map((p): Feature => {
+      const PluginSettings = p.plugin.settings;
+      return {
+        id: `plugin:${p.plugin.id}`,
+        Icon: appIcon(p.plugin.icon),
+        title: localize(p.plugin.name, lang),
+        summary: localize(p.plugin.summary, lang),
+        details: localize(p.plugin.description, lang),
+        hint: L('plugins.hint', { package: p.name, version: p.version }),
+        active: isPluginEnabled(p, features),
+        setActive: (on: boolean) => setPluginEnabled(p.plugin.id, on),
+        ...(PluginSettings
+          ? {
+              settings: () => (
+                <WithPluginHost entry={p}>
+                  <PluginSettings />
+                </WithPluginHost>
+              ),
+            }
+          : {}),
+      };
+    }),
   ];
   return list.filter((f): f is Feature => !!f);
 }
@@ -461,14 +510,14 @@ export function useFeatureCounts(): { active: number; available: number } {
  * Features as a dialog, like installing plugins: "Available" lists what is off, "Active" what is on. A feature opens
  * with its picture, description and "Activate"/"Deactivate"; while it is on, a second tab holds its settings.
  */
-export function FeaturesDialog({ onClose, initial }: { onClose: () => void; initial?: FeatureArtId }) {
+export function FeaturesDialog({ onClose, initial }: { onClose: () => void; initial?: FeatureId }) {
   const lang = useLang();
   const locked = useReadOnly();
   const list = useFeatures(lang);
   const ref = useRef<HTMLDivElement>(null);
   useModal(ref, onClose);
   const [tab, setTab] = useState<ListTab>(() => (list.find((f) => f.id === initial)?.active ? 'active' : 'available'));
-  const [openId, setOpenId] = useState<FeatureArtId | null>(initial ?? null);
+  const [openId, setOpenId] = useState<FeatureId | null>(initial ?? null);
   const [detailTab, setDetailTab] = useState<DetailTab>('overview');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -485,7 +534,7 @@ export function FeaturesDialog({ onClose, initial }: { onClose: () => void; init
   // Moving between the list and a feature: the focus goes to the new heading
   useEffect(() => headingRef.current?.focus({ preventScroll: true }), [openId]);
 
-  const show = (id: FeatureArtId | null, nextTab: DetailTab = 'overview') => {
+  const show = (id: FeatureId | null, nextTab: DetailTab = 'overview') => {
     setError('');
     setDetailTab(nextTab);
     setOpenId(id);

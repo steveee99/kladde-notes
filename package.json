@@ -1,6 +1,6 @@
 {
   "name": "kladde",
-  "version": "2.24.0",
+  "version": "2.29.0",
   "description": "Self-hosted, offline-first Markdown notes app (PWA)",
   "private": true,
   "license": "MIT",
@@ -15,17 +15,19 @@
   "homepage": "https://github.com/steveee99/kladde-notes#readme",
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "examples/*"
   ],
   "scripts": {
-    "dev": "concurrently -n \"shared,server,client\" -c \"blue,green,magenta\" \"npm run build:watch --workspace=packages/shared\" \"npm run dev --workspace=packages/server\" \"npm run dev --workspace=packages/client\"",
-    "dev:online": "concurrently -n \"shared,server,client\" -c \"blue,green,magenta\" \"npm run build:watch --workspace=packages/shared\" \"npm run dev:online --workspace=packages/server\" \"npm run dev --workspace=packages/client\"",
-    "build": "npm run build --workspace=packages/shared && npm run build --workspace=packages/server && npm run build --workspace=packages/client",
-    "build:demo": "npm run build --workspace=packages/shared && npm run build:demo --workspace=packages/client",
+    "dev": "npm run build --workspace=packages/plugin-api && concurrently -n \"shared,server,client\" -c \"blue,green,magenta\" \"npm run build:watch --workspace=packages/shared\" \"npm run dev --workspace=packages/server\" \"npm run dev --workspace=packages/client\"",
+    "dev:online": "npm run build --workspace=packages/plugin-api && concurrently -n \"shared,server,client\" -c \"blue,green,magenta\" \"npm run build:watch --workspace=packages/shared\" \"npm run dev:online --workspace=packages/server\" \"npm run dev --workspace=packages/client\"",
+    "build": "npm run build --workspace=packages/shared && npm run build --workspace=packages/plugin-api && npm run build --workspace=packages/server && npm run build --workspace=packages/client && npm run build --workspace=examples/kladde-plugin-logbook",
+    "build:demo": "npm run build --workspace=packages/shared && npm run build --workspace=packages/plugin-api && npm run build:demo --workspace=packages/client",
     "build:desktop": "node scripts/build-desktop.mjs",
     "build:exe": "node scripts/build-desktop.mjs --win",
-    "test": "npm run test --workspace=packages/shared && npm run test --workspace=packages/server && npm run test --workspace=packages/client",
-    "test:coverage": "npm run test:coverage --workspace=packages/shared && npm run test:coverage --workspace=packages/server && npm run test:coverage --workspace=packages/client",
+    "plugins": "node scripts/plugins.mjs",
+    "test": "npm run test --workspace=packages/shared && npm run test --workspace=packages/plugin-api && npm run test --workspace=packages/server && npm run test --workspace=packages/client",
+    "test:coverage": "npm run test:coverage --workspace=packages/shared && npm run test:coverage --workspace=packages/plugin-api && npm run test:coverage --workspace=packages/server && npm run test:coverage --workspace=packages/client",
     "test:e2e": "playwright test",
     "bench": "node scripts/bench-vault.mjs",
     "bench:e2e": "playwright test --project=perf",

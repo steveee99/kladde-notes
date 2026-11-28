@@ -15,7 +15,7 @@ import { NoteStore } from '../src/NoteStore';
 import { UserStore } from '../src/UserStore';
 import { SiteStore } from '../src/sites/SiteStore';
 
-// Folder websites: an own folder published read-only under /p/<slug>
+// Folder websites: an own folder published read-only under /site/<slug>
 
 const note = (id: string, content: string, notePath: string) => ({ id, baseVersion: 0, path: notePath, content, deleted: false, createdAt: Date.now(), updatedAt: Date.now() });
 

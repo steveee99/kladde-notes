@@ -46,6 +46,7 @@ import {
   CheckBoxBlank,
   SavedSearch as SavedSearchIcon,
   Flame,
+  Speed,
   ArrowUp,
   ArrowDown,
 } from '../lib/icons';
@@ -95,6 +96,7 @@ import { useItemMenu, type MenuAction } from './ContextMenu';
 import { openSavedSearch, savedSearchCount } from '../lib/savedSearch';
 import type { SavedSearch } from '../data/vault';
 import { openInSide, useSplitAvailable } from '../lib/panes';
+import { appTitle } from '../lib/appTitle';
 
 /** The own folder a route shows (`/f/<folder>`) or that holds the open own note; null elsewhere */
 export function folderOfRoute(path: string): string | null {
@@ -1278,7 +1280,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
       <div className="flex min-w-0 shrink-0 items-center gap-2.5">
         {headerAction}
         <AppLogo size={28} />
-        <span className="font-display min-w-0 flex-1 truncate text-[22px] leading-7">Kladde</span>
+        <span className="font-display min-w-0 flex-1 truncate text-[22px] leading-7">{appTitle()}</span>
         <button
           type="button"
           onClick={() => nav('/')}
@@ -1334,6 +1336,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
               {ticketsAnywhere() && navRow('projects', Kanban, t('nav.projects'), { to: '/projects' })}
               {features.calendarView.enabled && navRow('calendar', CalendarMonth, t('nav.calendar'), { to: '/calendar' })}
               {features.habits.enabled && navRow('habits', Flame, t('habits.title'), { to: '/habits' })}
+              {features.cockpit.enabled && navRow('cockpit', Speed, t('cockpit.title'), { to: '/cockpit', active: path === '/cockpit' || path.startsWith('/cockpit/') })}
               {!vault.standalone &&
                 !DEMO &&
                 navRow('notifications', Bell, t('notices.title'), { to: '/notifications', badge: <NavBadge count={vault.unreadNotifications} /> })}

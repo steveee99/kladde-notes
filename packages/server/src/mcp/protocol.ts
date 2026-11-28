@@ -1,5 +1,20 @@
 import { APP_VERSION, memoryInstructions, memoryRulesText } from '@kladde/shared';
-import { memoryRulesOf, ToolContent, ToolContext, ToolError, TOOLS, toolsFor } from './tools.js';
+import { memoryRulesOf, ToolContent, ToolContext, ToolError, TOOLS, toolsFor, type ToolDef } from './tools.js';
+
+const CORE_NAMES = new Set(TOOLS.map((t) => t.name));
+
+/** A tool as `tools/list` and `tools/call` see it: Kladde's own or a plugin's (never one that shadows Kladde's) */
+type AnyTool = Pick<ToolDef, 'name' | 'title' | 'description' | 'inputSchema' | 'write'> & { run(args: Record<string, unknown>): unknown; plugin?: boolean };
+
+function allTools(ctx: ToolContext): AnyTool[] {
+  const own: AnyTool[] = TOOLS.map((t) => ({ ...t, run: (args: Record<string, unknown>) => t.run(args, ctx) }));
+  const fromPlugins: AnyTool[] = (ctx.pluginTools?.() ?? [])
+    .filter((t) => !CORE_NAMES.has(t.name))
+    .map((t) => ({ ...t, plugin: true, run: (args: Record<string, unknown>) => t.run(args, { userId: ctx.userId, agent: ctx.agent || 'agent', canWrite: ctx.canWrite }) }));
+  return [...own, ...fromPlugins];
+}
+
+const isPluginError = (err: unknown): err is Error & { status: number } => err instanceof Error && err.name === 'PluginError';
 
 /** Newest first; an unknown version requested by the client gets the newest */
 export const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
@@ -36,7 +51,7 @@ function isRequest(msg: unknown): msg is RpcRequest {
 }
 
 /** One JSON-RPC message; null for notifications (no answer) */
-export function handleMessage(msg: unknown, ctx: ToolContext): RpcResponse | null {
+export async function handleMessage(msg: unknown, ctx: ToolContext): Promise<RpcResponse | null> {
   if (!isRequest(msg)) return error((msg as RpcRequest)?.id, -32600, 'Invalid request');
   const isNotification = !('id' in msg) || msg.id === undefined;
   if (isNotification) return null;
@@ -57,7 +72,7 @@ export function handleMessage(msg: unknown, ctx: ToolContext): RpcResponse | nul
       return ok({});
     case 'tools/list':
       return ok({
-        tools: toolsFor(ctx.canWrite).map((t) => ({
+        tools: [...toolsFor(ctx.canWrite), ...allTools(ctx).filter((t) => t.plugin && (ctx.canWrite || !t.write))].map((t) => ({
           name: t.name,
           title: t.title,
           description: t.description,
@@ -67,18 +82,22 @@ export function handleMessage(msg: unknown, ctx: ToolContext): RpcResponse | nul
       });
     case 'tools/call': {
       const name = params.name;
-      const tool = TOOLS.find((t) => t.name === name);
+      const tool = allTools(ctx).find((t) => t.name === name);
       if (!tool) return error(msg.id, -32602, `Unknown tool: ${String(name)}`);
       if (tool.write && !ctx.canWrite) {
         return ok({ content: [{ type: 'text', text: 'Diese Verbindung darf nur lesen. Für Schreibzugriff die App neu verbinden und Schreiben erlauben (bzw. ein Token mit Schreibrecht erstellen).' }], isError: true });
       }
       const args = params.arguments && typeof params.arguments === 'object' && !Array.isArray(params.arguments) ? (params.arguments as Record<string, unknown>) : {};
       try {
-        const result = tool.run(args, ctx);
+        const result = await tool.run(args);
         if (result instanceof ToolContent) return ok({ content: result.content });
-        return ok({ content: [{ type: 'text', text: JSON.stringify(result, null, 1) }], structuredContent: result });
+        if (!tool.plugin) return ok({ content: [{ type: 'text', text: JSON.stringify(result, null, 1) }], structuredContent: result });
+        // Plugins: a string as text; structuredContent only for objects (arrays and plain values travel as text)
+        if (typeof result === 'string') return ok({ content: [{ type: 'text', text: result }] });
+        const structured = result !== null && typeof result === 'object' && !Array.isArray(result);
+        return ok({ content: [{ type: 'text', text: JSON.stringify(result ?? null, null, 1) }], ...(structured ? { structuredContent: result } : {}) });
       } catch (err) {
-        if (err instanceof ToolError) return ok({ content: [{ type: 'text', text: err.message }], isError: true });
+        if (err instanceof ToolError || isPluginError(err)) return ok({ content: [{ type: 'text', text: err.message }], isError: true });
         console.error('MCP tool failed:', err);
         return ok({ content: [{ type: 'text', text: 'Interner Fehler im Kladde-Server.' }], isError: true });
       }
@@ -122,10 +141,15 @@ export function handleMessage(msg: unknown, ctx: ToolContext): RpcResponse | nul
 }
 
 /** A single message or a batch (2025-03-26); null when nothing needs an answer */
-export function handleBody(body: unknown, ctx: ToolContext): RpcResponse | RpcResponse[] | null {
+export async function handleBody(body: unknown, ctx: ToolContext): Promise<RpcResponse | RpcResponse[] | null> {
   if (Array.isArray(body)) {
     if (!body.length) return error(null, -32600, 'Empty batch');
-    const answers = body.slice(0, 50).map((m) => handleMessage(m, ctx)).filter((a): a is RpcResponse => a !== null);
+    const answers: RpcResponse[] = [];
+    // One after another: tools that write must not interleave
+    for (const m of body.slice(0, 50)) {
+      const a = await handleMessage(m, ctx);
+      if (a) answers.push(a);
+    }
     return answers.length ? answers : null;
   }
   return handleMessage(body, ctx);

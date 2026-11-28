@@ -135,7 +135,7 @@ export function PublicSite({ slug, rest }: { slug: string; rest: string }) {
           className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-raised"
           onClick={() => {
             setGraph(false);
-            navigate(`/p/${encodeURIComponent(slug)}`);
+            navigate(`/site/${encodeURIComponent(slug)}`);
           }}
         >
           <Globe size={18} className="shrink-0 text-acc" />

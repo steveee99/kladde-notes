@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import type { APIRequestContext, Page } from '@playwright/test';
 import { test, expect, uid, noteTitle } from './helpers';
 
-// Folder websites: an own folder published read-only under /p/<slug> with the folder tree, links between its notes,
+// Folder websites: an own folder published read-only under /site/<slug> with the folder tree, links between its notes,
 // footnotes, backlinks, the graph, "Copy Markdown" and the PDF download; readable without an account
 
 const hexId = () => [...Array(16)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
@@ -40,11 +40,11 @@ test('a folder is published as a website with tree, links, footnotes, backlinks 
   await expect(address).toHaveValue(/^[a-z0-9]{20}$/);
   await address.fill(slug);
   await box.getByRole('button', { name: 'Apply' }).click();
-  await expect(box.getByText(`/p/${slug}`)).toBeVisible();
+  await expect(box.getByText(`/site/${slug}`)).toBeVisible();
 
   const guest = await browser.newContext();
   const site = await guest.newPage();
-  await site.goto(`/p/${slug}`);
+  await site.goto(`/site/${slug}`);
   // Start page: the note called Start, with the tree beside it and only the folder's notes in it
   await expect(site.getByRole('heading', { level: 1, name: 'Start' })).toBeVisible();
   const tree = site.getByRole('navigation', { name: 'Folders' });
@@ -55,10 +55,10 @@ test('a folder is published as a website with tree, links, footnotes, backlinks 
 
   // A [[link]] opens the other note of the site under its own address; it links back
   await site.locator('.cm-wikilink', { hasText: 'Installation' }).click();
-  await expect(site).toHaveURL(new RegExp(`/p/${slug}/Anleitungen/Installation$`));
+  await expect(site).toHaveURL(new RegExp(`/site/${slug}/Anleitungen/Installation$`));
   await expect(site.getByRole('heading', { level: 1, name: 'Installation' })).toBeVisible();
   await expect(tree.getByRole('button', { name: 'Installation' })).toHaveAttribute('aria-current', 'page');
-  await site.goto(`/p/${slug}/Start`);
+  await site.goto(`/site/${slug}/Start`);
   await expect(site.getByRole('heading', { name: 'Backlinks · 1' })).toBeVisible();
 
   // Copy Markdown and the PDF download
@@ -79,7 +79,7 @@ test('a folder is published as a website with tree, links, footnotes, backlinks 
 
   // Taken down: the address is gone
   await box.getByRole('switch', { name: 'Publish as a website (read-only)' }).click();
-  await site.goto(`/p/${slug}`);
+  await site.goto(`/site/${slug}`);
   await expect(site.getByText('This website does not exist (any more).')).toBeVisible();
   await guest.close();
 });

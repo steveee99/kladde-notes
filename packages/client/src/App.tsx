@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { createRoot } from 'react-dom/client';
 import { AccountExportView } from './views/AccountExport';
 import { applyAccentOf } from './lib/accent';
 import { openNoteLink } from './lib/panes';
@@ -37,6 +38,7 @@ import { TasksView } from './views/TasksView';
 import { isAdminPath, settingsSectionOf } from './lib/settingsRoutes';
 import { ProjectsView } from './views/ProjectsView';
 import { projectKeys, ticketById } from './data/tickets';
+import { mountPluginBlock, pluginBlockFor, pluginSlashBlocks, setPluginUser } from './plugins/registry';
 
 // Pages that are opened now and then load on first use, so the app starts with a smaller bundle (#64).
 // The service worker caches them with everything else, so they work offline too.
@@ -49,6 +51,10 @@ const NoteTypesView = lazy(() => import('./views/NoteTypesView').then((m) => ({ 
 const TemplatesView = lazy(() => import('./views/Templates').then((m) => ({ default: m.TemplatesView })));
 const ImportSettingsView = lazy(() => import('./views/ImportSettings').then((m) => ({ default: m.ImportSettingsView })));
 const HabitsView = lazy(() => import('./views/HabitsView').then((m) => ({ default: m.HabitsView })));
+const CockpitView = lazy(() => import('./views/CockpitView').then((m) => ({ default: m.CockpitView })));
+const CockpitBlock = lazy(() => import('./views/CockpitBlock').then((m) => ({ default: m.CockpitBlock })));
+const CockpitBlockEditor = lazy(() => import('./views/CockpitBlock').then((m) => ({ default: m.CockpitBlockEditor })));
+const WebhookSettingsView = lazy(() => import('./views/WebhookSettings').then((m) => ({ default: m.WebhookSettingsView })));
 const CalendarSettingsView = lazy(() => import('./views/CalendarSettings').then((m) => ({ default: m.CalendarSettingsView })));
 const NotificationSettingsView = lazy(() => import('./views/NotificationSettings').then((m) => ({ default: m.NotificationSettingsView })));
 const OAuthConsent = lazy(() => import('./views/OAuthConsent').then((m) => ({ default: m.OAuthConsent })));
@@ -57,6 +63,8 @@ const TrashView = lazy(() => import('./views/Trash').then((m) => ({ default: m.T
 const ShortcutsSettingsView = lazy(() => import('./views/ShortcutsSettings').then((m) => ({ default: m.ShortcutsSettingsView })));
 const ClipRoute = lazy(() => import('./views/ClipRoute').then((m) => ({ default: m.ClipRoute })));
 const ConfluenceSettingsView = lazy(() => import('./views/ConfluenceSettings').then((m) => ({ default: m.ConfluenceSettingsView })));
+// Pages of build-time plugins (`/p/<id>/…`, docs/PLUGINS.md)
+const PluginRoute = lazy(() => import('./plugins/PluginRoute').then((m) => ({ default: m.PluginRoute })));
 
 const ME_KEY = 'kladde_me';
 
@@ -81,6 +89,50 @@ Object.assign(editorHost, {
   wikiExists: (title: string) => !!vault.findByTitle(title),
   openNote: (id: string) => openNoteLink(id),
   linkPreview: () => vault.features().linkPreview.enabled,
+  // ```cockpit blocks: a live widget in its own React root, loaded on first use
+  mountCockpit: (el: HTMLElement, src: string, doc: string, scope: Parameters<NonNullable<typeof editorHost.mountCockpit>>[3], onConfigure?: () => void) => {
+    const root = createRoot(el);
+    root.render(
+      <Suspense fallback={null}>
+        <CockpitBlock src={src} doc={doc} scope={scope} onConfigure={onConfigure} />
+      </Suspense>
+    );
+    // Not while React renders the editor's parent
+    return () => setTimeout(() => root.unmount(), 0);
+  },
+  cockpitEnabled: () => vault.features().cockpit.enabled && !vault.standalone,
+  // Fenced blocks of build-time plugins (docs/PLUGINS.md)
+  pluginBlock: (lang: string) => {
+    const found = pluginBlockFor(lang);
+    return found ? (found.block.height ?? 160) : null;
+  },
+  mountPluginBlock,
+  pluginSlashBlocks: () => pluginSlashBlocks(getLang()),
+  // /cockpit and a block's settings: the cockpit's widget editor in its own React root, removed when it closes
+  editCockpit: (src: string | null, doc: string, scope: Parameters<typeof editorHost.editCockpit>[2], onSave: (block: string) => void) => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    const root = createRoot(el);
+    const close = () =>
+      setTimeout(() => {
+        root.unmount();
+        el.remove();
+      }, 0);
+    root.render(
+      <Suspense fallback={null}>
+        <CockpitBlockEditor
+          src={src}
+          doc={doc}
+          scope={scope}
+          onClose={close}
+          onSave={(block) => {
+            close();
+            onSave(block);
+          }}
+        />
+      </Suspense>
+    );
+  },
   // Only through the link index (title, frontmatter id, Zettel id); the vault only holds notes this reader may see
   resolveEmbed: (target: string) => {
     const links = vault.links();
@@ -219,8 +271,8 @@ export function App() {
   }, [signedIn, signedOut]);
 
   // Routes without an account
-  // Folder websites: /p/<slug>/<path of the note without .md>
-  const site = /^\/p\/([^/]+)(?:\/(.*))?$/.exec(path);
+  // Folder websites: /site/<slug>/<path of the note without .md>
+  const site = /^\/site\/([^/]+)(?:\/(.*))?$/.exec(path);
   if (site && !me?.standalone) return <PublicSite slug={safeDecode(site[1])} rest={(site[2] ?? '').split('/').map(safeDecode).join('/')} />;
   const pub = match(path, '/s/:token');
   if (pub && !me?.standalone) return <PublicNote token={pub.token} />;
@@ -240,6 +292,7 @@ export function App() {
       </Suspense>
     );
 
+  setPluginUser(me);
   let page: React.ReactNode;
   const note = match(path, '/n/:id');
   const dailyDate = match(path, '/daily/:date');
@@ -255,6 +308,8 @@ export function App() {
   else if (monthDate) page = <PeriodicEmptyView key={`m${monthDate.date}`} kind="month" date={monthDate.date} />;
   else if (path === '/calendar') page = <CalendarView />;
   else if (path === '/habits') page = <HabitsView />;
+  else if (path === '/cockpit' || path.startsWith('/cockpit/')) page = <CockpitView id={match(path, '/cockpit/:id')?.id} />;
+  else if (path.startsWith('/p/')) page = <PluginRoute path={path} />;
   else if (path === '/notifications' && !me.standalone) page = <NotificationsView />;
   else if (path === '/activity' && !me.standalone) {
     const q = new URLSearchParams(location.search);
@@ -287,6 +342,7 @@ export function App() {
   else if (path === '/settings/confluence') page = <ConfluenceSettingsView />;
   else if (path === '/settings/import' && !me.standalone) page = <ImportSettingsView />;
   else if (path === '/settings/calendar' && !me.standalone) page = <CalendarSettingsView />;
+  else if (path === '/settings/webhooks' && !me.standalone) page = <WebhookSettingsView />;
   else if (path === '/settings/shortcuts' && !me.standalone) page = <ShortcutsSettingsView />;
   else if (path === '/settings/notifications' && !me.standalone) page = <NotificationSettingsView />;
   else if (path === '/files' || path === '/settings/files') page = <FilesView />;

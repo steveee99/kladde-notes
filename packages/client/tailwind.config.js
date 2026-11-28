@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 /** @type {import('tailwindcss').Config} */
 // Every color is a CSS variable from src/index.css: the Werkbank tokens (docs/DESIGN.md) and the
 // Material 3 role names that are kept as aliases onto them
@@ -20,8 +21,10 @@ const roles = [
 ];
 /** Material 3 type scale: [size, { lineHeight, letterSpacing, fontWeight }] */
 const type = (size, lineHeight, letterSpacing, fontWeight) => [`${size}px`, { lineHeight: `${lineHeight}px`, letterSpacing: `${letterSpacing}px`, fontWeight }];
+// Build-time plugins (docs/PLUGINS.md): `npm run plugins` lists their built files here, so their classes are generated too
+const pluginContent = JSON.parse(fs.readFileSync(new URL('./src/plugins/tailwind-content.json', import.meta.url), 'utf8'));
 export default {
-  content: ['./index.html', './src/**/*.{ts,tsx}'],
+  content: ['./index.html', './src/**/*.{ts,tsx}', ...pluginContent],
   darkMode: ['class', '[data-scheme="dark"]'],
   theme: {
     extend: {

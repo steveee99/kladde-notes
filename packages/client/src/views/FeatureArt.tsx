@@ -28,13 +28,16 @@ export type FeatureArtId =
   | 'linkPreview'
   | 'habits'
   | 'minigame'
+  | 'cockpit'
   | 'callouts'
   | 'memory'
   | 'mcp'
   | 'notifications'
   | 'calendar'
   | 'shortcuts'
-  | 'confluence';
+  | 'confluence'
+  /** Build-time plugins (`plugin:<id>`) without an own picture */
+  | 'plugin';
 
 /** A line of text as a rounded bar */
 const Bar = ({ x, y, w, h = 4, className = 'fill-on-surface-variant', o = 0.45 }: { x: number; y: number; w: number; h?: number; className?: string; o?: number }) => (
@@ -47,6 +50,24 @@ const Card = ({ x, y, w, h, r = 6, className = 'fill-surface-container-lowest' }
 );
 
 const ART: Record<FeatureArtId, ReactNode> = {
+  plugin: (
+    <>
+      <Card x={12} y={10} w={136} h={70} />
+      <rect x={12} y={10} width={18} height={70} rx={6} className="fill-surface-container-highest" />
+      {[0, 1, 2, 3].map((i) => (
+        <rect key={i} x={17} y={18 + i * 12} width={8} height={8} rx={2} className={i === 2 ? 'fill-primary' : 'fill-on-surface-variant'} fillOpacity={i === 2 ? 0.9 : 0.35} />
+      ))}
+      <Bar x={38} y={18} w={46} h={6} className="fill-on-surface" o={0.7} />
+      <Card x={38} y={32} w={48} h={38} r={5} className="fill-surface-container" />
+      <Card x={92} y={32} w={48} h={38} r={5} className="fill-surface-container" />
+      <Bar x={44} y={40} w={30} className="fill-primary" o={0.8} />
+      <Bar x={44} y={49} w={36} />
+      <Bar x={44} y={57} w={24} />
+      <Bar x={98} y={40} w={26} className="fill-tertiary" o={0.8} />
+      <Bar x={98} y={49} w={34} />
+      <Bar x={98} y={57} w={20} />
+    </>
+  ),
   para: (
     <>
       {(['fill-primary', 'fill-tertiary', 'fill-secondary', 'fill-outline'] as const).map((c, i) => (
@@ -400,6 +421,28 @@ const ART: Record<FeatureArtId, ReactNode> = {
       ))}
     </>
   ),
+  cockpit: (
+    <>
+      <Card x={12} y={10} w={66} h={32} />
+      <Card x={82} y={10} w={66} h={32} />
+      <Card x={12} y={46} w={136} h={34} />
+      <Bar x={18} y={16} w={30} className="fill-on-surface" o={0.6} />
+      <text x={18} y={36} className="fill-primary" fontSize={13} fontFamily="JetBrains Mono, monospace">
+        3
+      </text>
+      <Bar x={88} y={16} w={36} className="fill-on-surface" o={0.6} />
+      <text x={88} y={36} className="fill-warn" fontSize={13} fontFamily="JetBrains Mono, monospace">
+        4
+      </text>
+      {[0, 1, 2].map((row) => (
+        <g key={row}>
+          <rect x={18} y={52 + row * 9} width={2.5} height={6} rx={1} className={['fill-error', 'fill-warn', 'fill-ok'][row]} />
+          <Bar x={24} y={53 + row * 9} w={[60, 44, 52][row]} className="fill-on-surface" o={0.5} />
+          <Bar x={118} y={53 + row * 9} w={22} o={0.35} />
+        </g>
+      ))}
+    </>
+  ),
   callouts: (
     <>
       <rect x={22} y={10} width={116} height={36} rx={6} className="fill-warn-container" />
@@ -511,10 +554,10 @@ const ART: Record<FeatureArtId, ReactNode> = {
 };
 
 /** The picture of a feature; `className` sets its size */
-export function FeatureArt({ id, className = '' }: { id: FeatureArtId; className?: string }) {
+export function FeatureArt({ id, className = '' }: { id: FeatureArtId | `plugin:${string}`; className?: string }) {
   return (
     <svg viewBox="0 0 160 90" aria-hidden="true" focusable="false" className={`block bg-surface-container ${className}`} preserveAspectRatio="xMidYMid meet">
-      {ART[id]}
+      {ART[id as FeatureArtId] ?? ART.plugin}
     </svg>
   );
 }

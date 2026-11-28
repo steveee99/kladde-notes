@@ -25,12 +25,18 @@ interface NotificationRow {
   actor_avatar?: string | null;
 }
 
+/** A headline in the interface's languages (plugins) */
+export type NotificationTitle = string | { de: string; en?: string };
+
 interface NotificationPayload {
   path: string;
   line?: number;
   text: string;
   threadId?: string;
   groupId?: string;
+  plugin?: string;
+  title?: NotificationTitle;
+  href?: string;
 }
 
 /** Kept this long, read or not */
@@ -39,22 +45,31 @@ const KEEP_DAYS = 90;
 export interface NewNotification {
   userId: string;
   kind: NotificationKind;
-  /** Empty for `group_added` */
+  /** Empty for `group_added` (and plugin notifications that point to no note) */
   noteId: string;
-  actorId: string;
-  /** Path of the note, or the group's name */
+  /** Who did it; null for plugin notifications */
+  actorId: string | null;
+  /** Path of the note, the group's name, or the plugin's name */
   path: string;
   line?: number;
   text: string;
   threadId?: string;
   groupId?: string;
+  /** `plugin`: the plugin, its headline and the app path a click opens (`/p/<id>/…` or a note) */
+  plugin?: string;
+  title?: NotificationTitle;
+  href?: string;
+  /** Push messages with the same tag replace each other */
+  tag?: string;
 }
 
 /** A page of the list holds at most this many */
 export const NOTIFICATION_PAGE_MAX = 100;
 
 /** App path a notification opens */
-export function notificationUrl(n: { noteId: string; line?: number; threadId?: string; groupId?: string }): string {
+export function notificationUrl(n: { kind?: NotificationKind; noteId: string; line?: number; threadId?: string; groupId?: string; href?: string }): string {
+  if (n.kind === 'plugin') return n.href ?? (n.noteId ? `/n/${n.noteId}` : '/');
+  if (n.kind === 'cockpit') return `/cockpit/${encodeURIComponent(n.noteId)}`;
   if (n.groupId) return `/groups/${encodeURIComponent(n.groupId)}`;
   return `/n/${n.noteId}${n.threadId ? `?thread=${encodeURIComponent(n.threadId)}` : n.line !== undefined ? `?line=${n.line + 1}` : ''}`;
 }
@@ -67,6 +82,12 @@ export interface Delivery {
   name: string;
   /** App path a click opens */
   url: string;
+  /** Cockpit and plugins: the body of the push */
+  text?: string;
+  /** Plugins: the headline */
+  title?: NotificationTitle;
+  /** Plugins: replaces the note in the push's tag */
+  tag?: string;
 }
 
 /** Delivers a notification right away: a live event to open apps and Web Push to the devices */
@@ -75,6 +96,10 @@ export type Deliver = (userId: string, d: Delivery) => void;
 /** The Web Push message for a device in its language */
 export function notificationPush(d: Delivery, lang: 'de' | 'en', noteId: string): PushPayload {
   const en = lang === 'en';
+  if (d.kind === 'plugin') {
+    const title = typeof d.title === 'object' ? (en ? (d.title.en ?? d.title.de) : d.title.de) : (d.title ?? d.name);
+    return { title, body: d.text ?? '', tag: `plugin-${d.tag ?? noteId}`, url: d.url, lang };
+  }
   const title =
     d.kind === 'mention'
       ? en ? `${d.actor} mentioned you` : `${d.actor} hat dich erwähnt`
@@ -82,8 +107,10 @@ export function notificationPush(d: Delivery, lang: 'de' | 'en', noteId: string)
         ? en ? `${d.actor} replied to a comment` : `${d.actor} hat auf einen Kommentar geantwortet`
         : d.kind === 'group_added'
           ? en ? `${d.actor} added you to a group` : `${d.actor} hat dich zu einer Gruppe hinzugefügt`
-          : en ? `${d.actor} commented` : `${d.actor} hat kommentiert`;
-  return { title, body: d.name, tag: `${d.kind}-${noteId}`, url: d.url, lang };
+          : d.kind === 'cockpit'
+            ? en ? `New in “${d.name}”` : `Neu in „${d.name}“`
+            : en ? `${d.actor} commented` : `${d.actor} hat kommentiert`;
+  return { title, body: d.kind === 'cockpit' ? (d.text ?? '') : d.name, tag: `${d.kind}-${noteId}`, url: d.url, lang };
 }
 
 export class NotificationStore {
@@ -102,14 +129,24 @@ export class NotificationStore {
       ...(n.line !== undefined ? { line: n.line } : {}),
       ...(n.threadId ? { threadId: n.threadId } : {}),
       ...(n.groupId ? { groupId: n.groupId } : {}),
+      ...(n.plugin ? { plugin: n.plugin } : {}),
+      ...(n.title ? { title: n.title } : {}),
+      ...(n.href ? { href: n.href } : {}),
     };
     this.db
       .prepare('INSERT INTO notifications (id, user_id, kind, note_id, actor_id, at, payload) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(id, n.userId, n.kind, n.noteId, n.actorId, now, this.cipher.encryptJson(payload, `notification:${id}`));
     this.db.prepare('DELETE FROM notifications WHERE user_id = ? AND at < ?').run(n.userId, now - KEEP_DAYS * 86_400_000);
-    const actor = this.users.getUser(n.actorId)?.username ?? '';
-    const name = n.groupId ? n.path : (n.path.split('/').pop()?.replace(/\.md$/i, '') ?? '');
-    this.deliver(n.userId, { kind: n.kind, actor, name, url: notificationUrl(n) });
+    const actor = n.actorId ? (this.users.getUser(n.actorId)?.username ?? '') : '';
+    const name = n.groupId || n.kind === 'cockpit' || n.kind === 'plugin' ? n.path : (n.path.split('/').pop()?.replace(/\.md$/i, '') ?? '');
+    this.deliver(n.userId, {
+      kind: n.kind,
+      actor,
+      name,
+      url: notificationUrl(n),
+      ...(n.kind === 'cockpit' || n.kind === 'plugin' ? { text: n.text.slice(0, 300) } : {}),
+      ...(n.kind === 'plugin' ? { title: n.title, ...(n.tag ? { tag: n.tag } : {}) } : {}),
+    });
   }
 
   /**
@@ -162,6 +199,9 @@ export class NotificationStore {
         ...(p.line !== undefined ? { line: p.line } : {}),
         ...(p.threadId ? { threadId: p.threadId } : {}),
         ...(p.groupId ? { groupId: p.groupId } : {}),
+        ...(p.plugin ? { plugin: p.plugin } : {}),
+        ...(p.title ? { title: p.title } : {}),
+        ...(p.href ? { href: p.href } : {}),
       };
     });
     return { items, unread: this.unread(userId), next: more && last ? `${last.at}.${last.rowid}` : null };
