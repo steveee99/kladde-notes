@@ -107,6 +107,10 @@ const EXAMPLES_SETTING = 'processExamples';
 
 /** The two example models, made once per account (not again after the user deleted them) */
 export async function ensureExampleProcesses(lang: 'de' | 'en'): Promise<void> {
+  // A new device (or one whose data was cleared) knows nothing yet: only after a sync does the synced setting tell
+  // whether the examples were made already; without one (offline) they wait for the next time
+  if (!vault.lastSync) await vault.sync();
+  if (!vault.lastSync) return;
   if (vault.setting<boolean>(EXAMPLES_SETTING)) return;
   await loadProcesses();
   const own = processNotes(isProcessModelPath).filter((n) => !n.group);

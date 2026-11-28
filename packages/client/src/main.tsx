@@ -8,7 +8,7 @@ import { DEMO, installDemoApi } from './demo/demoApi';
 import { applyTheme } from './lib/theme';
 import { applyEditorFontSize, applyNoteWidth, applyPinchZoom } from './lib/prefs';
 import { justUpdated, keepUpToDate } from './lib/update';
-import { fitKeyboardViewport, fitShortViewport, pinViewport, recordStartupReport } from './lib/viewport';
+import { fitKeyboardViewport, fitShortViewport, pinViewport, recordStartupReport, stopFocusZoom } from './lib/viewport';
 import './index.css';
 
 // After an update the app reappears as it was, without every list fading in again
@@ -22,6 +22,7 @@ applyTheme();
 applyEditorFontSize();
 applyNoteWidth();
 applyPinchZoom();
+stopFocusZoom();
 pinViewport();
 fitShortViewport();
 fitKeyboardViewport();

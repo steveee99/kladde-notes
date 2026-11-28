@@ -147,3 +147,31 @@ test('a stage script is written in the script editor with highlighting, suggesti
   // The other slot can still be added
   await expect(page.locator('[data-script-add]')).toBeVisible();
 });
+
+test('on a phone a run starts without the Enter key: the typed repository counts and missing fields are named', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await enableFeature(page, 'cockpit');
+  await page.goto('/processes');
+  // A new device makes the examples only after its first sync told it they are missing: each one is there once
+  await expect(page.locator('[data-model-card="fehlerbehebung"]')).toHaveCount(1);
+  await expect(page.locator('[data-model-card="wasserfall"]')).toHaveCount(1);
+  await page.locator('[data-model-card="fehlerbehebung"]').getByRole('button', { name: 'Start a run' }).locator('visible=true').click();
+  const start = page.locator('[data-process-start]');
+  await start.locator('[data-process-title]').fill(`Phone ${uid()}`);
+  await expect(start.locator('[data-process-start-missing]')).toHaveText('Add at least one repository · Target branch missing');
+  // Typed, not confirmed with Enter
+  await start.locator('[data-process-repo-input]').fill('team/mobile');
+  await expect(start.locator('[data-process-start-missing]')).toHaveText('Target branch missing');
+  await start.locator('[data-process-target]').fill('main');
+  await expect(start.locator('[data-process-start-missing]')).toHaveCount(0);
+  await start.locator('[data-process-start-submit]').click();
+  await expect(page).toHaveURL(/\/processes\/run\//);
+  await expect(page.locator('[data-process-repo="team/mobile"]')).toBeVisible();
+  // The add button takes a repository too
+  await page.goto('/processes');
+  await page.locator('[data-model-card="fehlerbehebung"]').getByRole('button', { name: 'Start a run' }).locator('visible=true').click();
+  await start.locator('[data-process-repo-input]').fill('team/one');
+  await start.locator('[data-process-repo-add]').click();
+  await expect(start.locator('[data-picked-repo="team/one"]')).toBeVisible();
+  await expect(start.locator('[data-process-repo-input]')).toHaveValue('');
+});
