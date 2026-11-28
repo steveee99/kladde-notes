@@ -538,7 +538,8 @@ export function matchesProjects(path: string, projects: string[]): boolean {
   if (!projects.length) return true;
   const p = path.toLowerCase();
   return projects.some((x) => {
-    const q = x.toLowerCase().replace(/\/+$/, '');
+    let q = x.toLowerCase();
+    while (q.endsWith('/')) q = q.slice(0, -1);
     return p === q || p.startsWith(`${q}/`);
   });
 }

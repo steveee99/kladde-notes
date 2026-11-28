@@ -47,9 +47,13 @@ export function cleanProjects(value: unknown): string[] {
   const out: string[] = [];
   for (const raw of list) {
     if (typeof raw !== 'string') continue;
-    const p = raw.trim().replace(/^\/+|\/+$/g, '');
+    // Slashes at the ends off and every segment checked on its own (no regex over the whole, user-provided path)
+    const parts = raw.trim().slice(0, 400).split('/');
+    while (parts.length && parts[0] === '') parts.shift();
+    while (parts.length && parts[parts.length - 1] === '') parts.pop();
+    const p = parts.join('/');
     if (!p) continue;
-    if (p.length > 300 || !/^[\w.-]+(\/[\w.-]+)*$/.test(p)) throw new AccountError(`„${p.slice(0, 60)}“ ist kein Projekt- oder Gruppenpfad (z. B. gruppe/projekt).`);
+    if (p.length > 300 || !parts.every((part) => /^[\w.-]+$/.test(part))) throw new AccountError(`„${p.slice(0, 60)}“ ist kein Projekt- oder Gruppenpfad (z. B. gruppe/projekt).`);
     if (!out.some((x) => x.toLowerCase() === p.toLowerCase())) out.push(p);
   }
   if (out.length > MAX_PROJECTS) throw new AccountError(`Höchstens ${MAX_PROJECTS} Pfade pro Webhook.`);

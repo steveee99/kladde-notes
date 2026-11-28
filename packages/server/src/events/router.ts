@@ -44,8 +44,7 @@ export function eventRouters(opts: EventRouterOptions): { receiver: express.Rout
   const { users, notes, groups, sources, bus, audit } = opts;
 
   const receiver = express.Router();
-  receiver.use(rateLimit(300, 60_000));
-  receiver.post('/:id', express.raw({ type: () => true, limit: MAX_BODY }), (req, res) => {
+  receiver.post('/:id', rateLimit(300, 60_000), express.raw({ type: () => true, limit: MAX_BODY }), (req, res) => {
     const notFound = () => res.status(404).json({ error: 'Not found' });
     const source = sources.resolve(req.params.id);
     if (!source) return notFound();
