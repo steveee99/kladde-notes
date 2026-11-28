@@ -18,17 +18,24 @@ export function isValidSiteSlug(slug: unknown): slug is string {
 
 const UMLAUTS: Record<string, string> = { ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss' };
 
+/** `text` without hyphens at its start and end (a loop, no backtracking regex on input) */
+function trimHyphens(text: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && text[start] === '-') start++;
+  while (end > start && text[end - 1] === '-') end--;
+  return text.slice(start, end);
+}
+
 /** What the owner typed, made into a slug: lower case, umlauts spelled out, anything else between words a hyphen */
 export function normalizeSiteSlug(input: string): string {
-  return input
+  const slug = input
     .toLowerCase()
     .replace(/[äöüß]/g, (c) => UMLAUTS[c])
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, SITE_SLUG_MAX)
-    .replace(/-+$/, '');
+    .replace(/[^a-z0-9]+/g, '-');
+  return trimHyphens(trimHyphens(slug).slice(0, SITE_SLUG_MAX));
 }
 
 /** The website of a folder as its owner manages it */

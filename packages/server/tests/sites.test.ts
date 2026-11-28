@@ -30,6 +30,10 @@ describe('site slugs', () => {
     expect(normalizeSiteSlug('  Größe & Übersicht ')).toBe('groesse-uebersicht');
     expect(normalizeSiteSlug('Café Résumé_2026')).toBe('cafe-resume-2026');
     expect(normalizeSiteSlug('---')).toBe('');
+    expect(normalizeSiteSlug(`${'a'.repeat(47)}-b`)).toBe('a'.repeat(47));
+    const start = performance.now();
+    expect(normalizeSiteSlug(`a${'-'.repeat(100_000)}!a`)).toBe('a-a');
+    expect(performance.now() - start).toBeLessThan(200);
   });
 });
 
