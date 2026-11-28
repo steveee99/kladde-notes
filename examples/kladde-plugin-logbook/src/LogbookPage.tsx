@@ -8,6 +8,7 @@ export function LogbookPage({ path }: PluginPageProps) {
   const host = useKladde();
   const { PageHeader, PageBody, Panel, Switch, Table } = host.ui;
   const [editing, setEditing] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [text, setText] = useState('');
   const [mood, setMood] = useState<Entry['mood']>(null);
@@ -50,7 +51,10 @@ export function LogbookPage({ path }: PluginPageProps) {
   const remove = async (id: string) => {
     await host.api(`/entries/${id}`, { method: 'DELETE' });
     setEntries((list) => (list ?? []).filter((e) => e.id !== id));
+    if (selected === id) setSelected(null);
   };
+
+  const chosen = entries?.find((e) => e.id === selected) ?? null;
 
   return (
     <>
@@ -106,7 +110,18 @@ export function LogbookPage({ path }: PluginPageProps) {
               editable={editing}
               onCellChange={change}
               onRemoveRow={(id) => remove(id)}
+              // A click on a row selects it and shows the entry below (plugin API 1.3)
+              onRowClick={(id) => setSelected(id === selected ? null : id)}
+              selected={selected}
             />
+          )}
+          {chosen && (
+            <div className="flex flex-col gap-3 border-t border-line p-4">
+              <p className="whitespace-pre-wrap text-body-m text-text">{chosen.text}</p>
+              <button type="button" className="btn-outlined self-start" onClick={() => void toNote(chosen.id)}>
+                {host.t({ de: 'Als Notiz speichern', en: 'Save as a note' })}
+              </button>
+            </div>
           )}
         </Panel>
 

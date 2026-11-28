@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef } from 'react';
-import { localize, type PluginTableColumn, type PluginTableProps } from '@kladde/plugin-api/client';
+import { localize, type PluginTableBadge, type PluginTableColumn, type PluginTableProps, type PluginTone } from '@kladde/plugin-api/client';
 import { dataTable, disposeTable, openTableCell, stripInline, type CellRef, type DataRow, type TableEditing, type TableView } from '../editor/datatable';
 import { editorHost } from '../editor/host';
 import { getLang, locale } from '../lib/i18n';
@@ -13,6 +13,26 @@ interface Cell {
   sort: string | number | null;
   /** Text of the cell editor */
   raw: string;
+  /** Shown instead of `text` */
+  badge?: { text: string; tone: PluginTone; title?: string };
+}
+
+const TONES: readonly PluginTone[] = ['neutral', 'accent', 'green', 'amber', 'red', 'violet'];
+
+/** A plugin's badge, checked: text only, a known tone (anything else is neutral) */
+function badgeOf(b: PluginTableBadge | null | undefined): Cell['badge'] {
+  if (!b || typeof b !== 'object' || typeof b.text !== 'string' || !b.text) return undefined;
+  const tone = TONES.includes(b.tone as PluginTone) ? (b.tone as PluginTone) : 'neutral';
+  return { text: b.text, tone, ...(typeof b.title === 'string' && b.title ? { title: b.title } : {}) };
+}
+
+/** The badge as DOM (text content only, so plugin data never becomes HTML) */
+export function badgeNode(b: NonNullable<Cell['badge']>): HTMLElement {
+  const el = document.createElement('span');
+  el.className = `wz-badge wz-badge-${b.tone}`;
+  el.textContent = b.text;
+  if (b.title) el.title = b.title;
+  return el;
 }
 
 const isoDay = (ms: number) => {
@@ -43,8 +63,9 @@ export function tableCell<Row>(column: PluginTableColumn<Row>, row: Row, loc: st
     }
   }
   if (column.format) text = column.format(value, row);
-  const key = stripInline(text);
-  return { text, key, sort: column.type === 'number' || column.type === 'date' ? sort : key.toLowerCase() || null, raw };
+  const badge = column.badge ? badgeOf(column.badge(value, row)) : undefined;
+  const key = badge ? badge.text : stripInline(text);
+  return { text, key, sort: column.type === 'number' || column.type === 'date' ? sort : key.toLowerCase() || null, raw, ...(badge ? { badge } : {}) };
 }
 
 /**
@@ -62,7 +83,7 @@ export function PluginTable<Row extends object>(props: PluginTableProps<Row>) {
   /** Row ids of the table on screen, to find an open cell editor's row again */
   const builtIds = useRef<string[]>([]);
   const lang = getLang();
-  const { columns, rows, rowKey, editable, caption, filter, footer, empty, onCellChange, onAddRow, onRemoveRow } = props;
+  const { columns, rows, rowKey, editable, caption, filter, footer, empty, onCellChange, onAddRow, onRemoveRow, onRowClick, selected, stickyFirstColumn } = props;
 
   // What the table shows, as one string: plugins often compute new arrays on every render (notes, sync), and
   // rebuilding then would close an open cell editor
@@ -72,7 +93,7 @@ export function PluginTable<Row extends object>(props: PluginTableProps<Row>) {
   const shown = JSON.stringify([
     ids,
     cells,
-    columns.map((c) => [c.key, localize(c.label, lang), c.align, c.type, c.editable]),
+    columns.map((c) => [c.key, localize(c.label, lang), c.align, c.type, c.editable, !!c.mono]),
     caption === undefined ? null : localize(caption, lang),
     empty === undefined ? null : localize(empty, lang),
     footer ?? null,
@@ -80,6 +101,9 @@ export function PluginTable<Row extends object>(props: PluginTableProps<Row>) {
     !!(editable && onCellChange),
     !!onAddRow,
     !!onRemoveRow,
+    !!onRowClick,
+    selected == null ? -1 : ids.indexOf(String(selected)),
+    !!stickyFirstColumn,
   ]);
   const shownRef = useRef(shown);
   shownRef.current = shown;
@@ -87,7 +111,7 @@ export function PluginTable<Row extends object>(props: PluginTableProps<Row>) {
   useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const data: DataRow[] = cells.map((r) => ({ cells: r.map((c) => c.text), keys: r.map((c) => c.key), sort: r.map((c) => c.sort), raw: r.map((c) => c.raw) }));
+    const data: DataRow[] = cells.map((r) => ({ cells: r.map((c) => (c.badge ? badgeNode(c.badge) : c.text)), keys: r.map((c) => c.key), sort: r.map((c) => c.sort), raw: r.map((c) => c.raw) }));
     const call = () => latest.current;
 
     /** Runs a plugin callback; on an error its message, and the table as the plugin's rows say */
@@ -153,6 +177,10 @@ export function PluginTable<Row extends object>(props: PluginTableProps<Row>) {
         onWiki: (title) => editorHost.openWiki(title),
         edit,
         view: view.current,
+        cellClass: columns.map((c) => (c.mono ? 'wz-cell-mono' : null)),
+        onRowClick: onRowClick ? (index) => call().onRowClick?.(ids[index], rows[index]) : undefined,
+        selected: selected == null ? undefined : ids.indexOf(String(selected)),
+        stickyFirst: !!stickyFirstColumn,
       }
     );
     el.replaceChildren(table);

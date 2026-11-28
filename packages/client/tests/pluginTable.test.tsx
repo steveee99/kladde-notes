@@ -176,3 +176,54 @@ describe('ui.Table', () => {
     expect(column(0)).not.toContain('Zehn');
   });
 });
+
+describe('badges, row clicks, selection and a sticky first column (plugin API 1.3)', () => {
+  const badged: PluginTableProps<Item>['columns'] = [
+    { key: 'id', label: 'ID', mono: true },
+    { key: 'name', label: 'Name', badge: (_, row) => (row.amount === null ? null : { text: row.amount > 50 ? 'groß' : 'klein', tone: row.amount > 50 ? 'red' : ('lila' as 'red'), title: 'Größe' }) },
+  ];
+
+  it('draws badges as text with a known tone and filters by their text', () => {
+    render({ columns: badged, rows: [...items, { id: 'd', name: 'Leer', amount: null }] });
+    const badges = [...el.querySelectorAll('.wz-badge')];
+    expect(badges.map((b) => [b.textContent, b.className])).toEqual([
+      ['klein', 'wz-badge wz-badge-neutral'],
+      ['klein', 'wz-badge wz-badge-neutral'],
+      ['groß', 'wz-badge wz-badge-red'],
+    ]);
+    expect(badges[0].getAttribute('title')).toBe('Größe');
+    // Without a badge the cell shows its text; plugin text never becomes HTML
+    expect(column(1)[3]).toBe('Leer');
+    expect(el.querySelector('img')).toBeNull();
+    expect(el.querySelector('td')!.className).toBe('wz-cell-mono');
+    expect(tableCell(badged[1], items[2], 'de-DE')).toMatchObject({ key: 'groß', sort: 'groß', raw: '<img src=x onerror=alert(1)>' });
+  });
+
+  it('reports row clicks and Enter, but not clicks on links or editable cells', () => {
+    const onRowClick = vi.fn();
+    render({ onRowClick, selected: 'b', stickyFirstColumn: true, editable: true, onCellChange: vi.fn() });
+    const rows = [...el.querySelectorAll<HTMLElement>('tbody tr')];
+    expect(el.querySelector('.wz-table')!.classList.contains('wz-table-sticky')).toBe(true);
+    expect(rows.map((r) => r.classList.contains('wz-row-selected'))).toEqual([false, true, false]);
+    expect(rows[1].getAttribute('aria-current')).toBe('true');
+    expect(rows[0].tabIndex).toBe(0);
+    // The date column is locked: a click there is a row click
+    act(() => (rows[2].children[2] as HTMLElement).click());
+    expect(onRowClick).toHaveBeenLastCalledWith('c', items[2]);
+    // An editable cell opens its editor instead
+    act(() => (rows[0].children[0] as HTMLElement).click());
+    expect(el.querySelector('.wz-cell-input')).not.toBeNull();
+    expect(onRowClick).toHaveBeenCalledTimes(1);
+    act(() => rows[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    expect(onRowClick).toHaveBeenLastCalledWith('b', items[1]);
+  });
+
+  it('moves the selection without losing the sort order', () => {
+    render({ selected: 'a', onRowClick: () => {} });
+    act(() => el.querySelectorAll<HTMLElement>('th')[1].click());
+    expect(column(1)).toEqual(['9', '10', '100']);
+    render({ selected: 'c', onRowClick: () => {} });
+    expect(column(1)).toEqual(['9', '10', '100']);
+    expect([...el.querySelectorAll('tbody tr')].map((r) => r.classList.contains('wz-row-selected'))).toEqual([false, false, true]);
+  });
+});

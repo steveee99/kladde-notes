@@ -184,6 +184,7 @@ export default defineClientPlugin({
   nav: [{ label: { de: 'Zeiten', en: 'Time' }, bottomBar: true }],
   commands: [{ id: 'book', label: { de: 'Zeit buchen', en: 'Book time' }, path: '/new' }],
   blocks: [{ lang: 'time', label: { de: 'Zeitübersicht', en: 'Time overview' }, template: 'week: current', component: TimeBlock }],
+  inspector: [{ id: 'bookings', label: { de: 'Zeiten', en: 'Time' }, types: ['plugin:time:project'], component: ProjectTime }],
   settings: Settings,
 });
 ```
@@ -211,7 +212,8 @@ export function Overview() {
 ```
 
 - **Design:** Kladde's classes work as they are (`.btn-primary`, `.btn-tonal`, `.btn-text`, `.input`, `.card`, `.chip`, `.segmented`, colors like `bg-panel`, `text-muted`, `border-line`, `text-acc`, type like `text-body-m`, `text-caption`). Rules: [`docs/DESIGN.md`](DESIGN.md) (at most one filled accent button per page, lines instead of shadows, dialogs with `role="dialog"`). Tailwind generates the classes your built files use.
-- **Tables:** `host.ui.Table` is the table of notes, read-only or editable ([details](#tables)).
+- **Tables:** `host.ui.Table` is the table of notes, read-only or editable, with badges and row clicks ([details](#tables)).
+- **Inspector:** own tabs next to a note ([details](#inspector-tabs)).
 - **Icons:** a component that draws an SVG in `currentColor`; Material Symbols Rounded, weight 300, fit best.
 - **Notes on the device:** `host.notes` works offline like the app: changes are saved locally and synced. In online mode some notes come without text (`partial`); `host.notes.load(id)` fetches it.
 - **Data of your own tables** comes from the server through `host.api` and is therefore online only. What has to work offline belongs in notes.
@@ -339,6 +341,61 @@ const { Table } = host.ui;
 To keep a table in a note or in the text of a block, `@kladde/plugin-api` has `parseMarkdownTable(text)` (the first GFM table: `headers`, `align`, `rows`) and `formatMarkdownTable({ headers, align?, rows })` (padded columns, pipes escaped), which read and write tables the way Kladde does. Without the plugin such a block still shows a readable table as code.
 
 The example plugin shows both modes: its page shows the entries in a table with an "Edit" switch, and a ```` ```logbook ```` block with `edit: yes` edits entries right in the note.
+
+### Badges, row clicks and wide tables
+
+Since plugin API **1.3** (`"@kladde/plugin-api": "^1.3.0"`):
+
+```tsx
+<Table
+  columns={[
+    { key: 'id', label: 'ID', mono: true },                                   // monospaced (ids, paths, hashes)
+    { key: 'validation', label: 'Validation',
+      badge: (v) => v === 'failed' ? { text: '2 errors', tone: 'red', title: 'Last run 14:12' }
+                 : v === 'ok' ? { text: 'valid', tone: 'green' } : null },     // null → the cell's text
+    …
+  ]}
+  rows={rows}
+  rowKey="id"
+  onRowClick={(id) => setOpen(id)}       // click or Enter on a row
+  selected={open}                        // shown as the selected row
+  stickyFirstColumn                      // the first column stays in view while the table scrolls sideways
+/>
+```
+
+- **Badges:** `badge(value, row)` returns `{ text, tone?, title? }`; tones are `neutral` (default), `accent`, `green`, `amber`, `red` and `violet`, Kladde's state colors in every color scheme. The text is set as text, never as HTML. Filtering and sorting of text columns use the badge's text; the cell editor still holds the raw value.
+- **Row clicks:** with `onRowClick` rows can be focused and a click (outside links and buttons) or Enter calls it. In an editable table a click into an editable cell still edits it; locked cells count as row clicks.
+- **Selected row:** `selected` takes a row id; the row is highlighted and marked with `aria-current`. Sorting and the filter stay when it changes.
+
+## Inspector tabs
+
+Since plugin API **1.3**. `inspector` adds tabs to the inspector next to a note (the side panel with outline, tasks, links, graph and comments), for the notes the plugin picks:
+
+```tsx
+inspector: [
+  {
+    id: 'validation',                                  // a–z, 0–9, -; the tab is remembered as plugin:<id>:validation
+    label: { de: 'Prüfung', en: 'Checks' },            // short: tabs are narrow
+    types: ['plugin:enhancements:item'],               // note types (frontmatter `type`) …
+    when: (note) => note.access !== 'read',            // … and/or a condition; without both: every note
+    count: (note) => openFindings(note),               // optional number next to the icon
+    component: ValidationPanel,
+  },
+],
+```
+
+```tsx
+export function ValidationPanel({ note, canEdit }: PluginInspectorProps) {
+  const host = useKladde();             // the same host as on pages
+  // note: the open note with its text (id, path, title, content, type, access …); re-renders when it changes
+  return <div className="flex flex-col gap-3 px-2">…</div>;
+}
+```
+
+- The tab appears for fully loaded notes only (an open note always is) and while the plugin is on; switched off, a remembered plugin tab falls back to the outline.
+- `canEdit` is false for read-only notes (shares, group readers, published releases); change notes through `host.notes`.
+- `when` and `count` run on every render of the note: keep them quick. An error in them hides the tab and is logged; an error in the component shows the plugin's error box inside the panel.
+- On phones and tablets the inspector is a sheet; the tab is the same.
 
 ## Own tables and migrations
 
@@ -570,7 +627,6 @@ For everyone working on Kladde, so that releases stay safe for plugins:
 
 Left open on purpose, to be added as minor versions of the plugin API:
 
-- panels in a note's inspector
 - offline sync of plugin tables (today: offline through notes)
 - switching plugins on per group instead of per user
 - the standalone desktop app (builds without plugins)
