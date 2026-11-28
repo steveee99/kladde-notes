@@ -110,7 +110,7 @@ export function FieldValue({ type, value, lang }: { type: CockpitFieldType; valu
 
 const SourceIcon = ({ w, size = 16 }: { w: CockpitWidget; size?: number }) => {
   const kind = w.source.kind;
-  const Icon = kind === 'gitlab.jobs' ? BugReport : kind === 'jira.issues' ? Ticket : kind === 'gitlab.projects' ? GitBranch : kind === 'gitlab.groups' ? Users : kind === 'gitlab.compare' ? SwapHoriz : Merge;
+  const Icon = kind === 'gitlab.jobs' ? BugReport : kind === 'jira.issues' ? Ticket : kind === 'gitlab.projects' ? GitBranch : kind === 'gitlab.groups' ? Users : kind === 'gitlab.compare' ? SwapHoriz : kind === 'gitlab.branches' ? GitBranch : Merge;
   return <Icon size={size} />;
 };
 
@@ -238,7 +238,7 @@ function BoardView({ w, rows, lang }: { w: CockpitWidget; rows: CockpitRow[]; la
 }
 
 /** What a problem means for the user, and what to do */
-function problemText(result: Extract<CockpitResult, { problem: string }>, lang: Lang): string {
+export function problemText(result: Extract<CockpitResult, { problem: string }>, lang: Lang): string {
   const provider = result.provider === 'jira' ? 'Jira' : 'GitLab';
   switch (result.problem) {
     case 'not_connected':

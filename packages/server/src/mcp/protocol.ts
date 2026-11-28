@@ -1,5 +1,5 @@
 import { APP_VERSION, memoryInstructions, memoryRulesText } from '@kladde/shared';
-import { memoryRulesOf, ToolContent, ToolContext, ToolError, TOOLS, toolsFor, type ToolDef } from './tools.js';
+import { featuresOf, memoryRulesOf, ToolContent, ToolContext, ToolError, TOOLS, toolsFor, type ToolDef } from './tools.js';
 
 const CORE_NAMES = new Set(TOOLS.map((t) => t.name));
 
@@ -26,13 +26,18 @@ const INSTRUCTIONS = [
   'Write in the language of the user\'s notes (usually German).',
 ].join(' ');
 
+/** With the cockpit on: guided development processes */
+const PROCESS_INSTRUCTIONS =
+  'Development processes: process_list shows models and runs, process_read reads one, process_guide explains the model format before process_save creates or extends a model (read it first, then save the whole model). process_run_start starts a run with target branch and repositories; process_run_update links pages, ticks steps, picks decisions and moves it on.';
+
 const RULES_URI = 'kladde://memory/rules';
 const RULE_URI = 'kladde://memory/rule/';
 
 /** The fixed instructions plus, with the AI memory on (#94), what it is and the user's rules for assistants */
 function instructionsFor(ctx: ToolContext): string {
   const memory = memoryRulesOf(ctx);
-  return memory ? `${INSTRUCTIONS}\n\n${memoryInstructions(memory.folder, memory.rules)}` : INSTRUCTIONS;
+  const base = featuresOf(ctx.notes, ctx.userId).cockpit.enabled ? `${INSTRUCTIONS} ${PROCESS_INSTRUCTIONS}` : INSTRUCTIONS;
+  return memory ? `${base}\n\n${memoryInstructions(memory.folder, memory.rules)}` : base;
 }
 
 interface RpcRequest {

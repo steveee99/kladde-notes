@@ -1,6 +1,6 @@
 import { createContext, lazy, Suspense, useContext, useEffect, useRef, useState } from 'react';
 import { useModal } from '../lib/modal';
-import { CalendarCheck, CalendarDays, CalendarMonth, FileText, Flame, Home, Speed, Inbox as InboxIcon, Kanban, ListChecks, Menu, Network, PanelLeftClose, PanelLeftOpen, Pencil, Search as SearchIcon, Share2, Tags, Users, X } from '../lib/icons';
+import { CalendarCheck, CalendarDays, CalendarMonth, FileText, Flame, Home, Speed, Route, Inbox as InboxIcon, Kanban, ListChecks, Menu, Network, PanelLeftClose, PanelLeftOpen, Pencil, Search as SearchIcon, Share2, Tags, Users, X } from '../lib/icons';
 import { openSearch, SearchDialogHost } from './SearchDialog';
 import { isHiddenPath, APP_VERSION, INBOX_FOLDER, Me, splitPath } from '@kladde/shared';
 import { useVault, vault } from '../data/vault';
@@ -299,6 +299,7 @@ export function WerkbankShell({ me, children, isAdmin }: { me: Me; children: Rea
             {features.calendarView.enabled && <NavItem to="/calendar" Icon={CalendarMonth} label={t('nav.calendar')} />}
             {features.habits.enabled && <NavItem to="/habits" Icon={Flame} label={t('habits.title')} />}
             {features.cockpit.enabled && <NavItem to="/cockpit" Icon={Speed} label={t('cockpit.title')} />}
+            {features.cockpit.enabled && !vault.standalone && <NavItem to="/processes" Icon={Route} label={t('proc.title')} />}
             {pluginNav.map((n) => (
               <NavItem key={n.key} to={n.to} Icon={n.Icon} label={n.label} />
             ))}

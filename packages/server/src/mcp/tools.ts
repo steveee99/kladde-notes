@@ -85,6 +85,7 @@ import type { FileStore } from '../FileStore.js';
 import type { AttachmentTextStore } from '../attachments/AttachmentTextStore.js';
 import { attachmentPages, searchAttachments } from '../attachments/search.js';
 import type { PluginToolDef } from '../plugins/PluginHost.js';
+import { PROCESS_TOOLS } from './processTools.js';
 
 /** Who calls a tool: tools see the notes this user owns and those of their groups (#58), never other shares */
 export interface ToolContext {
@@ -132,10 +133,10 @@ export interface ToolDef {
  * A note as the tools show it. Group notes (#58) appear below their group's name ("Familie/Projekt/Plan.md");
  * `realPath` is the path inside the group, which saving keeps.
  */
-type SpaceNote = SyncedNote & { realPath?: string; groupName?: string };
+export type SpaceNote = SyncedNote & { realPath?: string; groupName?: string };
 
 /** The user's own notes without the hidden settings notes, and the notes of their groups (#58) */
-function space(ctx: ToolContext): SpaceNote[] {
+export function space(ctx: ToolContext): SpaceNote[] {
   const own = ctx.notes.ownedNotes(ctx.userId).filter((n) => !n.path.startsWith(SYSTEM_PREFIX));
   const grouped = ctx.notes
     .groupNotes(ctx.userId)
@@ -178,7 +179,7 @@ export function featuresOf(notes: NoteStore, userId: string): FeatureSettings {
   return normalizeFeatures(settingOf(notes, userId, FEATURES_SETTING));
 }
 
-const str = (args: Record<string, unknown>, key: string, required = false): string | undefined => {
+export const str = (args: Record<string, unknown>, key: string, required = false): string | undefined => {
   const v = args[key];
   if (v === undefined || v === null || v === '') {
     if (required) throw new ToolError(`Parameter "${key}" fehlt.`);
@@ -231,7 +232,7 @@ function findNote(notes: SpaceNote[], args: Record<string, unknown>): SpaceNote 
 }
 
 /** One of the user's groups by name (or id) */
-function groupOf(ctx: ToolContext, name: string): GroupInfo {
+export function groupOf(ctx: ToolContext, name: string): GroupInfo {
   const wanted = name.trim().toLowerCase();
   const group = ctx.notes.groupsOf(ctx.userId).find((g) => g.id === name || g.name.toLowerCase() === wanted);
   if (!group) throw new ToolError(`Die Gruppe „${name}“ gibt es nicht (oder du bist kein Mitglied). Die Gruppen stehen in list_notes → groups.`);
@@ -285,7 +286,7 @@ function save(ctx: ToolContext, note: SpaceNote, content: string) {
 }
 
 /** Saves and also returns the text as stored (the server numbers tickets and runs their automations) */
-function saveWithContent(ctx: ToolContext, note: SpaceNote, content: string) {
+export function saveWithContent(ctx: ToolContext, note: SpaceNote, content: string) {
   writable(note);
   guardRemote(note.content, content);
   const memory = memoryWrite(ctx, note.realPath === undefined && note.access === 'owner' ? note.path : null, note.content, content);
@@ -551,7 +552,7 @@ function findTicket(ctx: ToolContext, ref: string): { note: SpaceNote; project: 
   throw new ToolError(`Ticket „${ref}“ nicht gefunden. Suche es mit list_tickets.`);
 }
 
-const strList = (args: Record<string, unknown>, key: string): string[] | undefined => {
+export const strList = (args: Record<string, unknown>, key: string): string[] | undefined => {
   const v = args[key];
   if (v === undefined || v === null) return undefined;
   if (!Array.isArray(v) || v.some((x) => typeof x !== 'string')) throw new ToolError(`Parameter "${key}" muss eine Liste von Texten sein.`);
@@ -1399,7 +1400,8 @@ export const TOOLS: ToolDef[] = [
       }
       throw new ToolError(`Meilenstein „${str(args, 'milestone')}“ nicht gefunden. Die Meilensteine stehen in list_projects.`);
     },
-  },
+  },  // Guided processes (part of the cockpit): models and runs
+  ...PROCESS_TOOLS,
 ];
 
 export const toolsFor = (canWrite: boolean) => TOOLS.filter((t) => canWrite || !t.write);

@@ -357,6 +357,8 @@ function useFeatures(lang: Lang): Feature[] {
           await save((f) => ({ ...f, cockpit: { enabled: on } }));
           // The first dashboard with the widgets most people need; later switches keep what is there
           if (on) await import('../data/cockpit').then((m) => m.ensureDefaultDashboard(lang));
+          // The guided processes come with two example models (waterfall and bug fix)
+          if (on) await import('../data/processes').then((m) => m.ensureExampleProcesses(lang));
         },
         settings: () => (
           <Suspense fallback={null}>

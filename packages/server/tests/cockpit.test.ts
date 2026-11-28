@@ -78,6 +78,13 @@ const upstream = http.createServer((req, res) => {
     const direct = [{ id: 20, name: 'Infra', full_path: 'team/infra', description: 'Platform', visibility: 'private', created_at: '2025-03-01T00:00:00Z', web_url: `${base}/groups/team/infra` }];
     return json(200, p.endsWith('descendant_groups') ? [...direct, { id: 21, name: 'K8s', full_path: 'team/infra/k8s', web_url: `${base}/groups/team/infra/k8s` }] : direct);
   }
+  if (p === '/projects/team%2Fapi/repository/branches') {
+    const all = [
+      { name: 'main', default: true, protected: true, merged: false, commit: { title: 'chore: release', author_name: 'Ben', committed_date: '2026-11-20T10:00:00Z' }, web_url: `${base}/team/api/-/tree/main` },
+      { name: 'feature/SHOP-1-gutschein', default: false, protected: false, merged: false, commit: { title: 'feat: Gutschein', author_name: 'Anna', committed_date: '2026-11-25T10:00:00Z' }, web_url: 'https://evil.example/x' },
+    ];
+    return json(200, q.get('search') ? all.filter((b) => b.name.includes(q.get('search')!)) : all);
+  }
   if (p === '/groups') return q.get('min_access_level') === '10' ? json(200, [{ id: 10, name: 'Team', full_path: 'team' }]) : json(400, {});
   if (p === '/projects/team%2Fapi/repository/commits') {
     // Release 10.100 has a fix, a picked fix, a fix under the same title, a merge commit and one only it has
@@ -301,6 +308,22 @@ describe('cockpit queries', () => {
     const mine = await call<CockpitResult>('POST', '/query', { widget: widget({ source: { kind: 'gitlab.groups', params: {} } }) });
     expect('rows' in mine.data && mine.data.rows.map((r) => r.values.path)).toEqual(['team']);
     expect('rows' in mine.data && mine.data.rows[0].values.parent).toBeNull();
+  });
+
+  it('lists the branches of a repository and keeps links on the instance', async () => {
+    const { data } = await call<CockpitResult>('POST', '/query', { widget: widget({ source: { kind: 'gitlab.branches', params: { project: 'team/api', search: 'SHOP-1' } } }) });
+    expect('rows' in data && data.rows).toEqual([
+      {
+        id: 'branch:team/api:feature/SHOP-1-gutschein',
+        values: { name: 'feature/SHOP-1-gutschein', default: false, protected: false, merged: false, commit: 'feat: Gutschein', author: 'Anna', updated: Date.parse('2026-11-25T10:00:00Z') },
+      },
+    ]);
+    const all = await call<CockpitResult>('POST', '/query', { widget: widget({ source: { kind: 'gitlab.branches', params: { project: 'team/api' } } }) });
+    expect('rows' in all.data && all.data.rows.map((r) => [r.values.name, r.url])).toEqual([
+      ['main', `${base}/team/api/-/tree/main`],
+      ['feature/SHOP-1-gutschein', undefined],
+    ]);
+    expect((await call<CockpitResult>('POST', '/query', { widget: widget({ source: { kind: 'gitlab.branches', params: {} } }) })).data).toMatchObject({ problem: 'invalid' });
   });
 
   it('reads Jira issues with JQL and passes its errors on', async () => {
