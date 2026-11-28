@@ -294,6 +294,84 @@ export function normalizeProcess(raw: unknown): ProcessModel | null {
 }
 
 /**
+ * What `normalizeProcess` would drop or change in untrusted input, as sentences for whoever wrote it (an assistant
+ * through MCP, the JSON editor). Empty when the input is taken as it is. `knownProcesses` are the model keys of the
+ * space, to check sub-workflows.
+ */
+export function processProblems(raw: unknown, knownProcesses?: ReadonlySet<string>): string[] {
+  const out: string[] = [];
+  const o = obj(raw);
+  if (!o) return ['Das Modell muss ein JSON-Objekt sein.'];
+  if (!clean(o.title, PROCESS_LIMITS.label)) out.push('"title" fehlt.');
+  const stages = Array.isArray(o.stages) ? o.stages : [];
+  if (!stages.length) return [...out, '"stages" braucht mindestens eine Stufe.'];
+  if (stages.length > PROCESS_LIMITS.stages) out.push(`Höchstens ${PROCESS_LIMITS.stages} Stufen; der Rest fällt weg.`);
+  const ids = new Set<string>();
+  for (const [i, r] of stages.entries()) {
+    const st = obj(r);
+    const sid = id(st?.id);
+    if (!sid) {
+      out.push(`Stufe ${i + 1}: "id" fehlt oder ist ungültig (Buchstaben, Ziffern, _ und -, höchstens 60 Zeichen).`);
+      continue;
+    }
+    if (ids.has(sid)) out.push(`Stufe "${sid}" gibt es doppelt; nur die erste zählt.`);
+    ids.add(sid);
+  }
+  const hasEnd = stages.some((r) => obj(r)?.kind === 'end');
+  if (!hasEnd) out.push('Keine Stufe mit "kind": "end": ein Lauf kann nie abgeschlossen werden.');
+  const start = id(o.start);
+  if (o.start !== undefined && !ids.has(start)) out.push(`"start" verweist auf "${String(o.start)}", die Stufe gibt es nicht; der Lauf beginnt in der ersten Stufe.`);
+  for (const r of stages) {
+    const st = obj(r);
+    const sid = id(st?.id);
+    if (!st || !sid) continue;
+    const at = `Stufe "${sid}"`;
+    const kind = st.kind ?? 'steps';
+    if (!['steps', 'choice', 'sub', 'end'].includes(String(kind))) out.push(`${at}: "kind" muss steps, choice, sub oder end sein.`);
+    if (st.when !== undefined && st.when !== null && !normalizeCondition(st.when)) out.push(`${at}: "when" braucht "var" (ein Variablenname) und "op" (eq, ne, set, unset).`);
+    for (const t of Array.isArray(st.next) ? st.next : []) {
+      const to = obj(t)?.to;
+      if (!ids.has(id(to))) out.push(`${at}: Weg zu "${String(to)}" führt ins Leere und fällt weg.`);
+    }
+    const ways = Array.isArray(st.next) ? st.next.filter((t) => obj(t)) : [];
+    // After a sub-workflow any way counts (also one back, e.g. to test again); steps need one forward
+    if (kind === 'sub' ? !ways.length : kind === 'steps' && !ways.some((t) => obj(t)!.back !== true)) out.push(`${at}: kein Weg ${kind === 'sub' ? 'nach dem Sub-Workflow' : 'nach vorn ("next" ohne "back")'}.`);
+    if (kind === 'choice') {
+      const opts = Array.isArray(st.options) ? st.options : [];
+      if (opts.length < 2) out.push(`${at}: eine Entscheidung braucht mindestens zwei "options".`);
+      for (const x of opts) {
+        const opt = obj(x);
+        if (!clean(opt?.value, 60)) out.push(`${at}: eine Option ohne "value".`);
+        else if (!ids.has(id(opt?.to))) out.push(`${at}: Option "${String(opt?.value)}" führt zu "${String(opt?.to)}", die Stufe gibt es nicht.`);
+      }
+      if (st.var !== undefined && !varName(st.var)) out.push(`${at}: "var" ist kein gültiger Variablenname (Buchstabe, dann Buchstaben, Ziffern, _).`);
+    }
+    if (kind === 'sub') {
+      const key = clean(st.process, 40);
+      if (!key) out.push(`${at}: ein Sub-Workflow braucht "process" (den key eines Modells).`);
+      else if (knownProcesses && !knownProcesses.has(key)) out.push(`${at}: das Modell "${key}" gibt es in diesem Bereich nicht.`);
+    }
+    if (kind === 'steps') {
+      const seen = new Set<string>();
+      for (const [j, x] of (Array.isArray(st.steps) ? st.steps : []).entries()) {
+        const step = obj(x);
+        const stepId = id(step?.id);
+        const where = `${at}, Schritt ${stepId ? `"${stepId}"` : j + 1}`;
+        if (!stepId) out.push(`${where}: "id" fehlt oder ist ungültig.`);
+        else if (seen.has(stepId)) out.push(`${where}: die id gibt es in der Stufe doppelt.`);
+        if (stepId) seen.add(stepId);
+        if (!clean(step?.label, PROCESS_LIMITS.label)) out.push(`${where}: "label" fehlt.`);
+        const k = step?.kind ?? 'task';
+        if (!PROCESS_STEP_KINDS.includes(k as ProcessStepKind)) out.push(`${where}: "kind" muss ${PROCESS_STEP_KINDS.join(', ')} sein.`);
+        if (k === 'link' && !varName(step?.var)) out.push(`${where}: ein Verweis braucht "var" (wohin der Link gespeichert wird).`);
+        if (k === 'check' && !normalizeQuery(step?.query)) out.push(`${where}: eine Prüfung braucht "query" mit einer gültigen Cockpit-Quelle ("source") und ihren Parametern.`);
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * The model to save after an edit: the version goes up when anything changed, and every step that is new (by stage
  * and step id) gets the new version as `since`; steps that were there keep theirs.
  */
@@ -911,6 +989,29 @@ export function startRun(
   enter(run, run, model.start, all, input);
   return normalizeRun(run)!;
 }
+
+// ------------------------------------------------------------------ format
+
+/** The model format in words, for assistants (MCP `process_guide`) */
+export const PROCESS_FORMAT = `A process model is JSON:
+{ "key": "hotfix", "title": "Hotfix", "description": "…", "branchPrefix": "hotfix", "branchPattern": "{{prefix}}/{{ticket}}-{{slug}}", "start": "<stage id>", "stages": [ … ] }
+
+Stages ("id": letters, digits, _ and -; "title"; "description"; "kind"):
+- "steps" (default): "steps": [ … ], "next": [{ "to": "<stage>" }, { "to": "<earlier stage>", "back": true, "label": "Zurück zu …" }]
+- "choice": "var": "<variable>", "options": [{ "value": "kritisch", "label": "Kritisch", "hint": "…", "to": "<stage>" }, …] (at least two; the picked value goes to the variable)
+- "sub": "process": "<key of another model in the same space>", "outputs": { "<sub variable>": "<variable of this run>" }, "next": [{ "to": "<stage>", "end": "<end name of the sub-workflow>" }, …]
+- "end": "end": "<name of this end>" (a run finishes here; a sub-workflow's caller picks its way by it)
+Any stage may have "when": { "var": "<variable>", "op": "eq" | "ne" | "set" | "unset", "value": "…" }: when it does not hold, the stage is skipped (its first way forward is taken). A run always needs an end stage.
+
+Steps ("id" unique in the stage; "label"; "hint"; "kind"):
+- "task": a checkbox ticked by hand.
+- "link": a page made elsewhere is linked; "var": where the URL is kept, "source": jira | confluence | gitlab | kladde | web, optional "createUrl" (may use {{run.x}}).
+- "check": a live cockpit query, "query": { "source": "jira.issues" | "gitlab.mrs" | "gitlab.jobs" | "gitlab.branches" | "gitlab.compare" | "gitlab.projects" | "gitlab.groups", "params": { … }, "filters": [{ "field": "…", "op": "eq", "value": "…" }] }, "expect": "any" (met when rows are found) or "none" (met when none are).
+- "branch": the run's branch exists in every repository of the run.
+- "mr": the merge request from the run's branch into the target branch is open ("mrState": "opened") or merged ("merged") in every repository.
+- "retro": true makes a step that is added later to a stage running runs already left a step they must catch up.
+Variables: {{run.title}}, {{run.ticket}}, {{run.target}}, {{run.branch}}, {{run.repos}} (in a list parameter: all repositories), the links ("var") and decisions; inside a sub-workflow also {{run.nested}} ("ja").
+Version and "since" are kept by Kladde: saving raises the version and gives new steps the new one.`;
 
 // ------------------------------------------------------------------ examples
 

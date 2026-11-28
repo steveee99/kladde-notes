@@ -18,6 +18,7 @@ import {
   parseProcessNote,
   parseRunNote,
   pickOption,
+  processProblems,
   runVars,
   predictStages,
   serializeProcess,
@@ -48,6 +49,19 @@ describe('process notes', () => {
     expect(m.key).toBe('x');
     expect(normalizeProcess({ stages: [] })).toBeNull();
     expect(parseProcessNote('---\ntype: dashboard\n---\n```process\n{}\n```')).toBeNull();
+  });
+
+  it('names what a model would lose, and finds nothing in the examples', () => {
+    const keys = new Set(['wasserfall', 'fehlerbehebung']);
+    for (const m of exampleProcesses('en')) expect(processProblems(JSON.parse(JSON.stringify(m)), keys)).toEqual([]);
+    const problems = processProblems({ title: 'X', start: 'z', stages: [{ id: 'a', kind: 'choice', options: [{ value: 'v', to: 'b' }] }, { id: 'b', kind: 'sub', process: 'fehlt', next: [{ to: 'a', back: true }] }] }, keys);
+    expect(problems).toEqual([
+      'Keine Stufe mit "kind": "end": ein Lauf kann nie abgeschlossen werden.',
+      '"start" verweist auf "z", die Stufe gibt es nicht; der Lauf beginnt in der ersten Stufe.',
+      'Stufe "a": eine Entscheidung braucht mindestens zwei "options".',
+      'Stufe "b": das Modell "fehlt" gibt es in diesem Bereich nicht.',
+    ]);
+    expect(processProblems('x')).toEqual(['Das Modell muss ein JSON-Objekt sein.']);
   });
 
   it('refuses steps without what they need', () => {

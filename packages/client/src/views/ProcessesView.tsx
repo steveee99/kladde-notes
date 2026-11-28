@@ -20,6 +20,7 @@ import {
   newBranchUrl,
   newMergeRequestUrl,
   normalizeProcess,
+  processProblems,
   passedStages,
   pickOption,
   predictStages,
@@ -1317,6 +1318,7 @@ function ModelEditorSheet({ ref_, onClose }: { ref_: ModelRef; onClose: () => vo
   const lang = useLang();
   const [text, setText] = useState(() => JSON.stringify(ref_.model, null, 2));
   const [error, setError] = useState('');
+  const [problems, setProblems] = useState<string[]>([]);
   const save = async () => {
     let parsed: unknown;
     try {
@@ -1327,6 +1329,12 @@ function ModelEditorSheet({ ref_, onClose }: { ref_: ModelRef; onClose: () => vo
     }
     const m = normalizeProcess(parsed);
     if (!m) return setError(T(lang, 'modelInvalid'));
+    // The same check as for assistants (MCP process_save): what would be dropped is shown once before saving
+    const found = processProblems(parsed, new Set([...modelsOfSpace(ref_.group).keys(), m.key]));
+    if (found.length && found.join('\n') !== problems.join('\n')) {
+      setProblems(found);
+      return;
+    }
     try {
       const saved = await saveModel(ref_.noteId, m);
       showToast(saved.version > ref_.model.version ? T(lang, 'savedVersion', { v: saved.version }) : T(lang, 'savedSame'));
@@ -1338,14 +1346,24 @@ function ModelEditorSheet({ ref_, onClose }: { ref_: ModelRef; onClose: () => vo
   return (
     <Sheet title={T(lang, 'editModel')} onClose={onClose}>
       <p className="mb-2 text-body-s text-muted">{T(lang, 'editHint')}</p>
-      <textarea className="input h-[55vh] w-full resize-y font-mono text-[11.5px] leading-5" value={text} onChange={(e) => (setText(e.target.value), setError(''))} spellCheck={false} aria-label={T(lang, 'editModel')} data-process-json />
+      <textarea className="input h-[55vh] w-full resize-y font-mono text-[11.5px] leading-5" value={text} onChange={(e) => (setText(e.target.value), setError(''), setProblems([]))} spellCheck={false} aria-label={T(lang, 'editModel')} data-process-json />
       {error && <p className="mt-2 text-body-s text-red">{error}</p>}
+      {problems.length > 0 && (
+        <div className="mt-2 rounded-md border border-amber/40 bg-amber-bg px-3 py-2 text-body-s text-amber-hi" role="alert" data-process-problems>
+          <p>{T(lang, 'problemsHint')}</p>
+          <ul className="mt-1 list-disc pl-4">
+            {problems.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="flex justify-end gap-2 py-3">
         <button type="button" className="btn-text" onClick={onClose}>
           {T(lang, 'cancel')}
         </button>
         <button type="button" className="btn-primary" onClick={() => void save()} data-process-json-save>
-          {T(lang, 'save')}
+          {problems.length ? T(lang, 'saveAnyway') : T(lang, 'save')}
         </button>
       </div>
     </Sheet>
