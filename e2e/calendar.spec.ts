@@ -60,7 +60,8 @@ test('the calendar shows tasks and dated notes, reschedules by drag and drop and
   await page.getByRole('option', { name: 'All tags' }).click();
 
   // Drag the task to the next day: its line gets the new due date
-  await entry.dragTo(view.locator(`[data-drop-day="${day(near)}"]`));
+  // Drop near the cell's top left corner: its centre can sit below the floating capture button (bottom right of the page)
+  await entry.dragTo(view.locator(`[data-drop-day="${day(near)}"]`), { targetPosition: { x: 12, y: 12 } });
   await expect(view.locator(`[data-drop-day="${day(near)}"]`).locator('[data-calendar-entry="task"]', { hasText: task })).toBeVisible();
   await expect
     .poll(async () => {
