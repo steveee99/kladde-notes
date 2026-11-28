@@ -223,6 +223,8 @@ function nodeView(run: ProcessRun, node: ProcessRunNode, models: Map<string, Pro
         ...(st.description ? { description: st.description } : {}),
         ...(st.when ? { applies_because: conditionText(st.when) } : {}),
         ...(st.kind === 'steps' ? { steps: st.steps.map((s) => stepView(s, node)) } : {}),
+        ...(st.onEnter ? { on_enter: st.onEnter } : {}),
+        ...(st.onExit ? { on_exit: st.onExit } : {}),
         ...(st.kind === 'choice' ? { variable: st.var, picked: node.vars[st.var] ?? null, options: st.options.map((o) => ({ value: o.value, label: o.label, hint: o.hint, to: stageOf(m, o.to)?.title ?? o.to })) } : {}),
         ...(st.next.some((t) => t.back) ? { ways_back: st.next.filter((t) => t.back).map((t) => ({ to: t.to, label: t.label || (stageOf(m, t.to)?.title ?? t.to) })) } : {}),
       }
@@ -234,7 +236,7 @@ function nodeView(run: ProcessRun, node: ProcessRunNode, models: Map<string, Pro
     current: node.state === 'running' ? current : null,
     ahead:
       node.state === 'running'
-        ? predictStages(m, node, vars).map((p) => ('open' in p ? (p.open === 'choice' ? '(hängt von der Entscheidung ab)' : '(hängt vom Ende des Sub-Workflows ab)') : `${stageOf(m, p.id)?.title ?? p.id}${p.skipped ? ' (entfällt)' : p.maybe ? ' (nur wenn …)' : ''}`))
+        ? predictStages(m, node, vars).map((p) => ('open' in p ? (p.open === 'choice' ? '(hängt von der Entscheidung ab)' : '(hängt vom Ende des Sub-Workflows ab)') : `${stageOf(m, p.id)?.title ?? p.id}${p.skipped ? ' (entfällt)' : p.maybe ? ' (nur wenn …)' : p.loop ? ' (nächste Runde oder weiter)' : ''}`))
         : [],
     passed: [...passedStages(node)].map((s) => stageOf(m, s)?.title ?? s),
     catch_up: catchUpSteps(m, node).map(({ stage, step }) => ({ stage: stage.title, ...stepView(step, node) })),
@@ -261,7 +263,9 @@ function runView(r: RunNote, models: Map<string, ProcessModel>) {
     run: nodeView(run, run, models),
     ...(active !== run ? { sub_workflow: nodeView(run, active, models) } : {}),
     finished_sub_workflows: run.children.map((c) => ({ model: c.model, end: c.end ?? null, version: c.snapshot?.version ?? null, variables: c.vars })),
-    history: run.hist.slice(-40).map((h) => ({ at: iso(h.at), by: h.by, stage: h.stage, ...(h.pick ? { pick: h.pick } : {}), ...(h.skipped ? { skipped: true } : {}), ...(h.back ? { back: true } : {}), ...(h.forced ? { forced: true } : {}), ...(h.subEnd ? { sub_end: h.subEnd } : {}) })),
+    history: run.hist.slice(-40).map((h) => ({ at: iso(h.at), by: h.by, stage: h.stage, ...(h.pick ? { pick: h.pick } : {}), ...(h.skipped ? { skipped: true } : {}), ...(h.back ? { back: true } : {}), ...(h.forced ? { forced: true } : {}), ...(h.subEnd ? { sub_end: h.subEnd } : {}), ...(h.round ? { round: h.round } : {}), ...(h.rounds !== undefined ? { rounds: h.rounds } : {}) })),
+    // What the stage scripts asked for; Kladde carries notifications and notes out once after the save
+    actions: run.actions.slice(-20).map((a) => ({ at: iso(a.at), by: a.by, stage: a.stage, on: a.on, kind: a.kind, ...(a.to ? { to: a.to } : {}), ...(a.text ? { text: a.text } : {}), ...(a.path ? { path: a.path } : {}), ...(a.template ? { template: a.template } : {}), ...(a.error ? { error: true } : {}) })),
   };
 }
 

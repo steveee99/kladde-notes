@@ -16,11 +16,18 @@
  * finished run keeps showing the process as it was.
  *
  * Stages are steps (`steps`), a decision between ways (`choice`, the picked value becomes a variable), a sub-workflow
- * (`sub`: another model of the same space runs inside, its end picks the way on) or an end (`end`). Any stage can
- * carry a condition (`when`) on an earlier variable; a stage whose condition fails is skipped.
+ * (`sub`: another model of the same space runs inside, its end picks the way on), a loop (`loop`: runs the stages from
+ * `body` again and again, counting the rounds, until a condition holds, `max` rounds passed or every item of a list
+ * had its round) or an end (`end`). Any stage can carry a condition (`when`) on an earlier variable; a stage whose
+ * condition fails is skipped.
+ *
+ * Scripts: a stage may run a small script when a run enters it (`onEnter`, in a loop once per round) and when it
+ * leaves it (`onExit`), see shared/processScript.ts. Variables and steps change right away; notifications, new notes
+ * and log lines become the run's `actions`, which the server carries out once.
  */
 import { parseFrontmatter } from './markdown.js';
 import { isCockpitSourceKind, normalizeWidget, type CockpitFilter, type CockpitParamValue, type CockpitSourceKind } from './cockpit.js';
+import { cleanNotePath, PROCESS_ACTION_KINDS, runScript, scriptProblems, scriptText, type ProcessAction } from './processScript.js';
 
 // ------------------------------------------------------------------ notes
 
@@ -89,7 +96,8 @@ export interface ProcessStep {
   mrState: 'opened' | 'merged';
 }
 
-export type ProcessStageKind = 'steps' | 'choice' | 'sub' | 'end';
+export type ProcessStageKind = 'steps' | 'choice' | 'sub' | 'loop' | 'end';
+export const PROCESS_STAGE_KINDS: ProcessStageKind[] = ['steps', 'choice', 'sub', 'loop', 'end'];
 
 export interface ProcessOption {
   value: string;
@@ -115,7 +123,7 @@ export interface ProcessStage {
   /** Only when this holds; otherwise skipped */
   when: ProcessCondition | null;
   steps: ProcessStep[];
-  /** choice: the variable the picked value goes to */
+  /** choice: the variable the picked value goes to; loop: the variable that counts the rounds (1, 2, …) */
   var: string;
   options: ProcessOption[];
   /** sub: the key of the model that runs inside */
@@ -125,6 +133,18 @@ export interface ProcessStage {
   next: ProcessTransition[];
   /** end: the name of this end (a sub-workflow's caller picks its way by it) */
   end: string;
+  /** loop: the first stage of a round; the round ends when a way leads back to the loop */
+  body: string;
+  /** loop: at most this many rounds */
+  max: number;
+  /** loop: stops before a round when this holds */
+  until: ProcessCondition | null;
+  /** loop: a variable holding a comma separated list; one round per item, the item is in `<var>_item` */
+  over: string;
+  /** Script run when a run enters the stage (a loop: at the start of every round) */
+  onEnter: string;
+  /** Script run when a run leaves the stage */
+  onExit: string;
 }
 
 export interface ProcessModel {
@@ -142,7 +162,9 @@ export interface ProcessModel {
   stages: ProcessStage[];
 }
 
-export const PROCESS_LIMITS = { stages: 60, steps: 40, options: 8, next: 8, text: 400, label: 160 };
+export const PROCESS_LIMITS = { stages: 60, steps: 40, options: 8, next: 8, text: 400, label: 160, rounds: 100, actions: 60 };
+/** Rounds of a loop without `max` */
+export const DEFAULT_LOOP_MAX = 10;
 export const DEFAULT_BRANCH_PATTERN = '{{prefix}}/{{ticket}}-{{slug}}';
 
 // ------------------------------------------------------------------ normalizing
@@ -222,7 +244,7 @@ function normalizeStage(raw: unknown, version: number): ProcessStage | null {
   const o = obj(raw);
   const sid = id(o?.id);
   if (!o || !sid) return null;
-  const kind = pick(o.kind, ['steps', 'choice', 'sub', 'end'] as const, 'steps');
+  const kind = pick(o.kind, PROCESS_STAGE_KINDS, 'steps');
   const steps: ProcessStep[] = [];
   const seen = new Set<string>();
   for (const s of Array.isArray(o.steps) ? o.steps.slice(0, PROCESS_LIMITS.steps) : []) {
@@ -254,12 +276,18 @@ function normalizeStage(raw: unknown, version: number): ProcessStage | null {
     kind,
     when: normalizeCondition(o.when),
     steps: kind === 'steps' ? steps : [],
-    var: kind === 'choice' ? varName(o.var) || sid.replace(/[^A-Za-z0-9_]/g, '_').replace(/^[^A-Za-z]/, 'v') : '',
+    var: kind === 'choice' || kind === 'loop' ? varName(o.var) || (kind === 'loop' ? 'runde' : sid.replace(/[^A-Za-z0-9_]/g, '_').replace(/^[^A-Za-z]/, 'v')) : '',
     options: kind === 'choice' ? options : [],
     process: kind === 'sub' ? clean(o.process, 40) : '',
     outputs: kind === 'sub' ? outputs : {},
     next: kind === 'end' ? [] : next,
     end: kind === 'end' ? clean(o.end, 60) || sid : '',
+    body: kind === 'loop' ? id(o.body) : '',
+    max: kind === 'loop' ? Math.min(PROCESS_LIMITS.rounds, Math.max(1, intOf(o.max, DEFAULT_LOOP_MAX))) : 0,
+    until: kind === 'loop' ? normalizeCondition(o.until) : null,
+    over: kind === 'loop' ? varName(o.over) : '',
+    onEnter: scriptText(o.onEnter),
+    onExit: kind === 'end' ? '' : scriptText(o.onExit),
   };
 }
 
@@ -278,6 +306,7 @@ export function normalizeProcess(raw: unknown): ProcessModel | null {
   for (const st of stages) {
     st.next = st.next.filter((t) => ids.has(t.to));
     st.options = st.options.filter((x) => ids.has(x.to));
+    if (st.body && !ids.has(st.body)) st.body = '';
   }
   const title = clean(o.title, PROCESS_LIMITS.label) || 'Prozess';
   const start = id(o.start);
@@ -327,7 +356,24 @@ export function processProblems(raw: unknown, knownProcesses?: ReadonlySet<strin
     if (!st || !sid) continue;
     const at = `Stufe "${sid}"`;
     const kind = st.kind ?? 'steps';
-    if (!['steps', 'choice', 'sub', 'end'].includes(String(kind))) out.push(`${at}: "kind" muss steps, choice, sub oder end sein.`);
+    if (!PROCESS_STAGE_KINDS.includes(kind as ProcessStageKind)) out.push(`${at}: "kind" muss steps, choice, sub, loop oder end sein.`);
+    for (const key of ['onEnter', 'onExit'] as const) {
+      if (st[key] === undefined || st[key] === null || st[key] === '') continue;
+      if (typeof st[key] !== 'string' && !Array.isArray(st[key])) out.push(`${at}: "${key}" muss ein Text oder eine Liste von Zeilen sein.`);
+      else if (key === 'onExit' && kind === 'end') out.push(`${at}: eine Ende-Stufe hat kein "onExit".`);
+      else for (const p of scriptProblems(scriptText(st[key]))) out.push(`${at}, ${key}: ${p}`);
+    }
+    if (kind === 'loop') {
+      const body = id(st.body);
+      if (!body) out.push(`${at}: eine Schleife braucht "body" (die erste Stufe einer Runde).`);
+      else if (!ids.has(body)) out.push(`${at}: "body" verweist auf "${String(st.body)}", die Stufe gibt es nicht.`);
+      else if (body === sid) out.push(`${at}: "body" darf nicht die Schleife selbst sein.`);
+      else if (!loopReturns(stages, sid, body)) out.push(`${at}: keine Stufe ab "${body}" führt zurück zur Schleife; es gäbe nur eine Runde.`);
+      if (st.var !== undefined && !varName(st.var)) out.push(`${at}: "var" ist kein gültiger Variablenname (Buchstabe, dann Buchstaben, Ziffern, _).`);
+      if (st.over !== undefined && st.over !== '' && !varName(st.over)) out.push(`${at}: "over" muss der Name einer Variablen sein.`);
+      if (st.until !== undefined && st.until !== null && !normalizeCondition(st.until)) out.push(`${at}: "until" braucht "var" und "op" (eq, ne, set, unset).`);
+      if (st.max !== undefined && (typeof st.max !== 'number' || !Number.isInteger(st.max) || st.max < 1 || st.max > PROCESS_LIMITS.rounds)) out.push(`${at}: "max" muss eine ganze Zahl von 1 bis ${PROCESS_LIMITS.rounds} sein.`);
+    }
     if (st.when !== undefined && st.when !== null && !normalizeCondition(st.when)) out.push(`${at}: "when" braucht "var" (ein Variablenname) und "op" (eq, ne, set, unset).`);
     for (const t of Array.isArray(st.next) ? st.next : []) {
       const to = obj(t)?.to;
@@ -335,7 +381,7 @@ export function processProblems(raw: unknown, knownProcesses?: ReadonlySet<strin
     }
     const ways = Array.isArray(st.next) ? st.next.filter((t) => obj(t)) : [];
     // After a sub-workflow any way counts (also one back, e.g. to test again); steps need one forward
-    if (kind === 'sub' ? !ways.length : kind === 'steps' && !ways.some((t) => obj(t)!.back !== true)) out.push(`${at}: kein Weg ${kind === 'sub' ? 'nach dem Sub-Workflow' : 'nach vorn ("next" ohne "back")'}.`);
+    if (kind === 'sub' ? !ways.length : (kind === 'steps' || kind === 'loop') && !ways.some((t) => obj(t)!.back !== true)) out.push(`${at}: kein Weg ${kind === 'sub' ? 'nach dem Sub-Workflow' : kind === 'loop' ? 'nach der Schleife ("next")' : 'nach vorn ("next" ohne "back")'}.`);
     if (kind === 'choice') {
       const opts = Array.isArray(st.options) ? st.options : [];
       if (opts.length < 2) out.push(`${at}: eine Entscheidung braucht mindestens zwei "options".`);
@@ -367,6 +413,46 @@ export function processProblems(raw: unknown, knownProcesses?: ReadonlySet<strin
         if (k === 'check' && !normalizeQuery(step?.query)) out.push(`${where}: eine Prüfung braucht "query" mit einer gültigen Cockpit-Quelle ("source") und ihren Parametern.`);
       }
     }
+  }
+  return out;
+}
+
+/** Whether a way from the stages starting at `body` leads back to the loop (raw JSON, for the checks) */
+function loopReturns(stages: unknown[], loopId: string, body: string): boolean {
+  const byId = new Map<string, Obj>();
+  for (const r of stages) {
+    const st = obj(r);
+    if (st && id(st.id)) byId.set(id(st.id), st);
+  }
+  const seen = new Set<string>();
+  const queue = [body];
+  while (queue.length) {
+    const at = queue.shift()!;
+    if (seen.has(at)) continue;
+    seen.add(at);
+    const st = byId.get(at);
+    if (!st) continue;
+    const ways = [...(Array.isArray(st.next) ? st.next : []), ...(Array.isArray(st.options) ? st.options : [])].map((t) => id(obj(t)?.to)).filter(Boolean);
+    if (ways.includes(loopId)) return true;
+    queue.push(...ways);
+  }
+  return false;
+}
+
+/** The stages of a loop's round: reachable from `body` without passing the loop */
+export function loopBody(m: ProcessModel, loop: ProcessStage): Set<string> {
+  const out = new Set<string>();
+  if (!loop.body) return out;
+  const queue = [loop.body];
+  while (queue.length) {
+    const at = queue.shift()!;
+    if (at === loop.id || out.has(at)) continue;
+    const st = stageOf(m, at);
+    if (!st) continue;
+    out.add(at);
+    for (const t of st.next) if (!t.back) queue.push(t.to);
+    for (const o of st.options) queue.push(o.to);
+    if (st.kind === 'loop' && st.body) queue.push(st.body);
   }
   return out;
 }
@@ -430,6 +516,10 @@ export interface ProcessHistoryEntry {
   forced?: boolean;
   /** sub: the end the sub-workflow reached */
   subEnd?: string;
+  /** loop: the round that started (1, 2, …) */
+  round?: number;
+  /** loop: left after this many rounds */
+  rounds?: number;
 }
 
 /** The part a run and a sub-workflow inside it share */
@@ -469,6 +559,35 @@ export interface ProcessRun extends ProcessRunNode {
   owner: string;
   createdAt: number;
   closedAt?: number;
+  /** What the stage scripts asked for outside the run (newest last); the server carries each out once */
+  actions: ProcessAction[];
+  /** Counts the actions (part of their ids) */
+  nextAction: number;
+}
+
+function normalizeActions(raw: unknown): ProcessAction[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(-PROCESS_LIMITS.actions).flatMap((r): ProcessAction[] => {
+    const o = obj(r);
+    const aid = id(o?.id);
+    const stage = id(o?.stage);
+    if (!o || !aid || !stage || !PROCESS_ACTION_KINDS.includes(o.kind as ProcessAction['kind'])) return [];
+    const a: ProcessAction = { id: aid, kind: o.kind as ProcessAction['kind'], stage, on: o.on === 'exit' ? 'exit' : 'enter', at: typeof o.at === 'number' && Number.isFinite(o.at) ? o.at : 0, by: clean(o.by, 80) };
+    if (a.kind === 'notify') {
+      a.to = clean(o.to, 300);
+      a.text = clean(o.text, 1000);
+      if (!a.to || !a.text) return [];
+    } else if (a.kind === 'note') {
+      a.path = cleanNotePath(clean(o.path, 300));
+      if (!a.path) return [];
+      const tpl = clean(o.template, 160);
+      if (tpl) a.template = tpl;
+    } else {
+      a.text = clean(o.text, 1000);
+      if (o.error === true) a.error = true;
+    }
+    return [a];
+  });
 }
 
 const strList = (v: unknown, max: number, len: number): string[] => (Array.isArray(v) ? v.map((x) => clean(x, len)).filter(Boolean).slice(0, max) : []);
@@ -485,6 +604,8 @@ function normalizeHist(raw: unknown): ProcessHistoryEntry[] {
     if (o.back === true) e.back = true;
     if (o.forced === true) e.forced = true;
     if (typeof o.subEnd === 'string') e.subEnd = clean(o.subEnd, 60);
+    if (typeof o.round === 'number') e.round = intOf(o.round, 0);
+    if (typeof o.rounds === 'number') e.rounds = intOf(o.rounds, 0);
     return [e];
   });
 }
@@ -533,6 +654,8 @@ export function normalizeRun(raw: unknown): ProcessRun | null {
     branch: cleanBranch(clean(o.branch, 200)),
     owner: clean(o.owner, 80),
     createdAt: typeof o.createdAt === 'number' ? o.createdAt : 0,
+    actions: normalizeActions(o.actions),
+    nextAction: intOf(o.nextAction, 0),
   };
   if (typeof o.closedAt === 'number') run.closedAt = o.closedAt;
   return run;
@@ -672,7 +795,7 @@ export function resolveStage(m: ProcessModel, vars: Record<string, string>, to: 
   return { to: at, skipped };
 }
 
-export type PredictedStage = { id: string; skipped?: boolean; maybe?: boolean } | { open: 'choice' | 'sub' };
+export type PredictedStage = { id: string; skipped?: boolean; maybe?: boolean; loop?: boolean } | { open: 'choice' | 'sub' };
 
 /** The stages still ahead of a node, as far as its variables tell (`vars`: `runVars` of the node) */
 export function predictStages(m: ProcessModel, node: ProcessRunNode, vars: Record<string, string> = node.vars): PredictedStage[] {
@@ -692,6 +815,9 @@ export function predictStages(m: ProcessModel, node: ProcessRunNode, vars: Recor
         out.push({ open: 'choice' });
         break;
       }
+    } else if (st.kind === 'loop') {
+      // A loop still to come runs its round first; one that is passed through goes on
+      to = st.body && !seen.has(st.body) ? st.body : forwardOf(st)?.to;
     } else if (st.kind === 'sub') {
       const ends = new Set(st.next.filter((t) => !t.back).map((t) => t.to));
       if (ends.size !== 1) {
@@ -705,6 +831,12 @@ export function predictStages(m: ProcessModel, node: ProcessRunNode, vars: Recor
       const t = stageOf(m, to);
       if (!t) break;
       const ok = t.when ? checkCondition(t.when, vars) : true;
+      if (ok !== false && t.kind === 'loop' && seen.has(t.id) && forwardOf(t)) {
+        // Back at a loop: the next round looks like this one, so show the way out
+        out.push({ id: to, loop: true });
+        to = forwardOf(t)!.to;
+        continue;
+      }
       if (ok === false) {
         out.push({ id: to, skipped: true });
         const f = t.kind === 'choice' ? t.options[0]?.to : forwardOf(t)?.to;
@@ -797,11 +929,38 @@ function reopen(m: ProcessModel, node: ProcessRunNode, stageIds: string[]): void
   node.done = node.done.filter((d) => !ids.has(d));
 }
 
+/** The run's own fields: a script cannot overwrite them */
+const RESERVED_VARS = new Set(['title', 'ticket', 'target', 'branch', 'repos', 'nested']);
+
+/** Runs a stage's script in `node`: variables and steps change, actions go to the run */
+function applyScript(run: ProcessRun, node: ProcessRunNode, st: ProcessStage, on: 'enter' | 'exit', input: StepInput): void {
+  const source = on === 'enter' ? st.onEnter : st.onExit;
+  if (!source.trim()) return;
+  const fx = runScript(source, runVars(run, node));
+  for (const [k, v] of Object.entries(fx.changed)) {
+    if (RESERVED_VARS.has(k)) continue;
+    if (v) node.vars[k] = v;
+    else delete node.vars[k];
+  }
+  const undone = new Set(fx.undone);
+  node.done = node.done.filter((d) => !undone.has(d));
+  for (const d of fx.done) if (!node.done.includes(d)) node.done.push(d);
+  const add = (a: Omit<ProcessAction, 'id' | 'stage' | 'on' | 'at' | 'by'>) => {
+    run.nextAction = (run.nextAction ?? 0) + 1;
+    run.actions = [...(run.actions ?? []), { id: `a${run.nextAction}-${Math.max(0, input.now).toString(36)}`, stage: st.id, on, at: input.now, by: input.by, ...a }].slice(-PROCESS_LIMITS.actions);
+  };
+  for (const a of fx.actions) add(a);
+  for (const e of fx.errors) add({ kind: 'log', text: `${st.title}: ${e}`, error: true });
+}
+
 /**
- * Enters `to` in `node`: skipped stages go into the history, a sub-workflow starts its own node, the end of a
- * sub-workflow finishes it and moves its caller on.
+ * Enters `to` in `node` (coming from the stage `from`): skipped stages go into the history, the stage's script runs,
+ * a sub-workflow starts its own node, a loop starts a round or lets the run out, the end of a sub-workflow finishes
+ * it and moves its caller on.
  */
-function enter(run: ProcessRun, node: ProcessRunNode, to: string, models: ReadonlyMap<string, ProcessModel>, input: StepInput): void {
+function enter(run: ProcessRun, node: ProcessRunNode, to: string, models: ReadonlyMap<string, ProcessModel>, input: StepInput, from?: string, depth = 0): void {
+  // Loops whose rounds are skipped entirely and sub-workflows that end at once could go on forever
+  if (depth > PROCESS_LIMITS.rounds * 2) throw new ProcessMoveError('no_way');
   const m = modelFor(node, models);
   if (!m) throw new ProcessMoveError('no_model');
   const vars = runVars(run, node);
@@ -810,14 +969,18 @@ function enter(run: ProcessRun, node: ProcessRunNode, to: string, models: Readon
   node.stage = landed;
   const st = stageOf(m, landed);
   if (!st) throw new ProcessMoveError('no_stage');
+  // Where the way into a skipped stage came from does not matter for a loop: it is entered from outside
+  const cameFrom = skipped.length ? skipped[skipped.length - 1] : from;
+  if (st.kind === 'loop') return enterLoop(run, node, m, st, models, input, cameFrom, depth);
   // A decision reached again (after a way back) is made again
   if (st.kind === 'choice') delete node.vars[st.var];
+  applyScript(run, node, st, 'enter', input);
   if (st.kind === 'sub') {
     const sub = models.get(st.process);
     if (!sub) throw new ProcessMoveError('no_model');
     const child: ProcessRunNode = { model: sub.key, state: 'running', started: sub.version, seen: sub.version, stage: sub.start, vars: {}, done: [], hist: [], children: [] };
     node.child = child;
-    enter(run, child, sub.start, models, input);
+    enter(run, child, sub.start, models, input, undefined, depth + 1);
     return;
   }
   if (st.kind === 'end' && node !== run) {
@@ -838,9 +1001,36 @@ function enter(run: ProcessRun, node: ProcessRunNode, to: string, models: Readon
     delete parent.child;
     const way = pst.next.find((t) => t.end === st.end) ?? pst.next.find((t) => !t.end && !t.back) ?? pst.next[0];
     if (!way) throw new ProcessMoveError('no_way');
+    applyScript(run, parent, pst, 'exit', input);
     if (way.back) reopen(pm, parent, [way.to]);
-    enter(run, parent, way.to, models, input);
+    enter(run, parent, way.to, models, input, pst.id, depth + 1);
   }
+}
+
+/** A loop: another round (its stages open again) or, when it is over, the way out */
+function enterLoop(run: ProcessRun, node: ProcessRunNode, m: ProcessModel, st: ProcessStage, models: ReadonlyMap<string, ProcessModel>, input: StepInput, from: string | undefined, depth: number): void {
+  const body = loopBody(m, st);
+  // Coming in from outside starts counting anew; coming back from a round goes on counting
+  const rounds = from && body.has(from) ? Math.max(0, Number.parseInt(node.vars[st.var] ?? '0', 10) || 0) : 0;
+  const vars = runVars(run, node);
+  const items = st.over ? (vars[st.over] ?? '').split(',').map((x) => x.trim()).filter(Boolean) : null;
+  const over = !st.body || rounds >= st.max || (items !== null && rounds >= items.length) || (st.until !== null && checkCondition(st.until, vars) === true);
+  if (over) {
+    node.hist.push({ stage: st.id, at: input.now, by: input.by, rounds });
+    applyScript(run, node, st, 'exit', input);
+    const way = forwardOf(st);
+    if (!way) throw new ProcessMoveError('no_way');
+    enter(run, node, way.to, models, input, st.id, depth + 1);
+    return;
+  }
+  const round = rounds + 1;
+  node.vars[st.var] = String(round);
+  if (items) node.vars[`${st.var}_item`.slice(0, 40)] = items[round - 1].slice(0, 1000);
+  node.hist.push({ stage: st.id, at: input.now, by: input.by, round });
+  // A new round: the steps of its stages are open again, its decisions are made again
+  reopen(m, node, [...body]);
+  applyScript(run, node, st, 'enter', input);
+  enter(run, node, st.body, models, input, st.id, depth + 1);
 }
 
 /** Open steps of the node's stage that `done` (including passing checks) does not cover */
@@ -879,7 +1069,7 @@ export function advanceRun(
     if (!opt) throw new ProcessMoveError('no_choice');
     entry.pick = opt.value;
     to = opt.to;
-  } else if (st.kind === 'end' || st.kind === 'sub') {
+  } else if (st.kind === 'end' || st.kind === 'sub' || st.kind === 'loop') {
     throw new ProcessMoveError('no_way');
   } else {
     to = forwardOf(st)?.to;
@@ -887,8 +1077,9 @@ export function advanceRun(
     if (move.forced && openSteps(st, new Set(node.done)).length) entry.forced = true;
   }
   node.hist.push(entry);
+  applyScript(copy, node, st, 'exit', input);
   if (move.back) reopen(m, node, [to, st.id]);
-  enter(copy, node, to, models, input);
+  enter(copy, node, to, models, input, st.id);
   return copy;
 }
 
@@ -982,6 +1173,8 @@ export function startRun(
     branch: '',
     owner: input.by,
     createdAt: input.now,
+    actions: [],
+    nextAction: 0,
   };
   run.branch = cleanBranch(init.branch?.trim() || suggestBranch(model, run));
   const all = new Map(models);
@@ -1000,8 +1193,18 @@ Stages ("id": letters, digits, _ and -; "title"; "description"; "kind"):
 - "steps" (default): "steps": [ … ], "next": [{ "to": "<stage>" }, { "to": "<earlier stage>", "back": true, "label": "Zurück zu …" }]
 - "choice": "var": "<variable>", "options": [{ "value": "kritisch", "label": "Kritisch", "hint": "…", "to": "<stage>" }, …] (at least two; the picked value goes to the variable)
 - "sub": "process": "<key of another model in the same space>", "outputs": { "<sub variable>": "<variable of this run>" }, "next": [{ "to": "<stage>", "end": "<end name of the sub-workflow>" }, …]
+- "loop": "body": "<first stage of a round>", "var": "<counter, default runde>", "max": <rounds, default 10, at most 100>, optional "until": { condition } (checked before every round), optional "over": "<variable with a comma separated list>" (one round per item, the item is in <var>_item), "next": [{ "to": "<stage after the loop>" }]. A round ends when a way from its stages leads back to the loop stage ("next": [{ "to": "<loop id>" }]); the steps of the round's stages are open again and its decisions are made again. The loop never waits: it starts a round or lets the run out at once.
 - "end": "end": "<name of this end>" (a run finishes here; a sub-workflow's caller picks its way by it)
 Any stage may have "when": { "var": "<variable>", "op": "eq" | "ne" | "set" | "unset", "value": "…" }: when it does not hold, the stage is skipped (its first way forward is taken). A run always needs an end stage.
+
+Scripts: any stage may have "onEnter" (runs when the run enters it; in a loop at the start of every round) and, except an end, "onExit" (runs when the run leaves it), as one string with lines or a list of lines. One statement per line, "#" starts a comment:
+  notify("owner", "Test für {{run.title}} beginnt")      # "owner" (who started the run), "me" (who moves it), "all" (everyone who sees the run) or user names "@anna @ben"
+  protokoll = note("Projekte/{{run.ticket}}/Testprotokoll", "Testprotokoll")   # creates the note in the run's space (optionally from a template of the person moving the run), returns its path; an existing note is left alone
+  versuch = versuch + 1      # also set("name", "value"), inc("name"), clear("name")
+  done("t1")                 # ticks a step off (undone("t1") opens it)
+  log("Test gestartet")      # a line in the run's actions
+  if testergebnis == "fehler": notify("all", "Fehler in {{run.title}}")   # ==, !=, <, <=, >, >=, and, or, not
+Strings fill {{run.x}}; bare names (ticket, run.ticket) are run variables. Notifications and notes are carried out by Kladde once, after the change is saved; they are listed in the run's "actions".
 
 Steps ("id" unique in the stage; "label"; "hint"; "kind"):
 - "task": a checkbox ticked by hand.

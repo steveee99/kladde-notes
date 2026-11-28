@@ -70,6 +70,7 @@ export const NOTIFICATION_PAGE_MAX = 100;
 export function notificationUrl(n: { kind?: NotificationKind; noteId: string; line?: number; threadId?: string; groupId?: string; href?: string }): string {
   if (n.kind === 'plugin') return n.href ?? (n.noteId ? `/n/${n.noteId}` : '/');
   if (n.kind === 'cockpit') return `/cockpit/${encodeURIComponent(n.noteId)}`;
+  if (n.kind === 'process') return `/processes/run/${encodeURIComponent(n.noteId)}`;
   if (n.groupId) return `/groups/${encodeURIComponent(n.groupId)}`;
   return `/n/${n.noteId}${n.threadId ? `?thread=${encodeURIComponent(n.threadId)}` : n.line !== undefined ? `?line=${n.line + 1}` : ''}`;
 }
@@ -109,8 +110,10 @@ export function notificationPush(d: Delivery, lang: 'de' | 'en', noteId: string)
           ? en ? `${d.actor} added you to a group` : `${d.actor} hat dich zu einer Gruppe hinzugefügt`
           : d.kind === 'cockpit'
             ? en ? `New in “${d.name}”` : `Neu in „${d.name}“`
+            : d.kind === 'process'
+              ? en ? `${d.actor} · “${d.name}”` : `${d.actor} · „${d.name}“`
             : en ? `${d.actor} commented` : `${d.actor} hat kommentiert`;
-  return { title, body: d.kind === 'cockpit' ? (d.text ?? '') : d.name, tag: `${d.kind}-${noteId}`, url: d.url, lang };
+  return { title, body: d.kind === 'cockpit' || d.kind === 'process' ? (d.text ?? '') : d.name, tag: `${d.kind}-${noteId}`, url: d.url, lang };
 }
 
 export class NotificationStore {
@@ -138,13 +141,13 @@ export class NotificationStore {
       .run(id, n.userId, n.kind, n.noteId, n.actorId, now, this.cipher.encryptJson(payload, `notification:${id}`));
     this.db.prepare('DELETE FROM notifications WHERE user_id = ? AND at < ?').run(n.userId, now - KEEP_DAYS * 86_400_000);
     const actor = n.actorId ? (this.users.getUser(n.actorId)?.username ?? '') : '';
-    const name = n.groupId || n.kind === 'cockpit' || n.kind === 'plugin' ? n.path : (n.path.split('/').pop()?.replace(/\.md$/i, '') ?? '');
+    const name = n.groupId || n.kind === 'cockpit' || n.kind === 'process' || n.kind === 'plugin' ? n.path : (n.path.split('/').pop()?.replace(/\.md$/i, '') ?? '');
     this.deliver(n.userId, {
       kind: n.kind,
       actor,
       name,
       url: notificationUrl(n),
-      ...(n.kind === 'cockpit' || n.kind === 'plugin' ? { text: n.text.slice(0, 300) } : {}),
+      ...(n.kind === 'cockpit' || n.kind === 'process' || n.kind === 'plugin' ? { text: n.text.slice(0, 300) } : {}),
       ...(n.kind === 'plugin' ? { title: n.title, ...(n.tag ? { tag: n.tag } : {}) } : {}),
     });
   }

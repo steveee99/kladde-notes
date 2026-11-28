@@ -869,7 +869,7 @@ export interface ActivityNews {
  * `cockpit`: new rows in a notifying cockpit widget (`noteId` is the dashboard, `path` the widget's title);
  * `plugin`: sent by a build-time plugin (`plugin`, `title`, `href`; `noteId` empty unless it points to a note)
  */
-export type NotificationKind = 'mention' | 'comment' | 'reply' | 'group_added' | 'cockpit' | 'plugin';
+export type NotificationKind = 'mention' | 'comment' | 'reply' | 'group_added' | 'cockpit' | 'process' | 'plugin';
 
 /**
  * Something that happened for the user: a mention in a note, a comment on their note, a reply in a thread, or
