@@ -4,6 +4,9 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Guided processes (part of the cockpit) under `/processes`: a model describes a development process as stages with steps (checkbox, reference to a page made elsewhere, live check through a cockpit query, branch and merge request in every repository), decisions between ways, stages that apply only after an earlier decision (`when`), ways back and sub-workflows whose end picks the way on. A run starts with the target branch and the affected repositories and suggests the branch from the model's pattern (`feature/SHOP-412-voucher`), with links to create it and its merge requests in GitLab. The run keeps only references, decisions and finished steps; Jira, GitLab and Confluence are read live. A running run follows changes to its model (new steps marked `retro` must be caught up), a finished one keeps the model as it was. Two examples come with the cockpit: a waterfall development (requirement, concept, design, implementation, test, acceptance, release) that runs a bug fix as a sub-workflow when the test fails, and a bug fix (bug created, severity, fix, hotfix approval for critical bugs, acceptance).
+- New: The cockpit has a source for the branches of a repository (`gitlab.branches`).
+
 ## [2.30.0] – 2026-11-28
 
 - New: Plugin tables can show badges (colored labels in the state colors), monospaced columns, clickable rows with a selected row and a first column that stays in view while a wide table scrolls sideways. The example plugin shows the mood as a badge and opens an entry with a click on its row.

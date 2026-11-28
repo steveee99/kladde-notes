@@ -39,7 +39,7 @@ export function isDashboardPath(path: string): boolean {
 // ------------------------------------------------------------------ model
 
 export type CockpitProvider = 'gitlab' | 'jira';
-export type CockpitSourceKind = 'gitlab.mrs' | 'gitlab.jobs' | 'gitlab.compare' | 'gitlab.projects' | 'gitlab.groups' | 'jira.issues';
+export type CockpitSourceKind = 'gitlab.mrs' | 'gitlab.jobs' | 'gitlab.compare' | 'gitlab.projects' | 'gitlab.groups' | 'gitlab.branches' | 'jira.issues';
 export type CockpitValue = string | number | boolean | null | string[];
 export type CockpitParamValue = string | number | boolean | string[];
 
@@ -228,6 +228,16 @@ const GROUP_FIELDS: CockpitFieldDef[] = [
   { key: 'created', label: L('Erstellt', 'Created'), type: 'date' },
 ];
 
+const BRANCH_FIELDS: CockpitFieldDef[] = [
+  { key: 'name', label: L('Branch', 'Branch'), type: 'key' },
+  { key: 'default', label: L('Standard-Branch', 'Default branch'), type: 'bool' },
+  { key: 'protected', label: L('Geschützt', 'Protected'), type: 'bool' },
+  { key: 'merged', label: L('Gemergt', 'Merged'), type: 'bool' },
+  { key: 'commit', label: L('Letzter Commit', 'Last commit'), type: 'text' },
+  { key: 'author', label: L('Autor', 'Author'), type: 'person' },
+  { key: 'updated', label: L('Aktualisiert', 'Updated'), type: 'date' },
+];
+
 const COMMIT_FIELDS: CockpitFieldDef[] = [
   { key: 'sha', label: L('Commit', 'Commit'), type: 'key' },
   { key: 'title', label: L('Titel', 'Title'), type: 'text' },
@@ -402,6 +412,19 @@ export const COCKPIT_SOURCES: Record<CockpitSourceKind, CockpitSourceDef> = {
     ],
     fields: GROUP_FIELDS,
     defaultFields: ['name', 'path', 'description'],
+    titleField: 'name',
+  },
+  'gitlab.branches': {
+    kind: 'gitlab.branches',
+    provider: 'gitlab',
+    label: L('GitLab · Branches', 'GitLab · branches'),
+    description: L('Die Branches eines Repositorys', 'The branches of a repository'),
+    params: [
+      { key: 'project', label: L('Repository', 'Repository'), type: 'text', placeholder: 'gruppe/repo' },
+      { key: 'search', label: L('Name enthält', 'Name contains'), type: 'text', placeholder: 'release' },
+    ],
+    fields: BRANCH_FIELDS,
+    defaultFields: ['name', 'commit', 'author', 'updated'],
     titleField: 'name',
   },
   'jira.issues': {

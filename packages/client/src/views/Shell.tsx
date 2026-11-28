@@ -47,6 +47,7 @@ import {
   SavedSearch as SavedSearchIcon,
   Flame,
   Speed,
+  Route,
   ArrowUp,
   ArrowDown,
 } from '../lib/icons';
@@ -1337,6 +1338,7 @@ export function Sidebar({ me, onNavigate, isAdmin, headerAction, panel }: { me: 
               {features.calendarView.enabled && navRow('calendar', CalendarMonth, t('nav.calendar'), { to: '/calendar' })}
               {features.habits.enabled && navRow('habits', Flame, t('habits.title'), { to: '/habits' })}
               {features.cockpit.enabled && navRow('cockpit', Speed, t('cockpit.title'), { to: '/cockpit', active: path === '/cockpit' || path.startsWith('/cockpit/') })}
+              {features.cockpit.enabled && !vault.standalone && navRow('processes', Route, t('proc.title'), { to: '/processes', active: path === '/processes' || path.startsWith('/processes/') })}
               {!vault.standalone &&
                 !DEMO &&
                 navRow('notifications', Bell, t('notices.title'), { to: '/notifications', badge: <NavBadge count={vault.unreadNotifications} /> })}

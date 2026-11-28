@@ -27,6 +27,7 @@ import {
   FindReplace,
   Flame,
   Speed,
+  Route,
 } from '../lib/icons';
 import { t } from '../lib/i18n';
 import { navigate } from '../lib/router';
@@ -72,6 +73,7 @@ export function buildCommands(path: string): Command[] {
     ticketsAnywhere() && { id: 'go-projects', label: t('cmd.goProjects'), icon: i(<Kanban size={16} />), keywords: 'tickets milestones', run: () => navigate('/projects') },
     ...pluginCommands(),
     features.cockpit.enabled && { id: 'go-cockpit', label: t('cmd.goCockpit'), icon: i(<Speed size={16} />), keywords: 'cockpit dashboard gitlab jira merge request review ci pipeline', run: () => navigate('/cockpit') },
+    features.cockpit.enabled && { id: 'go-processes', label: t('cmd.goProcesses'), icon: i(<Route size={16} />), keywords: 'prozess process workflow wasserfall bugfix branch', run: () => navigate('/processes') },
     features.habits.enabled && { id: 'go-habits', label: t('cmd.goHabits'), icon: i(<Flame size={16} />), keywords: 'habit gewohnheit streak', run: () => navigate('/habits') },
     features.calendarView.enabled && { id: 'go-calendar', label: t('cmd.goCalendar'), icon: i(<CalendarMonth size={16} />), run: () => navigate('/calendar') },
     { id: 'go-inbox', label: t('cmd.goInbox'), icon: i(<InboxIcon size={16} />), keywords: 'eingang', run: () => navigate('/inbox') },

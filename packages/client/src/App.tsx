@@ -51,6 +51,7 @@ const NoteTypesView = lazy(() => import('./views/NoteTypesView').then((m) => ({ 
 const TemplatesView = lazy(() => import('./views/Templates').then((m) => ({ default: m.TemplatesView })));
 const ImportSettingsView = lazy(() => import('./views/ImportSettings').then((m) => ({ default: m.ImportSettingsView })));
 const HabitsView = lazy(() => import('./views/HabitsView').then((m) => ({ default: m.HabitsView })));
+const ProcessesView = lazy(() => import('./views/ProcessesView').then((m) => ({ default: m.ProcessesView })));
 const CockpitView = lazy(() => import('./views/CockpitView').then((m) => ({ default: m.CockpitView })));
 const CockpitBlock = lazy(() => import('./views/CockpitBlock').then((m) => ({ default: m.CockpitBlock })));
 const CockpitBlockEditor = lazy(() => import('./views/CockpitBlock').then((m) => ({ default: m.CockpitBlockEditor })));
@@ -309,6 +310,7 @@ export function App() {
   else if (path === '/calendar') page = <CalendarView />;
   else if (path === '/habits') page = <HabitsView />;
   else if (path === '/cockpit' || path.startsWith('/cockpit/')) page = <CockpitView id={match(path, '/cockpit/:id')?.id} />;
+  else if (path === '/processes' || path.startsWith('/processes/')) page = <ProcessesView path={path} />;
   else if (path.startsWith('/p/')) page = <PluginRoute path={path} />;
   else if (path === '/notifications' && !me.standalone) page = <NotificationsView />;
   else if (path === '/activity' && !me.standalone) {

@@ -153,6 +153,40 @@ export async function gitlabMergeRequests(a: GitlabAccess, p: Params): Promise<C
   });
 }
 
+/** The branches of one repository (GitLab's own search on the name, at most 100) */
+export async function gitlabBranches(a: GitlabAccess, p: Params): Promise<CockpitRow[]> {
+  const origin = new URL(a.host.url).origin;
+  const project = me(param(p, 'project'), a.connection.username);
+  if (!project) throw new CockpitError('invalid', 'project');
+  if (!isPath(project)) throw new CockpitError('invalid', 'path');
+  const q = new URLSearchParams({ per_page: '100' });
+  const search = me(param(p, 'search'), a.connection.username);
+  if (search) q.set('search', search.slice(0, 200));
+  const data = await gitlabGet(a, `/projects/${enc(project)}/repository/branches?${q.toString().replace(/\+/g, '%20')}`);
+  if (!Array.isArray(data)) throw new CockpitError('unreachable');
+  return data.slice(0, 100).flatMap((raw): CockpitRow[] => {
+    const b = obj(raw);
+    const name = text(b?.name, 250);
+    if (!b || !name) return [];
+    const commit = obj(b.commit);
+    return [
+      {
+        id: `branch:${project}:${name}`,
+        url: pageUrl(b.web_url, origin),
+        values: {
+          name,
+          default: b.default === true,
+          protected: b.protected === true,
+          merged: b.merged === true,
+          commit: text(commit?.title),
+          author: text(commit?.author_name, 100),
+          updated: time(commit?.committed_date ?? commit?.created_at),
+        },
+      },
+    ];
+  });
+}
+
 /** A path's parent (`team/backend/api` → `team/backend`), null at the top */
 const parentPath = (path: string | null): string | null => (path && path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : null);
 
