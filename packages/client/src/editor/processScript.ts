@@ -92,12 +92,44 @@ const RECIPIENTS = [
   { label: 'all', de: 'alle, die den Lauf sehen', en: 'everyone who sees the run' },
 ];
 
-/** The call and the argument the cursor is in, when it is inside a string argument */
-function stringArgument(before: string): { fn: string; arg: number; typed: string } | null {
-  const m = /([A-Za-z]+)\(((?:\s*(?:"[^"\\]*(?:\\.[^"\\]*)*"|'[^'\\]*(?:\\.[^'\\]*)*'|[^,"'()]+)\s*,)*)\s*["']([^"']*)$/.exec(before);
-  if (!m) return null;
-  const done = m[2].trim() ? m[2].split(',').length - 1 : 0;
-  return { fn: m[1], arg: done, typed: m[3] };
+const isWordChar = (c: string): boolean => /[A-Za-z0-9_.]/.test(c);
+
+/**
+ * The call and the argument the cursor is in, when it is inside a string argument. One pass over the line (no regular
+ * expression that could backtrack): calls are kept on a stack, commas count the arguments of the innermost one.
+ */
+export function stringArgument(before: string): { fn: string; arg: number; typed: string } | null {
+  const calls: { fn: string; arg: number }[] = [];
+  let quote = '';
+  let strStart = 0;
+  let word = '';
+  for (let i = 0; i < before.length; i++) {
+    const c = before[i];
+    if (quote) {
+      if (c === '\\') i++;
+      else if (c === quote) quote = '';
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      strStart = i + 1;
+      word = '';
+    } else if (c === '#') return null;
+    else if (c === '(') {
+      calls.push({ fn: word, arg: 0 });
+      word = '';
+    } else if (c === ')') {
+      calls.pop();
+      word = '';
+    } else if (c === ',') {
+      if (calls.length) calls[calls.length - 1].arg++;
+      word = '';
+    } else if (isWordChar(c)) word += c;
+    else if (c !== ' ' && c !== '\t') word = '';
+  }
+  const top = calls[calls.length - 1];
+  if (!quote || !top || !/^[A-Za-z]+$/.test(top.fn)) return null;
+  return { fn: top.fn, arg: top.arg, typed: before.slice(strStart) };
 }
 
 export function scriptCompletion(hints: () => ScriptHints) {

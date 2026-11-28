@@ -61,3 +61,24 @@ describe('script editor highlighting', () => {
     }
   });
 });
+
+describe('script editor: the argument under the cursor', () => {
+  it('finds the call and the argument, also inside nested calls and with commas in strings', async () => {
+    const { stringArgument } = await import('../src/editor/processScript');
+    expect(stringArgument('notify("al')).toEqual({ fn: 'notify', arg: 0, typed: 'al' });
+    expect(stringArgument('notify("a, b", "Te')).toEqual({ fn: 'notify', arg: 1, typed: 'Te' });
+    expect(stringArgument('set("x", note("Pfad", "Te')).toEqual({ fn: 'note', arg: 1, typed: 'Te' });
+    expect(stringArgument('if done == "x": log("esc \\" q')).toEqual({ fn: 'log', arg: 0, typed: 'esc \\" q' });
+    expect(stringArgument('log("x") # notify("')).toBeNull();
+    expect(stringArgument('x = "frei')).toBeNull();
+  });
+
+  it('stays linear on lines that made the old expression backtrack', async () => {
+    const { stringArgument } = await import('../src/editor/processScript');
+    const evil = `A(${'! ,'.repeat(50_000)}`;
+    const start = performance.now();
+    expect(stringArgument(evil)).toBeNull();
+    expect(stringArgument(`${evil}"x`)).toEqual({ fn: 'A', arg: 50_000, typed: 'x' });
+    expect(performance.now() - start).toBeLessThan(500);
+  });
+});
