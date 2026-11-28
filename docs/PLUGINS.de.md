@@ -141,7 +141,8 @@ export default defineServerPlugin({
 | `migrations` | beim Start, vor allen Requests ([Details](#eigene-tabellen-und-migrationen)) |
 | `start(ctx)` | einmal nach den Migrationen |
 | `routes(router, ctx)` | Express-Router unter `/api/p/<id>/…`. Davor stehen Anmeldung (Cookie-Sitzung) und die Prüfung, ob der Nutzer das Plugin eingeschaltet hat. JSON-Bodies bis 256 KB sind schon geparst. |
-| `publicRoutes(router, ctx)` | unter `/api/p/<id>/public/…` ohne Anmeldung, z. B. für Webhooks. Geheimnisse selbst prüfen! |
+| `publicRoutes(router, ctx)` | unter `/api/p/<id>/public/…` ohne Anmeldung, z. B. für Webhooks von Anbietern, die Kladde nicht kennt. Geheimnisse selbst prüfen! |
+| `events` | Git-Ereignisse der zentralen Webhooks (GitLab/GitHub), ein Handler pro Typ ([Details](#git-ereignisse)) · ab 1.4 |
 | `onNoteChange(event, ctx)` | nach jeder angenommenen Notizänderung (nicht für Systemnotizen). Läuft synchron im Sync-Pfad, also kurz halten. |
 | `jobs` | im Hintergrund alle `everyMinutes` Minuten, nie doppelt gleichzeitig |
 | `exportAccount(userId, ctx)` | Dateien im Account-Export unter `.plugins/<id>/…` |
@@ -397,6 +398,36 @@ export function PruefPanel({ note, canEdit }: PluginInspectorProps) {
 - `when` und `count` laufen bei jedem Rendern der Notiz: kurz halten. Ein Fehler darin blendet den Tab aus und wird geloggt; ein Fehler in der Komponente zeigt die Fehlerbox des Plugins im Panel.
 - Auf Telefonen und Tablets ist der Inspector ein Sheet; der Tab ist derselbe.
 
+## Git-Ereignisse
+
+Seit Plugin-API 1.4 braucht ein Plugin keinen eigenen Webhook für GitLab oder GitHub: Benutzer (oder Eigentümer
+einer Gruppe) legen unter *Einstellungen → Webhooks* einen zentralen Webhook pro Projekt oder Gruppe an, und Kladde
+gibt seine Ereignisse an jedes Plugin weiter, das sie abonniert. Alle Typen, Felder und Regeln stehen in
+[EVENTS.de.md](EVENTS.de.md).
+
+```ts
+export default defineServerPlugin({
+  id: 'enhancements',
+  events: {
+    'git.merge_request': (event, ctx) => {
+      if (event.action === 'merged') for (const userId of event.users) ctx.notify(userId, { title: `Gemergt: ${event.mergeRequest.title}` });
+    },
+    'git.pipeline': (event, ctx) => { /* Badges nach event.pipeline.status aktualisieren */ },
+  },
+  rawPayload: [], // Typen, deren Ereignisse zusätzlich das JSON des Anbieters als `event.raw` tragen
+});
+```
+
+- Typen: `git.merge_request`, `git.push`, `git.tag`, `git.pipeline`, `git.job`, `git.comment`, `git.issue`,
+  `git.release`, `git.deployment`, `git.wiki` (`GIT_EVENT_TYPES`; Ereignistypen `GitEventOf<'git.push'>` usw.).
+- Nur für Personen, die das Plugin eingeschaltet haben: `event.users` (der Eigentümer des Webhooks oder die
+  Mitglieder der Gruppe) ist nie leer; `event.owner` sagt, wessen Webhook es war. Secrets und Webhook-Ids erreichen
+  Plugins nie.
+- Die Handler eines Plugins laufen nacheinander, Fehler werden geloggt und erreichen andere Plugins nie. Eine
+  Zustellung kommt pro Webhook höchstens einmal (`event.id`), dieselbe Änderung aber eventuell über zwei Webhooks:
+  Handler idempotent halten.
+- Unbekannte Typen in `events`/`rawPayload` stoppen den Start.
+
 ## Eigene Tabellen und Migrationen
 
 - **Namen:** Tabellen, Indizes, Trigger und Views heißen `p_<id>_…`, Bindestriche der ID werden zu `_` (`zeit-buchung` ergibt `p_zeit_buchung_…`). `ctx.table('x')` baut den Namen.
@@ -630,3 +661,4 @@ Bewusst offen gelassen und später ergänzbar (als Minor-Versionen der Plugin-AP
 - Offline-Sync von Plugin-Tabellen (heute: offline über Notizen)
 - Einschalten pro Gruppe statt pro Nutzer
 - die Standalone-Desktop-App (baut ohne Plugins)
+- Git-Ereignisse aus anderen Quellen als GitLab/GitHub oder von Typen, die Kladde noch nicht übersetzt ([EVENTS.de.md](EVENTS.de.md#noch-nicht-übersetzt))

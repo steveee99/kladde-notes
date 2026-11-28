@@ -307,6 +307,11 @@ export class NoteStore {
     return found;
   }
 
+  /** Ids of the database notes that make the owner's ticket projects */
+  projectIdsOf(ownerId: string): string[] {
+    return [...this.projectsOf(ownerId).values()].map((p) => p.id);
+  }
+
   /** The project of a database note (live), with its folder and owner */
   projectOf(noteId: string): { ownerId: string; folder: string; config: ProjectConfig } | null {
     const row = ID_PATTERN.test(noteId) ? this.getRow(noteId) : undefined;

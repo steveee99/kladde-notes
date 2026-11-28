@@ -141,7 +141,8 @@ export default defineServerPlugin({
 | `migrations` | at start, before any request ([details](#own-tables-and-migrations)) |
 | `start(ctx)` | once after the migrations |
 | `routes(router, ctx)` | Express router under `/api/p/<id>/…`; sign-in (cookie session) and "switched on" are checked before; JSON bodies up to 256 KB are parsed |
-| `publicRoutes(router, ctx)` | under `/api/p/<id>/public/…` without an account (webhooks); check secrets yourself |
+| `publicRoutes(router, ctx)` | under `/api/p/<id>/public/…` without an account (webhooks of providers Kladde does not know); check secrets yourself |
+| `events` | git events of Kladde's central webhooks (GitLab/GitHub), one handler per type ([details](#git-events)) · since 1.4 |
 | `onNoteChange(event, ctx)` | after every accepted note change (not for system notes); synchronous on the sync path: keep it short |
 | `jobs` | in the background every `everyMinutes`, never twice at the same time |
 | `exportAccount(userId, ctx)` | files in the account export under `.plugins/<id>/…` |
@@ -397,6 +398,33 @@ export function ValidationPanel({ note, canEdit }: PluginInspectorProps) {
 - `when` and `count` run on every render of the note: keep them quick. An error in them hides the tab and is logged; an error in the component shows the plugin's error box inside the panel.
 - On phones and tablets the inspector is a sheet; the tab is the same.
 
+## Git events
+
+Since plugin API 1.4 a plugin does not need its own webhook for GitLab or GitHub: users (or group owners) create one
+central webhook per project or group under *Settings → Webhooks*, and Kladde hands its events to every plugin that
+subscribes. All types, fields and rules are in [EVENTS.md](EVENTS.md).
+
+```ts
+export default defineServerPlugin({
+  id: 'enhancements',
+  events: {
+    'git.merge_request': (event, ctx) => {
+      if (event.action === 'merged') for (const userId of event.users) ctx.notify(userId, { title: `Merged: ${event.mergeRequest.title}` });
+    },
+    'git.pipeline': (event, ctx) => { /* update badges by event.pipeline.status */ },
+  },
+  rawPayload: [], // types whose events also carry the provider's JSON as `event.raw`
+});
+```
+
+- Types: `git.merge_request`, `git.push`, `git.tag`, `git.pipeline`, `git.job`, `git.comment`, `git.issue`,
+  `git.release`, `git.deployment`, `git.wiki` (`GIT_EVENT_TYPES`; event types `GitEventOf<'git.push'>` etc.).
+- Only for people who switched the plugin on: `event.users` (the webhook's owner, or the group's members) is never
+  empty; `event.owner` says whose webhook it was. Secrets and webhook ids never reach plugins.
+- One plugin's handlers run one after another, errors are logged and never reach other plugins. A delivery comes at
+  most once per webhook (`event.id`), but the same change can come through two webhooks: keep handlers idempotent.
+- Unknown types in `events`/`rawPayload` stop the start.
+
 ## Own tables and migrations
 
 - **Names:** tables, indexes, triggers and views are called `p_<id>_…` (dashes of the id become `_`: `time-booking` → `p_time_booking_…`); `ctx.table('x')` builds the name.
@@ -630,3 +658,4 @@ Left open on purpose, to be added as minor versions of the plugin API:
 - offline sync of plugin tables (today: offline through notes)
 - switching plugins on per group instead of per user
 - the standalone desktop app (builds without plugins)
+- git events from other sources than GitLab/GitHub, or of types Kladde does not normalise yet ([EVENTS.md](EVENTS.md#not-yet-normalised))

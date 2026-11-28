@@ -10,6 +10,7 @@ import { createKladdeApp } from '../src/app';
 import { openDatabase } from '../src/db';
 import { runCli } from '../src/cliActions';
 import { handleMessage } from '../src/mcp/protocol';
+import { normalizeDelivery } from '../src/events/normalize';
 import { migratePlugins, PluginMigrationError, pluginSchemaVersions, purgePluginData } from '../src/plugins/migrations';
 import type { InstalledServerPlugin } from '../src/plugins/types';
 import logbook from '../../../examples/kladde-plugin-logbook/src/server';
@@ -129,8 +130,8 @@ describe('the example plugin in a running Kladde', () => {
   afterAll(() => server.close());
 
   it('migrated its tables', () => {
-    expect(pluginSchemaVersions(db).get('logbook')).toBe(2);
-    expect(ctx.plugins.status()).toEqual([{ id: 'logbook', name: 'kladde-plugin-logbook', version: '0.1.0', api: '^1.0.0', schema: 2 }]);
+    expect(pluginSchemaVersions(db).get('logbook')).toBe(3);
+    expect(ctx.plugins.status()).toEqual([{ id: 'logbook', name: 'kladde-plugin-logbook', version: '0.1.0', api: '^1.0.0', schema: 3 }]);
   });
 
   it('answers only signed-in users who switched it on', async () => {
@@ -141,7 +142,7 @@ describe('the example plugin in a running Kladde', () => {
     switchOn(anna.id, true);
     expect((await call('GET', '/api/p/logbook/entries')).status).toBe(200);
     expect((await call('GET', '/api/plugins')).status).toBe(200);
-    expect(await (await call('GET', '/api/plugins')).json()).toEqual([expect.objectContaining({ id: 'logbook', enabled: true, schema: 2 })]);
+    expect(await (await call('GET', '/api/plugins')).json()).toEqual([expect.objectContaining({ id: 'logbook', enabled: true, schema: 3 })]);
   });
 
   it('stores entries encrypted and per account', async () => {
@@ -257,6 +258,29 @@ describe('the example plugin in a running Kladde', () => {
     expect(ctx.notifications.list(anna.id).items[0]).toMatchObject({ noteId: annaNote.id, href: `/n/${annaNote.id}` });
   });
 
+  it('writes an entry for a merged merge request, once per delivery', async () => {
+    const event = normalizeDelivery(
+      'gitlab',
+      { 'x-gitlab-event': 'Merge Request Hook', 'x-gitlab-event-uuid': 'merge-0001-uuid' },
+      { project: { path_with_namespace: 'team/app' }, object_attributes: { action: 'merge', iid: 12, title: 'Login' } },
+      Buffer.from('{}')
+    )!;
+    const message = { event, owner: { kind: 'user' as const, id: anna.id, name: 'anna' }, source: { id: 'source-x', createdBy: anna.id } };
+    await ctx.events.publish(message);
+    await ctx.events.publish(message);
+    const entries = (await (await call('GET', '/api/p/logbook/entries')).json()) as { text: string }[];
+    expect(entries.filter((e) => e.text === 'Gemergt in team/app: !12 Login')).toHaveLength(1);
+    // Ben has the logbook on but the webhook is Anna's
+    expect(((await (await call('GET', '/api/p/logbook/entries', undefined, benCookie)).json()) as { text: string }[]).some((e) => e.text.startsWith('Gemergt'))).toBe(false);
+  });
+
+  it('stops the start on an unknown event type', () => {
+    const bad = defineServerPlugin({ id: 'badevents', events: { 'git.nope': () => {} } as never });
+    expect(() =>
+      createKladdeApp({ db: openDatabase(':memory:'), dataDir: tempDir(), env: { DATA_KEY: crypto.randomBytes(32).toString('base64') }, standalone: false, isProduction: false, publicUrl: null, trustProxy: false, plugins: [entry(bad)] })
+    ).toThrow(/unknown event type "git.nope"/);
+  });
+
   it('keeps the data of a removed plugin until it is purged', async () => {
     const lines = (await runCli(['plugins'], { db, users: ctx.users, notes: ctx.notes, files: ctx.files, plugins: [] })).lines.join('\n');
     expect(lines).toContain('logbook  not installed');
@@ -265,7 +289,7 @@ describe('the example plugin in a running Kladde', () => {
     // Purging drops exactly the plugin's tables, nothing with a similar name
     db.exec('CREATE TABLE p_logbookx_keep (id TEXT)');
     const purged = await runCli(['plugins', 'purge', 'logbook', '--yes'], { db, users: ctx.users, notes: ctx.notes, files: ctx.files, plugins: [] });
-    expect((purged.data as { dropped: string[] }).dropped.sort()).toEqual(['p_logbook_entries', 'p_logbook_stats']);
+    expect((purged.data as { dropped: string[] }).dropped.sort()).toEqual(['p_logbook_entries', 'p_logbook_events', 'p_logbook_stats']);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'p_logbookx_keep'").get()).toBeDefined();
     expect(pluginSchemaVersions(db).has('logbook')).toBe(false);
     expect(() => purgePluginData(db, 'x%\\')).toThrow(/Invalid plugin id/);

@@ -55,6 +55,12 @@ export class GroupStore {
     return role;
   }
 
+  /** The group's name, or null when the id is no group */
+  groupName(groupId: string): string | null {
+    const row = this.db.prepare('SELECT username FROM users WHERE id = ? AND is_group = 1').get(groupId) as { username: string } | undefined;
+    return row?.username ?? null;
+  }
+
   private nameOf(groupId: string): string {
     return (this.db.prepare('SELECT username FROM users WHERE id = ? AND is_group = 1').get(groupId) as { username: string }).username;
   }

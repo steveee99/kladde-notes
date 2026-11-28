@@ -1,8 +1,10 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { NextFunction, Request, RequestHandler, Response, Router } from 'express';
 import type { Localized } from './index.js';
+import type { GitEventOf, GitEventType } from './events.js';
 
 export { PluginError, localize, pluginTablePrefix, type Localized, type PluginLang } from './index.js';
+export * from './events.js';
 
 /** An account as plugins see it */
 export interface PluginUser {
@@ -201,9 +203,20 @@ export interface ServerPlugin {
   exportAccount?(userId: string, ctx: PluginServerContext): PluginExportFile[] | Promise<PluginExportFile[]>;
   /** Tools for AI assistants on `/mcp` (since plugin API 1.1) */
   mcpTools?: PluginMcpTool[];
+  /**
+   * Git events of Kladde's central webhooks (since plugin API 1.4, docs/EVENTS.md), one handler per type. A plugin
+   * gets an event only when its owner (the account, or members of the group) switched the plugin on; `event.users`
+   * names them. Handlers of one plugin run one after another, errors are logged and never reach other plugins.
+   */
+  events?: GitEventHandlers;
+  /** Types whose events carry the provider's JSON as `raw` (only when really needed; it can be large) */
+  rawPayload?: GitEventType[];
   /** Called once after the migrations, before the first request */
   start?(ctx: PluginServerContext): void;
 }
+
+/** Handlers of `ServerPlugin.events` */
+export type GitEventHandlers = { [T in GitEventType]?: (event: GitEventOf<T>, ctx: PluginServerContext) => void | Promise<void> };
 
 /** Declares a server plugin (only types the object; the host does the rest) */
 export function defineServerPlugin(plugin: ServerPlugin): ServerPlugin {
