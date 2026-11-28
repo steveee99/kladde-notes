@@ -184,6 +184,7 @@ export default defineClientPlugin({
   nav: [{ label: { de: 'Zeiten', en: 'Time' }, bottomBar: true }],
   commands: [{ id: 'buchen', label: { de: 'Zeit buchen', en: 'Book time' }, path: '/neu' }],
   blocks: [{ lang: 'zeit', label: { de: 'Zeitübersicht', en: 'Time overview' }, template: 'woche: aktuell', component: ZeitBlock }],
+  inspector: [{ id: 'buchungen', label: { de: 'Zeiten', en: 'Time' }, types: ['plugin:zeiterfassung:projekt'], component: ProjektZeiten }],
   settings: Einstellungen,
 });
 ```
@@ -211,7 +212,8 @@ export function Uebersicht() {
 ```
 
 - **Design:** Kladdes Klassen funktionieren direkt (`.btn-primary`, `.btn-tonal`, `.btn-text`, `.input`, `.card`, `.chip`, `.segmented`, Farben wie `bg-panel`, `text-muted`, `border-line`, `text-acc`, Schriftgrößen wie `text-body-m`, `text-caption`). Regeln siehe [`docs/DESIGN.md`](DESIGN.md): höchstens ein gefüllter Akzent-Button pro Seite, Linien statt Schatten, Dialoge mit `role="dialog"`. Tailwind erzeugt die Klassen, die eure gebauten Dateien verwenden.
-- **Tabellen:** `host.ui.Table` ist die Tabelle aus den Notizen, schreibgeschützt oder bearbeitbar ([Details](#tabellen)).
+- **Tabellen:** `host.ui.Table` ist die Tabelle aus den Notizen, schreibgeschützt oder bearbeitbar, mit Badges und Zeilenklicks ([Details](#tabellen)).
+- **Inspector:** eigene Tabs neben einer Notiz ([Details](#tabs-im-inspector)).
 - **Icons:** eine Komponente, die ein SVG in `currentColor` zeichnet. Material Symbols Rounded mit Gewicht 300 passen am besten.
 - **Notizen auf dem Gerät:** `host.notes` arbeitet offline wie die App: Änderungen werden lokal gespeichert und synchronisiert. Im Online-Modus fehlen bei manchen Notizen die Texte (`partial`); `host.notes.load(id)` lädt sie nach.
 - **Plugin-Daten aus eigenen Tabellen** kommen über `host.api` vom Server und sind damit nur online verfügbar. Was offline gebraucht wird, gehört in Notizen.
@@ -339,6 +341,61 @@ const { Table } = host.ui;
 Um eine Tabelle in einer Notiz oder im Text eines Blocks zu speichern, bietet `@kladde/plugin-api` `parseMarkdownTable(text)` (die erste GFM-Tabelle: `headers`, `align`, `rows`) und `formatMarkdownTable({ headers, align?, rows })` (aufgefüllte Spalten, maskierte Pipes). Beide lesen und schreiben Tabellen so wie Kladde. Ohne das Plugin zeigt so ein Block trotzdem eine lesbare Tabelle als Code.
 
 Das Beispiel-Plugin zeigt beide Modi: Seine Seite zeigt die Einträge in einer Tabelle mit Schalter „Bearbeiten“, und ein ```` ```logbook ````-Block mit `edit: yes` bearbeitet Einträge direkt in der Notiz.
+
+### Badges, Zeilenklicks und breite Tabellen
+
+Ab Plugin-API **1.3** (`"@kladde/plugin-api": "^1.3.0"`):
+
+```tsx
+<Table
+  columns={[
+    { key: 'id', label: 'ID', mono: true },                                   // Festbreitenschrift (IDs, Pfade, Hashes)
+    { key: 'validation', label: 'Validierung',
+      badge: (v) => v === 'failed' ? { text: '2 Fehler', tone: 'red', title: 'Letzter Lauf 14:12' }
+                 : v === 'ok' ? { text: 'gültig', tone: 'green' } : null },    // null → der Text der Zelle
+    …
+  ]}
+  rows={rows}
+  rowKey="id"
+  onRowClick={(id) => setOpen(id)}       // Klick oder Enter auf eine Zeile
+  selected={open}                        // als ausgewählte Zeile hervorgehoben
+  stickyFirstColumn                      // die erste Spalte bleibt sichtbar, während die Tabelle seitlich scrollt
+/>
+```
+
+- **Badges:** `badge(value, row)` gibt `{ text, tone?, title? }` zurück; Töne sind `neutral` (Standard), `accent`, `green`, `amber`, `red` und `violet`, Kladdes Zustandsfarben in jedem Farbschema. Der Text wird als Text gesetzt, nie als HTML. Filtern und Sortieren von Textspalten nutzen den Text des Badges; der Zelleditor enthält weiter den Rohwert.
+- **Zeilenklicks:** Mit `onRowClick` lassen sich Zeilen fokussieren, und ein Klick (außerhalb von Links und Knöpfen) oder Enter ruft es auf. In einer bearbeitbaren Tabelle bearbeitet ein Klick in eine bearbeitbare Zelle weiterhin die Zelle; gesperrte Zellen zählen als Zeilenklick.
+- **Ausgewählte Zeile:** `selected` nimmt eine Zeilen-Id; die Zeile wird hervorgehoben und mit `aria-current` markiert. Sortierung und Filter bleiben beim Wechsel erhalten.
+
+## Tabs im Inspector
+
+Ab Plugin-API **1.3**. `inspector` fügt dem Inspector neben einer Notiz (der Seitenleiste mit Gliederung, Aufgaben, Links, Graph und Kommentaren) Tabs hinzu, für die Notizen, die das Plugin auswählt:
+
+```tsx
+inspector: [
+  {
+    id: 'validation',                                  // a–z, 0–9, -; der Tab wird als plugin:<id>:validation gemerkt
+    label: { de: 'Prüfung', en: 'Checks' },            // kurz: Tabs sind schmal
+    types: ['plugin:enhancements:item'],               // Notiztypen (`type` im Frontmatter) …
+    when: (note) => note.access !== 'read',            // … und/oder eine Bedingung; ohne beides: jede Notiz
+    count: (note) => offeneBefunde(note),              // optionale Zahl neben dem Symbol
+    component: PruefPanel,
+  },
+],
+```
+
+```tsx
+export function PruefPanel({ note, canEdit }: PluginInspectorProps) {
+  const host = useKladde();             // derselbe Host wie auf Seiten
+  // note: die offene Notiz mit Text (id, path, title, content, type, access …); rendert neu, wenn sie sich ändert
+  return <div className="flex flex-col gap-3 px-2">…</div>;
+}
+```
+
+- Der Tab erscheint nur für vollständig geladene Notizen (eine offene Notiz ist es immer) und solange das Plugin an ist; ausgeschaltet fällt ein gemerkter Plugin-Tab auf die Gliederung zurück.
+- `canEdit` ist bei schreibgeschützten Notizen falsch (Freigaben, Leser einer Gruppe, veröffentlichte Versionen); Notizen ändert das Plugin über `host.notes`.
+- `when` und `count` laufen bei jedem Rendern der Notiz: kurz halten. Ein Fehler darin blendet den Tab aus und wird geloggt; ein Fehler in der Komponente zeigt die Fehlerbox des Plugins im Panel.
+- Auf Telefonen und Tablets ist der Inspector ein Sheet; der Tab ist derselbe.
 
 ## Eigene Tabellen und Migrationen
 
@@ -570,7 +627,6 @@ Für alle, die an Kladde arbeiten. So bleiben Releases für Plugins sicher:
 
 Bewusst offen gelassen und später ergänzbar (als Minor-Versionen der Plugin-API):
 
-- Panels im Inspector einer Notiz
 - Offline-Sync von Plugin-Tabellen (heute: offline über Notizen)
 - Einschalten pro Gruppe statt pro Nutzer
 - die Standalone-Desktop-App (baut ohne Plugins)

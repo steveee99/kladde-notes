@@ -4,6 +4,13 @@ All user-visible changes to Kladde.
 
 ## [Unreleased]
 
+- New: Plugin tables can show badges (colored labels in the state colors), monospaced columns, clickable rows with a selected row and a first column that stays in view while a wide table scrolls sideways. The example plugin shows the mood as a badge and opens an entry with a click on its row.
+- New: Plugins can add tabs to the inspector next to a note, for the note types they choose (e.g. `plugin:time:project`), with an optional count next to the icon. The example plugin shows a "Logbook" tab next to logbook notes with the mood and the other logbook notes.
+
+### Plugin API
+
+- 1.3.0: inspector tabs (`ClientPlugin.inspector` with `PluginInspectorPanel`/`PluginInspectorProps`) and for `ui.Table` badges (`PluginTableColumn.badge` with `PluginTableBadge`/`PluginTone`), `mono`, `onRowClick`, `selected` and `stickyFirstColumn`. Additions only: plugins written for 1.0 to 1.2 keep working.
+
 ## [2.29.0] – 2026-11-27
 
 - New: Plugins can show their data in Kladde's own table (`host.ui.Table`): the look of note tables with sorting, filter and row count, read-only or editable cell by cell, with optional "+ row" and delete buttons; the plugin decides which columns can be edited and saves the changes itself. The example plugin's page shows its entries in such a table with an "Edit" switch, and a ```` ```logbook ```` block with `edit: yes` edits them right in the note.

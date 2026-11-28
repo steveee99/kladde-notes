@@ -79,6 +79,34 @@ export interface PluginBlock {
   height?: number;
 }
 
+/** What an inspector panel gets: the open note (with its text) and whether the user may change it */
+export interface PluginInspectorProps {
+  note: PluginClientNote;
+  /** False for read-only notes (shares, group readers, published releases) */
+  canEdit: boolean;
+}
+
+/**
+ * A tab in the inspector next to a note (the side panel with outline, tasks, links …). It shows for the notes that
+ * `types` and/or `when` pick and renders `component` with the open note; the component re-renders when the note
+ * changes. Since plugin API 1.3.
+ */
+export interface PluginInspectorPanel {
+  /** Unique within the plugin, `a–z`, `0–9`, `-` */
+  id: string;
+  /** The tab's label (short: tabs are narrow) */
+  label: Localized;
+  /** Default: the plugin's icon */
+  icon?: PluginIcon;
+  /** Note types (`type` in the frontmatter) it shows for, e.g. `plugin:time:project` */
+  types?: string[];
+  /** Further condition; with `types` both must hold. Without both the panel shows for every note */
+  when?(note: PluginClientNote): boolean;
+  /** A number next to the tab's icon (e.g. open findings); nothing for 0 or undefined */
+  count?(note: PluginClientNote): number | undefined;
+  component: ComponentType<PluginInspectorProps>;
+}
+
 export interface ClientPlugin {
   /** The same id as `kladde.id` in package.json */
   id: string;
@@ -95,6 +123,8 @@ export interface ClientPlugin {
   commands?: PluginCommand[];
   /** Fenced blocks it renders in the editor (since plugin API 1.1) */
   blocks?: PluginBlock[];
+  /** Tabs in the inspector next to a note (since plugin API 1.3) */
+  inspector?: PluginInspectorPanel[];
   /** Contents of the settings tab of its card while it is on */
   settings?: ComponentType;
 }
@@ -146,6 +176,17 @@ export class PluginRequestError extends Error {
 /** A cell value of `ui.Table`; other values are shown as text */
 export type PluginTableValue = string | number | null | undefined;
 
+/** Colors of badges in `ui.Table` (Kladde's state colors; `neutral` is grey, `accent` the account's accent) */
+export type PluginTone = 'neutral' | 'accent' | 'green' | 'amber' | 'red' | 'violet';
+
+/** A small colored label in a table cell instead of its text. Since plugin API 1.3 */
+export interface PluginTableBadge {
+  text: string;
+  tone?: PluginTone;
+  /** Tooltip */
+  title?: string;
+}
+
 /** A column of `ui.Table` */
 export interface PluginTableColumn<Row> {
   /** Property of the row the column shows */
@@ -162,6 +203,13 @@ export interface PluginTableColumn<Row> {
   editable?: boolean;
   /** Own display text of a cell (inline Markdown, escaped); filtering uses it too */
   format?(value: unknown, row: Row): string;
+  /**
+   * Shows the cell as a badge (a colored label); `null`/`undefined` falls back to the text. Filtering and, for text
+   * columns, sorting use the badge's text; the cell editor still holds the raw value. Since plugin API 1.3.
+   */
+  badge?(value: unknown, row: Row): PluginTableBadge | null | undefined;
+  /** Monospaced cells (ids, paths, hashes). Since plugin API 1.3 */
+  mono?: boolean;
 }
 
 /**
@@ -169,7 +217,8 @@ export interface PluginTableColumn<Row> {
  * It is read-only unless `editable` is set together with `onCellChange`: then a click into a cell edits it (Enter,
  * Tab and Escape as in note tables), `onAddRow` adds the "+ row" button and `onRemoveRow` a delete button per row.
  * The columns stay as the plugin defines them. The plugin saves the change and passes the new `rows`; until then
- * the cell shows the typed text. A rejected promise shows its message and the old value again. Since plugin API 1.2.
+ * the cell shows the typed text. A rejected promise shows its message and the old value again. Since plugin API 1.2;
+ * badges, monospaced columns, row clicks, a selected row and a sticky first column since 1.3.
  */
 export interface PluginTableProps<Row> {
   columns: PluginTableColumn<Row>[];
@@ -189,6 +238,15 @@ export interface PluginTableProps<Row> {
   /** Adds a row; the host opens the first editable cell of the row that appears at the end */
   onAddRow?(): void | Promise<void>;
   onRemoveRow?(rowId: string, row: Row): void | Promise<void>;
+  /**
+   * A click on a row (outside links, buttons and cells being edited) or Enter on a focused row; rows become
+   * focusable. In an editable table a click into an editable cell still edits it. Since plugin API 1.3.
+   */
+  onRowClick?(rowId: string, row: Row): void;
+  /** Id of the row shown as selected (e.g. the one whose details are open). Since plugin API 1.3 */
+  selected?: string | null;
+  /** Keeps the first column in view while the table scrolls sideways (wide tables). Since plugin API 1.3 */
+  stickyFirstColumn?: boolean;
 }
 
 /** Components of the Werkbank design for plugin pages (classes like `.btn-primary`, `.card`, `.input` work too) */

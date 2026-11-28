@@ -1,7 +1,7 @@
 import { Component, Suspense, type ComponentType, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { extractMeta, parseFrontmatter, type FeatureSettings, type Me } from '@kladde/shared';
-import { KladdeHostContext, localize, PluginRequestError, type KladdeHost, type PluginBlock, type PluginClientNote, type PluginIconProps } from '@kladde/plugin-api/client';
+import { KladdeHostContext, localize, PluginRequestError, type KladdeHost, type PluginBlock, type PluginClientNote, type PluginIconProps, type PluginInspectorPanel } from '@kladde/plugin-api/client';
 import { api, ApiError } from '../lib/api';
 import { getLang, tl, type Lang } from '../lib/i18n';
 import type { Icon, IconProps } from '../lib/icons';
@@ -167,6 +167,72 @@ export function mountPluginBlock(el: HTMLElement, lang: string, props: { source:
   );
   // Not while React renders the editor's parent
   return () => setTimeout(() => root.unmount(), 0);
+}
+
+// ------------------------------------------------------------------ inspector panels
+
+/** A plugin's tab in a note's inspector, ready for `NoteInspectorPane` */
+export interface PluginInspectorTab {
+  /** `plugin:<plugin id>:<panel id>`, also the remembered tab */
+  key: `plugin:${string}`;
+  entry: InstalledClientPlugin;
+  panel: PluginInspectorPanel;
+  label: string;
+  Icon: Icon;
+  count?: number;
+  note: PluginClientNote;
+}
+
+const panelId = /^[a-z0-9-]{1,32}$/;
+
+/** Calls a plugin's function; an error counts as "no" and is logged once per call site */
+function guarded<T>(entry: InstalledClientPlugin, what: string, run: () => T, fallback: T): T {
+  try {
+    return run();
+  } catch (err) {
+    console.error(`Plugin ${entry.plugin.id} (${what}):`, err);
+    return fallback;
+  }
+}
+
+/** The inspector tabs of the plugins that are on, for an open (fully loaded) note */
+export function pluginInspectorTabs(note: LocalNote, lang: Lang = getLang(), features?: FeatureSettings): PluginInspectorTab[] {
+  if (note.partial || note.deleted) return [];
+  const plain = toNote(note);
+  const seen = new Set<string>();
+  return enabledPlugins(features).flatMap((entry) =>
+    (entry.plugin.inspector ?? []).flatMap((panel): PluginInspectorTab[] => {
+      const key = `plugin:${entry.plugin.id}:${panel.id}` as const;
+      if (!panelId.test(panel.id) || seen.has(key)) return [];
+      if (panel.types?.length && !(plain.type && panel.types.includes(plain.type))) return [];
+      if (panel.when && !guarded(entry, `inspector ${panel.id}`, () => panel.when!(plain) === true, false)) return [];
+      seen.add(key);
+      const count = panel.count ? guarded(entry, `inspector ${panel.id}`, () => panel.count!(plain), undefined) : undefined;
+      return [
+        {
+          key,
+          entry,
+          panel,
+          label: localize(panel.label, lang),
+          Icon: appIcon(panel.icon ?? entry.plugin.icon),
+          ...(typeof count === 'number' && Number.isFinite(count) && count > 0 ? { count: Math.floor(count) } : {}),
+          note: plain,
+        },
+      ];
+    })
+  );
+}
+
+/** Renders a plugin's inspector panel with its host and error boundary */
+export function PluginInspectorContent({ tab, canEdit }: { tab: PluginInspectorTab; canEdit: boolean }) {
+  const Panel = tab.panel.component;
+  return (
+    <WithPluginHost entry={tab.entry}>
+      <Suspense fallback={null}>
+        <Panel note={tab.note} canEdit={canEdit && tab.note.access !== 'read'} />
+      </Suspense>
+    </WithPluginHost>
+  );
 }
 
 // ------------------------------------------------------------------ host

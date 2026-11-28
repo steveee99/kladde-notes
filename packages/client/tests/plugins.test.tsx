@@ -8,7 +8,7 @@ import { KladdeHostContext, type KladdeHost } from '@kladde/plugin-api/client';
 import logbook from '../../../examples/kladde-plugin-logbook/src/client';
 import { LogbookPage } from '../../../examples/kladde-plugin-logbook/src/LogbookPage';
 import { LogbookBlock, parseBlock } from '../../../examples/kladde-plugin-logbook/src/LogbookBlock';
-import { allPlugins, isPluginEnabled, pluginBlockFor, pluginCommands, pluginHref, pluginNavItems, pluginSlashBlocks, resolvePluginPath, setInstalledPlugins } from '../src/plugins/registry';
+import { allPlugins, isPluginEnabled, pluginBlockFor, PluginInspectorContent, pluginInspectorTabs, pluginCommands, pluginHref, pluginNavItems, pluginSlashBlocks, resolvePluginPath, setInstalledPlugins } from '../src/plugins/registry';
 import { notificationUrl } from '../src/views/NotificationsPanel';
 import { PluginTable } from '../src/plugins/PluginTable';
 import type { NotificationItem } from '@kladde/shared';
@@ -68,6 +68,52 @@ describe('plugin registry', () => {
     expect(notificationUrl(n({ href: '/n/abc' }))).toBe('/n/abc');
     expect(notificationUrl(n({ href: 'https://evil.example' }))).toBe('/p/logbook');
     expect(notificationUrl(n({ href: '//evil.example' }))).toBe('/p/logbook');
+  });
+
+  it('offers inspector tabs for the notes their types and conditions pick (plugin API 1.3)', () => {
+    const note = (content: string, over: Record<string, unknown> = {}) =>
+      ({ id: 'n1', path: 'Logbuch/Heute.md', content, version: 1, updatedAt: 0, access: 'owner', ...over }) as unknown as Parameters<typeof pluginInspectorTabs>[0];
+    const entry = note('---\ntype: plugin:logbook:entry\nmood: good\n---\n# Heute\n');
+    setInstalledPlugins([installed()]);
+    expect(pluginInspectorTabs(entry, 'de')).toEqual([]);
+    setInstalledPlugins([installed({ defaultEnabled: true })]);
+    expect(pluginInspectorTabs(entry, 'en')).toEqual([expect.objectContaining({ key: 'plugin:logbook:entry', label: 'Logbook', note: expect.objectContaining({ type: 'plugin:logbook:entry' }) })]);
+    expect(pluginInspectorTabs(note('# Anderes\n'), 'de')).toEqual([]);
+    expect(pluginInspectorTabs({ ...entry, partial: true } as typeof entry, 'de')).toEqual([]);
+
+    // `when` and `count` from plugin code: errors count as "no", bad ids and duplicates are left out
+    const panel = logbook.inspector![0];
+    const custom = {
+      ...logbook,
+      inspector: [
+        { ...panel, id: 'all', types: undefined, count: () => 3 },
+        { ...panel, id: 'all' },
+        { ...panel, id: 'Bad Id', types: undefined },
+        { ...panel, id: 'boom', types: undefined, when: () => { throw new Error('boom'); } },
+        { ...panel, id: 'never', types: undefined, when: () => false },
+      ],
+    };
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    setInstalledPlugins([installed({ plugin: custom, defaultEnabled: true })]);
+    expect(pluginInspectorTabs(note('# Anderes\n'), 'de').map((t) => [t.key, t.count])).toEqual([['plugin:logbook:all', 3]]);
+    expect(error).toHaveBeenCalledTimes(1);
+    error.mockRestore();
+  });
+
+  it('renders an inspector panel with the open note', async () => {
+    setInstalledPlugins([installed({ defaultEnabled: true })]);
+    const content = '---\ntype: plugin:logbook:entry\nmood: bad\n---\n# Heute\n';
+    const [tab] = pluginInspectorTabs({ id: 'n1', path: 'Logbuch/Heute.md', content, version: 1, updatedAt: 0, access: 'read' } as unknown as Parameters<typeof pluginInspectorTabs>[0], 'de');
+    expect(tab.note.access).toBe('read');
+    const el = document.createElement('div');
+    const root = createRoot(el);
+    await act(async () => root.render(<PluginInspectorContent tab={tab} canEdit />));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(el.textContent).toContain('🙁 Schlecht');
+    expect(el.textContent).toContain('Logbuch öffnen');
+    act(() => root.unmount());
   });
 
   it('leaves out a plugin whose package id differs from its own', () => {

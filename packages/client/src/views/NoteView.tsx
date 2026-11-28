@@ -151,6 +151,7 @@ import { useComments } from '../data/comments';
 import { onCommentOpen, setCommentRanges } from '../editor/comments';
 import { CommentsPanel, showPassage } from './CommentsPanel';
 import { api } from '../lib/api';
+import { PluginInspectorContent, pluginInspectorTabs, type PluginInspectorTab } from '../plugins/registry';
 
 const IS_APPLE = /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -961,7 +962,10 @@ function NoteInspectorPane({
   onClose,
   comments: commentsTab,
   tickets = [],
+  plugins = [],
 }: {
+  /** Panels of the plugins that are on for this note (plugin API 1.3) */
+  plugins?: PluginInspectorTab[];
   /** Tickets that document their work in this note */
   tickets?: TicketInfo[];
   noteId: string;
@@ -989,9 +993,11 @@ function NoteInspectorPane({
     { id: 'links', label: t('note.tabLinks'), Icon: Link2, count: backlinks.length + mentions.length + tickets.length || undefined },
     { id: 'graph', label: t('note.tabGraph'), Icon: Network, count: local.nodes.length > 1 ? local.nodes.length - 1 : undefined },
     ...(commentsTab ? [{ id: 'comments' as const, label: t('comments.tab'), Icon: MessageSquare, count: commentsTab.count || undefined }] : []),
+    ...plugins.map((p) => ({ id: p.key, label: p.label, Icon: p.Icon, count: p.count })),
   ];
-  // Without comments a remembered comments tab falls back to the outline
-  const shown = tab === 'comments' && !commentsTab ? 'toc' : tab;
+  // Without comments (or the plugin's panel for this note) a remembered tab falls back to the outline
+  const pluginTab = plugins.find((p) => p.key === tab);
+  const shown = (tab === 'comments' && !commentsTab) || (tab.startsWith('plugin:') && !pluginTab) ? 'toc' : tab;
 
   /** M3 list item on the pane (one tone up from surface-container-low), headline + supporting text */
   const item = 'state-layer block w-full rounded-lg bg-surface-container px-4 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary';
@@ -1009,7 +1015,7 @@ function NoteInspectorPane({
       </div>
 
       {/* M3 primary tabs: icon above the label, a 3 dp primary indicator under the active one, a divider below the row */}
-      <div role="tablist" aria-label={t('note.paneTitle')} className={`grid shrink-0 border-b border-outline-variant ${tabs.length > 4 ? 'grid-cols-5' : 'grid-cols-4'}`}>
+      <div role="tablist" aria-label={t('note.paneTitle')} className={`grid shrink-0 border-b border-outline-variant ${tabs.length > 5 ? 'auto-cols-[minmax(4.5rem,1fr)] grid-flow-col overflow-x-auto scrollbar-thin' : tabs.length > 4 ? 'grid-cols-5' : 'grid-cols-4'}`}>
         {tabs.map(({ id, label, Icon, count }) => {
           const active = shown === id;
           return (
@@ -1036,6 +1042,7 @@ function NoteInspectorPane({
 
       <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto scrollbar-thin pr-0.5 pt-2">
         {shown === 'comments' && commentsTab?.panel}
+        {pluginTab && shown === pluginTab.key && <PluginInspectorContent key={`${pluginTab.key}:${noteId}`} tab={pluginTab} canEdit={canEdit} />}
         {shown === 'toc' && <OutlinePanel outline={outline} variables={variables} view={view} canEdit={canEdit} onJump={onJump} />}
         {shown === 'tasks' && <NoteTasksPanel noteId={noteId} tasks={tasks} view={view} canEdit={canEdit} onJump={onJump} />}
 
@@ -1472,6 +1479,8 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
   const inMemory = vault.isMemoryNote(note);
   // Tickets that document their work here get their own section instead of plain backlinks
   const ticketLinks = ticketsDocumentedIn(id);
+  // Inspector panels of the plugins that are on (plugin API 1.3)
+  const pluginTabs = pluginInspectorTabs(note, lang);
   // Tickets and milestones show their fields in the panel above the text, so the frontmatter row stays hidden
   const ticketFields = !focus && (!!ticketOfNote(id) || !!milestoneOfNote(id));
   // A custom note type (`type: custom:<name>`) models where the properties show and whether the frontmatter row does
@@ -1928,6 +1937,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
               mentions={mentions}
               tickets={ticketLinks}
               local={local}
+              plugins={pluginTabs}
               tab={splitTab}
               setTab={panel.setTab}
               onJump={(pos) => jumpToPos(pos, false)}
@@ -1978,6 +1988,7 @@ export function NoteView({ id, isNew }: { id: string; isNew: boolean }) {
                 backlinks={backlinks}
                 mentions={mentions}
                 local={local}
+                plugins={pluginTabs}
                 tab={splitTab}
                 setTab={panel.setTab}
                 onJump={(pos) => jumpToPos(pos, true)}

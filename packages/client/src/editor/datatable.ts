@@ -118,10 +118,18 @@ export function dataTable(
     empty?: string;
     /** Sort column and filter, read at the start and kept up to date, so a rebuilt table keeps them */
     view?: TableView;
+    /** Extra class per column on its cells (plugin tables: `wz-cell-mono`) */
+    cellClass?: (string | null | undefined)[];
+    /** Rows become focusable; a click (outside links, buttons and editable cells) or Enter calls this with the row's index */
+    onRowClick?: (row: number) => void;
+    /** Index of the row shown as selected */
+    selected?: number;
+    /** The first column stays in view while the table scrolls sideways */
+    stickyFirst?: boolean;
   } = {}
 ): HTMLElement {
   const wrap = document.createElement('div');
-  wrap.className = `cm-block-widget wz-table${opts.edit ? ' wz-table-editable' : ''}`;
+  wrap.className = `cm-block-widget wz-table${opts.edit ? ' wz-table-editable' : ''}${opts.stickyFirst ? ' wz-table-sticky' : ''}`;
   const edit = opts.edit;
   const cols = headers.length;
   const columnsEditable = !!(edit?.insertColumn && edit.removeColumn);
@@ -223,13 +231,27 @@ export function dataTable(
       return;
     }
     // Live preview: a click into a body cell edits it (links and buttons keep working)
-    if (!edit || target.closest('a, button, .wz-cell-input')) return;
+    if (target.closest('a, button, input')) return;
     const td = target.closest('td[data-row]') as HTMLElement | null;
-    if (td) {
+    if (edit && td) {
       const cell = { row: Number(td.dataset.row), col: Number(td.dataset.col) };
-      if (cellEditable(cell)) startEdit(cell);
+      if (cellEditable(cell)) {
+        startEdit(cell);
+        return;
+      }
     }
+    const tr = opts.onRowClick ? (target.closest('tbody tr[data-index]') as HTMLElement | null) : null;
+    if (tr && opts.onRowClick) opts.onRowClick(Number(tr.dataset.index));
   });
+  if (opts.onRowClick) {
+    const onRowClick = opts.onRowClick;
+    wrap.addEventListener('keydown', (e) => {
+      const tr = e.target as HTMLElement;
+      if ((e.key !== 'Enter' && e.key !== ' ') || !tr.matches('tbody tr[data-index]')) return;
+      e.preventDefault();
+      onRowClick(Number(tr.dataset.index));
+    });
+  }
 
   /** Replaces a cell's content with an input; Enter/Tab/blur commit, Escape cancels */
   function startEdit(cell: CellRef) {
@@ -368,8 +390,19 @@ export function dataTable(
       ...list.map((r) => {
         const index = rows.indexOf(r);
         const tr = document.createElement('tr');
+        if (opts.onRowClick) {
+          tr.dataset.index = String(index);
+          tr.tabIndex = 0;
+          tr.className = 'wz-row-link';
+        }
+        if (opts.selected === index) {
+          tr.classList.add('wz-row-selected');
+          tr.setAttribute('aria-current', 'true');
+        }
         r.cells.forEach((c, i) => {
           const td = document.createElement('td');
+          const extra = opts.cellClass?.[i];
+          if (extra) td.className = extra;
           if (edit && cellEditable({ row: index, col: i })) {
             td.dataset.row = String(index);
             td.dataset.col = String(i);

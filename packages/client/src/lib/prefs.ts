@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
-export type NoteSplitTab = 'toc' | 'tasks' | 'links' | 'graph' | 'comments';
+/** Inspector tabs; `plugin:<id>:<panel>` are plugins' panels (plugin API 1.3) */
+export type NoteSplitTab = 'toc' | 'tasks' | 'links' | 'graph' | 'comments' | `plugin:${string}`;
 
 const INBOX_ZERO_KEY = 'kladde_inbox_zero';
 const SPLIT_OPEN_KEY = 'kladde_note_split_open';
@@ -26,6 +27,7 @@ function readSplitTab(): NoteSplitTab {
   try {
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(SPLIT_TAB_KEY) : null;
     if (raw === 'toc' || raw === 'tasks' || raw === 'links' || raw === 'graph' || raw === 'comments') return raw;
+    if (raw && /^plugin:[a-z0-9-]+:[a-z0-9-]+$/.test(raw)) return raw as NoteSplitTab;
   } catch {
     // ignore
   }
